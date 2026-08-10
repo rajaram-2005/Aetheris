@@ -1,2 +1,228 @@
-# Aetheris
-Aetheris is a next-generation AI thought partner designed for deep reasoning, creative synthesis, and technical precision. Powered by multimodal intelligence and agentic problem-solving, Aetheris effortlessly writes clean code, analyzes complex data, and refines ideas—delivering clear, actionable intelligence for any workflow.
+# Æ Aetheris
+
+> *Where Raw Intellect Meets Human Intuition.*
+
+**Aetheris** (pronounced *ay-THER-iss*) is a next-generation AI thought partner
+designed for deep reasoning, creative synthesis, and technical precision. Powered
+by multimodal intelligence and agentic problem-solving, Aetheris effortlessly
+writes clean code, analyzes complex data, and refines ideas—delivering clear,
+actionable intelligence for any workflow.
+
+This repository implements the **Aetheris Model Identity & Brand Blueprint** as a
+runnable service: a production-style FastAPI backend that exposes an
+OpenAI-compatible chat-completions API, a model-tier registry, a managed
+system-prompt suite that activates the official Aetheris identity, and a branded
+landing page.
+
+---
+
+## Highlights
+
+- **OpenAI-compatible API** — `POST /v1/chat/completions` with streaming (SSE) and
+  non-streaming responses. Point any existing OpenAI client at Aetheris.
+- **Aetheris `mode` extension** — a single extra field selects the active identity:
+  `general`, `engineering`, `editorial`, or `structured`.
+- **Model-tier registry** — `aetheris-lite` (Flash), `aetheris-pro`, and
+  `aetheris-ultra` (Reasoning Engine), addressable by id or alias.
+- **Production system-prompt suite** — the four official prompts, injected
+  automatically so the Aetheris persona is always active.
+- **Provider abstraction** — runs out-of-the-box with a brand-aware **mock**
+  provider; switch to any OpenAI-compatible endpoint (OpenAI, Groq, Together,
+  vLLM, Ollama, LM Studio) via environment variables.
+- **Typed everywhere** — Pydantic v2 schemas, Python 3.11+ idioms, defensive error
+  handling.
+- **Branded landing page** at `/` using the canonical palette (cosmic indigo
+  `#0B132B`, electric teal `#00B4D8`, crisp white `#F8F9FA`).
+
+---
+
+## Quickstart
+
+Requires Python 3.11+.
+
+```bash
+# 1. Create a virtual environment and install dependencies
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 2. (Optional) configure a real backend — otherwise the mock provider is used
+cp .env.example .env
+#   set AETHERIS_LLM_PROVIDER=openai and AETHERIS_LLM_API_KEY=sk-... to go live
+
+# 3. Run the server (binds 0.0.0.0:8000)
+.venv/bin/uvicorn aetheris.main:app --host 0.0.0.0 --port 8000
+
+#   or: .venv/bin/python -m aetheris.main
+```
+
+Then open:
+
+- `http://localhost:8000/` — branded landing page
+- `http://localhost:8000/docs` — interactive OpenAPI docs
+- `http://localhost:8000/v1/health` — liveness + active provider
+
+---
+
+## Model tiers
+
+| Tier | Alias | Optimized for | Context | Reasoning |
+|------|-------|---------------|---------|-----------|
+| `aetheris-lite` | `flash` | Instant chat, lightweight automation, low latency | 32K | — |
+| `aetheris-pro` | `pro` | The balanced daily workhorse: coding, documents, writing | 128K | — |
+| `aetheris-ultra` | `ultra` | Heavyweight reasoning: proofs, architecture, agent workflows | 256K | ✅ |
+
+List them with `GET /v1/models`. Any tier can run in any mode.
+
+## Inference modes
+
+Each mode activates the Aetheris identity via one of the four production system
+prompts from the blueprint.
+
+| Mode | Identity | Use it for |
+|------|----------|-----------|
+| `general` | Master System Prompt | Default high-level reasoning and synthesis |
+| `engineering` | Engineering (Pair-Programming) | Production-grade code, architecture-first |
+| `editorial` | Editorial (Creative Writing) | Voice-preserving writing coaching |
+| `structured` | Structured Inference Node | Strict, schema-compliant JSON output |
+
+List them with `GET /v1/modes`.
+
+---
+
+## API reference
+
+### `POST /v1/chat/completions`
+
+OpenAI-compatible, extended with `mode`.
+
+```bash
+curl -N http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "aetheris-pro",
+    "mode": "engineering",
+    "stream": true,
+    "messages": [
+      { "role": "user", "content": "Design a rate limiter for a public API." }
+    ]
+  }'
+```
+
+Request fields:
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `model` | `string?` | `aetheris-pro` | Tier id or alias (`flash`/`pro`/`ultra`). |
+| `messages` | `ChatMessage[]` | — | At least one `user` message required. |
+| `mode` | `string?` | `general` | One of the four inference modes. |
+| `stream` | `boolean` | `false` | Stream SSE chunks when `true`. |
+| `temperature` / `max_tokens` / `top_p` / `stop` | various | — | Forwarded to the upstream provider when set. |
+
+The response envelope matches OpenAI (`chat.completion` / `chat.completion.chunk`),
+with an added `mode` field for traceability. When `mode=structured`, the assistant
+content is strict JSON only.
+
+### Other endpoints
+
+| Method & path | Purpose |
+|---------------|---------|
+| `GET /v1/models` | List Aetheris tiers (OpenAI `list` envelope). |
+| `GET /v1/modes` | List inference modes. |
+| `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
+| `GET /v1/health` | Liveness, version, active provider. |
+| `GET /` | Branded landing page. |
+| `GET /docs` | Interactive OpenAPI docs. |
+
+---
+
+## Configuration
+
+All settings are environment variables (prefix `AETHERIS_`), optionally read from
+a `.env` file. See [`.env.example`](.env.example).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AETHERIS_HOST` | `0.0.0.0` | Bind host. |
+| `AETHERIS_PORT` | `8000` | Bind port. |
+| `AETHERIS_LLM_PROVIDER` | `mock` | `mock` (offline) or `openai`. |
+| `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL. |
+| `AETHERIS_LLM_API_KEY` | *(empty)* | API key for the upstream endpoint. |
+| `AETHERIS_LLM_MODEL` | `gpt-4o-mini` | Upstream fallback model. |
+| `AETHERIS_LLM_TIMEOUT` | `120` | Per-request upstream timeout (seconds). |
+
+> If `AETHERIS_LLM_PROVIDER=openai` is set without an API key, Aetheris logs a
+> warning and falls back to the mock provider so the service stays live and
+> diagnosable rather than failing to start.
+
+---
+
+## Architecture
+
+```
+aetheris/
+├── main.py                 # FastAPI app, lifespan, CORS, entrypoint
+├── core/
+│   ├── branding.py         # Canonical brand identity (name, palette, copy)
+│   ├── config.py           # Environment-driven settings (pydantic-settings)
+│   ├── tiers.py            # Model-tier registry + foundation spec
+│   └── modes.py            # Inference modes → system-prompt binding
+├── prompts/
+│   └── system_prompts.py   # The four production system prompts (verbatim)
+├── schemas/
+│   ├── chat.py             # OpenAI-compatible chat request/response/chunk
+│   └── models.py           # Model/mode introspection schemas
+├── services/
+│   ├── llm.py              # Provider interface, PreparedConversation, factory
+│   ├── mock_provider.py    # Brand-aware offline provider (default)
+│   └── openai_provider.py  # OpenAI-compatible forwarding/streaming provider
+└── api/
+    ├── routes.py           # /v1/chat/completions, /v1/models, /v1/modes, …
+    └── landing.py          # Branded HTML landing page (data-driven)
+```
+
+**Request flow:** a chat request is resolved into a `PreparedConversation` (tier
++ mode + the mode's system prompt prepended to the messages), then handed to the
+active `LLMProvider`. The provider returns a `CompletionResult` (non-streaming)
+or an async iterator of text deltas (streaming), which the API layer wraps into
+the OpenAI-compatible wire format.
+
+**Design note:** the brand identity lives in exactly one place
+(`core/branding.py`) and the system prompts in exactly one place
+(`prompts/system_prompts.py`). The tiers, modes, landing page, mock persona, and
+`/v1/identity` endpoint all read from these sources, so the blueprint cannot
+drift across surfaces.
+
+---
+
+## Brand identity (summary)
+
+- **Etymology:** *Aether* (the classical fifth element — pure, unbounded sky and
+  realm of ideas) + *Synthesis* (integrating complex information into new clarity).
+- **Palette:** cosmic indigo `#0B132B`, electric teal `#00B4D8`, crisp white `#F8F9FA`.
+- **Voice:** articulate, insightful, calm, constructive. Honest about uncertainty;
+  breaks complex problems into clear, step-by-step frameworks.
+- **Capabilities:** deep context synthesis · multimodal fluidity · autonomous
+  agentic reasoning · precision code & logic.
+- **Audiences:** developers & engineers · creators & writers · enterprise &
+  researchers.
+
+The complete identity (all copy formats, personality traits, capability list,
+audience positioning) is available machine-readably at `GET /v1/identity`.
+
+---
+
+## Development
+
+```bash
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest        # when tests are added
+.venv/bin/python -m compileall aetheris
+```
+
+The server supports `--reload` for live editing during development.
+
+---
+
+## License
+
+MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
