@@ -63,6 +63,79 @@ Then open:
 
 ---
 
+## Command-line interface
+
+Aetheris ships a self-contained `aetheris` command for working with **every tier
+and every mode directly from the command prompt** — no browser, no server
+required. Inference runs in-process via the same provider layer, so it works
+offline with the brand-aware mock engine and transparently uses your
+OpenAI-compatible backend when configured.
+
+Install it (creates the `aetheris` script):
+
+```bash
+.venv/bin/pip install -e .
+# also runnable as: .venv/bin/python -m aetheris <command>
+```
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `aetheris chat` | Interactive REPL: live streaming, slash commands, switch tier/mode on the fly. |
+| `aetheris ask "<prompt>"` | One-shot prompt. Streams live by default; `--md` buffers and renders Markdown. |
+| `aetheris stream "<prompt>"` | One-shot, explicitly streamed. |
+| `aetheris models` | List the three tiers (table, or `--json`). |
+| `aetheris modes` | List the four modes (table, or `--json`). |
+| `aetheris info` | Full brand identity (palette, taglines, personality, capabilities, audiences). |
+| `aetheris spec` | Architecture + training spec with `blueprint`/`scaffold`/`pending` evidence tags. |
+| `aetheris health` | In-process provider/status. `--base-url URL` probes a running server instead. |
+| `aetheris serve` | Launch the HTTP API (`--host` / `--port` / `--reload`). |
+
+### Common flags (chat / ask / stream)
+
+```
+-m, --model TIER   aetheris-lite|flash | aetheris-pro|pro | aetheris-ultra|ultra
+-M, --mode  MODE   general | engineering | editorial | structured
+    --md           buffer the response and render it as Markdown (non-streaming)
+    --no-color     disable ANSI color
+```
+
+### Examples
+
+```bash
+# One-shot, default tier (Pro) + mode (general), streamed live
+aetheris ask "How should I prioritize a backlog of 40 bugs?"
+
+# Ultra tier in Engineering mode, rendered as Markdown
+aetheris ask -m ultra -M engineering --md "Design a rate limiter for a public API"
+
+# Structured mode emits strict JSON only
+aetheris ask -M structured "Summarize the quarterly risk report for the API gateway"
+
+# Interactive chat — switch tiers/modes mid-conversation
+aetheris chat
+» /model ultra
+» /mode engineering
+» Design a small in-memory rate limiter
+» /quit
+
+# Introspection
+aetheris models --json
+aetheris spec
+
+# Launch the HTTP API from the same command
+aetheris serve --port 8000 --reload
+```
+
+### Chat slash commands
+
+`/model [TIER]` · `/mode [MODE]` · `/models` · `/modes` · `/system` (show active
+system prompt) · `/info` · `/spec` · `/md [on|off]` (toggle Markdown rendering) ·
+`/clear` (clear history) · `/help` · `/quit`.
+
+---
+
 ## Model tiers
 
 | Tier | Alias | Optimized for | Context | Reasoning |
@@ -204,7 +277,10 @@ a `.env` file. See [`.env.example`](.env.example).
 
 ```
 aetheris/
-├── main.py                 # FastAPI app, lifespan, CORS, entrypoint
+├── __init__.py
+├── __main__.py             # `python -m aetheris` → CLI
+├── cli.py                  # the `aetheris` command (chat/ask/stream/models/modes/info/spec/health/serve)
+├── main.py                 # FastAPI app, lifespan, CORS, server entrypoint
 ├── core/
 │   ├── branding.py         # Canonical brand identity (name, palette, copy)
 │   ├── config.py           # Environment-driven settings (pydantic-settings)
@@ -218,11 +294,11 @@ aetheris/
 │   ├── models.py           # Model/mode introspection schemas
 │   └── spec.py             # Architecture/training spec response schemas
 ├── services/
-│   ├── llm.py              # Provider interface, PreparedConversation, factory
+│   ├── llm.py              # Provider interface, shared prepare_conversation, factory
 │   ├── mock_provider.py    # Brand-aware offline provider (default)
 │   └── openai_provider.py  # OpenAI-compatible forwarding/streaming provider
 └── api/
-    ├── routes.py           # /v1/chat/completions, /v1/models, /v1/modes, …
+    ├── routes.py           # /v1/chat/completions, /v1/models, /v1/modes, /v1/architecture, …
     └── landing.py          # Branded HTML landing page (data-driven)
 ```
 

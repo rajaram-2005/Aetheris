@@ -19,14 +19,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from .. import __version__
-from ..core.modes import MODES, get_mode, known_mode_ids
+from ..core.modes import MODES, known_mode_ids
 from ..core.spec import get_spec
-from ..core.tiers import TIERS, foundation_spec, get_tier
+from ..core.tiers import TIERS, foundation_spec
 from ..schemas.chat import (
     ChatCompletionChunk,
     ChatCompletionRequest,
     ChatCompletionResponse,
-    ChatMessage,
     Choice,
     ChoiceMessage,
     ChunkChoice,
@@ -47,6 +46,7 @@ from ..schemas.spec import (
 from ..services.llm import (
     ProviderError,
     get_provider,
+    prepare_conversation,
 )
 from ..services.mock_provider import MockProvider
 
@@ -57,47 +57,29 @@ router = APIRouter()
 
 # --- Request preparation ------------------------------------------------------
 
-def _approx_tokens(text: str) -> int:
-    """Rough token estimate (~4 chars/token) for prompt accounting."""
-    return max(1, len(text) // 4)
-
-
 def _prepare(req: ChatCompletionRequest):
     """Resolve a request into a fully-prepared conversation for generation.
 
-    Resolves the tier (from ``model``) and mode (from ``mode``), then prepends
-    the mode's system prompt so the Aetheris identity is always active.
+    Thin wrapper over the shared ``prepare_conversation`` that maps a
+    ``KeyError`` (unknown tier/mode) to a clean ``400`` response.
     """
-    # KeyError.__str__ wraps the message in quotes; use args[0] for a clean detail.
     def _clean(exc: KeyError) -> str:
+        # KeyError.__str__ wraps the message in quotes; use args[0] instead.
         return exc.args[0] if exc.args else str(exc)
 
     try:
-        tier = get_tier(req.model)
+        return prepare_conversation(
+            req.messages,
+            model=req.model,
+            mode=req.mode,
+            stream=req.stream,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+            top_p=req.top_p,
+            stop=req.stop,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=_clean(exc)) from exc
-
-    try:
-        mode = get_mode(req.mode)
-    except KeyError as exc:
-        raise HTTPException(status_code=400, detail=_clean(exc)) from exc
-
-    # The mode's system prompt is always first; the caller's messages follow
-    # verbatim (including any system messages they supplied).
-    messages = [ChatMessage(role="system", content=mode.system_prompt), *req.messages]
-    est_prompt = sum(_approx_tokens(m.content) for m in messages)
-
-    # Late import to avoid a circular dependency at module load.
-    from ..services.llm import PreparedConversation
-
-    return PreparedConversation(
-        tier=tier,
-        mode=mode,
-        messages=messages,
-        request=req,
-        estimated_prompt_tokens=est_prompt,
-        meta={"tier": tier.id, "mode": mode.id},
-    )
 
 
 # --- Chat completions ---------------------------------------------------------

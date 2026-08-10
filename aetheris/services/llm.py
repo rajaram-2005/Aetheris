@@ -128,6 +128,66 @@ async def close_provider() -> None:
         _provider = None
 
 
+# --- Shared request preparation ----------------------------------------------
+
+def approx_tokens(text: str) -> int:
+    """A rough token estimate (~4 chars/token) suitable for usage accounting."""
+    return max(1, len(text) // 4)
+
+
+def prepare_conversation(
+    messages: list[ChatMessage],
+    *,
+    model: str | None = None,
+    mode: str | None = None,
+    stream: bool = False,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    top_p: float | None = None,
+    stop: str | list[str] | None = None,
+) -> PreparedConversation:
+    """Resolve a tier and mode, then assemble a ``PreparedConversation``.
+
+    The selected mode's system prompt is prepended to ``messages`` so the
+    Aetheris identity is always active regardless of what the caller supplied.
+    ``messages`` must contain at least one ``user`` turn (validated by
+    ``ChatCompletionRequest``).
+
+    Raises:
+        KeyError: If ``model`` or ``mode`` is not a known tier/mode. Callers
+            translate this into the appropriate user-facing error.
+    """
+    # Local imports avoid an import cycle at module load time.
+    from ..core.modes import get_mode
+    from ..core.tiers import get_tier
+
+    tier = get_tier(model)
+    mode = get_mode(mode)
+    prepared_messages = [
+        ChatMessage(role="system", content=mode.system_prompt),
+        *messages,
+    ]
+    est = sum(approx_tokens(m.content) for m in prepared_messages)
+    request = ChatCompletionRequest(
+        model=tier.id,
+        messages=messages,
+        mode=mode.id,
+        stream=stream,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        stop=stop,
+    )
+    return PreparedConversation(
+        tier=tier,
+        mode=mode,
+        messages=prepared_messages,
+        request=request,
+        estimated_prompt_tokens=est,
+        meta={"tier": tier.id, "mode": mode.id},
+    )
+
+
 __all__ = [
     "ProviderError",
     "CompletionResult",
@@ -135,4 +195,6 @@ __all__ = [
     "LLMProvider",
     "get_provider",
     "close_provider",
+    "approx_tokens",
+    "prepare_conversation",
 ]
