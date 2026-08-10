@@ -1,0 +1,140 @@
+{
+  "_comment": "Aetheris architecture & training spec override. Copy this file to 'aetheris_spec.json' (next to the package) or point AETHERIS_SPEC_FILE at it, then fill in the authoritative values from the 'Aetheris Training & Architecture Blueprint (Hermes Agent Foundation)' PDF. Every field is optional — omitted fields fall back to the blueprint-derived defaults. The 'evidence' tags ('blueprint' | 'scaffold' | 'pending') record where each value came from.",
+  "architecture": {
+    "name": "Aetheris",
+    "architecture_type": "decoder-only multimodal transformer",
+    "optimizations": [
+      "long-context comprehension",
+      "structured code execution",
+      "autonomous tool usage"
+    ],
+    "modalities": {
+      "text": true,
+      "code": true,
+      "structured_data": true,
+      "ui_schematics": true,
+      "image": true,
+      "logical_diagrams": true,
+      "evidence": "blueprint"
+    },
+    "alignment": "SFT + DPO instruction alignment",
+    "output_fidelity_domains": [
+      "JSON schemas",
+      "mathematical proofs",
+      "complex natural language interactions"
+    ],
+    "hallucination_policy": "reduced hallucination rates via grounded synthesis",
+    "transformer": {
+      "architecture": "decoder-only multimodal transformer",
+      "num_layers": null,
+      "hidden_size": null,
+      "num_attention_heads": null,
+      "num_key_value_heads": null,
+      "intermediate_size": null,
+      "vocab_size": null,
+      "max_position_embeddings": null,
+      "rope_theta": null,
+      "activation": null,
+      "normalization": null,
+      "tie_word_embeddings": null,
+      "attention_implementation": null,
+      "evidence": "pending",
+      "note": "Populate from the Hermes Agent Foundation blueprint."
+    },
+    "context_windows": {
+      "aetheris-lite": 32768,
+      "aetheris-pro": 131072,
+      "aetheris-ultra": 262144
+    },
+    "evidence": {}
+  },
+  "training": {
+    "name": "Aetheris Training Pipeline",
+    "foundation": "Hermes Agent Foundation",
+    "foundation_status": "populated from aetheris_spec.json override",
+    "alignment_methods": ["SFT", "DPO"],
+    "stages": [
+      {
+        "id": "continued_pretraining",
+        "name": "Domain-Adaptive Continued Pretraining",
+        "phase": "pretraining",
+        "objective": "Adapt the base decoder-only backbone to Aetheris target domains.",
+        "evidence": "pending",
+        "datasets": [],
+        "hyperparameters": {
+          "learning_rate": null,
+          "batch_size_tokens": null,
+          "sequence_length": null,
+          "optimizer": null,
+          "weight_decay": null
+        },
+        "notes": "Fill corpus and schedule from the Hermes blueprint."
+      },
+      {
+        "id": "sft",
+        "name": "Supervised Fine-Tuning (Instruction Alignment)",
+        "phase": "alignment",
+        "objective": "Instruction alignment across code, prose, and JSON.",
+        "evidence": "blueprint",
+        "datasets": [],
+        "hyperparameters": {
+          "learning_rate": null,
+          "batch_size": null,
+          "epochs": null,
+          "optimizer": null,
+          "warmup_ratio": null,
+          "max_seq_length": null
+        },
+        "notes": "Named as 'SFT' in the blueprint."
+      },
+      {
+        "id": "dpo",
+        "name": "Direct Preference Optimization",
+        "phase": "alignment",
+        "objective": "Preference alignment to reduce hallucination and enforce schema fidelity.",
+        "evidence": "blueprint",
+        "datasets": [],
+        "hyperparameters": {
+          "learning_rate": null,
+          "batch_size": null,
+          "beta": null,
+          "epochs": null,
+          "reference_model": null
+        },
+        "notes": "Named as 'DPO' in the blueprint."
+      },
+      {
+        "id": "agent_tuning",
+        "name": "Agentic Tool-Use Instruction Tuning",
+        "phase": "agent",
+        "objective": "Multi-step planning, tool selection, and self-correction.",
+        "evidence": "pending",
+        "datasets": [],
+        "hyperparameters": {
+          "learning_rate": null,
+          "batch_size": null,
+          "rollouts_per_task": null,
+          "max_tool_calls": null,
+          "epochs": null
+        },
+        "notes": "Extends the blueprint's 'autonomous tool usage' capability."
+      },
+      {
+        "id": "evaluation",
+        "name": "Evaluation & Red-Teaming",
+        "phase": "evaluation",
+        "objective": "Validate output fidelity across JSON schemas, math proofs, and NL; gate on hallucination rate.",
+        "evidence": "blueprint",
+        "datasets": [],
+        "hyperparameters": {
+          "benchmarks": null,
+          "human_reviewers": null,
+          "pass_threshold": null,
+          "hallucination_rate_target": null
+        },
+        "notes": "Output-fidelity domains are blueprint-sourced."
+      }
+    ],
+    "evidence": {}
+  }
+}

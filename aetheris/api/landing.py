@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse
 from .. import __version__
 from ..core import branding as b
 from ..core.modes import MODES
+from ..core.spec import get_spec
 from ..core.tiers import TIERS
 
 router = APIRouter()
@@ -77,6 +78,79 @@ async def landing() -> HTMLResponse:
     # Tagline pills for the hero.
     tagline_pills = "\n".join(
         f'<span class="pill">{_esc(t)}</span>' for t in b.TAGLINES
+    )
+
+    # Architecture & training spec (data-driven from core.spec).
+    spec = get_spec()
+    arch = spec.architecture
+    tx = arch.transformer
+
+    modality_labels = [
+        ("Text", arch.modalities.text),
+        ("Code", arch.modalities.code),
+        ("Structured data", arch.modalities.structured_data),
+        ("UI schematics", arch.modalities.ui_schematics),
+        ("Image", arch.modalities.image),
+        ("Logical diagrams", arch.modalities.logical_diagrams),
+    ]
+    modality_chips = " ".join(
+        f'<span class="chip {"on" if on else "off"}">{_esc(label)}</span>'
+        for label, on in modality_labels
+    )
+
+    tx_rows: list[tuple[str, object]] = [
+        ("Architecture", tx.architecture),
+        ("Layers", tx.num_layers),
+        ("Hidden size", tx.hidden_size),
+        ("Attention heads", tx.num_attention_heads),
+        ("KV heads", tx.num_key_value_heads),
+        ("Intermediate size", tx.intermediate_size),
+        ("Vocab size", tx.vocab_size),
+        ("Max positions", tx.max_position_embeddings),
+        ("RoPE theta", tx.rope_theta),
+        ("Activation", tx.activation),
+        ("Normalization", tx.normalization),
+        ("Tied embeddings", tx.tie_word_embeddings),
+        ("Attention impl.", tx.attention_implementation),
+    ]
+    tx_rows_html = "\n".join(
+        f"<li><span>{_esc(label)}</span><b>{'—' if val is None else _esc(str(val))}</b></li>"
+        for label, val in tx_rows
+    )
+
+    def _ev_badge(evidence: str) -> str:
+        cls = {"blueprint": "ev", "scaffold": "ev ev-scaffold", "pending": "ev ev-pending"}.get(
+            evidence, "ev ev-pending"
+        )
+        return f'<span class="{cls}">{_esc(evidence)}</span>'
+
+    arch_evidence = _ev_badge(arch.evidence.get("architecture_type", "blueprint"))
+    tx_evidence = _ev_badge(tx.evidence)
+
+    optimizations_html = "".join(
+        f'<span class="pill">{_esc(o)}</span>' for o in arch.optimizations
+    )
+    fidelity_html = "".join(
+        f'<span class="pill">{_esc(d)}</span>' for d in arch.output_fidelity_domains
+    )
+
+    # Training pipeline stages.
+    stage_rows = "\n".join(
+        f"""
+        <li class="stage">
+          <div class="stage-head">
+            <span class="phase">{_esc(s.phase)}</span>
+            <strong>{_esc(s.name)}</strong>
+            {_ev_badge(s.evidence)}
+          </div>
+          <p class="stage-obj">{_esc(s.objective)}</p>
+          {f'<p class="stage-notes">{_esc(s.notes)}</p>' if s.notes else ''}
+        </li>
+        """
+        for s in spec.training.stages
+    )
+    alignment_html = "".join(
+        f'<span class="pill">{_esc(m)}</span>' for m in spec.training.alignment_methods
     )
 
     html = f"""<!DOCTYPE html>
@@ -178,6 +252,26 @@ async def landing() -> HTMLResponse:
   }}
   pre code {{ background: none; padding: 0; color: inherit; }}
 
+  /* Spec section: evidence badges, modality chips, training stages */
+  .ev {{ font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(0,180,216,0.45); color: #bfeaff; background: rgba(0,180,216,0.08); white-space: nowrap; }}
+  .ev-scaffold {{ border-color: rgba(255,193,77,0.5); color: #ffd98a; background: rgba(255,193,77,0.07); }}
+  .ev-pending {{ border-color: rgba(159,176,208,0.4); color: var(--muted); background: rgba(159,176,208,0.06); }}
+  .chips {{ display: flex; flex-wrap: wrap; gap: 8px; }}
+  .chip {{ font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(159,176,208,0.25); }}
+  .chip.on {{ color: #cfe6ff; border-color: rgba(0,180,216,0.5); background: rgba(0,180,216,0.08); }}
+  .chip.off {{ color: #5b6b8a; text-decoration: line-through; }}
+  .pills {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }}
+  .field-label {{ font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 4px; }}
+  ul.stages {{ list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }}
+  ul.stages .stage {{ background: rgba(0,0,0,0.18); border: 1px solid rgba(159,176,208,0.14); border-radius: 12px; padding: 14px 16px; }}
+  ul.stages .stage-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+  ul.stages .phase {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal); border: 1px solid rgba(0,180,216,0.35); padding: 2px 8px; border-radius: 999px; }}
+  ul.stages strong {{ font-size: 15px; }}
+  ul.stages .stage-obj {{ margin: 8px 0 0; color: #cfe6ff; font-size: 14px; }}
+  ul.stages .stage-notes {{ margin: 6px 0 0; color: var(--muted); font-size: 13px; }}
+  .legend {{ display:flex; gap:14px; flex-wrap:wrap; margin-top:18px; font-size:12px; color: var(--muted); }}
+  .legend span {{ display:inline-flex; align-items:center; gap:6px; }}
+
   footer {{ padding: 40px 0 60px; color: var(--muted); font-size: 13px; border-top: 1px solid rgba(159,176,208,0.12); }}
   footer .row {{ display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }}
   .status-dot {{ display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); margin-right:8px; }}
@@ -210,6 +304,51 @@ async def landing() -> HTMLResponse:
       <h2>Inference modes</h2>
       <p class="section-sub">Each mode activates the official Aetheris identity via a production system prompt. Set <code>mode</code> on any chat request.</p>
       <div class="grid modes">{mode_cards}</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Architecture <span class="ev" style="vertical-align:middle;margin-left:8px">blueprint-sourced</span></h2>
+      <p class="section-sub">A decoder-only multimodal transformer optimized for long-context comprehension, structured code execution, and autonomous tool usage. {arch_evidence}</p>
+      <div class="two-col">
+        <div>
+          <p class="field-label">Optimizations</p>
+          <div class="pills">{optimizations_html}</div>
+          <p class="field-label">Output fidelity domains</p>
+          <div class="pills">{fidelity_html}</div>
+          <p class="field-label">Native modalities</p>
+          <div class="chips">{modality_chips}</div>
+          <p class="field-label">Alignment</p>
+          <div class="pills"><span class="pill">{_esc(arch.alignment)}</span></div>
+          <p class="field-label">Context windows (per tier)</p>
+          <ul class="meta">
+            {''.join(f'<li><span>{_esc(k)}</span><b>{v:,} tokens</b></li>' for k, v in arch.context_windows.items())}
+          </ul>
+        </div>
+        <div>
+          <p class="field-label">Transformer configuration {tx_evidence}</p>
+          <ul class="meta">{tx_rows_html}</ul>
+          <p class="stage-notes" style="margin-top:10px">{_esc(tx.note)}</p>
+        </div>
+      </div>
+      <div class="legend">
+        <span><span class="ev">blueprint</span> from the identity blueprint</span>
+        <span><span class="ev ev-scaffold">scaffold</span> structured placeholder</span>
+        <span><span class="ev ev-pending">pending</span> awaiting Hermes blueprint</span>
+      </div>
+      <p class="section-sub" style="margin-top:18px"><a href="/v1/architecture">GET /v1/architecture</a> · <a href="/v1/spec">GET /v1/spec</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Training pipeline — {_esc(spec.training.foundation)}</h2>
+      <p class="section-sub">{_esc(spec.training.foundation_status)}</p>
+      <p class="field-label">Alignment methods</p>
+      <div class="pills">{alignment_html}</div>
+      <ul class="stages">{stage_rows}</ul>
+      <p class="section-sub" style="margin-top:18px"><a href="/v1/training">GET /v1/training</a></p>
     </div>
   </section>
 

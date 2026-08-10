@@ -128,10 +128,54 @@ content is strict JSON only.
 |---------------|---------|
 | `GET /v1/models` | List Aetheris tiers (OpenAI `list` envelope). |
 | `GET /v1/modes` | List inference modes. |
+| `GET /v1/architecture` | Foundation-model architecture spec (transformer config, modalities, optimizations). |
+| `GET /v1/training` | Training pipeline — the Hermes Agent Foundation stages. |
+| `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
-| `GET /` | Branded landing page. |
+| `GET /` | Branded landing page (now includes Architecture & Training sections). |
 | `GET /docs` | Interactive OpenAPI docs. |
+
+---
+
+## Architecture & training specification
+
+Aetheris separates *identity* (`core/branding.py`) from *how it's built*
+(`core/spec.py`). The spec module encodes the foundation-model architecture and
+the training pipeline with **explicit provenance** on every field:
+
+| Evidence tag | Meaning |
+|--------------|---------|
+| `blueprint` | Sourced from the *Aetheris Model Identity & Brand Blueprint*. |
+| `scaffold` | A structured placeholder with the right shape, awaiting authoritative values. |
+| `pending` | Reserved for the *Aetheris Training & Architecture Blueprint (Hermes Agent Foundation)*. |
+
+**Architecture** (`GET /v1/architecture`) — blueprint-sourced: a decoder-only
+multimodal transformer optimized for long-context comprehension, structured code
+execution, and autonomous tool usage; SFT + DPO instruction alignment; output
+fidelity across JSON schemas, mathematical proofs, and complex natural language;
+per-tier context windows (32K / 128K / 256K). The concrete transformer
+hyperparameters (layers, hidden size, heads, …) are a reference scaffold.
+
+**Training pipeline** (`GET /v1/training`) — the Hermes Agent Foundation program:
+
+1. `continued_pretraining` — domain-adaptive pretraining *(scaffold)*
+2. `sft` — Supervised Fine-Tuning / instruction alignment *(blueprint)*
+3. `dpo` — Direct Preference Optimization / hallucination reduction *(blueprint)*
+4. `agent_tuning` — agentic tool-use instruction tuning *(scaffold)*
+5. `evaluation` — output-fidelity & hallucination-rate gating *(blueprint)*
+
+### Populating the Hermes blueprint details (no code change)
+
+The full spec is overridable from a JSON file. Copy
+[`aetheris/core/aetheris_spec.example.json`](aetheris/core/aetheris_spec.example.json)
+to `aetheris/core/aetheris_spec.json` (or set `AETHERIS_SPEC_FILE` to any path),
+fill in the authoritative values from the Hermes blueprint, and restart. The
+override is a **partial merge**: fields you omit keep their blueprint-derived
+defaults, stages merge by id, and nested objects merge field-by-field — so you
+only need to supply the values the blueprint actually specifies. Malformed or
+missing override files fall back to the defaults with a logged warning rather
+than crashing the service.
 
 ---
 
@@ -165,12 +209,14 @@ aetheris/
 │   ├── branding.py         # Canonical brand identity (name, palette, copy)
 │   ├── config.py           # Environment-driven settings (pydantic-settings)
 │   ├── tiers.py            # Model-tier registry + foundation spec
-│   └── modes.py            # Inference modes → system-prompt binding
+│   ├── modes.py            # Inference modes → system-prompt binding
+│   └── spec.py             # Architecture + training spec (provenance-tagged, JSON-overridable)
 ├── prompts/
 │   └── system_prompts.py   # The four production system prompts (verbatim)
 ├── schemas/
 │   ├── chat.py             # OpenAI-compatible chat request/response/chunk
-│   └── models.py           # Model/mode introspection schemas
+│   ├── models.py           # Model/mode introspection schemas
+│   └── spec.py             # Architecture/training spec response schemas
 ├── services/
 │   ├── llm.py              # Provider interface, PreparedConversation, factory
 │   ├── mock_provider.py    # Brand-aware offline provider (default)

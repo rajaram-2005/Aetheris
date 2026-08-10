@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 
 from .. import __version__
 from ..core.modes import MODES, get_mode, known_mode_ids
+from ..core.spec import get_spec
 from ..core.tiers import TIERS, foundation_spec, get_tier
 from ..schemas.chat import (
     ChatCompletionChunk,
@@ -35,6 +36,14 @@ from ..schemas.chat import (
     now_ts,
 )
 from ..schemas.models import ModelInfo, ModelList, ModeInfo, ModeList
+from ..schemas.spec import (
+    ArchitectureModel,
+    ModalitySupportModel,
+    SpecModel,
+    TrainingPipelineModel,
+    TrainingStageModel,
+    TransformerConfigModel,
+)
 from ..services.llm import (
     ProviderError,
     get_provider,
@@ -230,6 +239,82 @@ async def identity() -> dict:
         }
     )
     return spec
+
+
+# --- Architecture & training spec ---------------------------------------------
+
+def _architecture_to_model(arch) -> ArchitectureModel:
+    return ArchitectureModel(
+        name=arch.name,
+        architecture_type=arch.architecture_type,
+        optimizations=list(arch.optimizations),
+        modalities=ModalitySupportModel(**_dc_dict(arch.modalities)),
+        alignment=arch.alignment,
+        output_fidelity_domains=list(arch.output_fidelity_domains),
+        hallucination_policy=arch.hallucination_policy,
+        transformer=TransformerConfigModel(**_dc_dict(arch.transformer)),
+        context_windows=dict(arch.context_windows),
+        evidence=dict(arch.evidence),
+    )
+
+
+def _training_to_model(training) -> TrainingPipelineModel:
+    return TrainingPipelineModel(
+        name=training.name,
+        foundation=training.foundation,
+        foundation_status=training.foundation_status,
+        alignment_methods=list(training.alignment_methods),
+        stages=[
+            TrainingStageModel(
+                id=s.id,
+                name=s.name,
+                phase=s.phase,
+                objective=s.objective,
+                evidence=s.evidence,
+                datasets=list(s.datasets),
+                hyperparameters=dict(s.hyperparameters),
+                notes=s.notes,
+            )
+            for s in training.stages
+        ],
+        evidence=dict(training.evidence),
+    )
+
+
+def _dc_dict(obj) -> dict:
+    """Flatten a frozen dataclass to a plain dict for Pydantic model construction."""
+    from dataclasses import asdict
+
+    out = asdict(obj)
+    # Normalize tuples -> lists for JSON-friendly Pydantic consumption where needed.
+    for k, v in list(out.items()):
+        if isinstance(v, tuple):
+            out[k] = list(v)
+    return out
+
+
+@router.get("/v1/architecture", response_model=ArchitectureModel)
+async def architecture() -> ArchitectureModel:
+    """Return the Aetheris foundation-model architecture specification."""
+    spec = get_spec()
+    return _architecture_to_model(spec.architecture)
+
+
+@router.get("/v1/training", response_model=TrainingPipelineModel)
+async def training() -> TrainingPipelineModel:
+    """Return the Aetheris training pipeline (Hermes Agent Foundation)."""
+    spec = get_spec()
+    return _training_to_model(spec.training)
+
+
+@router.get("/v1/spec", response_model=SpecModel)
+async def spec() -> SpecModel:
+    """Return the combined architecture + training specification."""
+    s = get_spec()
+    return SpecModel(
+        architecture=_architecture_to_model(s.architecture),
+        training=_training_to_model(s.training),
+    )
 
 
 @router.get("/v1/health")
