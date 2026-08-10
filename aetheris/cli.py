@@ -1,0 +1,751 @@
+"""The Aetheris command-line interface.
+
+A self-contained terminal client for every Aetheris tier and mode, plus a
+``serve`` subcommand to launch the HTTP API. Inference runs in-process via the
+shared provider layer, so the CLI works offline with the brand-aware mock engine
+and transparently uses an OpenAI-compatible backend when configured.
+
+Subcommands:
+    aetheris chat                 interactive REPL (slash commands, live streaming)
+    aetheris ask "<prompt>"       one-shot (streams live; --md renders markdown)
+    aetheris stream "<prompt>"    one-shot, explicitly streamed
+    aetheris models               list tiers (table, or --json)
+    aetheris modes                list modes (table, or --json)
+    aetheris info                 brand identity (or --json)
+    aetheris spec                 architecture + training spec (or --json)
+    aetheris health               provider/status (or --base-url to probe a server)
+    aetheris serve                launch the HTTP API (--host/--port/--reload)
+
+Common flags on chat/ask/stream:
+    -m, --model TIER   aetheris-lite|flash|aetheris-pro|pro|aetheris-ultra|ultra
+    -M, --mode  MODE   general|engineering|editorial|structured
+    --md               buffer the response and render it as Markdown (non-streaming)
+    --no-color         disable ANSI color
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+from typing import Any
+
+from rich.box import ROUNDED
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from . import __version__
+from .core import branding as b
+from .core.modes import MODES, get_mode
+from .core.tiers import TIERS, get_tier
+from .core.config import settings
+
+# Brand palette (hex) used for terminal styling.
+TEAL = "#00B4D8"
+INDIGO = "#0B132B"
+WHITE = "#F8F9FA"
+MUTED = "#9fb0d0"
+AMBER = "#ffc14d"  # used for scaffold/pending evidence badges in the terminal
+
+
+# ---------------------------------------------------------------------------
+# Console factory
+# ---------------------------------------------------------------------------
+
+def _make_console(args: argparse.Namespace | None = None) -> Console:
+    """Build a rich Console honoring a --no-color flag if present."""
+    no_color = bool(getattr(args, "no_color", False)) if args else False
+    return Console(no_color=no_color, highlight=False)
+
+
+def _input_marker(no_color: bool) -> str:
+    """The chat input prompt marker, with truecolor ANSI (teal) unless --no-color.
+
+    Using ``input(marker)`` guarantees the marker is flushed to the terminal
+    before reading, which rich's buffered output cannot reliably do mid-line.
+    """
+    if no_color:
+        return "» "
+    # truecolor teal (0,180,216) — rendered by modern terminals incl. Windows 10+.
+    return "\033[38;2;0;180;216m»\033[0m "
+
+
+# ---------------------------------------------------------------------------
+# Shared renderers (used by subcommands and by chat slash commands)
+# ---------------------------------------------------------------------------
+
+def render_models(console: Console, as_json: bool = False) -> None:
+    """Render the Aetheris tier registry."""
+    if as_json:
+        rows = [
+            {
+                "id": t.id,
+                "alias": t.alias,
+                "display_name": t.display_name,
+                "tagline": t.tagline,
+                "context_window": t.context_window,
+                "max_output_tokens": t.max_output_tokens,
+                "latency_class": t.latency_class,
+                "reasoning": t.reasoning,
+                "capabilities": list(t.capabilities),
+            }
+            for t in TIERS
+        ]
+        console.print_json(json.dumps(rows))
+        return
+
+    table = Table(title="Aetheris model tiers", box=ROUNDED, border_style=TEAL)
+    table.add_column("ID", style=TEAL, no_wrap=True)
+    table.add_column("Alias", style="dim")
+    table.add_column("Display name")
+    table.add_column("Context", justify="right")
+    table.add_column("Max out", justify="right")
+    table.add_column("Latency")
+    table.add_column("Reasoning", justify="center")
+    for t in TIERS:
+        table.add_row(
+            t.id,
+            t.alias,
+            t.display_name,
+            f"{t.context_window:,}",
+            f"{t.max_output_tokens:,}",
+            t.latency_class,
+            "✓" if t.reasoning else "—",
+        )
+    console.print(table)
+
+
+def render_modes(console: Console, as_json: bool = False) -> None:
+    """Render the Aetheris inference modes."""
+    if as_json:
+        rows = [
+            {"id": m.id, "display_name": m.display_name, "description": m.description}
+            for m in MODES
+        ]
+        console.print_json(json.dumps(rows))
+        return
+
+    table = Table(title="Aetheris inference modes", box=ROUNDED, border_style=TEAL)
+    table.add_column("ID", style=TEAL, no_wrap=True)
+    table.add_column("Display name")
+    table.add_column("Description")
+    for m in MODES:
+        table.add_row(m.id, m.display_name, m.description)
+    console.print(table)
+
+
+def render_info(console: Console, as_json: bool = False) -> None:
+    """Render the Aetheris brand identity."""
+    if as_json:
+        payload = {
+            "name": b.NAME,
+            "pronunciation": b.PRONUNCIATION,
+            "etymology": b.ETYMOLOGY,
+            "taglines": list(b.TAGLINES),
+            "palette": b.PALETTE,
+            "brand_vibe": b.BRAND_VIBE,
+            "one_liner": b.ONE_LINER,
+            "micro_copy": b.MICRO_COPY,
+            "short_description": b.SHORT_DESCRIPTION,
+            "full_overview": b.FULL_OVERVIEW,
+            "technical_description": b.TECHNICAL_DESCRIPTION,
+            "personality": b.PERSONALITY,
+            "capabilities": b.CAPABILITIES,
+            "audiences": b.AUDIENCES,
+        }
+        console.print_json(json.dumps(payload))
+        return
+
+    # Palette swatches: a couple of colored spaces followed by the hex code.
+    def swatch(hex_code: str, label: str) -> Text:
+        return Text.assemble(
+            ("  ", f"on {hex_code}"),
+            ("  ", ""),
+            (f"{label} ", ""),
+            (hex_code, TEAL),
+        )
+
+    body = Text()
+    body.append(f"{b.NAME} ", style=f"bold {TEAL}")
+    body.append(f"({b.PRONUNCIATION})\n", style="dim")
+    body.append(b.ETYMOLOGY + "\n\n", style=MUTED)
+    body.append("Taglines\n", style=f"bold {TEAL}")
+    for t in b.TAGLINES:
+        body.append(f"  • {t}\n")
+    body.append("\nPalette\n", style=f"bold {TEAL}")
+    for label, code in (("cosmic indigo", b.COLOR_COSMIC_INDIGO),
+                        ("electric teal", b.COLOR_ELECTRIC_TEAL),
+                        ("crisp white", b.COLOR_CRISP_WHITE)):
+        body.append("  ")
+        body.append(swatch(code, label))
+        body.append("\n")
+    body.append("\nOne-liner\n", style=f"bold {TEAL}")
+    body.append(f"  {b.ONE_LINER}\n", style=WHITE)
+    console.print(Panel(body, title="[bold]Aetheris — brand identity[/bold]",
+                        border_style=TEAL, box=ROUNDED, padding=(1, 2)))
+
+    # Personality + capabilities + audiences as compact tables.
+    ptable = Table(title="Personality & voice", box=ROUNDED, border_style=TEAL, show_header=True)
+    ptable.add_column("Trait", style=TEAL)
+    ptable.add_column("Description")
+    for p in b.PERSONALITY:
+        ptable.add_row(p["trait"], p["description"])
+    console.print(ptable)
+
+    ctable = Table(title="Flagship capabilities", box=ROUNDED, border_style=TEAL, show_header=True)
+    ctable.add_column("Capability", style=TEAL)
+    ctable.add_column("Description")
+    for c in b.CAPABILITIES:
+        ctable.add_row(c["name"], c["description"])
+    console.print(ctable)
+
+    atable = Table(title="Target audiences", box=ROUNDED, border_style=TEAL, show_header=True)
+    atable.add_column("Audience", style=TEAL)
+    atable.add_column("Positioning")
+    for a in b.AUDIENCES:
+        atable.add_row(a["audience"], a["positioning"])
+    console.print(atable)
+
+
+def _ev_style(evidence: str) -> str:
+    """rich style for an evidence badge."""
+    return {
+        "blueprint": TEAL,
+        "scaffold": AMBER,
+        "pending": MUTED,
+    }.get(evidence, MUTED)
+
+
+def render_spec(console: Console, as_json: bool = False) -> None:
+    """Render the architecture + training specification."""
+    # Local import keeps the CLI importable even if spec deps shift.
+    from .core.spec import get_spec
+
+    spec = get_spec()
+    if as_json:
+        console.print_json(json.dumps(spec.to_dict()))
+        return
+
+    arch = spec.architecture
+    tx = arch.transformer
+
+    # Architecture panel.
+    body = Text()
+    body.append(f"{arch.architecture_type}\n", style=f"bold {WHITE}")
+    body.append(f"evidence: {arch.evidence.get('architecture_type', 'blueprint')}\n\n",
+                style=MUTED)
+    body.append("Optimizations\n", style=f"bold {TEAL}")
+    for o in arch.optimizations:
+        body.append(f"  • {o}\n")
+    body.append("\nAlignment: ", style=f"bold {TEAL}")
+    body.append(f"{arch.alignment}\n")
+    body.append("Output fidelity: ", style=f"bold {TEAL}")
+    body.append(", ".join(arch.output_fidelity_domains) + "\n")
+    body.append("Hallucination policy: ", style=f"bold {TEAL}")
+    body.append(f"{arch.hallucination_policy}\n")
+    body.append("\nModalities\n", style=f"bold {TEAL}")
+    mods = [
+        ("text", arch.modalities.text), ("code", arch.modalities.code),
+        ("structured_data", arch.modalities.structured_data),
+        ("ui_schematics", arch.modalities.ui_schematics),
+        ("image", arch.modalities.image), ("logical_diagrams", arch.modalities.logical_diagrams),
+    ]
+    body.append("  " + "  ".join(f"[{'on' if on else 'off'}] {n}" for n, on in mods) + "\n",
+                style=WHITE)
+    console.print(Panel(body, title=f"[bold]Architecture — {arch.name}[/bold]",
+                        border_style=TEAL, box=ROUNDED, padding=(1, 2)))
+
+    # Transformer config table.
+    ttable = Table(title="Transformer configuration", box=ROUNDED, border_style=TEAL, show_header=True)
+    ttable.add_column("Parameter", style=TEAL)
+    ttable.add_column("Value")
+    ttable.add_column("Evidence", justify="right")
+    rows = [
+        ("architecture", tx.architecture), ("num_layers", tx.num_layers),
+        ("hidden_size", tx.hidden_size), ("num_attention_heads", tx.num_attention_heads),
+        ("num_key_value_heads", tx.num_key_value_heads),
+        ("intermediate_size", tx.intermediate_size), ("vocab_size", tx.vocab_size),
+        ("max_position_embeddings", tx.max_position_embeddings),
+        ("rope_theta", tx.rope_theta), ("activation", tx.activation),
+        ("normalization", tx.normalization), ("tie_word_embeddings", tx.tie_word_embeddings),
+        ("attention_implementation", tx.attention_implementation),
+    ]
+    for label, val in rows:
+        ttable.add_row(label, "—" if val is None else str(val), tx.evidence)
+    console.print(ttable)
+    if tx.note:
+        console.print(Text(f"  {tx.note}\n", style=f"italic {MUTED}"))
+
+    # Context windows.
+    cw = Table(title="Context windows (per tier)", box=ROUNDED, border_style=TEAL)
+    cw.add_column("Tier", style=TEAL)
+    cw.add_column("Tokens", justify="right")
+    for k, v in arch.context_windows.items():
+        cw.add_row(k, f"{v:,}")
+    console.print(cw)
+
+    # Training pipeline.
+    tr = spec.training
+    tbody = Text()
+    tbody.append(f"Foundation: {tr.foundation}\n", style=f"bold {WHITE}")
+    tbody.append(f"{tr.foundation_status}\n\n", style=MUTED)
+    tbody.append("Alignment methods: " + ", ".join(tr.alignment_methods) + "\n", style=WHITE)
+    console.print(Panel(tbody, title="[bold]Training pipeline[/bold]",
+                        border_style=TEAL, box=ROUNDED, padding=(1, 2)))
+
+    stable = Table(title="Training stages", box=ROUNDED, border_style=TEAL, show_header=True)
+    stable.add_column("#", justify="right", style="dim")
+    stable.add_column("ID", style=TEAL, no_wrap=True)
+    stable.add_column("Phase")
+    stable.add_column("Stage")
+    stable.add_column("Evidence", justify="right")
+    for i, s in enumerate(tr.stages, 1):
+        stable.add_row(str(i), s.id, s.phase, s.name, Text(s.evidence, style=_ev_style(s.evidence)))
+    console.print(stable)
+    for s in tr.stages:
+        if s.notes:
+            console.print(Text(f"  • {s.id}: {s.notes}", style=f"italic {MUTED}"))
+
+
+# ---------------------------------------------------------------------------
+# Inference helpers
+# ---------------------------------------------------------------------------
+
+async def _stream_to_console(console: Console, provider, prepared) -> str:
+    """Stream deltas live to the console and return the full text."""
+    parts: list[str] = []
+    async for delta in provider.stream(prepared):
+        if delta:
+            parts.append(delta)
+            # Raw output so markdown/code chars are not re-interpreted by rich.
+            console.out(delta, end="")
+            # Flush so each delta is visible immediately (live streaming feel).
+            console.file.flush()
+    console.out("\n")
+    return "".join(parts)
+
+
+async def _complete_to_console(console: Console, provider, prepared, *, markdown: bool) -> str:
+    """Generate a full completion and print it (optionally as Markdown)."""
+    result = await provider.complete(prepared)
+    if markdown:
+        console.print(Markdown(result.text))
+    else:
+        console.print(result.text)
+    console.print()
+    return result.text
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: chat (interactive REPL)
+# ---------------------------------------------------------------------------
+
+HELP_TEXT = """\
+[b]Aetheris chat[/b] — slash commands:
+
+  [teal]/model[/teal] [TIER]   show or switch tier (lite|flash|pro|ultra|aetheris-*)
+  [teal]/mode[/teal]   [MODE]   show or switch mode (general|engineering|editorial|structured)
+  [teal]/models[/teal]          list all tiers
+  [teal]/modes[/teal]           list all modes
+  [teal]/system[/teal]          print the active system prompt
+  [teal]/info[/teal]            brand identity
+  [teal]/spec[/teal]            architecture + training spec
+  [teal]/md[/teal]   [on|off]   toggle Markdown rendering of responses
+  [teal]/clear[/teal]           clear conversation history
+  [teal]/help[/teal], [teal]/?[/teal]        this help
+  [teal]/quit[/teal], [teal]/exit[/teal]     leave the chat
+
+Anything else is sent to the active model. Type [teal]/quit[/teal] or press Ctrl+C/D to exit.\
+"""
+
+
+class _ChatSession:
+    """State for an interactive chat session."""
+
+    def __init__(self, console: Console, model: str | None, mode: str | None, markdown: bool):
+        self.console = console
+        self.history: list[Any] = []  # list[ChatMessage]
+        self.markdown = markdown
+        # Resolve + validate the starting tier/mode immediately.
+        from .schemas.chat import ChatMessage  # noqa: F401  (used in _add)
+        self._ChatMessage = ChatMessage
+        self.tier = get_tier(model)
+        self.mode = get_mode(mode)
+
+    # -- display --
+    def banner(self) -> None:
+        head = Text()
+        head.append("Æ  ", style=f"bold {TEAL}")
+        head.append(f"{b.NAME}", style=f"bold {TEAL}")
+        head.append(f"  v{__version__}\n", style="dim")
+        head.append(b.tagline() + "\n\n", style=MUTED)
+        head.append("model: ", style=MUTED)
+        head.append(f"{self.tier.id}", style=TEAL)
+        head.append("   mode: ", style=MUTED)
+        head.append(f"{self.mode.id}", style=TEAL)
+        head.append("   render: ", style=MUTED)
+        head.append("markdown" if self.markdown else "stream", style=TEAL)
+        head.append("\n", style="")
+        self.console.print(Panel(head, border_style=TEAL, box=ROUNDED, padding=(1, 2)))
+        self.console.print(HELP_TEXT)
+        self.console.print()
+
+    def status_line(self) -> None:
+        self.console.print(
+            f"[{MUTED}]model [bold]{self.tier.id}[/bold] · mode [bold]{self.mode.id}[/bold]"
+            f" · render [bold]{'md' if self.markdown else 'stream'}[/bold][/{MUTED}]"
+        )
+
+    # -- history --
+    def _add(self, role: str, content: str) -> None:
+        self.history.append(self._ChatMessage(role=role, content=content))
+
+    # -- slash commands --
+    def slash(self, line: str) -> bool:
+        """Handle a slash command. Return True if handled, False to exit, None if not a command."""
+        parts = line.strip().split()
+        if not parts or not parts[0].startswith("/"):
+            return None  # not a command
+        cmd = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else None
+
+        if cmd in ("/quit", "/exit"):
+            return False
+        if cmd in ("/help", "/?"):
+            self.console.print(HELP_TEXT)
+            return True
+        if cmd == "/model":
+            if not arg:
+                self.console.print(f"[{MUTED}]current model: [bold]{self.tier.id}[/bold]"
+                                   f" (alias {self.tier.alias})[/{MUTED}]")
+            else:
+                try:
+                    self.tier = get_tier(arg)
+                    self.console.print(f"[{TEAL}]model → {self.tier.id}[/{TEAL}]")
+                except KeyError as exc:
+                    self.console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
+            return True
+        if cmd == "/mode":
+            if not arg:
+                self.console.print(f"[{MUTED}]current mode: [bold]{self.mode.id}[/bold][/{MUTED}]")
+            else:
+                try:
+                    self.mode = get_mode(arg)
+                    self.console.print(f"[{TEAL}]mode → {self.mode.id}[/{TEAL}]")
+                except KeyError as exc:
+                    self.console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
+            return True
+        if cmd == "/models":
+            render_models(self.console)
+            return True
+        if cmd == "/modes":
+            render_modes(self.console)
+            return True
+        if cmd == "/system":
+            self.console.print(Panel(self.mode.system_prompt,
+                                     title=f"[bold]system prompt · {self.mode.id}[/bold]",
+                                     border_style=TEAL, box=ROUNDED))
+            return True
+        if cmd == "/info":
+            render_info(self.console)
+            return True
+        if cmd == "/spec":
+            render_spec(self.console)
+            return True
+        if cmd == "/md":
+            if arg in ("on", "true", "1"):
+                self.markdown = True
+            elif arg in ("off", "false", "0"):
+                self.markdown = False
+            else:
+                self.markdown = not self.markdown
+            self.console.print(f"[{TEAL}]render → {'markdown' if self.markdown else 'stream'}[/{TEAL}]")
+            return True
+        if cmd == "/clear":
+            self.history.clear()
+            self.console.print(f"[{TEAL}]conversation cleared[/{TEAL}]")
+            return True
+        self.console.print(f"[red]unknown command:[/red] {cmd}  (try [teal]/help[/teal])")
+        return True
+
+
+async def _chat_async(args: argparse.Namespace) -> int:
+    console = _make_console(args)
+    from .services.llm import close_provider, get_provider, prepare_conversation
+
+    try:
+        session = _ChatSession(console, args.model, args.mode, args.markdown)
+    except KeyError as exc:
+        console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
+        return 2
+    session.banner()
+
+    provider = get_provider()
+    marker = _input_marker(args.no_color)
+    try:
+        while True:
+            try:
+                # input(marker) flushes the colored marker before reading.
+                line = await asyncio.to_thread(input, marker)
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[dim]goodbye.[/dim]")
+                break
+            text = line.strip()
+            if not text:
+                continue
+
+            handled = session.slash(text)
+            if handled is False:  # /quit or /exit
+                console.print("[dim]goodbye.[/dim]")
+                break
+            if handled is True:  # a slash command was handled
+                continue
+            # handled is None → it's a user message.
+            session._add("user", text)
+            try:
+                prepared = prepare_conversation(
+                    list(session.history), model=session.tier.id, mode=session.mode.id
+                )
+            except KeyError as exc:
+                console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
+                continue
+            console.print()
+            try:
+                if session.markdown:
+                    reply = await _complete_to_console(console, provider, prepared, markdown=True)
+                else:
+                    reply = await _stream_to_console(console, provider, prepared)
+            except Exception as exc:  # noqa: BLE001 - surface provider errors inline
+                console.print(f"[red]generation error:[/red] {exc}")
+                continue
+            session._add("assistant", reply)
+            console.print()
+    finally:
+        await close_provider()
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: ask / stream (one-shot)
+# ---------------------------------------------------------------------------
+
+async def _ask_async(args: argparse.Namespace) -> int:
+    console = _make_console(args)
+    from .schemas.chat import ChatMessage
+    from .services.llm import close_provider, get_provider, prepare_conversation
+
+    prompt = " ".join(args.prompt).strip()
+    if not prompt:
+        console.print("[red]error:[/red] no prompt provided.")
+        return 2
+
+    messages = [ChatMessage(role="user", content=prompt)]
+    try:
+        prepared = prepare_conversation(
+            messages, model=args.model, mode=args.mode,
+            temperature=args.temperature, max_tokens=args.max_tokens, top_p=args.top_p,
+        )
+    except KeyError as exc:
+        console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
+        return 2
+
+    # Header line showing the resolved tier/mode.
+    console.print(
+        f"[{MUTED}]model [bold]{prepared.tier.id}[/bold] · mode [bold]{prepared.mode.id}[/bold]"
+        f" · render [bold]{'md' if args.markdown else 'stream'}[/bold][/{MUTED}]\n"
+    )
+
+    provider = get_provider()
+    try:
+        try:
+            if args.markdown:
+                await _complete_to_console(console, provider, prepared, markdown=True)
+            else:
+                await _stream_to_console(console, provider, prepared)
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[red]generation error:[/red] {exc}")
+            return 1
+    finally:
+        await close_provider()
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: health
+# ---------------------------------------------------------------------------
+
+async def _health_async(args: argparse.Namespace) -> int:
+    console = _make_console(args)
+
+    if args.base_url:
+        import httpx
+        url = args.base_url.rstrip("/") + "/v1/health"
+        try:
+            async with httpx.AsyncClient(timeout=args.timeout) as client:
+                resp = await client.get(url)
+                data = resp.json()
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"[red]could not reach {url}:[/red] {exc}")
+            return 1
+        if args.json:
+            console.print_json(json.dumps(data))
+        else:
+            console.print(f"[{TEAL}]server health — {url}[/{TEAL}]")
+            for k, v in data.items():
+                console.print(f"  [{MUTED}]{k:<20}[/]  {v}")
+        return 0
+
+    # In-process status (no server required).
+    from .services.llm import close_provider, get_provider
+    from .services.mock_provider import MockProvider
+
+    provider = get_provider()
+    name = getattr(provider, "provider_name", type(provider).__name__)
+    data = {
+        "status": "ok",
+        "version": __version__,
+        "provider": name,
+        "is_mock": isinstance(provider, MockProvider),
+        "configured_provider": settings.llm_provider,
+        "default_model": "aetheris-pro",
+        "default_mode": "general",
+        "llm_base_url": settings.llm_base_url,
+        "has_credentials": settings.has_credentials,
+    }
+    await close_provider()
+    if args.json:
+        console.print_json(json.dumps(data))
+    else:
+        console.print(f"[{TEAL}]Aetheris v{__version__} — in-process status[/{TEAL}]")
+        for k, v in data.items():
+            console.print(f"  [{MUTED}]{k:<20}[/]  {v}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: serve
+# ---------------------------------------------------------------------------
+
+def _serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    host = args.host or settings.host
+    port = args.port or settings.port
+    print(f"Aetheris v{__version__} — serving HTTP API on http://{host}:{port}")
+    uvicorn.run(
+        "aetheris.main:app",
+        host=host,
+        port=port,
+        reload=bool(args.reload),
+        log_level=args.log_level,
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Argument parsing + dispatch
+# ---------------------------------------------------------------------------
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="aetheris",
+        description=(
+            "Aetheris — a next-generation AI thought partner. "
+            "Chat with every tier and mode from the command prompt."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--version", action="version", version=f"aetheris {__version__}")
+    p.add_argument("--no-color", action="store_true", help="disable ANSI color output")
+    sub = p.add_subparsers(dest="command", metavar="<command>")
+
+    # chat
+    chat = sub.add_parser("chat", help="interactive REPL with live streaming")
+    _add_inference_flags(chat)
+    chat.set_defaults(func=_chat_async, is_async=True)
+
+    # ask
+    ask = sub.add_parser("ask", help="one-shot prompt (streams live; --md renders markdown)")
+    _add_inference_flags(ask)
+    ask.add_argument("prompt", nargs="+", help="the prompt (quoted or space-joined)")
+    ask.set_defaults(func=_ask_async, is_async=True)
+
+    # stream (explicit alias)
+    stream = sub.add_parser("stream", help="one-shot prompt, explicitly streamed")
+    _add_inference_flags(stream)
+    stream.add_argument("prompt", nargs="+", help="the prompt (quoted or space-joined)")
+    stream.set_defaults(func=_ask_async, is_async=True, markdown=False)
+
+    # models / modes / info / spec
+    mp = sub.add_parser("models", help="list Aetheris tiers")
+    mp.add_argument("--json", action="store_true", help="emit JSON")
+    mp.set_defaults(func=lambda a: (render_models(_make_console(a), a.json), 0)[1], is_async=False)
+
+    mp2 = sub.add_parser("modes", help="list inference modes")
+    mp2.add_argument("--json", action="store_true", help="emit JSON")
+    mp2.set_defaults(func=lambda a: (render_modes(_make_console(a), a.json), 0)[1], is_async=False)
+
+    ip = sub.add_parser("info", help="show brand identity")
+    ip.add_argument("--json", action="store_true", help="emit JSON")
+    ip.set_defaults(func=lambda a: (render_info(_make_console(a), a.json), 0)[1], is_async=False)
+
+    sp = sub.add_parser("spec", help="show architecture + training spec")
+    sp.add_argument("--json", action="store_true", help="emit JSON")
+    sp.set_defaults(func=lambda a: (render_spec(_make_console(a), a.json), 0)[1], is_async=False)
+
+    # health
+    hp = sub.add_parser("health", help="provider/status, or probe a running server")
+    hp.add_argument("--base-url", default=None, help="probe a running Aetheris server at this URL")
+    hp.add_argument("--timeout", type=float, default=5.0, help="probe timeout (seconds)")
+    hp.add_argument("--json", action="store_true", help="emit JSON")
+    hp.set_defaults(func=_health_async, is_async=True)
+
+    # serve
+    sv = sub.add_parser("serve", help="launch the HTTP API")
+    sv.add_argument("--host", default=None, help="bind host (default: from settings)")
+    sv.add_argument("--port", type=int, default=None, help="bind port (default: from settings)")
+    sv.add_argument("--reload", action="store_true", help="auto-reload on file changes")
+    sv.add_argument("--log-level", default="info",
+                    choices=["critical", "error", "warning", "info", "debug", "trace"])
+    sv.set_defaults(func=_serve, is_async=False)
+
+    return p
+
+
+def _add_inference_flags(p: argparse.ArgumentParser) -> None:
+    """Add the common model/mode/render flags to a subparser."""
+    p.add_argument("-m", "--model", default=None,
+                   help="tier: aetheris-lite|flash|aetheris-pro|pro|aetheris-ultra|ultra")
+    p.add_argument("-M", "--mode", default=None,
+                   help="mode: general|engineering|editorial|structured")
+    p.add_argument("--md", dest="markdown", action="store_true",
+                   help="buffer and render the response as Markdown (non-streaming)")
+    p.add_argument("--temperature", type=float, default=None)
+    p.add_argument("--max-tokens", type=int, default=None)
+    p.add_argument("--top-p", type=float, default=None)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point."""
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if not getattr(args, "command", None):
+        parser.print_help()
+        return 0
+
+    func = args.func
+    if getattr(args, "is_async", False):
+        return asyncio.run(func(args))
+    result = func(args)
+    return int(result or 0)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
+
+
+__all__ = ["main"]
