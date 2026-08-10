@@ -202,7 +202,7 @@ content is strict JSON only.
 | `GET /v1/models` | List Aetheris tiers (OpenAI `list` envelope). |
 | `GET /v1/modes` | List inference modes. |
 | `GET /v1/architecture` | Foundation-model architecture spec (transformer config, modalities, optimizations). |
-| `GET /v1/training` | Training pipeline — the Hermes Agent Foundation stages. |
+| `GET /v1/training` | Training pipeline — the Hermes Agent + Meta-Learning stages. |
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
@@ -230,13 +230,18 @@ fidelity across JSON schemas, mathematical proofs, and complex natural language;
 per-tier context windows (32K / 128K / 256K). The concrete transformer
 hyperparameters (layers, hidden size, heads, …) are a reference scaffold.
 
-**Training pipeline** (`GET /v1/training`) — the Hermes Agent Foundation program:
+**Training pipeline** (`GET /v1/training`) — the **Hermes Agent + Meta-Learning**
+program, a two-pillar foundation: the Hermes Agent program (agentic tool use and
+self-correction) plus a Meta-Learning pillar (learning-to-learn, sample-efficient
+adaptation). Alignment methods `SFT`, `DPO`; meta-learning methods `MAML`,
+`Reptile`, `few-shot adaptation`, `in-context learning tuning`.
 
 1. `continued_pretraining` — domain-adaptive pretraining *(scaffold)*
 2. `sft` — Supervised Fine-Tuning / instruction alignment *(blueprint)*
 3. `dpo` — Direct Preference Optimization / hallucination reduction *(blueprint)*
 4. `agent_tuning` — agentic tool-use instruction tuning *(scaffold)*
-5. `evaluation` — output-fidelity & hallucination-rate gating *(blueprint)*
+5. `meta_learning` — learning-to-learn / few-shot adaptation *(scaffold)*
+6. `evaluation` — output-fidelity & hallucination-rate gating *(blueprint)*
 
 ### Populating the Hermes blueprint details (no code change)
 

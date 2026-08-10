@@ -246,6 +246,7 @@ def _training_to_model(training) -> TrainingPipelineModel:
         foundation=training.foundation,
         foundation_status=training.foundation_status,
         alignment_methods=list(training.alignment_methods),
+        meta_learning_methods=list(training.meta_learning_methods),
         stages=[
             TrainingStageModel(
                 id=s.id,
@@ -284,7 +285,7 @@ async def architecture() -> ArchitectureModel:
 
 @router.get("/v1/training", response_model=TrainingPipelineModel)
 async def training() -> TrainingPipelineModel:
-    """Return the Aetheris training pipeline (Hermes Agent Foundation)."""
+    """Return the Aetheris training pipeline (Hermes Agent + Meta-Learning)."""
     spec = get_spec()
     return _training_to_model(spec.training)
 

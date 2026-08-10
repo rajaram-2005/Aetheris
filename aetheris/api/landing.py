@@ -152,6 +152,9 @@ async def landing() -> HTMLResponse:
     alignment_html = "".join(
         f'<span class="pill">{_esc(m)}</span>' for m in spec.training.alignment_methods
     )
+    meta_learning_html = "".join(
+        f'<span class="pill">{_esc(m)}</span>' for m in spec.training.meta_learning_methods
+    )
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -347,6 +350,8 @@ async def landing() -> HTMLResponse:
       <p class="section-sub">{_esc(spec.training.foundation_status)}</p>
       <p class="field-label">Alignment methods</p>
       <div class="pills">{alignment_html}</div>
+      <p class="field-label">Meta-learning methods</p>
+      <div class="pills">{meta_learning_html}</div>
       <ul class="stages">{stage_rows}</ul>
       <p class="section-sub" style="margin-top:18px"><a href="/v1/training">GET /v1/training</a></p>
     </div>

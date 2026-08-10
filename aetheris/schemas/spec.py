@@ -64,6 +64,7 @@ class TrainingPipelineModel(BaseModel):
     foundation: str
     foundation_status: str
     alignment_methods: list[str]
+    meta_learning_methods: list[str] = Field(default_factory=list)
     stages: list[TrainingStageModel]
     evidence: dict[str, str] = Field(default_factory=dict)
 

@@ -293,6 +293,11 @@ def render_spec(console: Console, as_json: bool = False) -> None:
     tbody.append(f"Foundation: {tr.foundation}\n", style=f"bold {WHITE}")
     tbody.append(f"{tr.foundation_status}\n\n", style=MUTED)
     tbody.append("Alignment methods: " + ", ".join(tr.alignment_methods) + "\n", style=WHITE)
+    if tr.meta_learning_methods:
+        tbody.append(
+            "Meta-learning methods: " + ", ".join(tr.meta_learning_methods) + "\n",
+            style=WHITE,
+        )
     console.print(Panel(tbody, title="[bold]Training pipeline[/bold]",
                         border_style=TEAL, box=ROUNDED, padding=(1, 2)))
 
