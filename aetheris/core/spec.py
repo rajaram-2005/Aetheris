@@ -143,6 +143,15 @@ HP_SUPERVISED = ("learning_rate", "batch_size", "epochs", "optimizer", "warmup_r
 HP_PREFERENCE = ("learning_rate", "batch_size", "beta", "epochs", "reference_model")
 HP_AGENT = ("learning_rate", "batch_size", "rollouts_per_task", "max_tool_calls", "epochs")
 HP_PRETRAIN = ("learning_rate", "batch_size_tokens", "sequence_length", "optimizer", "weight_decay")
+HP_META = (
+    "method",
+    "inner_learning_rate",
+    "outer_learning_rate",
+    "inner_steps",
+    "meta_batch_size",
+    "support_shots",
+    "epochs",
+)
 HP_EVAL = ("benchmarks", "human_reviewers", "pass_threshold", "hallucination_rate_target")
 
 
@@ -210,6 +219,24 @@ _STAGES: tuple[TrainingStage, ...] = (
         ),
     ),
     TrainingStage(
+        id="meta_learning",
+        name="Meta-Learning (Learning-to-Learn Adaptation)",
+        phase="meta",
+        objective=(
+            "Train a learning-to-learn capability so Aetheris rapidly adapts to "
+            "novel tasks, tools, and domains from few examples — improving "
+            "in-context generalization and sample-efficient fine-tuning."
+        ),
+        evidence="scaffold",
+        datasets=(),
+        hyperparameters=_empty_hp(HP_META),
+        notes=(
+            "Second pillar of the Hermes Agent + Meta-Learning foundation. "
+            "Methods (e.g. MAML, Reptile, few-shot adaptation) and concrete "
+            "hyperparameters are representative scaffolds pending authoritative values."
+        ),
+    ),
+    TrainingStage(
         id="evaluation",
         name="Evaluation & Red-Teaming",
         phase="evaluation",
@@ -230,25 +257,34 @@ _STAGES: tuple[TrainingStage, ...] = (
 
 @dataclass(frozen=True)
 class TrainingPipeline:
-    """The Aetheris training pipeline (Hermes Agent Foundation)."""
+    """The Aetheris training pipeline (Hermes Agent + Meta-Learning)."""
 
     name: str = "Aetheris Training Pipeline"
-    foundation: str = "Hermes Agent Foundation"
+    foundation: str = "Hermes Agent + Meta-Learning"
     foundation_status: str = (
-        "pending — source PDF (Aetheris Training & Architecture Blueprint, "
-        "Hermes Agent Foundation) not yet ingested. Sourced facts are populated; "
-        "scaffold fields await authoritative values."
+        "Two-pillar foundation: the Hermes Agent program (source PDF pending "
+        "ingestion) plus a Meta-Learning pillar for learning-to-learn "
+        "adaptation. Sourced facts are populated; scaffold fields await "
+        "authoritative values."
     )
     alignment_methods: tuple[str, ...] = ("SFT", "DPO")
+    meta_learning_methods: tuple[str, ...] = (
+        "MAML",
+        "Reptile",
+        "few-shot adaptation",
+        "in-context learning tuning",
+    )
     stages: tuple[TrainingStage, ...] = _STAGES
     evidence: dict[str, Evidence] = field(
         default_factory=lambda: {
             "alignment_methods": "blueprint",
+            "meta_learning_methods": "scaffold",
             "stages.sft": "blueprint",
             "stages.dpo": "blueprint",
             "stages.evaluation": "blueprint",
             "stages.continued_pretraining": "scaffold",
             "stages.agent_tuning": "scaffold",
+            "stages.meta_learning": "scaffold",
             "foundation": "pending",
         }
     )
@@ -372,6 +408,9 @@ def _build_spec_from_dict(data: dict[str, Any]) -> Spec:
         foundation_status=pick(train_data, "foundation_status", base_train.foundation_status),
         alignment_methods=tuple(
             pick(train_data, "alignment_methods", base_train.alignment_methods)
+        ),
+        meta_learning_methods=tuple(
+            pick(train_data, "meta_learning_methods", base_train.meta_learning_methods)
         ),
         stages=_merge_stages(base_train.stages, train_data.get("stages")),
         evidence=dict(pick(train_data, "evidence", base_train.evidence)),

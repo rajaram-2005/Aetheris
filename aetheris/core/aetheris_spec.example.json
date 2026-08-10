@@ -50,9 +50,10 @@
   },
   "training": {
     "name": "Aetheris Training Pipeline",
-    "foundation": "Hermes Agent Foundation",
+    "foundation": "Hermes Agent + Meta-Learning",
     "foundation_status": "populated from aetheris_spec.json override",
     "alignment_methods": ["SFT", "DPO"],
+    "meta_learning_methods": ["MAML", "Reptile", "few-shot adaptation", "in-context learning tuning"],
     "stages": [
       {
         "id": "continued_pretraining",
@@ -118,6 +119,24 @@
           "epochs": null
         },
         "notes": "Extends the blueprint's 'autonomous tool usage' capability."
+      },
+      {
+        "id": "meta_learning",
+        "name": "Meta-Learning (Learning-to-Learn Adaptation)",
+        "phase": "meta",
+        "objective": "Learning-to-learn adaptation: rapid few-shot generalization to novel tasks, tools, and domains.",
+        "evidence": "scaffold",
+        "datasets": [],
+        "hyperparameters": {
+          "method": null,
+          "inner_learning_rate": null,
+          "outer_learning_rate": null,
+          "inner_steps": null,
+          "meta_batch_size": null,
+          "support_shots": null,
+          "epochs": null
+        },
+        "notes": "Second pillar of the Hermes Agent + Meta-Learning foundation."
       },
       {
         "id": "evaluation",
