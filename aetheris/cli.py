@@ -315,9 +315,186 @@ def render_spec(console: Console, as_json: bool = False) -> None:
             console.print(Text(f"  • {s.id}: {s.notes}", style=f"italic {MUTED}"))
 
 
+def render_tools(console: Console, as_json: bool = False) -> None:
+    """Render the executable toolbelt."""
+    from .tools import all_tools
+
+    tools = all_tools(include_disabled=True)
+    if as_json:
+        console.print_json(json.dumps([
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters,
+                "enabled": t.enabled,
+                "tags": list(t.tags),
+                "requires_optin": t.requires_optin,
+            }
+            for t in tools
+        ]))
+        return
+
+    table = Table(title="Aetheris toolbelt", box=ROUNDED, border_style=TEAL)
+    table.add_column("Tool", style=TEAL, no_wrap=True)
+    table.add_column("Status", justify="center")
+    table.add_column("Tags", style="dim")
+    table.add_column("What it does")
+    for tool in tools:
+        table.add_row(
+            tool.name,
+            "[green]live[/green]" if tool.enabled else f"[{AMBER}]off[/{AMBER}]",
+            ", ".join(tool.tags) or "—",
+            tool.description.split(". ")[0] + ".",
+        )
+    console.print(table)
+
+
+def render_capabilities(console: Console, as_json: bool = False) -> None:
+    """Render which capabilities are live in this process."""
+    from .core.modes import known_mode_ids
+    from .tools import all_tools
+    from .tools.retrieval import get_index
+
+    report = settings.capability_report()
+    if as_json:
+        console.print_json(json.dumps({
+            "capabilities": report,
+            "tools": [t.name for t in all_tools()],
+            "modes": list(known_mode_ids()),
+            "documents_indexed": len(get_index().documents),
+        }))
+        return
+
+    table = Table(title="Aetheris capabilities", box=ROUNDED, border_style=TEAL)
+    table.add_column("Capability", style=TEAL, no_wrap=True)
+    table.add_column("State", justify="center")
+    table.add_column("Notes")
+    notes = {
+        "tools": "Executable toolbelt exposed to the model",
+        "agent": "Plan → call tools → observe → self-correct loop",
+        "agent_default_on": "Run every request through the agent loop",
+        "agent_max_iterations": "Tool-calling rounds per request",
+        "code_sandbox": "Isolated subprocess Python execution",
+        "sandbox_network": "Outbound sockets from sandboxed code",
+        "retrieval": "BM25 document search (RAG)",
+        "retrieval_auto_context": "Auto-ground plain chat with mounted docs",
+        "vision": "Image content parts accepted",
+        "web_access": "Outbound HTTP via web_fetch",
+        "sovereign_mode": "Unrestricted expert mode available",
+    }
+    for key, value in report.items():
+        if isinstance(value, bool):
+            state = "[green]on[/green]" if value else f"[{MUTED}]off[/{MUTED}]"
+        else:
+            state = f"[{TEAL}]{value}[/{TEAL}]"
+        table.add_row(key, state, notes.get(key, ""))
+    console.print(table)
+    console.print(
+        f"[{MUTED}]{len(all_tools())} tool(s) live · "
+        f"{len(get_index().documents)} document(s) indexed · "
+        f"modes: {', '.join(known_mode_ids())}[/{MUTED}]"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Inference helpers
 # ---------------------------------------------------------------------------
+
+def _mount_documents(console: Console, paths: list[str] | None) -> int:
+    """Index local files so ``document_search`` can retrieve from them."""
+    if not paths:
+        return 0
+    from pathlib import Path
+
+    from .tools.retrieval import get_index
+
+    index = get_index()
+    mounted = 0
+    for raw in paths:
+        path = Path(raw).expanduser()
+        if not path.is_file():
+            console.print(f"[red]warning:[/red] no such file: {path}")
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            console.print(f"[red]warning:[/red] could not read {path}: {exc}")
+            continue
+        document = index.add(text, title=path.name, source="cli", metadata={"path": str(path)})
+        console.print(
+            f"[{MUTED}]mounted [bold]{document.title}[/bold] "
+            f"({document.char_count:,} chars, {len(document.chunk_ids)} chunks)[/{MUTED}]"
+        )
+        mounted += 1
+    return mounted
+
+
+def _build_user_message(prompt: str, images: list[str] | None):
+    """Build a user turn, attaching images as multimodal content parts."""
+    from .schemas.chat import ChatMessage, ImagePart, ImageURL, TextPart
+
+    if not images:
+        return ChatMessage(role="user", content=prompt)
+
+    import base64
+    import mimetypes
+    from pathlib import Path
+
+    parts: list = [TextPart(text=prompt)]
+    for raw in images:
+        if raw.startswith(("http://", "https://", "data:")):
+            parts.append(ImagePart(image_url=ImageURL(url=raw)))
+            continue
+        path = Path(raw).expanduser()
+        if not path.is_file():
+            raise ValueError(f"no such image: {path}")
+        mime = mimetypes.guess_type(path.name)[0] or "image/png"
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        parts.append(ImagePart(image_url=ImageURL(url=f"data:{mime};base64,{encoded}")))
+    return ChatMessage(role="user", content=parts)
+
+
+def _inference_kwargs(args: argparse.Namespace) -> dict:
+    """Translate CLI capability flags into ``prepare_conversation`` kwargs."""
+    tools = getattr(args, "tools", None)
+    agent = bool(getattr(args, "agent", False))
+    if agent and tools is None:
+        tools = "auto"
+    return {
+        "tools": tools,
+        "agent": agent,
+        "max_tool_iterations": getattr(args, "max_tool_iterations", None),
+    }
+
+
+async def _agent_to_console(console: Console, provider, prepared, *, markdown: bool) -> str:
+    """Run the agent loop, printing each executed tool call as it happens."""
+    from .services.agent import stream_agent
+
+    parts: list[str] = []
+    async for event, payload in stream_agent(prepared, provider):
+        if event == "tool":
+            status = "[green]✓[/green]" if payload.ok else "[red]✗[/red]"
+            console.print(
+                f"{status} [bold {TEAL}]{payload.tool}[/bold {TEAL}] "
+                f"[{MUTED}]{payload.duration_ms}ms[/{MUTED}]"
+            )
+            body = payload.output if payload.ok else (payload.error or "failed")
+            snippet = body if len(body) <= 600 else body[:600] + "\n… [truncated]"
+            console.print(Panel(snippet, border_style=MUTED, box=ROUNDED, expand=False))
+            continue
+        parts.append(payload)
+        if not markdown:
+            console.out(payload, end="")
+            console.file.flush()
+
+    text = "".join(parts)
+    if markdown:
+        console.print(Markdown(text))
+    else:
+        console.out("\n")
+    return text
+
 
 async def _stream_to_console(console: Console, provider, prepared) -> str:
     """Stream deltas live to the console and return the full text."""
@@ -352,9 +529,14 @@ HELP_TEXT = """\
 [b]Aetheris chat[/b] — slash commands:
 
   [teal]/model[/teal] [TIER]   show or switch tier (lite|flash|pro|ultra|aetheris-*)
-  [teal]/mode[/teal]   [MODE]   show or switch mode (general|engineering|editorial|structured)
+  [teal]/mode[/teal]   [MODE]   show or switch mode (general|engineering|editorial|structured|sovereign)
   [teal]/models[/teal]          list all tiers
   [teal]/modes[/teal]           list all modes
+  [teal]/agent[/teal] [on|off]  toggle agentic tool use (plan → call tools → self-correct)
+  [teal]/tools[/teal]           list the executable toolbelt
+  [teal]/mount[/teal] PATH      index a file so /agent can search it
+  [teal]/docs[/teal]            list mounted documents
+  [teal]/image[/teal] PATH|URL  attach an image to the next message
   [teal]/system[/teal]          print the active system prompt
   [teal]/info[/teal]            brand identity
   [teal]/spec[/teal]            architecture + training spec
@@ -370,10 +552,19 @@ Anything else is sent to the active model. Type [teal]/quit[/teal] or press Ctrl
 class _ChatSession:
     """State for an interactive chat session."""
 
-    def __init__(self, console: Console, model: str | None, mode: str | None, markdown: bool):
+    def __init__(
+        self,
+        console: Console,
+        model: str | None,
+        mode: str | None,
+        markdown: bool,
+        agent: bool = False,
+    ):
         self.console = console
         self.history: list[Any] = []  # list[ChatMessage]
         self.markdown = markdown
+        self.agent = agent
+        self.pending_images: list[str] = []
         # Resolve + validate the starting tier/mode immediately.
         from .schemas.chat import ChatMessage  # noqa: F401  (used in _add)
         self._ChatMessage = ChatMessage
@@ -393,6 +584,8 @@ class _ChatSession:
         head.append(f"{self.mode.id}", style=TEAL)
         head.append("   render: ", style=MUTED)
         head.append("markdown" if self.markdown else "stream", style=TEAL)
+        head.append("   agent: ", style=MUTED)
+        head.append("on" if self.agent else "off", style=TEAL if self.agent else MUTED)
         head.append("\n", style="")
         self.console.print(Panel(head, border_style=TEAL, box=ROUNDED, padding=(1, 2)))
         self.console.print(HELP_TEXT)
@@ -401,7 +594,8 @@ class _ChatSession:
     def status_line(self) -> None:
         self.console.print(
             f"[{MUTED}]model [bold]{self.tier.id}[/bold] · mode [bold]{self.mode.id}[/bold]"
-            f" · render [bold]{'md' if self.markdown else 'stream'}[/bold][/{MUTED}]"
+            f" · render [bold]{'md' if self.markdown else 'stream'}[/bold]"
+            f" · agent [bold]{'on' if self.agent else 'off'}[/bold][/{MUTED}]"
         )
 
     # -- history --
@@ -449,6 +643,84 @@ class _ChatSession:
         if cmd == "/modes":
             render_modes(self.console)
             return True
+        if cmd == "/agent":
+            if arg in ("on", "true", "1"):
+                self.agent = True
+            elif arg in ("off", "false", "0"):
+                self.agent = False
+            elif arg is None:
+                self.agent = not self.agent
+            self.console.print(
+                f"[{TEAL}]agentic tool use → {'on' if self.agent else 'off'}[/{TEAL}]"
+            )
+            if self.agent:
+                from .tools import all_tools
+
+                names = ", ".join(t.name for t in all_tools())
+                self.console.print(f"[{MUTED}]toolbelt: {names}[/{MUTED}]")
+            return True
+        if cmd == "/tools":
+            from .tools import all_tools
+
+            table = Table(title="Aetheris toolbelt", box=ROUNDED, border_style=TEAL)
+            table.add_column("Tool", style=TEAL, no_wrap=True)
+            table.add_column("Status", justify="center")
+            table.add_column("What it does")
+            for tool in all_tools(include_disabled=True):
+                table.add_row(
+                    tool.name,
+                    "[green]live[/green]" if tool.enabled else f"[{AMBER}]off[/{AMBER}]",
+                    tool.description.split(". ")[0] + ".",
+                )
+            self.console.print(table)
+            return True
+        if cmd == "/mount":
+            if not arg:
+                self.console.print(f"[{MUTED}]usage: /mount <path>[/{MUTED}]")
+            else:
+                _mount_documents(self.console, [arg])
+            return True
+        if cmd == "/docs":
+            from .tools.retrieval import get_index
+
+            documents = get_index().documents
+            if not documents:
+                self.console.print(f"[{MUTED}]no documents mounted. use /mount <path>[/{MUTED}]")
+                return True
+            table = Table(title="Mounted documents", box=ROUNDED, border_style=TEAL)
+            table.add_column("Title", style=TEAL)
+            table.add_column("Chars", justify="right")
+            table.add_column("Chunks", justify="right")
+            table.add_column("ID", style="dim")
+            for document in documents:
+                table.add_row(
+                    document.title,
+                    f"{document.char_count:,}",
+                    str(len(document.chunk_ids)),
+                    document.id,
+                )
+            self.console.print(table)
+            return True
+        if cmd == "/image":
+            if not arg:
+                if self.pending_images:
+                    self.console.print(
+                        f"[{MUTED}]pending images: {', '.join(self.pending_images)}[/{MUTED}]"
+                    )
+                else:
+                    self.console.print(f"[{MUTED}]usage: /image <path or url>[/{MUTED}]")
+                return True
+            from pathlib import Path
+
+            if not arg.startswith(("http://", "https://", "data:")) and not Path(arg).expanduser().is_file():
+                self.console.print(f"[red]error:[/red] no such image: {arg}")
+                return True
+            self.pending_images.append(arg)
+            self.console.print(
+                f"[{TEAL}]image attached → next message carries "
+                f"{len(self.pending_images)} image(s)[/{TEAL}]"
+            )
+            return True
         if cmd == "/system":
             self.console.print(Panel(self.mode.system_prompt,
                                      title=f"[bold]system prompt · {self.mode.id}[/bold]",
@@ -482,10 +754,14 @@ async def _chat_async(args: argparse.Namespace) -> int:
     from .services.llm import close_provider, get_provider, prepare_conversation
 
     try:
-        session = _ChatSession(console, args.model, args.mode, args.markdown)
+        session = _ChatSession(
+            console, args.model, args.mode, args.markdown, agent=bool(getattr(args, "agent", False))
+        )
     except KeyError as exc:
         console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
         return 2
+    _mount_documents(console, getattr(args, "doc", None))
+    session.pending_images = list(getattr(args, "image", None) or [])
     session.banner()
 
     provider = get_provider()
@@ -509,17 +785,33 @@ async def _chat_async(args: argparse.Namespace) -> int:
             if handled is True:  # a slash command was handled
                 continue
             # handled is None → it's a user message.
-            session._add("user", text)
+            try:
+                session.history.append(_build_user_message(text, session.pending_images))
+            except ValueError as exc:
+                console.print(f"[red]error:[/red] {exc}")
+                continue
+            session.pending_images = []
             try:
                 prepared = prepare_conversation(
-                    list(session.history), model=session.tier.id, mode=session.mode.id
+                    list(session.history),
+                    model=session.tier.id,
+                    mode=session.mode.id,
+                    tools="auto" if session.agent else None,
+                    agent=session.agent,
                 )
             except KeyError as exc:
                 console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
                 continue
+            except ValueError as exc:
+                console.print(f"[red]error:[/red] {exc}")
+                continue
             console.print()
             try:
-                if session.markdown:
+                if prepared.agentic:
+                    reply = await _agent_to_console(
+                        console, provider, prepared, markdown=session.markdown
+                    )
+                elif session.markdown:
                     reply = await _complete_to_console(console, provider, prepared, markdown=True)
                 else:
                     reply = await _stream_to_console(console, provider, prepared)
@@ -547,26 +839,46 @@ async def _ask_async(args: argparse.Namespace) -> int:
         console.print("[red]error:[/red] no prompt provided.")
         return 2
 
-    messages = [ChatMessage(role="user", content=prompt)]
+    _mount_documents(console, getattr(args, "doc", None))
+    try:
+        messages = [_build_user_message(prompt, getattr(args, "image", None))]
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+
     try:
         prepared = prepare_conversation(
             messages, model=args.model, mode=args.mode,
             temperature=args.temperature, max_tokens=args.max_tokens, top_p=args.top_p,
+            **_inference_kwargs(args),
         )
     except KeyError as exc:
         console.print(f"[red]error:[/red] {exc.args[0] if exc.args else exc}")
         return 2
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
 
-    # Header line showing the resolved tier/mode.
+    # Header line showing the resolved tier/mode and any active capabilities.
+    extras = []
+    if prepared.agentic:
+        extras.append("agent")
+    if prepared.tools:
+        extras.append(f"{len(prepared.tools)} tools")
+    if prepared.has_images:
+        extras.append("vision")
+    suffix = (" · " + " · ".join(f"[bold]{e}[/bold]" for e in extras)) if extras else ""
     console.print(
         f"[{MUTED}]model [bold]{prepared.tier.id}[/bold] · mode [bold]{prepared.mode.id}[/bold]"
-        f" · render [bold]{'md' if args.markdown else 'stream'}[/bold][/{MUTED}]\n"
+        f" · render [bold]{'md' if args.markdown else 'stream'}[/bold]{suffix}[/{MUTED}]\n"
     )
 
     provider = get_provider()
     try:
         try:
-            if args.markdown:
+            if prepared.agentic:
+                await _agent_to_console(console, provider, prepared, markdown=args.markdown)
+            elif args.markdown:
                 await _complete_to_console(console, provider, prepared, markdown=True)
             else:
                 await _stream_to_console(console, provider, prepared)
@@ -701,6 +1013,16 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true", help="emit JSON")
     sp.set_defaults(func=lambda a: (render_spec(_make_console(a), a.json), 0)[1], is_async=False)
 
+    tp = sub.add_parser("tools", help="list the executable toolbelt")
+    tp.add_argument("--json", action="store_true", help="emit JSON")
+    tp.set_defaults(func=lambda a: (render_tools(_make_console(a), a.json), 0)[1], is_async=False)
+
+    cp = sub.add_parser("capabilities", help="show which capabilities are live")
+    cp.add_argument("--json", action="store_true", help="emit JSON")
+    cp.set_defaults(
+        func=lambda a: (render_capabilities(_make_console(a), a.json), 0)[1], is_async=False
+    )
+
     # health
     hp = sub.add_parser("health", help="provider/status, or probe a running server")
     hp.add_argument("--base-url", default=None, help="probe a running Aetheris server at this URL")
@@ -725,12 +1047,22 @@ def _add_inference_flags(p: argparse.ArgumentParser) -> None:
     p.add_argument("-m", "--model", default=None,
                    help="tier: aetheris-lite|flash|aetheris-pro|pro|aetheris-ultra|ultra")
     p.add_argument("-M", "--mode", default=None,
-                   help="mode: general|engineering|editorial|structured")
+                   help="mode: general|engineering|editorial|structured|sovereign")
     p.add_argument("--md", dest="markdown", action="store_true",
                    help="buffer and render the response as Markdown (non-streaming)")
     p.add_argument("--temperature", type=float, default=None)
     p.add_argument("--max-tokens", type=int, default=None)
     p.add_argument("--top-p", type=float, default=None)
+    p.add_argument("-a", "--agent", action="store_true",
+                   help="run the agent loop: call real tools and self-correct before answering")
+    p.add_argument("--tools", default=None, metavar="SPEC",
+                   help="expose the toolbelt: 'auto' for all built-ins, or 'none'")
+    p.add_argument("--max-tool-iterations", type=int, default=None,
+                   help="cap the agent's tool-calling rounds (default: server setting)")
+    p.add_argument("--doc", action="append", default=None, metavar="PATH",
+                   help="mount a file into the retrieval index (repeatable)")
+    p.add_argument("--image", action="append", default=None, metavar="PATH_OR_URL",
+                   help="attach an image for multimodal input (repeatable)")
 
 
 def main(argv: list[str] | None = None) -> int:

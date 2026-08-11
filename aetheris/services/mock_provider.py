@@ -2,9 +2,16 @@
 
 The mock provider exists so Aetheris runs anywhere with zero configuration. It
 does not call a real model; instead it composes a persona-faithful response that
-honors the selected mode and tier, then streams it token-by-token. This makes the
-identity, the tier/mode matrix, and the streaming contract observable in the live
-preview without external dependencies.
+honors the selected mode and tier, then streams it token-by-token.
+
+Crucially, it is also a **real tool-calling client**: when a request exposes the
+toolbelt, the mock inspects the user's turn and emits genuine ``ToolCall``
+objects (arithmetic → ``calculator``, questions about mounted files →
+``document_search``, "run this" → ``code_interpreter``, and so on). The agent
+loop then executes those tools for real and feeds the observations back. That
+means the sandbox, the RAG index, and the self-correction loop are all
+exercised end-to-end offline — the *tools* are never mocked, only the language
+model that chooses them.
 
 When ``AETHERIS_LLM_PROVIDER=openai`` and credentials are configured, the
 OpenAI-compatible provider takes over and this one is not used.
@@ -14,14 +21,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 
 from ..core.branding import NAME
 from ..core.modes import Mode
 from ..core.tiers import ModelTier
-from ..schemas.chat import ChatMessage
+from ..schemas.chat import ChatMessage, FunctionCall, ToolCall
 from .llm import CompletionResult, LLMProvider, PreparedConversation
-
 
 # Streaming cadence: a small per-chunk delay so streamed responses visibly
 # unfold (tuned to feel live without dragging out a short reply).
@@ -32,7 +39,7 @@ def _last_user_text(messages: list[ChatMessage]) -> str:
     """Return the content of the most recent user turn (empty string if none)."""
     for msg in reversed(messages):
         if msg.role == "user":
-            return msg.content
+            return msg.text
     return ""
 
 
@@ -47,6 +54,140 @@ def _truncate(text: str, limit: int = 280) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
+
+
+# --- Tool selection heuristics ------------------------------------------------
+#
+# A real model decides which tool to call from its weights. The mock decides from
+# these patterns — the downstream execution path is identical either way.
+
+_ARITHMETIC_RE = re.compile(r"\d+\s*(?:[+\-*/^%]|\*\*)\s*\d+")
+_CODE_BLOCK_RE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
+
+_MATH_WORDS = re.compile(
+    r"\b(calculate|compute|how much|what is|sum of|product of|percent|percentage|"
+    r"square root|factorial|compound|interest|average|mean of)\b", re.I
+)
+_DOC_WORDS = re.compile(
+    r"\b(document|documents|file|files|attached|attachment|upload|uploaded|"
+    r"my notes|the spec|the report|the pdf|according to|in the doc|context)\b", re.I
+)
+_RUN_WORDS = re.compile(
+    r"\b(run|execute|test it|verify|check the output|benchmark|simulate|"
+    r"what does this print|does this work)\b", re.I
+)
+_TIME_WORDS = re.compile(r"\b(today|right now|current date|what time|this year|todays)\b", re.I)
+_WEB_WORDS = re.compile(r"\bhttps?://\S+", re.I)
+_JSON_WORDS = re.compile(r"\b(valid json|validate json|is this json|json schema)\b", re.I)
+
+
+def _available(prepared: PreparedConversation) -> set[str]:
+    """Names of the tools actually offered on this turn."""
+    return {
+        t.get("function", {}).get("name", "")
+        for t in prepared.active_tools
+        if isinstance(t, dict)
+    }
+
+
+def _already_called(messages: list[ChatMessage], name: str) -> bool:
+    """Whether this tool already produced an observation in this conversation."""
+    return any(m.role == "tool" and m.name == name for m in messages)
+
+
+def _call(name: str, **arguments) -> ToolCall:
+    return ToolCall(function=FunctionCall(name=name, arguments=json.dumps(arguments)))
+
+
+def choose_tool_calls(prepared: PreparedConversation) -> list[ToolCall]:
+    """Decide which tools (if any) to invoke for this turn.
+
+    Returns an empty list once the needed observations are in hand, which is what
+    terminates the agent loop.
+    """
+    tools = _available(prepared)
+    if not tools:
+        return []
+
+    messages = prepared.messages
+    text = _last_user_text(messages)
+    if not text:
+        return []
+
+    calls: list[ToolCall] = []
+
+    # An explicit code block plus an instruction to run it → sandbox.
+    block = _CODE_BLOCK_RE.search(text)
+    if (
+        "code_interpreter" in tools
+        and block
+        and _RUN_WORDS.search(text)
+        and not _already_called(messages, "code_interpreter")
+    ):
+        calls.append(_call("code_interpreter", code=block.group(1).strip()))
+
+    # Bare arithmetic → exact evaluation rather than a guess.
+    if "calculator" in tools and not _already_called(messages, "calculator"):
+        expression = _extract_expression(text)
+        if expression and (_ARITHMETIC_RE.search(text) or _MATH_WORDS.search(text)):
+            calls.append(_call("calculator", expression=expression))
+
+    # Anything about mounted files → retrieve before answering.
+    if (
+        "document_search" in tools
+        and _DOC_WORDS.search(text)
+        and not _already_called(messages, "document_search")
+    ):
+        calls.append(_call("document_search", query=_search_query(text), top_k=4))
+
+    if (
+        "current_time" in tools
+        and _TIME_WORDS.search(text)
+        and not _already_called(messages, "current_time")
+    ):
+        calls.append(_call("current_time"))
+
+    if "web_fetch" in tools and not _already_called(messages, "web_fetch"):
+        url = _WEB_WORDS.search(text)
+        if url:
+            calls.append(_call("web_fetch", url=url.group(0).rstrip(").,")))
+
+    if (
+        "validate_json" in tools
+        and _JSON_WORDS.search(text)
+        and not _already_called(messages, "validate_json")
+    ):
+        payload = _extract_json_candidate(text)
+        if payload:
+            calls.append(_call("validate_json", payload=payload))
+
+    return calls
+
+
+def _extract_expression(text: str) -> str | None:
+    """Pull an evaluable arithmetic expression out of a natural-language turn."""
+    # Prefer an explicit inline expression.
+    match = re.search(r"[-+]?[\d.]+(?:\s*(?:\*\*|[+\-*/^%])\s*[-+]?[\d.()]+)+", text)
+    if match:
+        return match.group(0).replace("^", "**").strip()
+    return None
+
+
+def _search_query(text: str) -> str:
+    """Reduce a question to its distinctive retrieval keywords."""
+    cleaned = re.sub(
+        r"\b(what|does|the|document|say|about|in|my|attached|file|tell|me|"
+        r"according|to|please|can|you|explain|summarize)\b",
+        " ", text, flags=re.I,
+    )
+    keywords = " ".join(cleaned.split())[:200]
+    return keywords or _truncate(text, 200)
+
+
+def _extract_json_candidate(text: str) -> str | None:
+    """Find a JSON object/array embedded in the turn."""
+    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    return match.group(1) if match else None
 
 
 # --- Per-mode composition -----------------------------------------------------
@@ -162,23 +303,102 @@ def _compose_structured(tier: ModelTier, user_text: str) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+def _compose_sovereign(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "your question"
+    return (
+        f"Direct answer on {topic}, no hedging.\n\n"
+        "**My position.** Here is what I actually think, stated as a claim rather "
+        "than a menu of options — you can argue with a claim.\n\n"
+        "**Why.** The reasoning that carries the most weight, and the specific "
+        "condition under which it would fail.\n\n"
+        "**Confidence.** Calibrated, not performative: high where the mechanism is "
+        "well understood, low where I'm extrapolating, and stated as \"I don't "
+        "know\" where that's the truth.\n\n"
+        "**What I'd do.** One concrete course of action, chosen and defended.\n\n"
+        "*(Sovereign Mode is active: this deployment has disabled reflexive hedging "
+        "and boilerplate disclaimers. Fabrication remains off the table.)*"
+    )
+
+
 _COMPOSERS = {
     "general": _compose_general,
     "engineering": _compose_engineering,
     "editorial": _compose_editorial,
     "structured": _compose_structured,
+    "sovereign": _compose_sovereign,
 }
+
+
+def _tool_observations(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Every tool result already gathered in this conversation."""
+    return [m for m in messages if m.role == "tool"]
+
+
+def _compose_with_observations(
+    tier: ModelTier, mode: Mode, messages: list[ChatMessage], observations: list[ChatMessage]
+) -> str:
+    """Compose a final answer that visibly incorporates real tool output."""
+    user_text = _last_user_text(messages)
+    topic = _truncate(user_text, 180) or "your request"
+
+    if mode.id == "structured":
+        return json.dumps(
+            {
+                "understood": True,
+                "mode": "structured",
+                "tier": tier.id,
+                "topic": topic,
+                "tools_used": [m.name for m in observations],
+                "observations": [
+                    {"tool": m.name, "result": _truncate(m.text, 600)} for m in observations
+                ],
+                "verified_by_execution": True,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    used = ", ".join(f"`{m.name}`" for m in observations)
+    lines = [
+        f"I ran {len(observations)} tool call(s) before answering — {used} — so the "
+        "result below is verified rather than recalled.\n",
+        "## What the tools returned\n",
+    ]
+    for observation in observations:
+        body = observation.text.strip()
+        if len(body) > 1200:
+            body = body[:1200] + "\n… [truncated]"
+        lines.append(f"**`{observation.name}`**\n```\n{body}\n```\n")
+
+    lines.append(
+        "## Reading the result\n"
+        "The values above come from actual execution, so they are exact. Where I go "
+        "beyond them — interpretation, recommendation, or anything not visible in the "
+        "output — I'll flag it as inference rather than fact.\n\n"
+        f"Ask a follow-up and I'll re-run the relevant step against {topic}."
+    )
+    return "\n".join(lines)
 
 
 def compose_response(tier: ModelTier, mode: Mode, messages: list[ChatMessage]) -> str:
     """Build a persona-faithful reply for the given tier, mode, and conversation."""
+    observations = _tool_observations(messages)
+    if observations:
+        return _compose_with_observations(tier, mode, messages, observations)
+
     user_text = _last_user_text(messages)
     composer = _COMPOSERS.get(mode.id, _compose_general)
     body = composer(tier, user_text)
-    # The identity line is omitted in structured mode (JSON-only output contract).
-    if mode.id == "structured":
-        return body
-    return f"{body}"
+
+    images = [image for message in messages for image in message.images]
+    if images and mode.id != "structured":
+        body += (
+            f"\n\n---\n\n**Visual input received.** {len(images)} image(s) are attached "
+            "to this conversation and were forwarded with the request. Configure a "
+            "vision-capable upstream (`AETHERIS_LLM_PROVIDER=openai` with a model such "
+            "as `gpt-4o`) to have their contents analyzed rather than acknowledged."
+        )
+    return body
 
 
 class MockProvider(LLMProvider):
@@ -189,13 +409,22 @@ class MockProvider(LLMProvider):
         return f"{NAME} Mock"
 
     async def complete(self, prepared: PreparedConversation) -> CompletionResult:
+        calls = choose_tool_calls(prepared)
+        if calls:
+            return CompletionResult(
+                text="",
+                finish_reason="tool_calls",
+                prompt_tokens=prepared.estimated_prompt_tokens,
+                completion_tokens=sum(_approx_tokens(c.function.arguments) for c in calls),
+                tool_calls=calls,
+            )
+
         text = compose_response(prepared.tier, prepared.mode, prepared.messages)
-        completion_tokens = _approx_tokens(text)
         return CompletionResult(
             text=text,
             finish_reason="stop",
             prompt_tokens=prepared.estimated_prompt_tokens,
-            completion_tokens=completion_tokens,
+            completion_tokens=_approx_tokens(text),
         )
 
     async def stream(self, prepared: PreparedConversation) -> AsyncIterator[str]:
@@ -220,4 +449,4 @@ def _word_chunks(text: str) -> list[str]:
     return chunks
 
 
-__all__ = ["MockProvider", "compose_response"]
+__all__ = ["MockProvider", "compose_response", "choose_tool_calls"]
