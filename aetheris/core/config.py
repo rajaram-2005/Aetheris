@@ -152,6 +152,44 @@ class Settings(BaseSettings):
         description="Optional comma-separated host allowlist for web_fetch.",
     )
 
+    # --- Creative generation --------------------------------------------------
+    image_generation_enabled: bool = Field(
+        default=True,
+        description="Enable procedural image synthesis (generate_image).",
+    )
+    video_generation_enabled: bool = Field(
+        default=True,
+        description="Enable animated GIF synthesis (generate_video).",
+    )
+    audio_generation_enabled: bool = Field(
+        default=True,
+        description="Enable WAV audio synthesis (generate_audio).",
+    )
+    code_generation_enabled: bool = Field(
+        default=True,
+        description="Enable project scaffolding (create_project).",
+    )
+    media_max_image_dimension: int = Field(
+        default=2048, ge=64, le=4096,
+        description="Maximum width/height for a generated image, in pixels.",
+    )
+    media_max_video_dimension: int = Field(
+        default=960, ge=64, le=1920,
+        description="Maximum width/height for a generated video, in pixels.",
+    )
+    media_max_video_seconds: float = Field(
+        default=10.0, gt=0, le=30,
+        description="Maximum duration of a generated animation, in seconds.",
+    )
+    media_max_audio_seconds: float = Field(
+        default=60.0, gt=0, le=300,
+        description="Maximum duration of generated audio, in seconds.",
+    )
+    media_store_max_mb: int = Field(
+        default=192, ge=8, le=2048,
+        description="Memory budget for the generated-artifact store, in MiB.",
+    )
+
     # --- Unrestricted / sovereign mode ---------------------------------------
     sovereign_enabled: bool = Field(
         default=False,
@@ -181,6 +219,10 @@ class Settings(BaseSettings):
             "vision": self.vision_enabled,
             "web_access": self.web_enabled,
             "sovereign_mode": self.sovereign_enabled,
+            "image_generation": self.image_generation_enabled,
+            "video_generation": self.video_generation_enabled,
+            "audio_generation": self.audio_generation_enabled,
+            "code_generation": self.code_generation_enabled,
         }
 
 

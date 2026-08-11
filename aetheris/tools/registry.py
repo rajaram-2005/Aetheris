@@ -211,6 +211,7 @@ def _ensure_loaded() -> None:
         return
     _loaded = True
     from . import builtins as _builtins  # noqa: F401
+    from . import creation as _creation  # noqa: F401
     from . import retrieval as _retrieval  # noqa: F401
     from . import sandbox as _sandbox  # noqa: F401
     from . import web as _web  # noqa: F401

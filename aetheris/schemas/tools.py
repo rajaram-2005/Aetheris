@@ -118,6 +118,91 @@ class CapabilityReport(BaseModel):
     limits: dict[str, Any] = Field(default_factory=dict)
 
 
+# --- Artifacts ----------------------------------------------------------------
+
+
+class ArtifactInfo(BaseModel):
+    """A generated media or code artifact."""
+
+    id: str
+    kind: str
+    media_type: str
+    filename: str
+    size: int
+    url: str
+    prompt: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: int = 0
+
+
+class ArtifactList(BaseModel):
+    """Response shape for ``GET /v1/artifacts``."""
+
+    object: Literal["list"] = "list"
+    data: list[ArtifactInfo]
+    stats: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImageRequest(BaseModel):
+    """Direct image generation (``POST /v1/images/generations``)."""
+
+    prompt: str = Field(..., min_length=1)
+    style: str | None = None
+    palette: str | None = None
+    width: int = Field(default=1024, ge=64, le=4096)
+    height: int = Field(default=576, ge=64, le=4096)
+    seed: int | None = None
+    caption: bool = True
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class VideoRequest(BaseModel):
+    """Direct video generation (``POST /v1/videos/generations``)."""
+
+    prompt: str = Field(..., min_length=1)
+    motion: str | None = None
+    palette: str | None = None
+    seconds: float = Field(default=3.0, gt=0, le=30)
+    fps: int = Field(default=12, ge=4, le=24)
+    width: int = Field(default=480, ge=64, le=1920)
+    height: int = Field(default=270, ge=64, le=1920)
+    seed: int | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class AudioRequest(BaseModel):
+    """Direct audio synthesis (``POST /v1/audio/generations``)."""
+
+    mode: Literal["melody", "chords", "compose", "tone"] = "compose"
+    notation: str = ""
+    key: str = "C4"
+    scale: str = "major"
+    bars: int = Field(default=4, ge=1, le=16)
+    frequency: float = Field(default=440.0, gt=0)
+    seconds: float = Field(default=1.0, gt=0, le=300)
+    tempo: int = Field(default=110, ge=30, le=240)
+    timbre: str = "warm"
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class ProjectRequest(BaseModel):
+    """Project scaffolding (``POST /v1/code/projects``)."""
+
+    kind: str = Field(..., description="fastapi-service | python-package | cli-tool | static-site")
+    name: str = Field(..., min_length=1)
+    description: str = ""
+
+
+class GenerationResponse(BaseModel):
+    """The result of a direct generation call."""
+
+    object: Literal["generation"] = "generation"
+    kind: str
+    artifact: ArtifactInfo
+    b64_json: str | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
 __all__ = [
     "ToolInfo",
     "ToolList",
@@ -130,4 +215,11 @@ __all__ = [
     "SearchResult",
     "SearchResponse",
     "CapabilityReport",
+    "ArtifactInfo",
+    "ArtifactList",
+    "ImageRequest",
+    "VideoRequest",
+    "AudioRequest",
+    "ProjectRequest",
+    "GenerationResponse",
 ]

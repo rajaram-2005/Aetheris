@@ -79,6 +79,26 @@ _RUN_WORDS = re.compile(
 _TIME_WORDS = re.compile(r"\b(today|right now|current date|what time|this year|todays)\b", re.I)
 _WEB_WORDS = re.compile(r"\bhttps?://\S+", re.I)
 _JSON_WORDS = re.compile(r"\b(valid json|validate json|is this json|json schema)\b", re.I)
+_IMAGE_WORDS = re.compile(
+    r"\b(image|picture|photo|artwork|art|poster|wallpaper|banner|illustration|"
+    r"logo|graphic|drawing|visual|thumbnail|background)\b", re.I
+)
+_VIDEO_WORDS = re.compile(
+    r"\b(video|animation|animate|animated|gif|clip|motion|loop|movie)\b", re.I
+)
+_AUDIO_WORDS = re.compile(
+    r"\b(audio|sound|music|melody|tune|song|chord|tone|jingle|beep|track)\b", re.I
+)
+_PROJECT_WORDS = re.compile(
+    r"\b(project|scaffold|boilerplate|starter|template|repo|repository|"
+    r"app skeleton|set up a|cli tool|command.?line tool|web ?app|package|"
+    r"microservice|rest api|fastapi|static site|website|landing page)\b", re.I
+)
+_CREATE_VERBS = re.compile(
+    r"\b(generate|create|make|draw|render|design|produce|build|compose|give me|"
+    r"show me|i want|i need|scaffold|bootstrap|set up|start|animate|synthesize|"
+    r"synthesise|visualize|visualise|illustrate|draw|sketch|paint)\b", re.I
+)
 
 
 def _available(prepared: PreparedConversation) -> set[str]:
@@ -95,8 +115,12 @@ def _already_called(messages: list[ChatMessage], name: str) -> bool:
     return any(m.role == "tool" and m.name == name for m in messages)
 
 
-def _call(name: str, **arguments) -> ToolCall:
-    return ToolCall(function=FunctionCall(name=name, arguments=json.dumps(arguments)))
+def _call(_tool_name: str, /, **arguments) -> ToolCall:
+    """Build a tool call. The tool name is positional-only so that a tool
+    argument literally named ``name`` cannot collide with it."""
+    return ToolCall(
+        function=FunctionCall(name=_tool_name, arguments=json.dumps(arguments))
+    )
 
 
 def choose_tool_calls(prepared: PreparedConversation) -> list[ToolCall]:
@@ -115,6 +139,51 @@ def choose_tool_calls(prepared: PreparedConversation) -> list[ToolCall]:
         return []
 
     calls: list[ToolCall] = []
+    wants_creation = bool(_CREATE_VERBS.search(text))
+    # Some verbs name their own medium ("draw", "illustrate"), so they satisfy
+    # the noun requirement on their own.
+    implies_image = bool(re.search(r"\b(draw|illustrate|paint|sketch)\b", text, re.I))
+
+    # --- Creative generation -------------------------------------------------
+    # A creation verb plus a medium noun means the user wants an artifact, not
+    # a description of one.
+    if (
+        "generate_image" in tools
+        and wants_creation
+        and (_IMAGE_WORDS.search(text) or implies_image)
+        and not _VIDEO_WORDS.search(text)
+        and not _already_called(messages, "generate_image")
+    ):
+        calls.append(_call("generate_image", prompt=_creative_prompt(text)))
+
+    if (
+        "generate_video" in tools
+        and wants_creation
+        and _VIDEO_WORDS.search(text)
+        and not _already_called(messages, "generate_video")
+    ):
+        calls.append(_call("generate_video", prompt=_creative_prompt(text)))
+
+    if (
+        "generate_audio" in tools
+        and wants_creation
+        and _AUDIO_WORDS.search(text)
+        and not _already_called(messages, "generate_audio")
+    ):
+        calls.append(_call("generate_audio", mode="compose", key="C4", scale="major", bars=4))
+
+    if (
+        "create_project" in tools
+        and wants_creation
+        and _PROJECT_WORDS.search(text)
+        and not _already_called(messages, "create_project")
+    ):
+        calls.append(
+            _call("create_project", kind=_project_kind(text), name=_project_name(text))
+        )
+
+    if calls:
+        return calls
 
     # An explicit code block plus an instruction to run it → sandbox.
     block = _CODE_BLOCK_RE.search(text)
@@ -164,8 +233,52 @@ def choose_tool_calls(prepared: PreparedConversation) -> list[ToolCall]:
     return calls
 
 
+def _creative_prompt(text: str) -> str:
+    """Strip the instruction verbs so only the subject reaches the generator."""
+    cleaned = re.sub(
+        r"^\s*(please\s+)?(can you\s+|could you\s+|i want\s+|i need\s+|"
+        r"generate|create|make|draw|render|design|produce|build|compose|"
+        r"give me|show me)\s+(me\s+)?(an?\s+|the\s+)?",
+        "", text.strip(), flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(image|picture|photo|video|animation|gif|artwork|poster)\s+(of|showing|with|for)\b",
+        "", cleaned, flags=re.I,
+    )
+    return " ".join(cleaned.split())[:300] or text[:300]
+
+
+def _project_kind(text: str) -> str:
+    """Infer which scaffold the user is asking for."""
+    lowered = text.lower()
+    if re.search(r"\b(api|fastapi|rest|service|endpoint|backend|server)\b", lowered):
+        return "fastapi-service"
+    if re.search(r"\b(cli|command.?line|terminal|script tool)\b", lowered):
+        return "cli-tool"
+    if re.search(r"\b(website|site|landing|html|static|frontend|web page)\b", lowered):
+        return "static-site"
+    return "python-package"
+
+
+def _project_name(text: str) -> str:
+    """Pull a plausible project name out of the request."""
+    quoted = re.search(r'"([^"]{1,40})"', text)
+    if quoted:
+        return quoted.group(1)
+    match = re.search(
+        r"\b(?:called|named|for)\s+([a-z0-9][a-z0-9 _-]{1,30})", text, re.I
+    )
+    if match:
+        return match.group(1).strip()
+    return "aetheris-project"
+
+
 def _extract_expression(text: str) -> str | None:
     """Pull an evaluable arithmetic expression out of a natural-language turn."""
+    # "15% of 240" and "15 percent of 240" are common and not valid syntax.
+    percent = re.search(r"([\d.]+)\s*(?:%|percent)\s*(?:of)\s*([\d.]+)", text, re.I)
+    if percent:
+        return f"{percent.group(1)} / 100 * {percent.group(2)}"
     # Prefer an explicit inline expression.
     match = re.search(r"[-+]?[\d.]+(?:\s*(?:\*\*|[+\-*/^%])\s*[-+]?[\d.()]+)+", text)
     if match:
@@ -329,6 +442,52 @@ _COMPOSERS = {
 }
 
 
+def _artifact_blocks(observations: list[ChatMessage]) -> list[str]:
+    """Render creative-tool results as Markdown media embeds."""
+    blocks: list[str] = []
+    for observation in observations:
+        if observation.name not in (
+            "generate_image", "generate_video", "generate_audio", "create_project"
+        ):
+            continue
+        try:
+            payload = json.loads(observation.text)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        url = payload.get("url")
+        if not url:
+            continue
+
+        kind = payload.get("created", "artifact")
+        if kind in ("image", "video"):
+            detail = (
+                f"style `{payload.get('style')}`" if kind == "image"
+                else f"motion `{payload.get('motion')}`, "
+                     f"{payload.get('frames')} frames at {payload.get('fps')}fps"
+            )
+            blocks.append(
+                f"**{kind.title()}** — {detail}, {payload.get('dimensions', '')}\n\n"
+                f"{payload.get('markdown', f'![{kind}]({url})')}\n\n"
+                f"`{url}` · {payload.get('bytes', 0):,} bytes"
+            )
+        elif kind == "audio":
+            blocks.append(
+                f"**Audio** — {payload.get('mode')} in {payload.get('timbre')}, "
+                f"{payload.get('duration_seconds')}s, {payload.get('format')}\n\n"
+                f"[▶ Play / download the WAV]({url})\n\n"
+                f"`{url}` · {payload.get('bytes', 0):,} bytes"
+            )
+        elif kind == "project":
+            tree = payload.get("tree", "")
+            blocks.append(
+                f"**Project `{payload.get('name')}`** — {payload.get('kind')}, "
+                f"{len(payload.get('files', []))} files\n\n"
+                f"```\n{tree}\n```\n\n"
+                f"[⬇ Download the ZIP]({url}) · {payload.get('bytes', 0):,} bytes"
+            )
+    return blocks
+
+
 def _tool_observations(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Every tool result already gathered in this conversation."""
     return [m for m in messages if m.role == "tool"]
@@ -356,6 +515,19 @@ def _compose_with_observations(
             },
             ensure_ascii=False,
             indent=2,
+        )
+
+    # Creative tools return JSON carrying an artifact URL; render those as real
+    # embedded media rather than as a wall of tool output.
+    artifacts = _artifact_blocks(observations)
+    if artifacts:
+        head = (
+            f"Done — I generated {len(artifacts)} artifact(s) for you. "
+            "They are served live from this Aetheris instance:\n"
+        )
+        return head + "\n\n".join(artifacts) + (
+            "\n\nAsk for a different style, palette, or seed and I'll regenerate. "
+            "Every artifact is also listed at `/v1/artifacts`."
         )
 
     used = ", ".join(f"`{m.name}`" for m in observations)

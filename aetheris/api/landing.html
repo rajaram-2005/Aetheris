@@ -540,6 +540,19 @@
     .cap-toggle.danger.on { border-color: rgba(255,193,77,.5); color: #ffc14d; background: rgba(255,193,77,.07); }
     .cap-toggle.danger.on i { background: #ffc14d; box-shadow: 0 0 7px #ffc14d; }
 
+    /* --- Generated media embeds ------------------------------------------- */
+    .media-embeds { display: grid; gap: 10px; margin-top: 11px; }
+    .media-card { overflow: hidden; border: 1px solid var(--line); background: var(--surface-soft); border-radius: 12px; }
+    .media-card__head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-bottom: 1px solid var(--line); }
+    .media-card__kind { padding: 2px 7px; border-radius: 99px; background: rgba(0,180,216,.12); color: var(--teal-soft); font: 700 8px ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
+    .media-card__meta { flex: 1; overflow: hidden; color: var(--text-3); font: 600 9px ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .media-card__actions { display: flex; gap: 5px; }
+    .media-card__actions a { padding: 3px 8px; border: 1px solid var(--line); color: var(--text-3); background: transparent; border-radius: 6px; font: 600 9px ui-monospace, monospace; text-decoration: none; }
+    .media-card__actions a:hover { border-color: rgba(0,180,216,.45); color: var(--teal-soft); }
+    .media-card img { display: block; width: 100%; height: auto; background: #05070f; }
+    .media-card audio { display: block; width: 100%; padding: 11px; }
+    .media-card pre { max-height: 220px; margin: 0; padding: 11px 13px; overflow: auto; color: var(--text-3); font: 500 9px/1.6 ui-monospace, monospace; }
+
     /* --- Live agent trace ------------------------------------------------- */
     .agent-trace { max-width: 850px; margin: 0 0 20px 45px; border: 1px solid rgba(0,180,216,.25); background: linear-gradient(135deg, rgba(0,180,216,.05), rgba(130,110,245,.03)); border-radius: 13px; overflow: hidden; }
     .agent-trace__head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 14px; border-bottom: 1px solid rgba(0,180,216,.16); }
@@ -1069,6 +1082,9 @@
                 <input type="checkbox" id="capWeb"><i></i><span>Web access</span>
               </label>
               <span class="cap-toggle" id="capVisionBadge" title="Image input support"><i></i><span>Vision</span></span>
+              <label class="cap-toggle" id="capCreateWrap" title="Let Aetheris generate images, video, audio, and project scaffolds">
+                <input type="checkbox" id="capCreate" checked><i></i><span>Create media</span>
+              </label>
             </div>
 
             <div class="execution-telemetry" id="executionTelemetry" aria-label="Execution telemetry">
@@ -1456,6 +1472,7 @@
       const capRetrieval = document.getElementById("capRetrieval");
       const capWeb = document.getElementById("capWeb");
       const capVisionBadge = document.getElementById("capVisionBadge");
+      const capCreate = document.getElementById("capCreate");
 
       let activeMode = "general";
       let executionStrategy = "direct";
@@ -1486,7 +1503,8 @@
         { key: "agent", input: capAgent, wrap: document.getElementById("capAgentWrap"), hint: "Enable AETHERIS_AGENT_ENABLED on the server" },
         { key: "code_sandbox", input: capSandbox, wrap: document.getElementById("capSandboxWrap"), hint: "Enable AETHERIS_SANDBOX_ENABLED on the server" },
         { key: "retrieval", input: capRetrieval, wrap: document.getElementById("capRetrievalWrap"), hint: "Enable AETHERIS_RAG_ENABLED on the server" },
-        { key: "web_access", input: capWeb, wrap: document.getElementById("capWebWrap"), hint: "Enable AETHERIS_WEB_ENABLED on the server" }
+        { key: "web_access", input: capWeb, wrap: document.getElementById("capWebWrap"), hint: "Enable AETHERIS_WEB_ENABLED on the server" },
+        { key: "image_generation", input: capCreate, wrap: document.getElementById("capCreateWrap"), hint: "Enable AETHERIS_IMAGE_GENERATION_ENABLED on the server" }
       ];
 
       const syncCapabilityRail = () => {
@@ -1515,6 +1533,13 @@
         if (capSandbox.checked && serverCapabilities.code_sandbox) enabled.push("code_interpreter");
         if (capRetrieval.checked && serverCapabilities.retrieval) enabled.push("document_search", "list_documents");
         if (capWeb.checked && serverCapabilities.web_access) enabled.push("web_fetch");
+        if (capCreate.checked) {
+          if (serverCapabilities.image_generation) enabled.push("generate_image");
+          if (serverCapabilities.video_generation) enabled.push("generate_video");
+          if (serverCapabilities.audio_generation) enabled.push("generate_audio");
+          if (serverCapabilities.code_generation) enabled.push("create_project");
+          if (enabled.length) enabled.push("list_artifacts");
+        }
         if (enabled.length) enabled.push("calculator", "current_time", "validate_json", "think");
         return enabled.length ? enabled : null;
       };
@@ -1699,7 +1724,8 @@
             agent: capAgent.checked,
             sandbox: capSandbox.checked,
             retrieval: capRetrieval.checked,
-            web: capWeb.checked
+            web: capWeb.checked,
+            create: capCreate.checked
           },
           savedAt: new Date().toISOString()
         };
@@ -1823,6 +1849,94 @@
         conversation.insertBefore(article, typing);
         scrollConversation();
         return { article, body, detail };
+      };
+
+      // --- Generated media embeds -----------------------------------------
+      //
+      // Creative tools return artifact URLs. Rather than leaving them as raw
+      // text, scan a finished response and mount real <img>/<audio> players
+      // beneath it so generated media is viewable without leaving the page.
+      const ARTIFACT_PATTERN = /\/v1\/artifacts\/(art_[a-f0-9]{8,})/g;
+
+      const mediaCard = (artifact) => {
+        const card = document.createElement("div");
+        card.className = "media-card";
+
+        const head = document.createElement("div");
+        head.className = "media-card__head";
+        const kind = document.createElement("span");
+        kind.className = "media-card__kind";
+        kind.textContent = artifact.kind;
+        const meta = document.createElement("span");
+        meta.className = "media-card__meta";
+        const kb = Math.max(1, Math.round(artifact.size / 1024));
+        const extra = artifact.metadata && (artifact.metadata.style || artifact.metadata.motion || artifact.metadata.mode || artifact.metadata.kind);
+        meta.textContent = `${artifact.filename} · ${kb}KB${extra ? " · " + extra : ""}`;
+        const actions = document.createElement("div");
+        actions.className = "media-card__actions";
+        const open = document.createElement("a");
+        open.href = artifact.url;
+        open.target = "_blank";
+        open.rel = "noopener";
+        open.textContent = "Open";
+        const download = document.createElement("a");
+        download.href = artifact.url + "?download=true";
+        download.textContent = "Download";
+        actions.append(open, download);
+        head.append(kind, meta, actions);
+        card.append(head);
+
+        if (artifact.kind === "image" || artifact.kind === "video") {
+          // Animated GIFs play in an <img>; no video element required.
+          const img = document.createElement("img");
+          img.src = artifact.url;
+          img.alt = artifact.prompt || artifact.filename;
+          img.loading = "lazy";
+          card.append(img);
+        } else if (artifact.kind === "audio") {
+          const player = document.createElement("audio");
+          player.controls = true;
+          player.src = artifact.url;
+          card.append(player);
+          if (artifact.metadata && artifact.metadata.notation) {
+            const notation = document.createElement("pre");
+            notation.textContent = artifact.metadata.notation;
+            card.append(notation);
+          }
+        } else if (artifact.kind === "code") {
+          const tree = document.createElement("pre");
+          const files = (artifact.metadata && artifact.metadata.files) || [];
+          tree.textContent = files.length
+            ? files.join("\n")
+            : "Archive ready — use Download to fetch the ZIP.";
+          card.append(tree);
+        }
+        return card;
+      };
+
+      const embedArtifacts = async (message, text) => {
+        if (!message || !text) return;
+        const ids = [...new Set([...text.matchAll(ARTIFACT_PATTERN)].map((m) => m[1]))];
+        if (!ids.length) return;
+
+        let listing;
+        try {
+          const response = await fetch("/v1/artifacts");
+          if (!response.ok) return;
+          listing = await response.json();
+        } catch {
+          return;  // a missing artifact simply stays as its original link text
+        }
+
+        const byId = new Map((listing.data || []).map((a) => [a.id, a]));
+        const found = ids.map((id) => byId.get(id)).filter(Boolean);
+        if (!found.length) return;
+
+        const container = document.createElement("div");
+        container.className = "media-embeds";
+        found.forEach((artifact) => container.append(mediaCard(artifact)));
+        message.article.querySelector("div:last-child").append(container);
+        scrollConversation();
       };
 
       const setBusy = (busy) => {
@@ -2067,6 +2181,8 @@
           updateTelemetry({ state: "COMPLETE", latency: elapsed + " ms", tokens: estimatedTokens });
           captureArtifact(latestResponse, traceId, modelSelect.value, activeMode);
           recordExecution(1, estimatedTokens, elapsed);
+          // Mount real players for any media the model generated.
+          await embedArtifacts(output, latestResponse);
         } catch (error) {
           if (trace) trace.finish();
           if (error.name === "AbortError" && output) {
@@ -2997,6 +3113,7 @@
             capSandbox.checked = Boolean(snapshot.capabilities.sandbox);
             capRetrieval.checked = Boolean(snapshot.capabilities.retrieval);
             capWeb.checked = Boolean(snapshot.capabilities.web);
+            capCreate.checked = snapshot.capabilities.create !== false;
             syncCapabilityRail();
           }
           updateSessionLens();

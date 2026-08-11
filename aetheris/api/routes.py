@@ -21,7 +21,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from .. import __version__
 from ..core.config import settings
@@ -43,7 +43,14 @@ from ..schemas.chat import (
 )
 from ..schemas.models import ModelInfo, ModelList, ModeInfo, ModeList
 from ..schemas.tools import (
+    ArtifactInfo,
+    ArtifactList,
+    AudioRequest,
     CapabilityReport,
+    GenerationResponse,
+    ImageRequest,
+    ProjectRequest,
+    VideoRequest,
     DocumentIn,
     DocumentInfo,
     DocumentList,
@@ -70,6 +77,7 @@ from ..services.llm import (
     prepare_conversation,
 )
 from ..services.mock_provider import MockProvider
+from ..media.store import get_store
 from ..tools import registry
 from ..tools.retrieval import get_index
 
@@ -419,6 +427,223 @@ async def search_corpus(body: SearchRequest) -> SearchResponse:
     )
 
 
+# --- Generated artifacts ------------------------------------------------------
+
+def _artifact_info(artifact) -> ArtifactInfo:
+    return ArtifactInfo(**artifact.summary())
+
+
+def _generation_response(kind: str, artifact, fmt: str, detail: dict) -> GenerationResponse:
+    """Wrap a stored artifact, optionally inlining it as base64."""
+    import base64
+
+    return GenerationResponse(
+        kind=kind,
+        artifact=_artifact_info(artifact),
+        b64_json=base64.b64encode(artifact.data).decode() if fmt == "b64_json" else None,
+        detail=detail,
+    )
+
+
+@router.get("/v1/artifacts", response_model=ArtifactList, tags=["media"])
+async def list_artifacts(kind: str | None = None) -> ArtifactList:
+    """List every artifact generated in this process, newest first."""
+    store = get_store()
+    return ArtifactList(
+        data=[_artifact_info(a) for a in store.list(kind)],
+        stats=store.stats(),
+    )
+
+
+@router.get("/v1/artifacts/{artifact_id}", tags=["media"])
+async def fetch_artifact(artifact_id: str, download: bool = False) -> Response:
+    """Serve an artifact's bytes with its real media type.
+
+    Images, video, and audio render inline in a browser or Markdown preview;
+    ``?download=true`` forces a file download instead.
+    """
+    artifact = get_store().get(artifact_id)
+    if artifact is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No artifact '{artifact_id}'. Artifacts are held in memory and are "
+                "evicted when the store fills or the server restarts."
+            ),
+        )
+    disposition = "attachment" if download else "inline"
+    return Response(
+        content=artifact.data,
+        media_type=artifact.media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{artifact.filename}"',
+            "Cache-Control": "public, max-age=3600",
+            "X-Aetheris-Artifact-Kind": artifact.kind,
+        },
+    )
+
+
+@router.delete("/v1/artifacts/{artifact_id}", tags=["media"])
+async def delete_artifact(artifact_id: str) -> dict:
+    """Delete one artifact."""
+    if not get_store().delete(artifact_id):
+        raise HTTPException(status_code=404, detail=f"No artifact '{artifact_id}'.")
+    return {"deleted": artifact_id}
+
+
+@router.delete("/v1/artifacts", tags=["media"])
+async def clear_artifacts() -> dict:
+    """Delete every stored artifact."""
+    return {"deleted": get_store().clear()}
+
+
+# --- Direct generation --------------------------------------------------------
+
+@router.post(
+    "/v1/images/generations",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_image(body: ImageRequest) -> GenerationResponse:
+    """Generate an image from a prompt (OpenAI-images-shaped endpoint)."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.images import generate
+
+    width = min(body.width, settings.media_max_image_dimension)
+    height = min(body.height, settings.media_max_image_dimension)
+    try:
+        png, plan = generate(
+            body.prompt, width=width, height=height, style=body.style,
+            palette=body.palette, seed=body.seed, caption=body.caption,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-{plan.scene}-{plan.seed}.png", data=png, prompt=body.prompt,
+        metadata={"style": plan.scene, "palette": plan.palette_name,
+                  "width": width, "height": height, "seed": plan.seed},
+    )
+    return _generation_response(
+        "image", artifact, body.response_format,
+        {"style": plan.scene, "palette": plan.palette_name, "seed": plan.seed,
+         "dimensions": f"{width}x{height}"},
+    )
+
+
+@router.post(
+    "/v1/videos/generations",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_video(body: VideoRequest) -> GenerationResponse:
+    """Generate a looping animation (delivered as GIF)."""
+    if not settings.video_generation_enabled:
+        raise HTTPException(status_code=403, detail="Video generation is disabled.")
+    from ..media.video import generate
+
+    width = min(body.width, settings.media_max_video_dimension)
+    height = min(body.height, settings.media_max_video_dimension)
+    seconds = min(body.seconds, settings.media_max_video_seconds)
+    try:
+        gif, plan = generate(
+            body.prompt, width=width, height=height, seconds=seconds, fps=body.fps,
+            motion=body.motion, palette=body.palette, seed=body.seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="video", media_type="image/gif",
+        filename=f"aetheris-{plan.motion}-{plan.seed}.gif", data=gif, prompt=body.prompt,
+        metadata={"motion": plan.motion, "palette": plan.palette_name,
+                  "frames": plan.frames, "fps": plan.fps,
+                  "duration": round(plan.duration, 2), "seed": plan.seed},
+    )
+    return _generation_response(
+        "video", artifact, body.response_format,
+        {"motion": plan.motion, "frames": plan.frames, "fps": plan.fps,
+         "duration_seconds": round(plan.duration, 2)},
+    )
+
+
+@router.post(
+    "/v1/audio/generations",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_audio(body: AudioRequest) -> GenerationResponse:
+    """Synthesise instrumental audio as a WAV file."""
+    if not settings.audio_generation_enabled:
+        raise HTTPException(status_code=403, detail="Audio generation is disabled.")
+    from ..media import audio as A
+
+    detail: dict = {"mode": body.mode, "timbre": body.timbre}
+    try:
+        if body.mode == "melody":
+            if not body.notation.strip():
+                raise ValueError("Mode 'melody' requires 'notation'.")
+            track = A.render_melody(body.notation, tempo=body.tempo, timbre=body.timbre)
+            detail["notation"] = body.notation
+        elif body.mode == "chords":
+            chords = body.notation.split() or ["Cmaj7", "Amin7", "Fmaj7", "G"]
+            track = A.render_progression(chords, tempo=body.tempo, timbre=body.timbre)
+            detail["progression"] = " ".join(chords)
+        elif body.mode == "compose":
+            track, notation = A.render_melody_from_scale(
+                body.key, body.scale, bars=body.bars, tempo=body.tempo, timbre=body.timbre
+            )
+            detail.update({"key": body.key, "scale": body.scale, "notation": notation})
+        else:
+            track = A.render_tone(body.frequency, body.seconds, body.timbre)
+            detail.update({"frequency_hz": body.frequency, "seconds": body.seconds})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if track.duration > settings.media_max_audio_seconds:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Audio exceeds the {settings.media_max_audio_seconds}s limit.",
+        )
+
+    artifact = get_store().put(
+        kind="audio", media_type="audio/wav",
+        filename=f"aetheris-{body.mode}.wav", data=track.to_wav(),
+        prompt=body.notation or f"{body.mode} {body.key}", metadata=detail,
+    )
+    detail["duration_seconds"] = round(track.duration, 2)
+    return _generation_response("audio", artifact, body.response_format, detail)
+
+
+@router.post("/v1/code/projects", response_model=GenerationResponse, tags=["media"])
+async def create_code_project(body: ProjectRequest) -> GenerationResponse:
+    """Scaffold a runnable multi-file project and return it as a ZIP."""
+    if not settings.code_generation_enabled:
+        raise HTTPException(status_code=403, detail="Project scaffolding is disabled.")
+    from ..media.code import scaffold_project
+
+    try:
+        project = scaffold_project(body.kind, body.name, body.description)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="code", media_type="application/zip",
+        filename=f"{project.name}.zip", data=project.to_zip(),
+        prompt=f"{body.kind}: {body.name}", metadata=project.summary(),
+    )
+    return _generation_response(
+        "code", artifact, "url",
+        {"name": project.name, "kind": project.kind,
+         "files": sorted(project.files), "tree": project.tree()},
+    )
+
+
 # --- Capabilities -------------------------------------------------------------
 
 @router.get("/v1/capabilities", response_model=CapabilityReport, tags=["meta"])
@@ -438,6 +663,10 @@ async def capabilities() -> CapabilityReport:
             "vision_max_images": settings.vision_max_images,
             "rag_chunk_size": settings.rag_chunk_size,
             "rag_documents_indexed": len(get_index().documents),
+            "media_max_image_dimension": settings.media_max_image_dimension,
+            "media_max_video_seconds": settings.media_max_video_seconds,
+            "media_max_audio_seconds": settings.media_max_audio_seconds,
+            "artifacts_stored": get_store().stats()["count"],
         },
     )
 
