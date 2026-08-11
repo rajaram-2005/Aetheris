@@ -6,6 +6,14 @@ Ollama's OpenAI shim, LM Studio, and others). Aetheris tiers are mapped to
 upstream models via ``ModelTier.upstream_model``; the active mode's system prompt
 is already prepended to the messages by the time this provider sees them.
 
+It forwards the full capability surface:
+
+* **tools / tool_choice** — the toolbelt is sent in the OpenAI ``tools`` array,
+  and tool calls returned by the upstream are parsed back into ``ToolCall``
+  objects for the agent loop to execute.
+* **multimodal content** — messages carrying ``image_url`` parts are forwarded
+  in the native OpenAI content-parts shape.
+
 Activated when ``AETHERIS_LLM_PROVIDER=openai`` and ``AETHERIS_LLM_API_KEY`` is set.
 """
 
@@ -17,7 +25,7 @@ from typing import Any
 
 import httpx
 
-from ..schemas.chat import ChatMessage
+from ..schemas.chat import FunctionCall, ToolCall
 from .llm import CompletionResult, LLMProvider, PreparedConversation, ProviderError
 
 
@@ -55,11 +63,40 @@ class OpenAIProvider(LLMProvider):
     def _model_for(self, prepared: PreparedConversation) -> str:
         return prepared.tier.upstream_model or self._default_model
 
+    @staticmethod
+    def _wire_messages(prepared: PreparedConversation) -> list[dict[str, Any]]:
+        """Render messages in upstream wire shape, preserving tools and images."""
+        wire: list[dict[str, Any]] = []
+        for message in prepared.messages:
+            item: dict[str, Any] = {"role": message.role}
+            content = message.wire_content()
+            # Assistant tool-call turns legitimately carry null content.
+            if content is not None or message.tool_calls is None:
+                item["content"] = content if content is not None else ""
+            if message.name:
+                item["name"] = message.name
+            if message.tool_calls:
+                item["tool_calls"] = [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
+                    }
+                    for call in message.tool_calls
+                ]
+            if message.tool_call_id:
+                item["tool_call_id"] = message.tool_call_id
+            wire.append(item)
+        return wire
+
     def _payload(self, prepared: PreparedConversation, *, stream: bool) -> dict[str, Any]:
         req = prepared.request
         payload: dict[str, Any] = {
             "model": self._model_for(prepared),
-            "messages": [{"role": m.role, "content": m.content} for m in prepared.messages],
+            "messages": self._wire_messages(prepared),
             "stream": stream,
         }
         # Only forward sampling params when the caller specified them; many
@@ -72,6 +109,11 @@ class OpenAIProvider(LLMProvider):
             payload["top_p"] = req.top_p
         if req.stop is not None:
             payload["stop"] = req.stop
+
+        tools = prepared.active_tools
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = prepared.tool_choice or "auto"
         return payload
 
     # --- Non-streaming --------------------------------------------------------
@@ -94,7 +136,8 @@ class OpenAIProvider(LLMProvider):
         if not choices:
             raise ProviderError("Upstream returned no choices.")
         choice = choices[0]
-        text = (choice.get("message") or {}).get("content") or ""
+        message = choice.get("message") or {}
+        text = message.get("content") or ""
         finish = choice.get("finish_reason") or "stop"
         usage = data.get("usage") or {}
         return CompletionResult(
@@ -102,6 +145,7 @@ class OpenAIProvider(LLMProvider):
             finish_reason=finish,
             prompt_tokens=int(usage.get("prompt_tokens", prepared.estimated_prompt_tokens)),
             completion_tokens=int(usage.get("completion_tokens", 0)),
+            tool_calls=_parse_tool_calls(message.get("tool_calls")),
         )
 
     # --- Streaming ------------------------------------------------------------
@@ -124,6 +168,28 @@ class OpenAIProvider(LLMProvider):
             ) from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"Upstream stream failed: {exc}") from exc
+
+
+def _parse_tool_calls(raw: Any) -> list[ToolCall]:
+    """Parse an upstream ``tool_calls`` array into Aetheris ``ToolCall`` objects."""
+    if not isinstance(raw, list):
+        return []
+    calls: list[ToolCall] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        function = item.get("function") or {}
+        name = function.get("name")
+        if not name:
+            continue
+        arguments = function.get("arguments")
+        if isinstance(arguments, dict):
+            arguments = json.dumps(arguments)
+        call = ToolCall(function=FunctionCall(name=name, arguments=arguments or "{}"))
+        if item.get("id"):
+            call.id = str(item["id"])
+        calls.append(call)
+    return calls
 
 
 def _extract_delta(line: str) -> str | None:

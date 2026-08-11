@@ -16,7 +16,8 @@ from fastapi.responses import HTMLResponse
 
 from .. import __version__
 from ..core import branding as b
-from ..core.modes import MODES
+from ..core.config import settings
+from ..core.modes import available_modes
 from ..core.spec import get_spec
 from ..core.tiers import TIERS
 
@@ -92,15 +93,17 @@ def _mode_cards() -> str:
         "engineering": "code",
         "editorial": "pen",
         "structured": "braces",
+        "sovereign": "shield",
     }
     labels = {
         "general": "Think",
         "engineering": "Build",
         "editorial": "Refine",
         "structured": "Structure",
+        "sovereign": "Unrestricted",
     }
     cards: list[str] = []
-    for mode in MODES:
+    for mode in available_modes():
         cards.append(
             f"""
             <button class="mode-card" type="button" data-mode-jump="{_esc(mode.id)}" data-reveal>
@@ -122,7 +125,7 @@ def _playground_modes() -> str:
         f'<button class="segment{" active" if mode.id == "general" else ""}" '
         f'type="button" role="radio" aria-checked="{"true" if mode.id == "general" else "false"}" '
         f'data-mode="{_esc(mode.id)}">{_esc(mode.id.title())}</button>'
-        for mode in MODES
+        for mode in available_modes()
     )
 
 

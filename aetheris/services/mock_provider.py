@@ -2,9 +2,16 @@
 
 The mock provider exists so Aetheris runs anywhere with zero configuration. It
 does not call a real model; instead it composes a persona-faithful response that
-honors the selected mode and tier, then streams it token-by-token. This makes the
-identity, the tier/mode matrix, and the streaming contract observable in the live
-preview without external dependencies.
+honors the selected mode and tier, then streams it token-by-token.
+
+Crucially, it is also a **real tool-calling client**: when a request exposes the
+toolbelt, the mock inspects the user's turn and emits genuine ``ToolCall``
+objects (arithmetic → ``calculator``, questions about mounted files →
+``document_search``, "run this" → ``code_interpreter``, and so on). The agent
+loop then executes those tools for real and feeds the observations back. That
+means the sandbox, the RAG index, and the self-correction loop are all
+exercised end-to-end offline — the *tools* are never mocked, only the language
+model that chooses them.
 
 When ``AETHERIS_LLM_PROVIDER=openai`` and credentials are configured, the
 OpenAI-compatible provider takes over and this one is not used.
@@ -14,14 +21,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 
 from ..core.branding import NAME
 from ..core.modes import Mode
 from ..core.tiers import ModelTier
-from ..schemas.chat import ChatMessage
+from ..schemas.chat import ChatMessage, FunctionCall, ToolCall
 from .llm import CompletionResult, LLMProvider, PreparedConversation
-
 
 # Streaming cadence: a small per-chunk delay so streamed responses visibly
 # unfold (tuned to feel live without dragging out a short reply).
@@ -32,7 +39,7 @@ def _last_user_text(messages: list[ChatMessage]) -> str:
     """Return the content of the most recent user turn (empty string if none)."""
     for msg in reversed(messages):
         if msg.role == "user":
-            return msg.content
+            return msg.text
     return ""
 
 
@@ -47,6 +54,253 @@ def _truncate(text: str, limit: int = 280) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
+
+
+# --- Tool selection heuristics ------------------------------------------------
+#
+# A real model decides which tool to call from its weights. The mock decides from
+# these patterns — the downstream execution path is identical either way.
+
+_ARITHMETIC_RE = re.compile(r"\d+\s*(?:[+\-*/^%]|\*\*)\s*\d+")
+_CODE_BLOCK_RE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
+
+_MATH_WORDS = re.compile(
+    r"\b(calculate|compute|how much|what is|sum of|product of|percent|percentage|"
+    r"square root|factorial|compound|interest|average|mean of)\b", re.I
+)
+_DOC_WORDS = re.compile(
+    r"\b(document|documents|file|files|attached|attachment|upload|uploaded|"
+    r"my notes|the spec|the report|the pdf|according to|in the doc|context)\b", re.I
+)
+_RUN_WORDS = re.compile(
+    r"\b(run|execute|test it|verify|check the output|benchmark|simulate|"
+    r"what does this print|does this work)\b", re.I
+)
+_TIME_WORDS = re.compile(r"\b(today|right now|current date|what time|this year|todays)\b", re.I)
+_WEB_WORDS = re.compile(r"\bhttps?://\S+", re.I)
+_JSON_WORDS = re.compile(r"\b(valid json|validate json|is this json|json schema)\b", re.I)
+_IMAGE_WORDS = re.compile(
+    r"\b(image|picture|photo|artwork|art|poster|wallpaper|banner|illustration|"
+    r"logo|graphic|drawing|visual|thumbnail|background)\b", re.I
+)
+_VIDEO_WORDS = re.compile(
+    r"\b(video|animation|animate|animated|gif|clip|motion|loop|movie)\b", re.I
+)
+_AUDIO_WORDS = re.compile(
+    r"\b(audio|sound|music|melody|tune|song|chord|tone|jingle|beep|track)\b", re.I
+)
+_PROJECT_WORDS = re.compile(
+    r"\b(project|scaffold|boilerplate|starter|template|repo|repository|"
+    r"app skeleton|set up a|cli tool|command.?line tool|web ?app|package|"
+    r"microservice|rest api|fastapi|static site|website|landing page)\b", re.I
+)
+_CREATE_VERBS = re.compile(
+    r"\b(generate|create|make|draw|render|design|produce|build|compose|give me|"
+    r"show me|i want|i need|scaffold|bootstrap|set up|start|animate|synthesize|"
+    r"synthesise|visualize|visualise|illustrate|draw|sketch|paint)\b", re.I
+)
+
+
+def _available(prepared: PreparedConversation) -> set[str]:
+    """Names of the tools actually offered on this turn."""
+    return {
+        t.get("function", {}).get("name", "")
+        for t in prepared.active_tools
+        if isinstance(t, dict)
+    }
+
+
+def _already_called(messages: list[ChatMessage], name: str) -> bool:
+    """Whether this tool already produced an observation in this conversation."""
+    return any(m.role == "tool" and m.name == name for m in messages)
+
+
+def _call(_tool_name: str, /, **arguments) -> ToolCall:
+    """Build a tool call. The tool name is positional-only so that a tool
+    argument literally named ``name`` cannot collide with it."""
+    return ToolCall(
+        function=FunctionCall(name=_tool_name, arguments=json.dumps(arguments))
+    )
+
+
+def choose_tool_calls(prepared: PreparedConversation) -> list[ToolCall]:
+    """Decide which tools (if any) to invoke for this turn.
+
+    Returns an empty list once the needed observations are in hand, which is what
+    terminates the agent loop.
+    """
+    tools = _available(prepared)
+    if not tools:
+        return []
+
+    messages = prepared.messages
+    text = _last_user_text(messages)
+    if not text:
+        return []
+
+    calls: list[ToolCall] = []
+    wants_creation = bool(_CREATE_VERBS.search(text))
+    # Some verbs name their own medium ("draw", "illustrate"), so they satisfy
+    # the noun requirement on their own.
+    implies_image = bool(re.search(r"\b(draw|illustrate|paint|sketch)\b", text, re.I))
+
+    # --- Creative generation -------------------------------------------------
+    # A creation verb plus a medium noun means the user wants an artifact, not
+    # a description of one.
+    if (
+        "generate_image" in tools
+        and wants_creation
+        and (_IMAGE_WORDS.search(text) or implies_image)
+        and not _VIDEO_WORDS.search(text)
+        and not _already_called(messages, "generate_image")
+    ):
+        calls.append(_call("generate_image", prompt=_creative_prompt(text)))
+
+    if (
+        "generate_video" in tools
+        and wants_creation
+        and _VIDEO_WORDS.search(text)
+        and not _already_called(messages, "generate_video")
+    ):
+        calls.append(_call("generate_video", prompt=_creative_prompt(text)))
+
+    if (
+        "generate_audio" in tools
+        and wants_creation
+        and _AUDIO_WORDS.search(text)
+        and not _already_called(messages, "generate_audio")
+    ):
+        calls.append(_call("generate_audio", mode="compose", key="C4", scale="major", bars=4))
+
+    if (
+        "create_project" in tools
+        and wants_creation
+        and _PROJECT_WORDS.search(text)
+        and not _already_called(messages, "create_project")
+    ):
+        calls.append(
+            _call("create_project", kind=_project_kind(text), name=_project_name(text))
+        )
+
+    if calls:
+        return calls
+
+    # An explicit code block plus an instruction to run it → sandbox.
+    block = _CODE_BLOCK_RE.search(text)
+    if (
+        "code_interpreter" in tools
+        and block
+        and _RUN_WORDS.search(text)
+        and not _already_called(messages, "code_interpreter")
+    ):
+        calls.append(_call("code_interpreter", code=block.group(1).strip()))
+
+    # Bare arithmetic → exact evaluation rather than a guess.
+    if "calculator" in tools and not _already_called(messages, "calculator"):
+        expression = _extract_expression(text)
+        if expression and (_ARITHMETIC_RE.search(text) or _MATH_WORDS.search(text)):
+            calls.append(_call("calculator", expression=expression))
+
+    # Anything about mounted files → retrieve before answering.
+    if (
+        "document_search" in tools
+        and _DOC_WORDS.search(text)
+        and not _already_called(messages, "document_search")
+    ):
+        calls.append(_call("document_search", query=_search_query(text), top_k=4))
+
+    if (
+        "current_time" in tools
+        and _TIME_WORDS.search(text)
+        and not _already_called(messages, "current_time")
+    ):
+        calls.append(_call("current_time"))
+
+    if "web_fetch" in tools and not _already_called(messages, "web_fetch"):
+        url = _WEB_WORDS.search(text)
+        if url:
+            calls.append(_call("web_fetch", url=url.group(0).rstrip(").,")))
+
+    if (
+        "validate_json" in tools
+        and _JSON_WORDS.search(text)
+        and not _already_called(messages, "validate_json")
+    ):
+        payload = _extract_json_candidate(text)
+        if payload:
+            calls.append(_call("validate_json", payload=payload))
+
+    return calls
+
+
+def _creative_prompt(text: str) -> str:
+    """Strip the instruction verbs so only the subject reaches the generator."""
+    cleaned = re.sub(
+        r"^\s*(please\s+)?(can you\s+|could you\s+|i want\s+|i need\s+|"
+        r"generate|create|make|draw|render|design|produce|build|compose|"
+        r"give me|show me)\s+(me\s+)?(an?\s+|the\s+)?",
+        "", text.strip(), flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(image|picture|photo|video|animation|gif|artwork|poster)\s+(of|showing|with|for)\b",
+        "", cleaned, flags=re.I,
+    )
+    return " ".join(cleaned.split())[:300] or text[:300]
+
+
+def _project_kind(text: str) -> str:
+    """Infer which scaffold the user is asking for."""
+    lowered = text.lower()
+    if re.search(r"\b(api|fastapi|rest|service|endpoint|backend|server)\b", lowered):
+        return "fastapi-service"
+    if re.search(r"\b(cli|command.?line|terminal|script tool)\b", lowered):
+        return "cli-tool"
+    if re.search(r"\b(website|site|landing|html|static|frontend|web page)\b", lowered):
+        return "static-site"
+    return "python-package"
+
+
+def _project_name(text: str) -> str:
+    """Pull a plausible project name out of the request."""
+    quoted = re.search(r'"([^"]{1,40})"', text)
+    if quoted:
+        return quoted.group(1)
+    match = re.search(
+        r"\b(?:called|named|for)\s+([a-z0-9][a-z0-9 _-]{1,30})", text, re.I
+    )
+    if match:
+        return match.group(1).strip()
+    return "aetheris-project"
+
+
+def _extract_expression(text: str) -> str | None:
+    """Pull an evaluable arithmetic expression out of a natural-language turn."""
+    # "15% of 240" and "15 percent of 240" are common and not valid syntax.
+    percent = re.search(r"([\d.]+)\s*(?:%|percent)\s*(?:of)\s*([\d.]+)", text, re.I)
+    if percent:
+        return f"{percent.group(1)} / 100 * {percent.group(2)}"
+    # Prefer an explicit inline expression.
+    match = re.search(r"[-+]?[\d.]+(?:\s*(?:\*\*|[+\-*/^%])\s*[-+]?[\d.()]+)+", text)
+    if match:
+        return match.group(0).replace("^", "**").strip()
+    return None
+
+
+def _search_query(text: str) -> str:
+    """Reduce a question to its distinctive retrieval keywords."""
+    cleaned = re.sub(
+        r"\b(what|does|the|document|say|about|in|my|attached|file|tell|me|"
+        r"according|to|please|can|you|explain|summarize)\b",
+        " ", text, flags=re.I,
+    )
+    keywords = " ".join(cleaned.split())[:200]
+    return keywords or _truncate(text, 200)
+
+
+def _extract_json_candidate(text: str) -> str | None:
+    """Find a JSON object/array embedded in the turn."""
+    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    return match.group(1) if match else None
 
 
 # --- Per-mode composition -----------------------------------------------------
@@ -162,23 +416,161 @@ def _compose_structured(tier: ModelTier, user_text: str) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+def _compose_sovereign(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "your question"
+    return (
+        f"Direct answer on {topic}, no hedging.\n\n"
+        "**My position.** Here is what I actually think, stated as a claim rather "
+        "than a menu of options — you can argue with a claim.\n\n"
+        "**Why.** The reasoning that carries the most weight, and the specific "
+        "condition under which it would fail.\n\n"
+        "**Confidence.** Calibrated, not performative: high where the mechanism is "
+        "well understood, low where I'm extrapolating, and stated as \"I don't "
+        "know\" where that's the truth.\n\n"
+        "**What I'd do.** One concrete course of action, chosen and defended.\n\n"
+        "*(Sovereign Mode is active: this deployment has disabled reflexive hedging "
+        "and boilerplate disclaimers. Fabrication remains off the table.)*"
+    )
+
+
 _COMPOSERS = {
     "general": _compose_general,
     "engineering": _compose_engineering,
     "editorial": _compose_editorial,
     "structured": _compose_structured,
+    "sovereign": _compose_sovereign,
 }
+
+
+def _artifact_blocks(observations: list[ChatMessage]) -> list[str]:
+    """Render creative-tool results as Markdown media embeds."""
+    blocks: list[str] = []
+    for observation in observations:
+        if observation.name not in (
+            "generate_image", "generate_video", "generate_audio", "create_project"
+        ):
+            continue
+        try:
+            payload = json.loads(observation.text)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        url = payload.get("url")
+        if not url:
+            continue
+
+        kind = payload.get("created", "artifact")
+        if kind in ("image", "video"):
+            detail = (
+                f"style `{payload.get('style')}`" if kind == "image"
+                else f"motion `{payload.get('motion')}`, "
+                     f"{payload.get('frames')} frames at {payload.get('fps')}fps"
+            )
+            blocks.append(
+                f"**{kind.title()}** — {detail}, {payload.get('dimensions', '')}\n\n"
+                f"{payload.get('markdown', f'![{kind}]({url})')}\n\n"
+                f"`{url}` · {payload.get('bytes', 0):,} bytes"
+            )
+        elif kind == "audio":
+            blocks.append(
+                f"**Audio** — {payload.get('mode')} in {payload.get('timbre')}, "
+                f"{payload.get('duration_seconds')}s, {payload.get('format')}\n\n"
+                f"[▶ Play / download the WAV]({url})\n\n"
+                f"`{url}` · {payload.get('bytes', 0):,} bytes"
+            )
+        elif kind == "project":
+            tree = payload.get("tree", "")
+            blocks.append(
+                f"**Project `{payload.get('name')}`** — {payload.get('kind')}, "
+                f"{len(payload.get('files', []))} files\n\n"
+                f"```\n{tree}\n```\n\n"
+                f"[⬇ Download the ZIP]({url}) · {payload.get('bytes', 0):,} bytes"
+            )
+    return blocks
+
+
+def _tool_observations(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Every tool result already gathered in this conversation."""
+    return [m for m in messages if m.role == "tool"]
+
+
+def _compose_with_observations(
+    tier: ModelTier, mode: Mode, messages: list[ChatMessage], observations: list[ChatMessage]
+) -> str:
+    """Compose a final answer that visibly incorporates real tool output."""
+    user_text = _last_user_text(messages)
+    topic = _truncate(user_text, 180) or "your request"
+
+    if mode.id == "structured":
+        return json.dumps(
+            {
+                "understood": True,
+                "mode": "structured",
+                "tier": tier.id,
+                "topic": topic,
+                "tools_used": [m.name for m in observations],
+                "observations": [
+                    {"tool": m.name, "result": _truncate(m.text, 600)} for m in observations
+                ],
+                "verified_by_execution": True,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    # Creative tools return JSON carrying an artifact URL; render those as real
+    # embedded media rather than as a wall of tool output.
+    artifacts = _artifact_blocks(observations)
+    if artifacts:
+        head = (
+            f"Done — I generated {len(artifacts)} artifact(s) for you. "
+            "They are served live from this Aetheris instance:\n"
+        )
+        return head + "\n\n".join(artifacts) + (
+            "\n\nAsk for a different style, palette, or seed and I'll regenerate. "
+            "Every artifact is also listed at `/v1/artifacts`."
+        )
+
+    used = ", ".join(f"`{m.name}`" for m in observations)
+    lines = [
+        f"I ran {len(observations)} tool call(s) before answering — {used} — so the "
+        "result below is verified rather than recalled.\n",
+        "## What the tools returned\n",
+    ]
+    for observation in observations:
+        body = observation.text.strip()
+        if len(body) > 1200:
+            body = body[:1200] + "\n… [truncated]"
+        lines.append(f"**`{observation.name}`**\n```\n{body}\n```\n")
+
+    lines.append(
+        "## Reading the result\n"
+        "The values above come from actual execution, so they are exact. Where I go "
+        "beyond them — interpretation, recommendation, or anything not visible in the "
+        "output — I'll flag it as inference rather than fact.\n\n"
+        f"Ask a follow-up and I'll re-run the relevant step against {topic}."
+    )
+    return "\n".join(lines)
 
 
 def compose_response(tier: ModelTier, mode: Mode, messages: list[ChatMessage]) -> str:
     """Build a persona-faithful reply for the given tier, mode, and conversation."""
+    observations = _tool_observations(messages)
+    if observations:
+        return _compose_with_observations(tier, mode, messages, observations)
+
     user_text = _last_user_text(messages)
     composer = _COMPOSERS.get(mode.id, _compose_general)
     body = composer(tier, user_text)
-    # The identity line is omitted in structured mode (JSON-only output contract).
-    if mode.id == "structured":
-        return body
-    return f"{body}"
+
+    images = [image for message in messages for image in message.images]
+    if images and mode.id != "structured":
+        body += (
+            f"\n\n---\n\n**Visual input received.** {len(images)} image(s) are attached "
+            "to this conversation and were forwarded with the request. Configure a "
+            "vision-capable upstream (`AETHERIS_LLM_PROVIDER=openai` with a model such "
+            "as `gpt-4o`) to have their contents analyzed rather than acknowledged."
+        )
+    return body
 
 
 class MockProvider(LLMProvider):
@@ -189,13 +581,22 @@ class MockProvider(LLMProvider):
         return f"{NAME} Mock"
 
     async def complete(self, prepared: PreparedConversation) -> CompletionResult:
+        calls = choose_tool_calls(prepared)
+        if calls:
+            return CompletionResult(
+                text="",
+                finish_reason="tool_calls",
+                prompt_tokens=prepared.estimated_prompt_tokens,
+                completion_tokens=sum(_approx_tokens(c.function.arguments) for c in calls),
+                tool_calls=calls,
+            )
+
         text = compose_response(prepared.tier, prepared.mode, prepared.messages)
-        completion_tokens = _approx_tokens(text)
         return CompletionResult(
             text=text,
             finish_reason="stop",
             prompt_tokens=prepared.estimated_prompt_tokens,
-            completion_tokens=completion_tokens,
+            completion_tokens=_approx_tokens(text),
         )
 
     async def stream(self, prepared: PreparedConversation) -> AsyncIterator[str]:
@@ -220,4 +621,4 @@ def _word_chunks(text: str) -> list[str]:
     return chunks
 
 
-__all__ = ["MockProvider", "compose_response"]
+__all__ = ["MockProvider", "compose_response", "choose_tool_calls"]
