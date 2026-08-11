@@ -31,8 +31,18 @@ landing page.
   vLLM, Ollama, LM Studio) via environment variables.
 - **Typed everywhere** — Pydantic v2 schemas, Python 3.11+ idioms, defensive error
   handling.
-- **Branded landing page** at `/` using the canonical palette (cosmic indigo
-  `#0B132B`, electric teal `#00B4D8`, crisp white `#F8F9FA`).
+- **Interactive product experience** at `/` with a live streaming playground,
+  adaptive model/mode controls, responsive light/dark themes, architecture
+  visualization, and copy-ready API examples in the canonical Aetheris palette.
+- **God Mode orchestration** — activate an expert control deck with sampling
+  controls, mission profiles, local context-file mounting, execution telemetry,
+  a three-agent Council workflow, a Lite-vs-Pro-vs-Ultra Model Arena, sequential
+  Flow Forge recipes, intent-aware Smart Routing, persistent workspaces, live
+  session analytics, cancellable runs, voice input, response refinement actions,
+  session export, and a `⌘/Ctrl+K` command center.
+- **Local Operations Dock** — inspect sanitized API payload previews, validate
+  structured JSON responses, export response artifacts, create restorable
+  workspace checkpoints, and manage a reusable local Prompt Vault.
 
 ---
 

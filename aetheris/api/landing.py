@@ -1,13 +1,15 @@
-"""A self-contained branded landing page for the Aetheris service root.
+"""Render the public Aetheris product experience.
 
-The HTML is generated from the brand-identity constants in ``core.branding`` so
-the live preview always reflects the canonical copy, palette, tiers, and modes.
-No external assets are required — CSS and a small inline script are embedded.
+The landing page is intentionally framework-free: FastAPI serves one small HTML
+shell and the browser progressively enhances it with the live API playground,
+health state, code samples, and navigation interactions. Product data remains
+owned by the Python registries, then gets safely interpolated into the template.
 """
 
 from __future__ import annotations
 
 from html import escape
+from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -19,387 +21,214 @@ from ..core.spec import get_spec
 from ..core.tiers import TIERS
 
 router = APIRouter()
+_TEMPLATE = (Path(__file__).with_name("landing.html")).read_text(encoding="utf-8")
 
 
-def _esc(text: str) -> str:
-    """HTML-escape brand copy for safe interpolation."""
-    return escape(text)
+_ICONS = {
+    "spark": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.35 4.15a5.5 5.5 0 0 0 3.5 3.5L21 12l-4.15 1.35a5.5 5.5 0 0 0-3.5 3.5L12 21l-1.35-4.15a5.5 5.5 0 0 0-3.5-3.5L3 12l4.15-1.35a5.5 5.5 0 0 0 3.5-3.5L12 3Z"/></svg>',
+    "bolt": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h8l-1 8 9-12h-8l1-8Z"/></svg>',
+    "code": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14"/></svg>',
+    "pen": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M13 7l4 4M4 20l2.5-6.5L16 4a2.12 2.12 0 0 1 3 3l-9.5 9.5L4 20Z"/></svg>',
+    "braces": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg>',
+    "layers": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>',
+    "brain": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 4.5A3 3 0 0 0 4 6v1a3 3 0 0 0-1 5.24V14a3 3 0 0 0 3 3 3 3 0 0 0 3.5 2.5V4.5ZM14.5 4.5A3 3 0 0 1 20 6v1a3 3 0 0 1 1 5.24V14a3 3 0 0 1-3 3 3 3 0 0 1-3.5 2.5V4.5ZM9.5 9H7M14.5 9H17M9.5 14H6M14.5 14H18"/></svg>',
+    "shield": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.65 3.2 8.35 7.5 9.5 4.3-1.15 7.5-4.85 7.5-9.5V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg>',
+}
+
+
+def _esc(value: object) -> str:
+    """Escape any value before placing it in HTML."""
+    return escape(str(value), quote=True)
+
+
+def _icon(name: str) -> str:
+    return _ICONS.get(name, _ICONS["spark"])
+
+
+def _tier_cards() -> str:
+    symbols = {"flash": "bolt", "pro": "layers", "ultra": "brain"}
+    max_context = max(t.context_window for t in TIERS)
+    cards: list[str] = []
+    for index, tier in enumerate(TIERS, start=1):
+        context_label = f"{tier.context_window // 1024}K"
+        output_label = f"{tier.max_output_tokens // 1024}K"
+        width = max(18, round(tier.context_window / max_context * 100))
+        featured = " is-featured" if tier.alias == "pro" else ""
+        reasoning = "Extended reasoning" if tier.reasoning else "Direct inference"
+        cards.append(
+            f"""
+            <article class="tier-card{featured}" data-reveal>
+              <div class="tier-card__top">
+                <span class="index">0{index}</span>
+                <span class="tier-icon">{_icon(symbols.get(tier.alias, 'spark'))}</span>
+                {'<span class="recommended">Recommended</span>' if tier.alias == 'pro' else ''}
+              </div>
+              <div class="tier-card__name">
+                <div><span>Aetheris</span><h3>{_esc(tier.display_name.removeprefix('Aetheris '))}</h3></div>
+                <code>{_esc(tier.alias)}</code>
+              </div>
+              <p>{_esc(tier.tagline)}</p>
+              <div class="context-meter" aria-label="{context_label} token context window">
+                <span style="--meter:{width}%"></span>
+              </div>
+              <dl>
+                <div><dt>Context</dt><dd>{context_label}</dd></div>
+                <div><dt>Max output</dt><dd>{output_label}</dd></div>
+                <div><dt>Response</dt><dd>{_esc(tier.latency_class.title())}</dd></div>
+                <div><dt>Inference</dt><dd>{reasoning}</dd></div>
+              </dl>
+              <button class="text-action choose-model" type="button" data-model="{_esc(tier.id)}">
+                Try this model <span aria-hidden="true">↗</span>
+              </button>
+            </article>
+            """
+        )
+    return "\n".join(cards)
+
+
+def _mode_cards() -> str:
+    icon_names = {
+        "general": "spark",
+        "engineering": "code",
+        "editorial": "pen",
+        "structured": "braces",
+    }
+    labels = {
+        "general": "Think",
+        "engineering": "Build",
+        "editorial": "Refine",
+        "structured": "Structure",
+    }
+    cards: list[str] = []
+    for mode in MODES:
+        cards.append(
+            f"""
+            <button class="mode-card" type="button" data-mode-jump="{_esc(mode.id)}" data-reveal>
+              <span class="mode-card__icon">{_icon(icon_names.get(mode.id, 'spark'))}</span>
+              <span class="mode-card__content">
+                <span class="eyebrow">{_esc(labels.get(mode.id, mode.id))}</span>
+                <strong>{_esc(mode.display_name.split(' (')[0])}</strong>
+                <span>{_esc(mode.description)}</span>
+              </span>
+              <span class="mode-card__arrow" aria-hidden="true">↗</span>
+            </button>
+            """
+        )
+    return "\n".join(cards)
+
+
+def _playground_modes() -> str:
+    return "\n".join(
+        f'<button class="segment{" active" if mode.id == "general" else ""}" '
+        f'type="button" role="radio" aria-checked="{"true" if mode.id == "general" else "false"}" '
+        f'data-mode="{_esc(mode.id)}">{_esc(mode.id.title())}</button>'
+        for mode in MODES
+    )
+
+
+def _playground_models() -> str:
+    return "\n".join(
+        f'<option value="{_esc(tier.id)}"{" selected" if tier.alias == "pro" else ""}>'
+        f'{_esc(tier.display_name)}</option>'
+        for tier in TIERS
+    )
+
+
+def _capability_cards() -> str:
+    icon_names = ("layers", "spark", "brain", "code")
+    labels = ("01 / Context", "02 / Multimodal", "03 / Agency", "04 / Precision")
+    classes = ("wide", "", "", "wide")
+    return "\n".join(
+        f"""
+        <article class="cap-card {classes[index]}" data-reveal>
+          <div class="cap-card__icon">{_icon(icon_names[index])}</div>
+          <span class="eyebrow">{labels[index]}</span>
+          <h3>{_esc(capability['name'])}</h3>
+          <p>{_esc(capability['description'])}</p>
+        </article>
+        """
+        for index, capability in enumerate(b.CAPABILITIES)
+    )
+
+
+def _architecture_content() -> tuple[str, str, str]:
+    architecture = get_spec().architecture
+    modalities = (
+        ("Text", architecture.modalities.text),
+        ("Code", architecture.modalities.code),
+        ("Structured data", architecture.modalities.structured_data),
+        ("UI schematics", architecture.modalities.ui_schematics),
+        ("Image", architecture.modalities.image),
+        ("Logic diagrams", architecture.modalities.logical_diagrams),
+    )
+    modality_html = "\n".join(
+        f'<span class="modality {"active" if enabled else "inactive"}">'
+        f'<span></span>{_esc(name)}</span>'
+        for name, enabled in modalities
+    )
+    optimization_html = "\n".join(
+        f'<li><span>{index:02d}</span>{_esc(item)}</li>'
+        for index, item in enumerate(architecture.optimizations, start=1)
+    )
+    contexts_html = "\n".join(
+        f'<div><dt>{_esc(name.removeprefix("aetheris-").title())}</dt>'
+        f'<dd>{value // 1024}K</dd></div>'
+        for name, value in architecture.context_windows.items()
+    )
+    return modality_html, optimization_html, contexts_html
+
+
+def _training_stages() -> str:
+    stages = get_spec().training.stages
+    return "\n".join(
+        f"""
+        <li class="training-stage" data-reveal>
+          <span class="training-stage__line" aria-hidden="true"></span>
+          <span class="training-stage__number">{index:02d}</span>
+          <div>
+            <span class="eyebrow">{_esc(stage.phase)} · {_esc(stage.evidence)}</span>
+            <h3>{_esc(stage.name)}</h3>
+            <p>{_esc(stage.objective)}</p>
+          </div>
+          <span class="stage-status {'verified' if stage.evidence == 'blueprint' else ''}">
+            {_esc(stage.evidence)}
+          </span>
+        </li>
+        """
+        for index, stage in enumerate(stages, start=1)
+    )
+
+
+def _render() -> str:
+    modality_html, optimization_html, contexts_html = _architecture_content()
+    replacements = {
+        "@@VERSION@@": _esc(__version__),
+        "@@TITLE@@": _esc(f"{b.NAME} — Intelligence, refined"),
+        "@@DESCRIPTION@@": _esc(b.ONE_LINER),
+        "@@INDIGO@@": b.COLOR_COSMIC_INDIGO,
+        "@@TEAL@@": b.COLOR_ELECTRIC_TEAL,
+        "@@WHITE@@": b.COLOR_CRISP_WHITE,
+        "@@TIER_CARDS@@": _tier_cards(),
+        "@@MODE_CARDS@@": _mode_cards(),
+        "@@PLAYGROUND_MODES@@": _playground_modes(),
+        "@@PLAYGROUND_MODELS@@": _playground_models(),
+        "@@CAPABILITY_CARDS@@": _capability_cards(),
+        "@@MODALITIES@@": modality_html,
+        "@@OPTIMIZATIONS@@": optimization_html,
+        "@@CONTEXTS@@": contexts_html,
+        "@@TRAINING_STAGES@@": _training_stages(),
+        "@@FOUNDATION@@": _esc(get_spec().training.foundation),
+    }
+    html = _TEMPLATE
+    for token, value in replacements.items():
+        html = html.replace(token, value)
+    return html
 
 
 @router.get("/", include_in_schema=False)
 async def landing() -> HTMLResponse:
-    """Render the Aetheris landing page."""
-    indigo = b.COLOR_COSMIC_INDIGO
-    teal = b.COLOR_ELECTRIC_TEAL
-    white = b.COLOR_CRISP_WHITE
-
-    tier_cards = "\n".join(
-        f"""
-        <article class="card tier {'featured' if t.alias == 'pro' else ''}">
-          <div class="tier-head">
-            <h3>{_esc(t.display_name)}</h3>
-            <span class="badge">{_esc(t.alias)}</span>
-          </div>
-          <p class="tagline">{_esc(t.tagline)}</p>
-          <p class="desc">{_esc(t.description)}</p>
-          <ul class="meta">
-            <li><span>Context</span><b>{t.context_window:,} tokens</b></li>
-            <li><span>Max output</span><b>{t.max_output_tokens:,} tokens</b></li>
-            <li><span>Latency</span><b>{_esc(t.latency_class)}</b></li>
-            <li><span>Reasoning</span><b>{'yes' if t.reasoning else '—'}</b></li>
-          </ul>
-          <code class="model-id">{_esc(t.id)}</code>
-        </article>
-        """
-        for t in TIERS
-    )
-
-    mode_cards = "\n".join(
-        f"""
-        <article class="card mode">
-          <h3>{_esc(m.display_name)}</h3>
-          <code class="mode-id">{_esc(m.id)}</code>
-          <p>{_esc(m.description)}</p>
-        </article>
-        """
-        for m in MODES
-    )
-
-    capability_items = "\n".join(
-        f"<li><strong>{_esc(c['name'])}</strong><span>{_esc(c['description'])}</span></li>"
-        for c in b.CAPABILITIES
-    )
-
-    audience_items = "\n".join(
-        f"<li><strong>{_esc(a['audience'])}</strong><span>{_esc(a['positioning'])}</span></li>"
-        for a in b.AUDIENCES
-    )
-
-    # Tagline pills for the hero.
-    tagline_pills = "\n".join(
-        f'<span class="pill">{_esc(t)}</span>' for t in b.TAGLINES
-    )
-
-    # Architecture & training spec (data-driven from core.spec).
-    spec = get_spec()
-    arch = spec.architecture
-    tx = arch.transformer
-
-    modality_labels = [
-        ("Text", arch.modalities.text),
-        ("Code", arch.modalities.code),
-        ("Structured data", arch.modalities.structured_data),
-        ("UI schematics", arch.modalities.ui_schematics),
-        ("Image", arch.modalities.image),
-        ("Logical diagrams", arch.modalities.logical_diagrams),
-    ]
-    modality_chips = " ".join(
-        f'<span class="chip {"on" if on else "off"}">{_esc(label)}</span>'
-        for label, on in modality_labels
-    )
-
-    tx_rows: list[tuple[str, object]] = [
-        ("Architecture", tx.architecture),
-        ("Layers", tx.num_layers),
-        ("Hidden size", tx.hidden_size),
-        ("Attention heads", tx.num_attention_heads),
-        ("KV heads", tx.num_key_value_heads),
-        ("Intermediate size", tx.intermediate_size),
-        ("Vocab size", tx.vocab_size),
-        ("Max positions", tx.max_position_embeddings),
-        ("RoPE theta", tx.rope_theta),
-        ("Activation", tx.activation),
-        ("Normalization", tx.normalization),
-        ("Tied embeddings", tx.tie_word_embeddings),
-        ("Attention impl.", tx.attention_implementation),
-    ]
-    tx_rows_html = "\n".join(
-        f"<li><span>{_esc(label)}</span><b>{'—' if val is None else _esc(str(val))}</b></li>"
-        for label, val in tx_rows
-    )
-
-    def _ev_badge(evidence: str) -> str:
-        cls = {"blueprint": "ev", "scaffold": "ev ev-scaffold", "pending": "ev ev-pending"}.get(
-            evidence, "ev ev-pending"
-        )
-        return f'<span class="{cls}">{_esc(evidence)}</span>'
-
-    arch_evidence = _ev_badge(arch.evidence.get("architecture_type", "blueprint"))
-    tx_evidence = _ev_badge(tx.evidence)
-
-    optimizations_html = "".join(
-        f'<span class="pill">{_esc(o)}</span>' for o in arch.optimizations
-    )
-    fidelity_html = "".join(
-        f'<span class="pill">{_esc(d)}</span>' for d in arch.output_fidelity_domains
-    )
-
-    # Training pipeline stages.
-    stage_rows = "\n".join(
-        f"""
-        <li class="stage">
-          <div class="stage-head">
-            <span class="phase">{_esc(s.phase)}</span>
-            <strong>{_esc(s.name)}</strong>
-            {_ev_badge(s.evidence)}
-          </div>
-          <p class="stage-obj">{_esc(s.objective)}</p>
-          {f'<p class="stage-notes">{_esc(s.notes)}</p>' if s.notes else ''}
-        </li>
-        """
-        for s in spec.training.stages
-    )
-    alignment_html = "".join(
-        f'<span class="pill">{_esc(m)}</span>' for m in spec.training.alignment_methods
-    )
-    meta_learning_html = "".join(
-        f'<span class="pill">{_esc(m)}</span>' for m in spec.training.meta_learning_methods
-    )
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aetheris — {_esc(b.tagline())}</title>
-<meta name="description" content="{_esc(b.ONE_LINER)}">
-<style>
-  :root {{
-    --indigo: {indigo};
-    --indigo-2: #1b2547;
-    --teal: {teal};
-    --white: {white};
-    --muted: #9fb0d0;
-    --radius: 16px;
-  }}
-  * {{ box-sizing: border-box; }}
-  html, body {{ margin: 0; padding: 0; }}
-  body {{
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: var(--white);
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(0,180,216,0.18), transparent 60%),
-      radial-gradient(900px 500px at 0% 10%, rgba(11,19,43,0.9), transparent 55%),
-      linear-gradient(180deg, #060a18 0%, var(--indigo) 100%);
-    line-height: 1.6;
-  }}
-  a {{ color: var(--teal); text-decoration: none; }}
-  .wrap {{ max-width: 1080px; margin: 0 auto; padding: 0 24px; }}
-
-  /* Hero */
-  header.hero {{ padding: 72px 0 40px; text-align: center; }}
-  .logo {{ display: inline-flex; align-items: center; gap: 14px; font-weight: 800; letter-spacing: 0.5px; }}
-  .logo .mark {{
-    width: 42px; height: 42px; border-radius: 12px;
-    background: linear-gradient(135deg, var(--teal), #7cf0ff);
-    box-shadow: 0 0 24px rgba(0,180,216,0.45);
-    display: grid; place-items: center; color: var(--indigo); font-size: 22px;
-  }}
-  .logo .name {{ font-size: 26px; }}
-  h1 {{
-    font-size: clamp(34px, 6vw, 60px); margin: 28px 0 14px; font-weight: 800;
-    letter-spacing: -0.02em; line-height: 1.1;
-    background: linear-gradient(120deg, #ffffff, #bfeaff 60%, var(--teal));
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  }}
-  .lede {{ max-width: 720px; margin: 0 auto; color: var(--muted); font-size: 18px; }}
-  .taglines {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 22px; }}
-  .pill {{
-    border: 1px solid rgba(0,180,216,0.35); color: #cdeeff;
-    padding: 6px 14px; border-radius: 999px; font-size: 13px; background: rgba(0,180,216,0.06);
-  }}
-  .cta {{ margin-top: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }}
-  .btn {{ padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 1px solid transparent; }}
-  .btn.primary {{ background: var(--teal); color: var(--indigo); }}
-  .btn.ghost {{ border-color: rgba(159,176,208,0.4); color: var(--white); background: transparent; }}
-
-  section {{ padding: 56px 0; border-top: 1px solid rgba(159,176,208,0.12); }}
-  h2 {{ font-size: 28px; margin: 0 0 8px; }}
-  .section-sub {{ color: var(--muted); margin: 0 0 28px; max-width: 640px; }}
-
-  .grid {{ display: grid; gap: 18px; }}
-  .grid.tiers {{ grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }}
-  .grid.modes {{ grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }}
-  .card {{
-    background: linear-gradient(180deg, rgba(27,37,71,0.85), rgba(11,19,43,0.85));
-    border: 1px solid rgba(159,176,208,0.16);
-    border-radius: var(--radius); padding: 22px;
-  }}
-  .card.featured {{ border-color: rgba(0,180,216,0.5); box-shadow: 0 0 0 1px rgba(0,180,216,0.25), 0 10px 40px rgba(0,180,216,0.08); }}
-  .card h3 {{ margin: 0 0 6px; font-size: 20px; }}
-  .tier-head {{ display: flex; align-items: center; justify-content: space-between; }}
-  .badge {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--teal); border:1px solid rgba(0,180,216,0.4); padding:3px 8px; border-radius:999px; }}
-  .tagline {{ color: #cfe6ff; margin: 0 0 10px; font-weight: 600; }}
-  .desc {{ color: var(--muted); margin: 0 0 14px; font-size: 14px; }}
-  .meta {{ list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; font-size: 13px; }}
-  .meta li {{ display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(159,176,208,0.18); padding-bottom: 6px; }}
-  .meta span {{ color: var(--muted); }}
-  .meta b {{ color: var(--white); font-weight: 600; }}
-  code, .model-id, .mode-id {{
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px; color: #9fe9ff; background: rgba(0,0,0,0.25); padding: 4px 8px; border-radius: 8px;
-  }}
-  .model-id {{ display: inline-block; }}
-  .mode-id {{ display: inline-block; margin-bottom: 10px; }}
-
-  .two-col {{ display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }}
-  @media (max-width: 760px) {{ .two-col {{ grid-template-columns: 1fr; }} }}
-  ul.fancy {{ list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }}
-  ul.fancy li {{ display: grid; gap: 2px; }}
-  ul.fancy strong {{ color: var(--white); }}
-  ul.fancy span {{ color: var(--muted); font-size: 14px; }}
-
-  pre {{
-    background: rgba(0,0,0,0.35); border: 1px solid rgba(159,176,208,0.16);
-    border-radius: 12px; padding: 18px; overflow: auto; font-size: 13px; color: #d7e6ff;
-  }}
-  pre code {{ background: none; padding: 0; color: inherit; }}
-
-  /* Spec section: evidence badges, modality chips, training stages */
-  .ev {{ font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(0,180,216,0.45); color: #bfeaff; background: rgba(0,180,216,0.08); white-space: nowrap; }}
-  .ev-scaffold {{ border-color: rgba(255,193,77,0.5); color: #ffd98a; background: rgba(255,193,77,0.07); }}
-  .ev-pending {{ border-color: rgba(159,176,208,0.4); color: var(--muted); background: rgba(159,176,208,0.06); }}
-  .chips {{ display: flex; flex-wrap: wrap; gap: 8px; }}
-  .chip {{ font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(159,176,208,0.25); }}
-  .chip.on {{ color: #cfe6ff; border-color: rgba(0,180,216,0.5); background: rgba(0,180,216,0.08); }}
-  .chip.off {{ color: #5b6b8a; text-decoration: line-through; }}
-  .pills {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }}
-  .field-label {{ font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 4px; }}
-  ul.stages {{ list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }}
-  ul.stages .stage {{ background: rgba(0,0,0,0.18); border: 1px solid rgba(159,176,208,0.14); border-radius: 12px; padding: 14px 16px; }}
-  ul.stages .stage-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
-  ul.stages .phase {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--teal); border: 1px solid rgba(0,180,216,0.35); padding: 2px 8px; border-radius: 999px; }}
-  ul.stages strong {{ font-size: 15px; }}
-  ul.stages .stage-obj {{ margin: 8px 0 0; color: #cfe6ff; font-size: 14px; }}
-  ul.stages .stage-notes {{ margin: 6px 0 0; color: var(--muted); font-size: 13px; }}
-  .legend {{ display:flex; gap:14px; flex-wrap:wrap; margin-top:18px; font-size:12px; color: var(--muted); }}
-  .legend span {{ display:inline-flex; align-items:center; gap:6px; }}
-
-  footer {{ padding: 40px 0 60px; color: var(--muted); font-size: 13px; border-top: 1px solid rgba(159,176,208,0.12); }}
-  footer .row {{ display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }}
-  .status-dot {{ display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); margin-right:8px; }}
-</style>
-</head>
-<body>
-  <header class="hero">
-    <div class="wrap">
-      <div class="logo"><span class="mark">Æ</span><span class="name">Aetheris</span></div>
-      <h1>Where Raw Intellect Meets Human Intuition</h1>
-      <p class="lede">{_esc(b.ONE_LINER)}</p>
-      <div class="taglines">{tagline_pills}</div>
-      <div class="cta">
-        <a class="btn primary" href="/docs">Open API docs</a>
-        <a class="btn ghost" href="/v1/models">View models</a>
-      </div>
-    </div>
-  </header>
-
-  <section>
-    <div class="wrap">
-      <h2>Model tiers</h2>
-      <p class="section-sub">A three-tier product family tuned for different compute and latency needs — from instant chat to extended reasoning workflows.</p>
-      <div class="grid tiers">{tier_cards}</div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <h2>Inference modes</h2>
-      <p class="section-sub">Each mode activates the official Aetheris identity via a production system prompt. Set <code>mode</code> on any chat request.</p>
-      <div class="grid modes">{mode_cards}</div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <h2>Architecture <span class="ev" style="vertical-align:middle;margin-left:8px">blueprint-sourced</span></h2>
-      <p class="section-sub">A decoder-only multimodal transformer optimized for long-context comprehension, structured code execution, and autonomous tool usage. {arch_evidence}</p>
-      <div class="two-col">
-        <div>
-          <p class="field-label">Optimizations</p>
-          <div class="pills">{optimizations_html}</div>
-          <p class="field-label">Output fidelity domains</p>
-          <div class="pills">{fidelity_html}</div>
-          <p class="field-label">Native modalities</p>
-          <div class="chips">{modality_chips}</div>
-          <p class="field-label">Alignment</p>
-          <div class="pills"><span class="pill">{_esc(arch.alignment)}</span></div>
-          <p class="field-label">Context windows (per tier)</p>
-          <ul class="meta">
-            {''.join(f'<li><span>{_esc(k)}</span><b>{v:,} tokens</b></li>' for k, v in arch.context_windows.items())}
-          </ul>
-        </div>
-        <div>
-          <p class="field-label">Transformer configuration {tx_evidence}</p>
-          <ul class="meta">{tx_rows_html}</ul>
-          <p class="stage-notes" style="margin-top:10px">{_esc(tx.note)}</p>
-        </div>
-      </div>
-      <div class="legend">
-        <span><span class="ev">blueprint</span> from the identity blueprint</span>
-        <span><span class="ev ev-scaffold">scaffold</span> structured placeholder</span>
-        <span><span class="ev ev-pending">pending</span> awaiting Hermes blueprint</span>
-      </div>
-      <p class="section-sub" style="margin-top:18px"><a href="/v1/architecture">GET /v1/architecture</a> · <a href="/v1/spec">GET /v1/spec</a></p>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <h2>Training pipeline — {_esc(spec.training.foundation)}</h2>
-      <p class="section-sub">{_esc(spec.training.foundation_status)}</p>
-      <p class="field-label">Alignment methods</p>
-      <div class="pills">{alignment_html}</div>
-      <p class="field-label">Meta-learning methods</p>
-      <div class="pills">{meta_learning_html}</div>
-      <ul class="stages">{stage_rows}</ul>
-      <p class="section-sub" style="margin-top:18px"><a href="/v1/training">GET /v1/training</a></p>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <h2>Capabilities &amp; audience</h2>
-      <div class="two-col">
-        <div>
-          <p class="section-sub" style="margin-bottom:18px">Flagship strengths engineered into every tier.</p>
-          <ul class="fancy">{capability_items}</ul>
-        </div>
-        <div>
-          <p class="section-sub" style="margin-bottom:18px">Who Aetheris is built for, and how it shows up.</p>
-          <ul class="fancy">{audience_items}</ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <h2>Get started in one request</h2>
-      <p class="section-sub">Aetheris is OpenAI-compatible. Point any existing client at <code>/v1/chat/completions</code> and add the <code>mode</code> field.</p>
-      <pre><code>curl -N https://&lt;your-host&gt;/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -d '{{
-    "model": "aetheris-pro",
-    "mode": "engineering",
-    "stream": true,
-    "messages": [
-      {{ "role": "user", "content": "Design a rate limiter for a public API." }}
-    ]
-  }}'</code></pre>
-    </div>
-  </section>
-
-  <footer>
-    <div class="wrap row">
-      <span><span class="status-dot"></span>Aetheris v{__version__} · <a href="/v1/health">health</a> · <a href="/v1/identity">identity</a></span>
-      <span>{_esc(b.ETYMOLOGY)}</span>
-    </div>
-  </footer>
-</body>
-</html>
-"""
-    return HTMLResponse(content=html)
+    """Serve the progressively enhanced Aetheris product page."""
+    return HTMLResponse(content=_render())
 
 
 __all__ = ["router"]
