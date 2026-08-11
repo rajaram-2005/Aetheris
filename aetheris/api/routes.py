@@ -22,6 +22,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..core.config import settings
@@ -82,6 +83,58 @@ from ..tools import registry
 from ..tools.retrieval import get_index
 
 logger = logging.getLogger("aetheris")
+
+
+# --- Batch request schema -----------------------------------------------------
+
+from ..core.feedback import (
+    FeedbackSubmit,
+    FeedbackEntry,
+    FeedbackStats,
+    get_feedback_store,
+)
+from ..core.webhooks import (
+    WebhookRegister,
+    WebhookInfo,
+    WebhookDelivery,
+    get_webhook_manager,
+)
+from ..core.sessions import (
+    SessionCreate,
+    SessionInfo,
+    get_session_manager,
+)
+from ..core.audit import get_audit, AuditEvent
+from ..core.metrics import get_metrics
+from ..core.rate_limiter import get_limiter
+from ..core.connections import (
+    ConnectionCreate, ConnectionInfo, ConnectionTestResult,
+    get_connection_registry,
+)
+from ..core.workflows import (
+    WorkflowCreate, WorkflowInfo, WorkflowRunResult,
+    get_workflow_engine,
+)
+from ..core.events import get_event_bus
+from ..core.scheduler import ScheduleCreate, ScheduleInfo, get_scheduler
+from ..core.integrations import list_templates, get_template, build_connection
+
+
+class BatchRequest(BaseModel):
+    """A batch of chat completion requests."""
+
+    requests: list[ChatCompletionRequest] = Field(
+        ..., min_length=1, max_length=20,
+        description="Up to 20 chat completion requests to process in parallel.",
+    )
+
+
+class BatchResult(BaseModel):
+    """Result of a batch completion request."""
+
+    id: str
+    results: list[ChatCompletionResponse | dict]
+    errors: list[dict] = Field(default_factory=list)
 
 router = APIRouter()
 
@@ -780,6 +833,619 @@ async def health() -> dict:
         "tools": [t.name for t in registry.all_tools()],
         "modes": list(known_mode_ids()),
     }
+
+
+# --- Security endpoints -------------------------------------------------------
+
+@router.get("/v1/audit", tags=["security"])
+async def query_audit(
+    event_type: str | None = None,
+    actor: str | None = None,
+    action: str | None = None,
+    outcome: str | None = None,
+    since: float | None = None,
+    until: float | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict:
+    """Query the audit log with optional filters."""
+    if not settings.audit_enabled:
+        raise HTTPException(status_code=403, detail="Audit logging is disabled.")
+    audit = get_audit()
+    events = audit.query(
+        event_type=event_type,
+        actor=actor,
+        action=action,
+        outcome=outcome,
+        since=since,
+        until=until,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "data": [e.to_dict() for e in events],
+        "stats": audit.stats(),
+    }
+
+
+@router.get("/v1/audit/stats", tags=["security"])
+async def audit_stats() -> dict:
+    """Return audit log statistics."""
+    return get_audit().stats()
+
+
+@router.delete("/v1/audit", tags=["security"])
+async def clear_audit() -> dict:
+    """Clear all audit entries."""
+    if not settings.audit_enabled:
+        raise HTTPException(status_code=403, detail="Audit logging is disabled.")
+    return {"deleted": get_audit().clear()}
+
+
+@router.get("/v1/rate-limits", tags=["security"])
+async def rate_limit_stats() -> dict:
+    """Return current rate-limit state for all tracked clients."""
+    if not settings.rate_limit_enabled:
+        raise HTTPException(status_code=403, detail="Rate limiting is disabled.")
+    return {
+        "default": {
+            "requests": settings.rate_limit_requests,
+            "window_seconds": settings.rate_limit_window_seconds,
+            "burst": settings.rate_limit_burst,
+        },
+        "clients": get_limiter().stats(),
+    }
+
+
+@router.get("/v1/security/headers", tags=["security"])
+async def security_headers_info() -> dict:
+    """Return the current security header configuration."""
+    return {
+        "enabled": settings.security_headers_enabled,
+        "csp": settings.security_csp or None,
+        "hsts_max_age": settings.security_hsts_max_age,
+        "hsts_include_subdomains": settings.security_hsts_include_subdomains,
+        "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        },
+    }
+
+
+# --- Operations endpoints -----------------------------------------------------
+
+@router.get("/v1/metrics", tags=["operations"])
+async def metrics_snapshot() -> dict:
+    """Return a complete operational metrics snapshot.
+
+    Includes request counts, latencies, token usage, tool execution stats,
+    and security counters.
+    """
+    return get_metrics().snapshot()
+
+
+@router.get("/v1/metrics/tokens/{client_id}", tags=["operations"])
+async def client_token_usage(client_id: str) -> dict:
+    """Return token usage for a specific client."""
+    metrics = get_metrics()
+    usage = metrics.get_client_token_usage(client_id)
+    if settings.auth_token_quota > 0:
+        allowed, used = metrics.check_token_quota(client_id, settings.auth_token_quota)
+        usage["quota"] = settings.auth_token_quota
+        usage["quota_remaining"] = max(0, settings.auth_token_quota - used)
+        usage["within_quota"] = allowed
+    return usage
+
+
+# --- Feedback endpoints -------------------------------------------------------
+
+@router.post("/v1/feedback", tags=["operations"])
+async def submit_feedback(body: FeedbackSubmit) -> FeedbackEntry:
+    """Submit feedback (rating, thumbs, comment) for a completion."""
+    store = get_feedback_store()
+    client_id = "anonymous"  # Will be overridden by middleware if auth is enabled
+    item = store.add(
+        body.completion_id,
+        rating=body.rating,
+        thumbs_up=body.thumbs_up,
+        comment=body.comment,
+        tags=body.tags,
+        metadata=body.metadata,
+        client_id=client_id,
+    )
+    # Dispatch webhook event
+    try:
+        await get_webhook_manager().dispatch("feedback", {
+            "feedback_id": item.id,
+            "completion_id": item.completion_id,
+            "rating": item.rating,
+            "thumbs_up": item.thumbs_up,
+        })
+    except Exception:
+        pass  # Webhook failures must not break feedback submission
+    return FeedbackEntry(
+        id=item.id,
+        completion_id=item.completion_id,
+        rating=item.rating,
+        thumbs_up=item.thumbs_up,
+        comment=item.comment,
+        tags=item.tags,
+        metadata=item.metadata,
+        created_at=item.created_at,
+        client_id=item.client_id,
+    )
+
+
+@router.get("/v1/feedback", tags=["operations"])
+async def list_feedback(
+    completion_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """List feedback entries, optionally filtered by completion ID."""
+    store = get_feedback_store()
+    items = store.list_entries(completion_id=completion_id, limit=limit, offset=offset)
+    return {
+        "data": [
+            FeedbackEntry(
+                id=i.id, completion_id=i.completion_id, rating=i.rating,
+                thumbs_up=i.thumbs_up, comment=i.comment, tags=i.tags,
+                metadata=i.metadata, created_at=i.created_at, client_id=i.client_id,
+            ).model_dump()
+            for i in items
+        ],
+        "stats": store.stats().model_dump(),
+    }
+
+
+@router.get("/v1/feedback/stats", tags=["operations"])
+async def feedback_stats() -> FeedbackStats:
+    """Return aggregate feedback statistics."""
+    return get_feedback_store().stats()
+
+
+# --- Webhook endpoints --------------------------------------------------------
+
+@router.post("/v1/webhooks", status_code=201, tags=["operations"])
+async def register_webhook(body: WebhookRegister) -> WebhookInfo:
+    """Register a webhook to receive event notifications."""
+    mgr = get_webhook_manager()
+    try:
+        wh = mgr.register(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WebhookInfo(
+        id=wh.id, url=wh.url, events=wh.events, description=wh.description,
+        created_at=wh.created_at, delivery_count=wh.delivery_count,
+        failure_count=wh.failure_count, last_delivery_at=wh.last_delivery_at,
+        last_failure_at=wh.last_failure_at,
+    )
+
+
+@router.get("/v1/webhooks", tags=["operations"])
+async def list_webhooks() -> dict:
+    """List all registered webhooks."""
+    mgr = get_webhook_manager()
+    webhooks = mgr.list_webhooks()
+    return {
+        "data": [
+            WebhookInfo(
+                id=wh.id, url=wh.url, events=wh.events, description=wh.description,
+                created_at=wh.created_at, delivery_count=wh.delivery_count,
+                failure_count=wh.failure_count, last_delivery_at=wh.last_delivery_at,
+                last_failure_at=wh.last_failure_at,
+            ).model_dump()
+            for wh in webhooks
+        ],
+    }
+
+
+@router.delete("/v1/webhooks/{webhook_id}", tags=["operations"])
+async def delete_webhook(webhook_id: str) -> dict:
+    """Delete a registered webhook."""
+    if not get_webhook_manager().delete(webhook_id):
+        raise HTTPException(status_code=404, detail=f"No webhook '{webhook_id}'.")
+    return {"deleted": webhook_id}
+
+
+@router.get("/v1/webhooks/deliveries", tags=["operations"])
+async def webhook_deliveries(limit: int = 50) -> dict:
+    """List recent webhook delivery attempts."""
+    mgr = get_webhook_manager()
+    deliveries = mgr.delivery_history(limit=limit)
+    return {"data": [d.model_dump() for d in deliveries]}
+
+
+# --- Session endpoints --------------------------------------------------------
+
+@router.post("/v1/sessions", status_code=201, tags=["operations"])
+async def create_session(body: SessionCreate) -> SessionInfo:
+    """Create a new client session."""
+    mgr = get_session_manager()
+    session = mgr.create(
+        client_id=body.client_id,
+        metadata=body.metadata,
+        ttl_seconds=body.ttl_seconds,
+    )
+    return session.to_info()
+
+
+@router.get("/v1/sessions/stats", tags=["operations"])
+async def session_stats() -> dict:
+    """Return aggregate session statistics."""
+    return get_session_manager().stats()
+
+
+@router.get("/v1/sessions", tags=["operations"])
+async def list_sessions(
+    client_id: str | None = None,
+    active_only: bool = True,
+) -> dict:
+    """List client sessions."""
+    mgr = get_session_manager()
+    sessions = mgr.list_sessions(client_id=client_id, active_only=active_only)
+    return {
+        "data": [s.to_info().model_dump() for s in sessions],
+        "stats": mgr.stats(),
+    }
+
+
+@router.get("/v1/sessions/{session_id}", tags=["operations"])
+async def get_session(session_id: str) -> SessionInfo:
+    """Get a session by ID."""
+    mgr = get_session_manager()
+    session = mgr.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"No active session '{session_id}'.")
+    return session.to_info()
+
+
+@router.delete("/v1/sessions/{session_id}", tags=["operations"])
+async def delete_session(session_id: str) -> dict:
+    """Delete a session."""
+    if not get_session_manager().delete(session_id):
+        raise HTTPException(status_code=404, detail=f"No session '{session_id}'.")
+    return {"deleted": session_id}
+
+
+# --- Batch processing ---------------------------------------------------------
+
+@router.post("/v1/batch/completions", tags=["chat"])
+async def batch_completions(body: BatchRequest) -> BatchResult:
+    """Process multiple chat completion requests in parallel.
+
+    Up to 20 requests are processed concurrently. Individual failures are
+    captured in the ``errors`` list without failing the entire batch.
+    """
+    import asyncio
+
+    batch_id = f"batch_{new_completion_id()}"
+
+    async def _complete_one(idx: int, req: ChatCompletionRequest) -> dict:
+        try:
+            result = await chat_completions(req)
+            if isinstance(result, ChatCompletionResponse):
+                return {"index": idx, "result": result.model_dump()}
+            # Streaming responses are not supported in batch mode
+            return {"index": idx, "result": {"detail": "Streaming not supported in batch mode."}}
+        except HTTPException as exc:
+            return {"index": idx, "error": {"status_code": exc.status_code, "detail": exc.detail}}
+        except Exception as exc:
+            return {"index": idx, "error": {"status_code": 500, "detail": str(exc)}}
+
+    tasks = [_complete_one(i, req) for i, req in enumerate(body.requests)]
+    raw_results = await asyncio.gather(*tasks)
+
+    results = []
+    errors = []
+    for r in raw_results:
+        if "error" in r:
+            errors.append(r)
+        else:
+            results.append(r)
+
+    # Dispatch webhook
+    try:
+        await get_webhook_manager().dispatch("batch_completion", {
+            "batch_id": batch_id,
+            "total": len(body.requests),
+            "successes": len(results),
+            "failures": len(errors),
+        })
+    except Exception:
+        pass
+
+    return BatchResult(id=batch_id, results=results, errors=errors)
+
+
+# --- API Versioning -----------------------------------------------------------
+
+@router.get("/v1/version", tags=["meta"])
+async def api_version() -> dict:
+    """Return the current API version and supported versions."""
+    return {
+        "current": "v1",
+        "versions": ["v1"],
+        "server_version": __version__,
+    }
+
+
+# ============================================================================
+# Automation & Integration endpoints
+# ============================================================================
+
+# --- Connections ---------------------------------------------------------------
+
+@router.post("/v1/connections", status_code=201, tags=["automation"])
+async def create_connection(body: ConnectionCreate) -> ConnectionInfo:
+    """Register a connection to an external service or application."""
+    reg = get_connection_registry()
+    try:
+        conn = reg.create(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return conn.to_info()
+
+
+@router.get("/v1/connections/stats", tags=["automation"])
+async def connection_stats() -> dict:
+    """Return connection registry statistics."""
+    return get_connection_registry().stats()
+
+
+@router.get("/v1/connections", tags=["automation"])
+async def list_connections(service_type: str | None = None) -> dict:
+    """List all registered connections."""
+    reg = get_connection_registry()
+    conns = reg.list_connections(service_type=service_type)
+    return {
+        "data": [c.to_info().model_dump() for c in conns],
+        "stats": reg.stats(),
+    }
+
+
+@router.get("/v1/connections/{conn_id}", tags=["automation"])
+async def get_connection(conn_id: str) -> ConnectionInfo:
+    """Get a connection by ID (credentials are never exposed)."""
+    conn = get_connection_registry().get(conn_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail=f"No connection '{conn_id}'.")
+    return conn.to_info()
+
+
+@router.delete("/v1/connections/{conn_id}", tags=["automation"])
+async def delete_connection(conn_id: str) -> dict:
+    """Delete a connection and its stored credentials."""
+    if not get_connection_registry().delete(conn_id):
+        raise HTTPException(status_code=404, detail=f"No connection '{conn_id}'.")
+    return {"deleted": conn_id}
+
+
+@router.post("/v1/connections/{conn_id}/test", tags=["automation"])
+async def test_connection(conn_id: str) -> ConnectionTestResult:
+    """Test a connection by making a lightweight request to its base URL."""
+    return await get_connection_registry().test_connection(conn_id)
+
+
+@router.post("/v1/connections/{conn_id}/request", tags=["automation"])
+async def connection_request(conn_id: str, body: dict) -> dict:
+    """Make an authenticated request through a connection.
+
+    Body fields: method, path, json_body, query_params, headers, timeout.
+    """
+    reg = get_connection_registry()
+    result = await reg.request(
+        conn_id,
+        method=body.get("method", "GET"),
+        path=body.get("path", ""),
+        json_body=body.get("json_body"),
+        query_params=body.get("query_params"),
+        extra_headers=body.get("headers"),
+        timeout=body.get("timeout", 30.0),
+    )
+    return result
+
+
+# --- Workflows -----------------------------------------------------------------
+
+@router.post("/v1/workflows", status_code=201, tags=["automation"])
+async def create_workflow(body: WorkflowCreate) -> WorkflowInfo:
+    """Create a new automation workflow."""
+    engine = get_workflow_engine()
+    try:
+        wf = engine.create(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return wf.to_info()
+
+
+@router.get("/v1/workflows", tags=["automation"])
+async def list_workflows() -> dict:
+    """List all workflows."""
+    engine = get_workflow_engine()
+    return {
+        "data": [wf.to_info().model_dump() for wf in engine.list_workflows()],
+        "stats": engine.stats(),
+    }
+
+
+@router.get("/v1/workflows/runs", tags=["automation"])
+async def all_workflow_runs(limit: int = 50) -> dict:
+    """List all recent workflow executions."""
+    engine = get_workflow_engine()
+    runs = engine.run_history(limit=limit)
+    return {"data": [r.model_dump() for r in runs]}
+
+
+@router.get("/v1/workflows/{wf_id}", tags=["automation"])
+async def get_workflow(wf_id: str) -> WorkflowInfo:
+    """Get a workflow by ID."""
+    wf = get_workflow_engine().get(wf_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail=f"No workflow '{wf_id}'.")
+    return wf.to_info()
+
+
+@router.delete("/v1/workflows/{wf_id}", tags=["automation"])
+async def delete_workflow(wf_id: str) -> dict:
+    """Delete a workflow."""
+    if not get_workflow_engine().delete(wf_id):
+        raise HTTPException(status_code=404, detail=f"No workflow '{wf_id}'.")
+    return {"deleted": wf_id}
+
+
+@router.post("/v1/workflows/{wf_id}/run", tags=["automation"])
+async def run_workflow(wf_id: str, body: dict | None = None) -> WorkflowRunResult:
+    """Execute a workflow with optional inputs.
+
+    Pass input variables as a JSON object in the body.
+    """
+    engine = get_workflow_engine()
+    inputs = body or {}
+    result = await engine.execute(wf_id, inputs=inputs)
+    # Publish event
+    try:
+        await get_event_bus().publish("workflow.completed", {
+            "workflow_id": wf_id, "run_id": result.id, "ok": result.ok,
+            "duration_ms": result.duration_ms,
+        }, source="workflow")
+    except Exception:
+        pass
+    return result
+
+
+@router.get("/v1/workflows/{wf_id}/runs", tags=["automation"])
+async def workflow_run_history(wf_id: str, limit: int = 50) -> dict:
+    """List execution history for a workflow."""
+    engine = get_workflow_engine()
+    runs = engine.run_history(workflow_id=wf_id, limit=limit)
+    return {"data": [r.model_dump() for r in runs]}
+
+
+# --- Scheduler -----------------------------------------------------------------
+
+@router.post("/v1/schedules", status_code=201, tags=["automation"])
+async def create_schedule(body: ScheduleCreate) -> ScheduleInfo:
+    """Create a scheduled workflow run (cron)."""
+    sched = get_scheduler().add(body)
+    return sched.to_info()
+
+
+@router.get("/v1/schedules", tags=["automation"])
+async def list_schedules() -> dict:
+    """List all scheduled workflow runs."""
+    scheduler = get_scheduler()
+    return {
+        "data": [s.to_info().model_dump() for s in scheduler.list_schedules()],
+        "stats": scheduler.stats(),
+    }
+
+
+@router.delete("/v1/schedules/{schedule_id}", tags=["automation"])
+async def delete_schedule(schedule_id: str) -> dict:
+    """Delete a schedule."""
+    if not get_scheduler().remove(schedule_id):
+        raise HTTPException(status_code=404, detail=f"No schedule '{schedule_id}'.")
+    return {"deleted": schedule_id}
+
+
+@router.post("/v1/scheduler/start", tags=["automation"])
+async def start_scheduler() -> dict:
+    """Start the cron scheduler background loop."""
+    await get_scheduler().start()
+    return {"status": "started"}
+
+
+@router.post("/v1/scheduler/stop", tags=["automation"])
+async def stop_scheduler() -> dict:
+    """Stop the cron scheduler."""
+    await get_scheduler().stop()
+    return {"status": "stopped"}
+
+
+# --- Event Bus -----------------------------------------------------------------
+
+@router.post("/v1/events/publish", tags=["automation"])
+async def publish_event(body: dict) -> dict:
+    """Publish an event to the internal event bus.
+
+    Body fields: name, data, source, correlation_id.
+    """
+    bus = get_event_bus()
+    event = await bus.publish(
+        name=body.get("name", "custom"),
+        data=body.get("data", {}),
+        source=body.get("source", "api"),
+        correlation_id=body.get("correlation_id"),
+    )
+    return {
+        "id": event.id,
+        "name": event.name,
+        "timestamp": event.timestamp,
+        "delivered": True,
+    }
+
+
+@router.get("/v1/events", tags=["automation"])
+async def list_events(
+    name: str | None = None,
+    source: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """Query the event bus history."""
+    bus = get_event_bus()
+    events = bus.history(name=name, source=source, limit=limit)
+    return {
+        "data": [
+            {
+                "id": e.id, "name": e.name, "timestamp": e.timestamp,
+                "source": e.source, "data": e.data,
+                "correlation_id": e.correlation_id,
+            }
+            for e in events
+        ],
+        "stats": bus.stats(),
+    }
+
+
+# --- Integration Templates -----------------------------------------------------
+
+@router.get("/v1/integrations", tags=["automation"])
+async def list_integrations() -> dict:
+    """List all available integration templates."""
+    templates = list_templates()
+    return {"data": [t.model_dump() for t in templates]}
+
+
+@router.get("/v1/integrations/{service}", tags=["automation"])
+async def get_integration(service: str) -> dict:
+    """Get details of a specific integration template."""
+    template = get_template(service)
+    if template is None:
+        raise HTTPException(status_code=404, detail=f"No integration template for '{service}'.")
+    return template.model_dump()
+
+
+@router.post("/v1/integrations/{service}/connect", status_code=201, tags=["automation"])
+async def connect_integration(service: str, body: dict) -> ConnectionInfo:
+    """Connect to a service using a pre-built integration template.
+
+    Provide credentials in the body (e.g. api_key_val, bearer_token, etc.).
+    The template fills in defaults for base URL, auth headers, etc.
+    """
+    try:
+        conn_create = build_connection(service, **body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    reg = get_connection_registry()
+    try:
+        conn = reg.create(conn_create)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return conn.to_info()
 
 
 __all__ = ["router"]

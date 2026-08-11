@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aetheris"
-version = "0.1.0"
+version = "0.3.0"
 description = "Aetheris — a next-generation AI thought partner for deep reasoning, creative synthesis, and technical precision."
 readme = "README.md"
 license = { text = "MIT" }
