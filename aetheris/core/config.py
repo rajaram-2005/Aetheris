@@ -200,10 +200,226 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Authentication -------------------------------------------------------
+    auth_enabled: bool = Field(
+        default=False,
+        description="Require API key authentication for all non-public endpoints.",
+    )
+    auth_api_key: str = Field(
+        default="",
+        description="Single API key for authentication (use auth_api_keys for multiple).",
+    )
+    auth_api_keys: str = Field(
+        default="",
+        description="Comma-separated list of API keys accepted for authentication.",
+    )
+    auth_token_quota: int = Field(
+        default=1_000_000,
+        ge=0,
+        description="Per-client token quota (0 = unlimited).",
+    )
+
+    # --- Rate limiting --------------------------------------------------------
+    rate_limit_enabled: bool = Field(
+        default=True,
+        description="Enable per-client rate limiting.",
+    )
+    rate_limit_requests: int = Field(
+        default=60, ge=1,
+        description="Maximum requests per client in the rate-limit window.",
+    )
+    rate_limit_window_seconds: float = Field(
+        default=60.0, gt=0,
+        description="Sliding window duration for rate limiting, in seconds.",
+    )
+    rate_limit_burst: int = Field(
+        default=10, ge=0,
+        description="Additional burst allowance beyond the base rate.",
+    )
+
+    # --- Security headers -----------------------------------------------------
+    security_headers_enabled: bool = Field(
+        default=True,
+        description="Inject standard security headers (CSP, HSTS, X-Frame-Options, etc.).",
+    )
+    security_csp: str = Field(
+        default="",
+        description="Content-Security-Policy header value. Empty = no CSP header.",
+    )
+    security_hsts_max_age: int = Field(
+        default=0, ge=0,
+        description="Strict-Transport-Security max-age (0 = no HSTS header).",
+    )
+    security_hsts_include_subdomains: bool = Field(
+        default=False,
+        description="Include 'includeSubDomains' in the HSTS header.",
+    )
+
+    # --- Request limits -------------------------------------------------------
+    max_request_size_bytes: int = Field(
+        default=10 * 1024 * 1024, ge=1024,
+        description="Maximum request body size in bytes (default 10 MB).",
+    )
+
+    # --- Audit logging --------------------------------------------------------
+    audit_enabled: bool = Field(
+        default=True,
+        description="Record structured audit events for every API request.",
+    )
+    audit_max_entries: int = Field(
+        default=10_000, ge=100,
+        description="Maximum audit events retained in the in-memory buffer.",
+    )
+
+    # --- Content filtering ----------------------------------------------------
+    content_filter_enabled: bool = Field(
+        default=True,
+        description="Enable input scanning for PII and prompt-injection patterns.",
+    )
+    content_filter_redact_pii: bool = Field(
+        default=True,
+        description="Automatically redact detected PII from request inputs.",
+    )
+    content_filter_block_injection: bool = Field(
+        default=False,
+        description="Block requests that match prompt-injection patterns (vs. just logging).",
+    )
+
+    # --- CORS -----------------------------------------------------------------
+    cors_origins: str = Field(
+        default="",
+        description="Comma-separated allowed CORS origins (empty = allow all).",
+    )
+    cors_allow_credentials: bool = Field(
+        default=False,
+        description="Allow credentials in CORS requests.",
+    )
+    cors_methods: str = Field(
+        default="",
+        description="Comma-separated allowed CORS methods (empty = all).",
+    )
+    cors_headers: str = Field(
+        default="",
+        description="Comma-separated allowed CORS headers (empty = all).",
+    )
+
+    # --- Automation / Integration ----------------------------------------------
+    automations_enabled: bool = Field(
+        default=True,
+        description="Enable the workflow engine, connections, and scheduler.",
+    )
+    workflow_max_steps: int = Field(
+        default=50, ge=1, le=200,
+        description="Maximum steps per workflow execution.",
+    )
+    scheduler_enabled: bool = Field(
+        default=False,
+        description="Auto-start the cron scheduler on server startup.",
+    )
+    scheduler_tick_seconds: float = Field(
+        default=30.0, gt=0, le=300,
+        description="How often (seconds) the scheduler checks for due workflows.",
+    )
+    max_connections: int = Field(
+        default=100, ge=1, le=1000,
+        description="Maximum registered external connections.",
+    )
+    max_workflows: int = Field(
+        default=200, ge=1, le=1000,
+        description="Maximum registered workflows.",
+    )
+
+    # --- Response caching -------------------------------------------------------
+    cache_enabled: bool = Field(
+        default=True, description="Enable response caching for identical requests.",
+    )
+    cache_default_ttl: float = Field(
+        default=300.0, gt=0, le=86400,
+        description="Default TTL for cached responses, in seconds.",
+    )
+    cache_max_entries: int = Field(
+        default=1000, ge=10, description="Maximum cached responses.",
+    )
+
+    # --- File storage ----------------------------------------------------------
+    file_storage_enabled: bool = Field(
+        default=True, description="Enable the file upload and storage system.",
+    )
+    file_max_count: int = Field(
+        default=200, ge=1, description="Maximum stored files.",
+    )
+    file_max_size_bytes: int = Field(
+        default=100 * 1024 * 1024, ge=1024,
+        description="Maximum total storage in bytes (default 100 MB).",
+    )
+
+    # --- Plugins ---------------------------------------------------------------
+    plugins_enabled: bool = Field(
+        default=True, description="Enable the plugin/extension system.",
+    )
+    plugins_max: int = Field(
+        default=50, ge=1, description="Maximum registered plugins.",
+    )
+
+    # --- Analytics -------------------------------------------------------------
+    analytics_enabled: bool = Field(
+        default=True, description="Enable usage analytics and dashboards.",
+    )
+    analytics_max_records: int = Field(
+        default=50_000, ge=100, description="Maximum analytics records retained.",
+    )
+
+    # --- Presets ---------------------------------------------------------------
+    presets_enabled: bool = Field(
+        default=True, description="Enable configuration presets.",
+    )
+    presets_max: int = Field(
+        default=100, ge=1, description="Maximum stored presets.",
+    )
+
+    # --- Bookmarks -------------------------------------------------------------
+    bookmarks_enabled: bool = Field(
+        default=True, description="Enable bookmark/pin system.",
+    )
+    bookmarks_max: int = Field(
+        default=1000, ge=1, description="Maximum bookmarks.",
+    )
+
+    # --- Notifications ---------------------------------------------------------
+    notifications_enabled: bool = Field(
+        default=True, description="Enable in-app notifications.",
+    )
+    notifications_max: int = Field(
+        default=5000, ge=100, description="Maximum notifications retained.",
+    )
+
+    # --- Snapshots -------------------------------------------------------------
+    snapshots_enabled: bool = Field(
+        default=True, description="Enable version snapshots and rollback.",
+    )
+    snapshots_max: int = Field(
+        default=500, ge=1, description="Maximum snapshots retained.",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
         return bool(self.llm_api_key and self.llm_api_key.strip())
+
+    @property
+    def auth_valid_keys(self) -> list[str]:
+        """Return the list of valid API key hashes for auth middleware."""
+        from .security import hash_api_key
+
+        keys: list[str] = []
+        if self.auth_api_key and self.auth_api_key.strip():
+            keys.append(hash_api_key(self.auth_api_key.strip()))
+        if self.auth_api_keys:
+            for k in self.auth_api_keys.split(","):
+                k = k.strip()
+                if k:
+                    keys.append(hash_api_key(k))
+        return keys
 
     def capability_report(self) -> dict[str, object]:
         """A machine-readable summary of which capabilities are live."""
@@ -223,6 +439,27 @@ class Settings(BaseSettings):
             "video_generation": self.video_generation_enabled,
             "audio_generation": self.audio_generation_enabled,
             "code_generation": self.code_generation_enabled,
+            # Security & operations
+            "auth": self.auth_enabled,
+            "rate_limiting": self.rate_limit_enabled,
+            "security_headers": self.security_headers_enabled,
+            "audit_logging": self.audit_enabled,
+            "content_filter": self.content_filter_enabled,
+            "content_filter_pii_redaction": self.content_filter_redact_pii,
+            "content_filter_injection_block": self.content_filter_block_injection,
+            # Automation & integration
+            "automations": self.automations_enabled,
+            "scheduler": self.scheduler_enabled,
+            # Extra features
+            "response_cache": self.cache_enabled,
+            "file_storage": self.file_storage_enabled,
+            "plugins": self.plugins_enabled,
+            # v0.5.0 features
+            "analytics": self.analytics_enabled,
+            "presets": self.presets_enabled,
+            "bookmarks": self.bookmarks_enabled,
+            "notifications": self.notifications_enabled,
+            "snapshots": self.snapshots_enabled,
         }
 
 

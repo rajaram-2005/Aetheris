@@ -11,7 +11,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .api.landing import router as landing_router
@@ -50,6 +49,29 @@ async def lifespan(app: FastAPI):
     if settings.web_enabled:
         log.warning("Outbound web access is ENABLED (web_fetch tool is live).")
 
+    # Security & operations startup info
+    if settings.auth_enabled:
+        log.info("API key authentication is ENABLED.")
+    if settings.rate_limit_enabled:
+        log.info(
+            "Rate limiting enabled: %d requests / %gs window (+ %d burst).",
+            settings.rate_limit_requests,
+            settings.rate_limit_window_seconds,
+            settings.rate_limit_burst,
+        )
+    if settings.audit_enabled:
+        log.info("Audit logging enabled (max %d entries).", settings.audit_max_entries)
+    if settings.content_filter_enabled:
+        log.info(
+            "Content filter enabled (PII redaction=%s, injection block=%s).",
+            settings.content_filter_redact_pii,
+            settings.content_filter_block_injection,
+        )
+    if settings.security_headers_enabled:
+        log.info("Security headers enabled.")
+    if settings.security_hsts_max_age > 0:
+        log.info("HSTS enabled (max-age=%d).", settings.security_hsts_max_age)
+
     try:
         yield
     finally:
@@ -70,17 +92,14 @@ def create_app() -> FastAPI:
             {"name": "tools", "description": "The executable toolbelt and direct invocation."},
             {"name": "documents", "description": "Retrieval corpus (RAG) management and search."},
             {"name": "meta", "description": "Models, modes, capabilities, identity, and health."},
+            {"name": "security", "description": "Authentication, rate limits, audit, and content filtering."},
+            {"name": "operations", "description": "Metrics, feedback, webhooks, sessions, and batch processing."},
         ],
     )
 
-    # Permissive CORS so the preview and browser-based clients can call the API.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # Install the full security + operations middleware stack.
+    from .api.middleware import install_middleware
+    install_middleware(app)
 
     app.include_router(landing_router)
     app.include_router(api_router)
