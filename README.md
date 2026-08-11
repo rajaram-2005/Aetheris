@@ -37,9 +37,12 @@ landing page.
 - **God Mode orchestration** — activate an expert control deck with sampling
   controls, mission profiles, local context-file mounting, execution telemetry,
   a three-agent Council workflow, a Lite-vs-Pro-vs-Ultra Model Arena, sequential
-  Flow Forge recipes, persistent workspaces, live session analytics, cancellable
-  runs, voice input, response refinement actions, session export, and a
-  `⌘/Ctrl+K` command center.
+  Flow Forge recipes, intent-aware Smart Routing, persistent workspaces, live
+  session analytics, cancellable runs, voice input, response refinement actions,
+  session export, and a `⌘/Ctrl+K` command center.
+- **Local Operations Dock** — inspect sanitized API payload previews, validate
+  structured JSON responses, export response artifacts, create restorable
+  workspace checkpoints, and manage a reusable local Prompt Vault.
 
 ---
 

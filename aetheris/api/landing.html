@@ -535,6 +535,66 @@
     .council-result summary { padding: 9px; color: var(--text-2); cursor: pointer; font: 650 8px ui-monospace, monospace; text-transform: uppercase; }
     .council-result pre { max-height: 180px; margin: 0; padding: 0 9px 10px; overflow: auto; color: var(--text-3); font: 500 8px/1.55 ui-monospace, monospace; white-space: pre-wrap; }
 
+    .ops-layer { position: fixed; z-index: 450; inset: 0; visibility: hidden; pointer-events: none; }
+    .ops-layer.open { visibility: visible; pointer-events: auto; }
+    .ops-backdrop { position: absolute; inset: 0; background: rgba(2,5,12,.55); opacity: 0; -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); transition: opacity .25s ease; }
+    .ops-layer.open .ops-backdrop { opacity: 1; }
+    .ops-dock { position: absolute; top: 0; right: 0; bottom: 0; width: min(580px, 94vw); display: flex; flex-direction: column; border-left: 1px solid var(--line-strong); background: var(--surface-solid); box-shadow: -35px 0 90px rgba(0,0,0,.32); transform: translateX(102%); transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+    .ops-layer.open .ops-dock { transform: translateX(0); }
+    .ops-header { min-height: 94px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+    .ops-header h2 { margin: 5px 0 0; font-size: 24px; font-weight: 580; letter-spacing: -.04em; }
+    .ops-tabs { min-height: 50px; display: flex; gap: 20px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+    .ops-tabs button { position: relative; padding: 0; border: 0; color: var(--text-3); background: transparent; font-size: 10px; font-weight: 650; cursor: pointer; }
+    .ops-tabs button b { display: inline-grid; min-width: 16px; height: 16px; place-items: center; margin-left: 4px; color: var(--text-3); background: var(--surface-soft); border-radius: 99px; font: 650 7px ui-monospace, monospace; }
+    .ops-tabs button.active { color: var(--text); }
+    .ops-tabs button.active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 1px; background: var(--teal); }
+    .ops-content { min-height: 0; flex: 1; overflow: auto; }
+    .ops-panel { display: none; padding: 24px; }
+    .ops-panel.active { display: block; }
+    .trace-status-grid { display: grid; grid-template-columns: .7fr 1.6fr 1fr; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .trace-status-grid > span { min-width: 0; display: grid; gap: 3px; padding: 10px; border-right: 1px solid var(--line); }
+    .trace-status-grid > span:last-child { border: 0; }
+    .trace-status-grid small, .artifact-summary small { color: var(--text-3); font: 600 7px ui-monospace, monospace; letter-spacing: .07em; }
+    .trace-status-grid b { overflow: hidden; color: var(--text-2); font: 650 9px ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    #schemaStatus.valid { color: var(--success); }
+    #schemaStatus.invalid { color: #ef8585; }
+    .ops-section-head { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 9px; color: var(--text-2); font: 650 9px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .06em; }
+    .ops-section-head button { padding: 4px 7px; border: 1px solid var(--line); color: var(--text-3); background: var(--surface-soft); border-radius: 6px; font: 600 8px ui-monospace, monospace; cursor: pointer; }
+    .ops-section-head button:hover { border-color: var(--line-strong); color: var(--text); }
+    .trace-code { max-height: 340px; margin: 0; padding: 16px; overflow: auto; border: 1px solid var(--line); color: #a8bad9; background: #070b15; border-radius: 11px; font: 9px/1.7 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    html[data-theme="light"] .trace-code { color: #c7d5ec; background: #101729; }
+    .artifact-summary { display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .artifact-summary > div { min-width: 0; display: grid; gap: 4px; padding: 10px; border-right: 1px solid var(--line); }
+    .artifact-summary > div:last-child { border: 0; }
+    .artifact-summary b { overflow: hidden; color: var(--text-2); font: 650 8px ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .ops-privacy { margin: 12px 0 0; color: var(--text-3); font-size: 9px; }
+    .ops-intro { display: grid; grid-template-columns: 46px 1fr; gap: 14px; padding: 17px; border: 1px solid var(--line); background: var(--surface-soft); border-radius: 13px; }
+    .ops-icon { width: 46px; height: 46px; display: grid; place-items: center; color: var(--teal-soft); background: var(--surface-solid); border: 1px solid var(--line); border-radius: 12px; font-size: 17px; }
+    .ops-intro h3 { margin: 0 0 4px; font-size: 14px; }
+    .ops-intro p { margin: 0; color: var(--text-3); font-size: 10px; line-height: 1.5; }
+    .ops-create { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 16px 0; }
+    .ops-create input { min-width: 0; height: 39px; padding: 0 11px; border: 1px solid var(--line); outline: 0; color: var(--text); background: var(--surface-soft); border-radius: 9px; font-size: 11px; }
+    .ops-create input:focus { border-color: rgba(0,180,216,.5); }
+    .ops-create button { padding: 0 13px; border: 0; color: #06121d; background: var(--teal); border-radius: 9px; font-size: 10px; font-weight: 750; cursor: pointer; }
+    .ops-empty { display: grid; justify-items: center; padding: 54px 20px; border: 1px dashed var(--line); color: var(--text-3); border-radius: 13px; text-align: center; }
+    .ops-empty[hidden] { display: none; }
+    .ops-empty > span { margin-bottom: 8px; color: var(--teal-soft); font-size: 20px; }
+    .ops-empty p { margin: 0; color: var(--text-2); font-size: 11px; }
+    .ops-empty small { margin-top: 3px; font-size: 9px; }
+    .saved-list { display: grid; gap: 8px; }
+    .saved-item { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 13px; border: 1px solid var(--line); background: var(--surface-soft); border-radius: 11px; }
+    .saved-item__main { min-width: 0; }
+    .saved-item strong, .saved-item small { display: block; }
+    .saved-item strong { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .saved-item small { margin-top: 3px; color: var(--text-3); font: 500 8px ui-monospace, monospace; }
+    .saved-item__actions { display: flex; gap: 4px; }
+    .saved-item__actions button { height: 29px; padding: 0 8px; border: 1px solid var(--line); color: var(--text-2); background: var(--surface-solid); border-radius: 7px; font-size: 8px; cursor: pointer; }
+    .saved-item__actions button:hover { border-color: var(--line-strong); color: var(--teal-soft); }
+    .saved-item__actions button.danger:hover { border-color: rgba(239,133,133,.4); color: #ef8585; }
+    .ops-footer { min-height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-top: 1px solid var(--line); color: var(--text-3); font: 600 8px ui-monospace, monospace; }
+    .ops-footer span:first-child { display: flex; align-items: center; gap: 6px; }
+    .ops-footer i { width: 6px; height: 6px; background: var(--success); border-radius: 50%; }
+
     .command-palette { position: fixed; z-index: 500; inset: 0; display: grid; place-items: start center; padding-top: min(15vh, 140px); opacity: 0; visibility: hidden; transition: opacity .18s, visibility .18s; }
     .command-palette.open { opacity: 1; visibility: visible; }
     .command-palette__backdrop { position: absolute; inset: 0; background: rgba(2,5,12,.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
@@ -663,6 +723,17 @@
       .execution-telemetry > span:last-child { grid-column: span 2; }
       .council-board { margin-left: 0; }
       .god-toast { right: 12px; bottom: 12px; left: 12px; min-width: 0; }
+      .ops-dock { width: 100%; }
+      .ops-header, .ops-panel { padding-inline: 16px; }
+      .ops-tabs { gap: 14px; padding-inline: 16px; overflow-x: auto; }
+      .ops-tabs button { flex: 0 0 auto; }
+      .artifact-summary { grid-template-columns: 1fr 1fr; }
+      .artifact-summary > div:nth-child(2) { border-right: 0; }
+      .artifact-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .ops-create { grid-template-columns: 1fr; }
+      .ops-create button { height: 38px; }
+      .god-console__note > div { width: 100%; justify-content: space-between; gap: 8px; }
+      .memory-toggle span { font-size: 7px; }
       .hero { padding-top: 110px; }
       .hero h1 { font-size: clamp(52px, 17vw, 70px); }
       .hero h1 .outline { -webkit-text-stroke-color: color-mix(in srgb, var(--text) 60%, transparent); }
@@ -863,6 +934,9 @@
             <div class="playground-toolbar">
               <div class="segments" role="radiogroup" aria-label="Inference mode">@@PLAYGROUND_MODES@@</div>
               <div class="toolbar-actions">
+                <button class="tool-button" id="openOpsDock" type="button" aria-label="Open operations dock" title="Operations dock">
+                  <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+                </button>
                 <button class="tool-button voice-button" id="voiceInput" type="button" aria-label="Dictate a prompt" title="Voice input">
                   <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/></svg>
                 </button>
@@ -937,7 +1011,11 @@
               </div>
               <div class="god-console__note">
                 <span>Council compares specialist modes. Arena benchmarks model tiers. Flow Forge executes a staged, self-reviewing workflow.</span>
-                <div><label class="memory-toggle"><input id="persistentMemory" type="checkbox" checked><span>Persistent workspace</span></label><button id="deactivateGodMode" type="button">Power down</button></div>
+                <div>
+                  <label class="memory-toggle"><input id="autoRouter" type="checkbox"><span>Smart router</span></label>
+                  <label class="memory-toggle"><input id="persistentMemory" type="checkbox" checked><span>Persistent workspace</span></label>
+                  <button id="deactivateGodMode" type="button">Power down</button>
+                </div>
               </div>
             </details>
 
@@ -1113,6 +1191,67 @@
     </div>
   </footer>
 
+  <div class="ops-layer" id="opsLayer" aria-hidden="true">
+    <div class="ops-backdrop" data-close-ops></div>
+    <aside class="ops-dock" role="dialog" aria-modal="true" aria-labelledby="opsTitle">
+      <header class="ops-header">
+        <div><span class="eyebrow">Local mission control</span><h2 id="opsTitle">Operations Dock</h2></div>
+        <button class="icon-button" id="closeOpsDock" type="button" aria-label="Close operations dock">
+          <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <nav class="ops-tabs" role="tablist" aria-label="Operations tools">
+        <button class="active" type="button" role="tab" aria-selected="true" data-ops-tab="trace">API Trace</button>
+        <button type="button" role="tab" aria-selected="false" data-ops-tab="checkpoints">Checkpoints <b id="checkpointCount">0</b></button>
+        <button type="button" role="tab" aria-selected="false" data-ops-tab="vault">Prompt Vault <b id="vaultCount">0</b></button>
+      </nav>
+      <div class="ops-content">
+        <section class="ops-panel active" data-ops-panel="trace">
+          <div class="trace-status-grid">
+            <span><small>METHOD</small><b>POST</b></span>
+            <span><small>ENDPOINT</small><b>/v1/chat/completions</b></span>
+            <span><small>SCHEMA</small><b id="schemaStatus">WAITING</b></span>
+          </div>
+          <div class="ops-section-head"><span>Latest request payload</span><button id="copyTrace" type="button">Copy JSON</button></div>
+          <pre class="trace-code" id="requestInspector">{
+  "status": "No request captured yet"
+}</pre>
+          <div class="ops-section-head"><span>Response artifact</span><button id="downloadArtifact" type="button">Download</button></div>
+          <div class="artifact-summary">
+            <div><small>TRACE</small><b id="artifactTrace">—</b></div>
+            <div><small>MODEL</small><b id="artifactModel">—</b></div>
+            <div><small>FORMAT</small><b id="artifactFormat">—</b></div>
+            <div><small>SIZE</small><b id="artifactSize">0 B</b></div>
+          </div>
+          <p class="ops-privacy">Inspector previews are truncated locally. Mounted context and complete prompts never enter browser storage.</p>
+        </section>
+
+        <section class="ops-panel" data-ops-panel="checkpoints">
+          <div class="ops-intro"><span class="ops-icon">◇</span><div><h3>Workspace checkpoints</h3><p>Snapshot conversation history, routing, sampling, workflow, and telemetry. Restore any state without affecting the server.</p></div></div>
+          <div class="ops-create">
+            <label class="sr-only" for="checkpointName">Checkpoint name</label>
+            <input id="checkpointName" type="text" maxlength="48" placeholder="Checkpoint name…">
+            <button id="createCheckpoint" type="button">Create snapshot</button>
+          </div>
+          <div class="ops-empty" id="checkpointEmpty"><span>◇</span><p>No checkpoints yet.</p><small>Create one before exploring a different direction.</small></div>
+          <div class="saved-list" id="checkpointList"></div>
+        </section>
+
+        <section class="ops-panel" data-ops-panel="vault">
+          <div class="ops-intro"><span class="ops-icon">✦</span><div><h3>Prompt Vault</h3><p>Save reusable prompts locally, then load or run them directly from Mission Control.</p></div></div>
+          <div class="ops-create">
+            <label class="sr-only" for="vaultPromptName">Prompt name</label>
+            <input id="vaultPromptName" type="text" maxlength="48" placeholder="Name the current prompt…">
+            <button id="savePromptToVault" type="button">Save draft</button>
+          </div>
+          <div class="ops-empty" id="vaultEmpty"><span>✦</span><p>Your Prompt Vault is empty.</p><small>Write a prompt in the composer, then save it here.</small></div>
+          <div class="saved-list" id="vaultList"></div>
+        </section>
+      </div>
+      <footer class="ops-footer"><span><i></i> Local-first storage</span><span>ESC to close</span></footer>
+    </aside>
+  </div>
+
   <div class="command-palette" id="commandPalette" aria-hidden="true">
     <div class="command-palette__backdrop" data-close-command></div>
     <section class="command-dialog" role="dialog" aria-modal="true" aria-labelledby="commandTitle">
@@ -1126,6 +1265,8 @@
       <div class="command-list" id="commandList">
         <button type="button" data-command="god"><span class="command-icon">ϟ</span><span><strong>Toggle God Mode</strong><small>Advanced controls, council orchestration, and telemetry</small></span><kbd>G</kbd></button>
         <button type="button" data-command="new"><span class="command-icon">＋</span><span><strong>Start a new session</strong><small>Clear the conversation and attached context</small></span><kbd>N</kbd></button>
+        <button type="button" data-command="ops"><span class="command-icon">▦</span><span><strong>Open Operations Dock</strong><small>Inspect requests, manage checkpoints, and access Prompt Vault</small></span><kbd>O</kbd></button>
+        <button type="button" data-command="checkpoint"><span class="command-icon">◇</span><span><strong>Create workspace checkpoint</strong><small>Save the current conversation and orchestration state</small></span><kbd>C</kbd></button>
         <button type="button" data-command="ultra"><span class="command-icon">Æ</span><span><strong>Switch to Aetheris Ultra</strong><small>Activate the 256K extended reasoning tier</small></span><kbd>U</kbd></button>
         <button type="button" data-command="arena"><span class="command-icon">◫</span><span><strong>Open Model Arena</strong><small>Compare Lite, Pro, and Ultra with an adjudication pass</small></span><kbd>M</kbd></button>
         <button type="button" data-command="flow"><span class="command-icon">↳</span><span><strong>Activate Flow Forge</strong><small>Run a staged decision, architecture, delivery, or creative workflow</small></span><kbd>F</kbd></button>
@@ -1239,8 +1380,11 @@
       const workflowRecipe = document.getElementById("workflowRecipe");
       const expertDirective = document.getElementById("expertDirective");
       const persistentMemory = document.getElementById("persistentMemory");
+      const autoRouter = document.getElementById("autoRouter");
       const stopExecution = document.getElementById("stopExecution");
       const responseActions = document.getElementById("responseActions");
+      const opsLayer = document.getElementById("opsLayer");
+      const requestInspector = document.getElementById("requestInspector");
       const voiceInput = document.getElementById("voiceInput");
       const contextFileInput = document.getElementById("contextFileInput");
       const contextFilesElement = document.getElementById("contextFiles");
@@ -1260,7 +1404,12 @@
       let contextFiles = [];
       let toastTimer = null;
       let sessionStats = { requests: 0, tokens: 0, latencies: [], startedAt: Date.now() };
+      let checkpoints = [];
+      let promptVault = [];
+      let lastArtifact = { text: "", trace: "—", model: "—", format: "—" };
       const workspaceKey = "aetheris-workspace-v1";
+      const checkpointKey = "aetheris-checkpoints-v1";
+      const vaultKey = "aetheris-prompt-vault-v1";
 
       const showGodToast = (title = "God Mode activated", label = "ORCHESTRATION LAYER") => {
         godToast.querySelector("span").textContent = label;
@@ -1268,6 +1417,16 @@
         godToast.classList.add("visible");
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => godToast.classList.remove("visible"), 2600);
+      };
+
+      const storeLocal = (key, value, label = "workspace") => {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+          return true;
+        } catch {
+          showGodToast("Browser storage is full; remove older saved items", label.toUpperCase());
+          return false;
+        }
       };
 
       const setGodMode = (enabled, notify = true) => {
@@ -1302,6 +1461,28 @@
         });
         telemetry.strategy.textContent = strategy.toUpperCase();
         workflowRecipe.disabled = strategy !== "flow";
+      };
+
+      const smartRoutePrompt = (prompt) => {
+        if (!autoRouter.checked || missionProfile.value !== "adaptive") return;
+        const text = prompt.toLowerCase();
+        let route = { model: "aetheris-pro", mode: "general", strategy: "direct", label: "Balanced reasoning" };
+        if (/\b(json|schema|extract|classify|parse|structured|csv)\b/.test(text)) {
+          route = { model: "aetheris-pro", mode: "structured", strategy: "direct", label: "Structured inference" };
+        } else if (/\b(code|api|database|debug|refactor|architecture|system design|typescript|python|javascript)\b/.test(text)) {
+          route = { model: text.length > 900 ? "aetheris-ultra" : "aetheris-pro", mode: "engineering", strategy: "direct", label: "Engineering route" };
+        } else if (/\b(rewrite|story|voice|essay|copy|headline|narrative|editor|creative)\b/.test(text)) {
+          route = { model: "aetheris-pro", mode: "editorial", strategy: "direct", label: "Editorial route" };
+        } else if (/\b(research|compare|investigate|evidence|proof|strategy|complex|deep analysis)\b/.test(text)) {
+          route = { model: "aetheris-ultra", mode: "general", strategy: "council", label: "Deep synthesis" };
+        } else if (text.length < 120) {
+          route = { model: "aetheris-lite", mode: "general", strategy: "direct", label: "Low-latency route" };
+        }
+        modelSelect.value = route.model;
+        setMode(route.mode);
+        setStrategy(route.strategy);
+        showGodToast(route.label + " selected", "SMART ROUTER");
+        updateSessionLens();
       };
 
       const missionProfiles = {
@@ -1383,13 +1564,14 @@
       const saveWorkspace = () => {
         if (!persistentMemory.checked) return;
         const snapshot = {
-          history: sessionHistory.slice(-30),
+          history: sessionHistory.slice(-20).map((message) => ({ ...message, content: message.content.slice(0, 32000) })),
           model: modelSelect.value,
           mode: activeMode,
           strategy: executionStrategy,
           profile: missionProfile.value,
           workflow: workflowRecipe.value,
           directive: expertDirective.value,
+          autoRouter: autoRouter.checked,
           stats: {
             requests: sessionStats.requests,
             tokens: sessionStats.tokens,
@@ -1401,7 +1583,7 @@
           maxTokens: Number(tokenBudget.value),
           savedAt: new Date().toISOString()
         };
-        localStorage.setItem(workspaceKey, JSON.stringify(snapshot));
+        storeLocal(workspaceKey, snapshot, "workspace");
       };
 
       const updateTelemetry = ({ state, latency, tokens, trace } = {}) => {
@@ -1456,6 +1638,10 @@
         localStorage.setItem("aetheris-memory-enabled", persistentMemory.checked ? "on" : "off");
         if (persistentMemory.checked) saveWorkspace();
         else localStorage.removeItem(workspaceKey);
+      });
+      autoRouter.addEventListener("change", () => {
+        saveWorkspace();
+        showGodToast(autoRouter.checked ? "Intent-aware routing enabled" : "Manual routing restored", "SMART ROUTER");
       });
       temperatureRange.addEventListener("input", () => document.getElementById("temperatureValue").textContent = Number(temperatureRange.value).toFixed(1));
       topPRange.addEventListener("input", () => document.getElementById("topPValue").textContent = Number(topPRange.value).toFixed(1));
@@ -1529,11 +1715,50 @@
         return messages;
       };
 
+      const inspectRequest = (payload) => {
+        const preview = {
+          ...payload,
+          messages: payload.messages.map((message) => ({
+            role: message.role,
+            content: message.content.length > 1200 ? message.content.slice(0, 1200) + "\n… [preview truncated]" : message.content
+          }))
+        };
+        requestInspector.textContent = JSON.stringify(preview, null, 2);
+      };
+
+      const captureArtifact = (text, trace, model, mode = activeMode) => {
+        let format = "MARKDOWN";
+        let schema = "TEXT";
+        let validJson = false;
+        if (mode === "structured" || /^[\s]*[\[{]/.test(text)) {
+          try {
+            JSON.parse(text);
+            format = "JSON";
+            schema = "VALID JSON";
+            validJson = true;
+          } catch {
+            format = mode === "structured" ? "JSON" : "MARKDOWN";
+            schema = mode === "structured" ? "INVALID JSON" : "TEXT";
+          }
+        }
+        lastArtifact = { text, trace: trace || "—", model: model || "—", format };
+        document.getElementById("artifactTrace").textContent = lastArtifact.trace;
+        document.getElementById("artifactModel").textContent = lastArtifact.model.replace("aetheris-", "");
+        document.getElementById("artifactFormat").textContent = format;
+        document.getElementById("artifactSize").textContent = new Blob([text]).size.toLocaleString() + " B";
+        const schemaElement = document.getElementById("schemaStatus");
+        schemaElement.textContent = schema;
+        schemaElement.classList.toggle("valid", validJson);
+        schemaElement.classList.toggle("invalid", schema === "INVALID JSON");
+      };
+
       const requestPayload = (mode, stream, messages, model = modelSelect.value) => {
         const options = advancedOptions();
         const modelLimits = { "aetheris-lite": 4096, "aetheris-pro": 8192, "aetheris-ultra": 16384 };
         if (options.max_tokens) options.max_tokens = Math.min(options.max_tokens, modelLimits[model] || options.max_tokens);
-        return { model, mode, stream, messages, ...options };
+        const payload = { model, mode, stream, messages, ...options };
+        inspectRequest(payload);
+        return payload;
       };
 
       const safeError = (error) => error.message && error.message.length <= 180
@@ -1603,6 +1828,7 @@
           responseActions.classList.add("visible");
           const estimatedTokens = Math.round(latestResponse.length / 4);
           updateTelemetry({ state: "COMPLETE", latency: elapsed + " ms", tokens: estimatedTokens });
+          captureArtifact(latestResponse, traceId, modelSelect.value, activeMode);
           recordExecution(1, estimatedTokens, elapsed);
         } catch (error) {
           if (error.name === "AbortError" && output) {
@@ -1628,12 +1854,15 @@
         });
         if (!response.ok) throw new Error(await response.text() || mode + " agent failed");
         const data = await response.json();
+        const text = data.choices?.[0]?.message?.content || "No response";
+        const trace = data.id ? data.id.replace("chatcmpl-", "").slice(0, 10).toUpperCase() : "—";
+        captureArtifact(text, trace, model, mode);
         return {
           mode,
           model,
           label: model.replace("aetheris-", "") + " / " + mode,
-          text: data.choices?.[0]?.message?.content || "No response",
-          trace: data.id ? data.id.replace("chatcmpl-", "").slice(0, 10).toUpperCase() : "—"
+          text,
+          trace
         };
       };
 
@@ -1842,6 +2071,7 @@
       const runPrompt = async (prompt) => {
         const cleanPrompt = prompt.trim();
         if (!cleanPrompt || sendButton.disabled) return;
+        smartRoutePrompt(cleanPrompt);
         const contextMeta = contextFiles.length ? " + " + contextFiles.length + " context file" + (contextFiles.length > 1 ? "s" : "") : "";
         addMessage("user", cleanPrompt, modelSelect.options[modelSelect.selectedIndex].text + contextMeta);
         sessionHistory.push({ role: "user", content: cleanPrompt });
@@ -1932,6 +2162,244 @@
         URL.revokeObjectURL(url);
         showGodToast("Session exported as Markdown", "EXPORT COMPLETE");
       };
+
+      // Operations Dock: trace inspector, checkpoints, and Prompt Vault
+      const snapshotCurrentWorkspace = (name = "Workspace") => ({
+        id: globalThis.crypto?.randomUUID?.() || Date.now().toString(36),
+        name,
+        createdAt: new Date().toISOString(),
+        history: sessionHistory.slice(-16).map((message) => ({ ...message, content: message.content.slice(0, 24000) })),
+        model: modelSelect.value,
+        mode: activeMode,
+        strategy: executionStrategy,
+        profile: missionProfile.value,
+        workflow: workflowRecipe.value,
+        directive: expertDirective.value,
+        autoRouter: autoRouter.checked,
+        temperature: Number(temperatureRange.value),
+        topP: Number(topPRange.value),
+        maxTokens: Number(tokenBudget.value),
+        stats: {
+          requests: sessionStats.requests,
+          tokens: sessionStats.tokens,
+          latencies: [...sessionStats.latencies],
+          elapsedMs: Date.now() - sessionStats.startedAt
+        }
+      });
+
+      const switchOpsTab = (tabName) => {
+        document.querySelectorAll("[data-ops-tab]").forEach((button) => {
+          const active = button.dataset.opsTab === tabName;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-selected", String(active));
+        });
+        document.querySelectorAll("[data-ops-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.opsPanel === tabName));
+      };
+      const openOpsDock = (tabName = "trace") => {
+        switchOpsTab(tabName);
+        opsLayer.classList.add("open");
+        opsLayer.setAttribute("aria-hidden", "false");
+      };
+      const closeOpsDock = () => {
+        opsLayer.classList.remove("open");
+        opsLayer.setAttribute("aria-hidden", "true");
+      };
+
+      const restoreCheckpoint = (snapshot) => {
+        if (!snapshot || !Array.isArray(snapshot.history)) return;
+        if (activeController) activeController.abort();
+        sessionHistory = snapshot.history.filter((message) =>
+          ["user", "assistant"].includes(message.role) && typeof message.content === "string"
+        ).slice(-30);
+        conversation.querySelectorAll(".message, .council-board").forEach((message) => message.remove());
+        if (sessionHistory.length) {
+          sessionHistory.forEach((message) => addMessage(message.role, message.content, "checkpoint / " + snapshot.name));
+        } else {
+          addMessage("assistant", "Checkpoint restored. What should we explore from here?", "checkpoint / ready");
+        }
+        if ([...modelSelect.options].some((option) => option.value === snapshot.model)) modelSelect.value = snapshot.model;
+        if (["general", "engineering", "editorial", "structured"].includes(snapshot.mode)) setMode(snapshot.mode);
+        if (["direct", "council", "arena", "flow"].includes(snapshot.strategy)) setStrategy(snapshot.strategy);
+        if (missionProfiles[snapshot.profile]) missionProfile.value = snapshot.profile;
+        if (workflowRecipes[snapshot.workflow]) workflowRecipe.value = snapshot.workflow;
+        expertDirective.value = typeof snapshot.directive === "string" ? snapshot.directive.slice(0, 500) : "";
+        autoRouter.checked = Boolean(snapshot.autoRouter);
+        if (Number.isFinite(snapshot.temperature)) {
+          temperatureRange.value = String(snapshot.temperature);
+          document.getElementById("temperatureValue").textContent = Number(snapshot.temperature).toFixed(1);
+        }
+        if (Number.isFinite(snapshot.topP)) {
+          topPRange.value = String(snapshot.topP);
+          document.getElementById("topPValue").textContent = Number(snapshot.topP).toFixed(1);
+        }
+        if ([1024, 4096, 8192, 16384].includes(snapshot.maxTokens)) tokenBudget.value = String(snapshot.maxTokens);
+        if (snapshot.stats) {
+          sessionStats = {
+            requests: Math.max(0, Number(snapshot.stats.requests) || 0),
+            tokens: Math.max(0, Number(snapshot.stats.tokens) || 0),
+            latencies: Array.isArray(snapshot.stats.latencies) ? snapshot.stats.latencies.filter(Number.isFinite).slice(-30) : [],
+            startedAt: Date.now() - Math.max(0, Number(snapshot.stats.elapsedMs) || 0)
+          };
+        }
+        latestResponse = [...sessionHistory].reverse().find((message) => message.role === "assistant")?.content || "";
+        responseActions.classList.toggle("visible", Boolean(latestResponse));
+        updateSessionLens();
+        saveWorkspace();
+        closeOpsDock();
+        showGodToast(snapshot.name + " restored", "CHECKPOINT LOADED");
+      };
+
+      const makeSavedItem = (title, meta, actions) => {
+        const item = document.createElement("article");
+        item.className = "saved-item";
+        const main = document.createElement("div");
+        main.className = "saved-item__main";
+        const strong = document.createElement("strong");
+        strong.textContent = title;
+        const small = document.createElement("small");
+        small.textContent = meta;
+        main.append(strong, small);
+        const controls = document.createElement("div");
+        controls.className = "saved-item__actions";
+        actions.forEach((action) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = action.label;
+          if (action.danger) button.className = "danger";
+          button.addEventListener("click", action.run);
+          controls.append(button);
+        });
+        item.append(main, controls);
+        return item;
+      };
+
+      const renderCheckpoints = () => {
+        const list = document.getElementById("checkpointList");
+        list.replaceChildren();
+        document.getElementById("checkpointCount").textContent = String(checkpoints.length);
+        document.getElementById("checkpointEmpty").hidden = checkpoints.length > 0;
+        checkpoints.forEach((checkpoint) => {
+          const created = new Date(checkpoint.createdAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+          list.append(makeSavedItem(
+            checkpoint.name,
+            checkpoint.history.length + " messages · " + checkpoint.model.replace("aetheris-", "") + " · " + created,
+            [
+              { label: "Restore", run: () => restoreCheckpoint(checkpoint) },
+              { label: "Delete", danger: true, run: () => {
+                checkpoints = checkpoints.filter((item) => item.id !== checkpoint.id);
+                storeLocal(checkpointKey, checkpoints, "checkpoints");
+                renderCheckpoints();
+              }}
+            ]
+          ));
+        });
+      };
+
+      const createCheckpoint = (suggestedName = "") => {
+        const nameInput = document.getElementById("checkpointName");
+        const name = (suggestedName || nameInput.value).trim() || "Checkpoint " + (checkpoints.length + 1);
+        checkpoints.unshift(snapshotCurrentWorkspace(name));
+        checkpoints = checkpoints.slice(0, 10);
+        storeLocal(checkpointKey, checkpoints, "checkpoints");
+        nameInput.value = "";
+        renderCheckpoints();
+        showGodToast(name + " saved", "CHECKPOINT CREATED");
+      };
+
+      const renderPromptVault = () => {
+        const list = document.getElementById("vaultList");
+        list.replaceChildren();
+        document.getElementById("vaultCount").textContent = String(promptVault.length);
+        document.getElementById("vaultEmpty").hidden = promptVault.length > 0;
+        promptVault.forEach((savedPrompt) => {
+          list.append(makeSavedItem(
+            savedPrompt.name,
+            savedPrompt.content.length + " characters · " + new Date(savedPrompt.createdAt).toLocaleDateString(),
+            [
+              { label: "Load", run: () => {
+                input.value = savedPrompt.content;
+                input.dispatchEvent(new Event("input"));
+                closeOpsDock();
+                input.focus();
+              }},
+              { label: "Run", run: () => {
+                closeOpsDock();
+                runPrompt(savedPrompt.content);
+              }},
+              { label: "Delete", danger: true, run: () => {
+                promptVault = promptVault.filter((item) => item.id !== savedPrompt.id);
+                storeLocal(vaultKey, promptVault, "prompt vault");
+                renderPromptVault();
+              }}
+            ]
+          ));
+        });
+      };
+
+      const savePromptDraft = () => {
+        const content = input.value.trim() || [...sessionHistory].reverse().find((message) => message.role === "user")?.content || "";
+        if (!content) {
+          showGodToast("Write a prompt before saving", "PROMPT VAULT");
+          return;
+        }
+        const nameInput = document.getElementById("vaultPromptName");
+        const name = nameInput.value.trim() || content.slice(0, 42) + (content.length > 42 ? "…" : "");
+        promptVault.unshift({
+          id: globalThis.crypto?.randomUUID?.() || Date.now().toString(36),
+          name,
+          content,
+          createdAt: new Date().toISOString()
+        });
+        promptVault = promptVault.slice(0, 16);
+        storeLocal(vaultKey, promptVault, "prompt vault");
+        nameInput.value = "";
+        renderPromptVault();
+        showGodToast(name + " saved", "PROMPT VAULT");
+      };
+
+      document.getElementById("openOpsDock").addEventListener("click", () => openOpsDock("trace"));
+      document.getElementById("closeOpsDock").addEventListener("click", closeOpsDock);
+      document.querySelector("[data-close-ops]").addEventListener("click", closeOpsDock);
+      document.querySelectorAll("[data-ops-tab]").forEach((button) => button.addEventListener("click", () => switchOpsTab(button.dataset.opsTab)));
+      document.getElementById("createCheckpoint").addEventListener("click", () => createCheckpoint());
+      document.getElementById("checkpointName").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") createCheckpoint();
+      });
+      document.getElementById("savePromptToVault").addEventListener("click", savePromptDraft);
+      document.getElementById("vaultPromptName").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") savePromptDraft();
+      });
+      document.getElementById("copyTrace").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(requestInspector.textContent);
+        showGodToast("Request preview copied", "API TRACE");
+      });
+      document.getElementById("downloadArtifact").addEventListener("click", () => {
+        if (!lastArtifact.text) {
+          showGodToast("No response artifact available", "ARTIFACT EXPORT");
+          return;
+        }
+        const extension = lastArtifact.format === "JSON" ? "json" : "md";
+        const type = extension === "json" ? "application/json" : "text/markdown";
+        const url = URL.createObjectURL(new Blob([lastArtifact.text], { type }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "aetheris-artifact-" + new Date().toISOString().replace(/[:.]/g, "-") + "." + extension;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+
+      try {
+        checkpoints = JSON.parse(localStorage.getItem(checkpointKey) || "[]");
+        if (!Array.isArray(checkpoints)) checkpoints = [];
+        checkpoints = checkpoints.filter((item) => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.model === "string" && Array.isArray(item.history)).slice(0, 10);
+      } catch { checkpoints = []; }
+      try {
+        promptVault = JSON.parse(localStorage.getItem(vaultKey) || "[]");
+        if (!Array.isArray(promptVault)) promptVault = [];
+        promptVault = promptVault.filter((item) => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.content === "string").slice(0, 16);
+      } catch { promptVault = []; }
+      renderCheckpoints();
+      renderPromptVault();
 
       form.addEventListener("submit", (event) => { event.preventDefault(); runPrompt(input.value); });
       input.addEventListener("keydown", (event) => {
@@ -2049,6 +2517,8 @@
         closeCommands();
         if (command === "god") setGodMode(!document.body.classList.contains("god-mode"));
         if (command === "new") clearSession();
+        if (command === "ops") openOpsDock("trace");
+        if (command === "checkpoint") createCheckpoint();
         if (command === "ultra") {
           modelSelect.value = "aetheris-ultra";
           showGodToast("Aetheris Ultra selected", "MODEL ROUTING");
@@ -2107,6 +2577,8 @@
           commandPalette.classList.contains("open") ? closeCommands() : openCommands();
         } else if (event.key === "Escape" && commandPalette.classList.contains("open")) {
           closeCommands();
+        } else if (event.key === "Escape" && opsLayer.classList.contains("open")) {
+          closeOpsDock();
         }
       });
 
@@ -2134,6 +2606,7 @@
           if (missionProfiles[snapshot.profile]) missionProfile.value = snapshot.profile;
           if (workflowRecipes[snapshot.workflow]) workflowRecipe.value = snapshot.workflow;
           if (typeof snapshot.directive === "string") expertDirective.value = snapshot.directive.slice(0, 500);
+          autoRouter.checked = Boolean(snapshot.autoRouter);
           if (snapshot.stats && Number.isFinite(snapshot.stats.requests) && Number.isFinite(snapshot.stats.tokens)) {
             sessionStats = {
               requests: Math.max(0, snapshot.stats.requests),
