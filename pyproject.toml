@@ -28,6 +28,6 @@ aetheris = "aetheris.cli:main"
 [tool.setuptools.packages.find]
 include = ["aetheris*"]
 
-# Ship the spec override example as package data so it is discoverable.
+# Ship the browser experience and spec example with wheels/sdists.
 [tool.setuptools.package-data]
-aetheris = ["*.example.json"]
+aetheris = ["api/*.html", "core/*.example.json"]
