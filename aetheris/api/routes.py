@@ -118,6 +118,18 @@ from ..core.workflows import (
 from ..core.events import get_event_bus
 from ..core.scheduler import ScheduleCreate, ScheduleInfo, get_scheduler
 from ..core.integrations import list_templates, get_template, build_connection
+from ..core.conversations import (
+    MessageIn, ConversationCreate, ConversationInfo, ConversationDetail,
+    get_conversation_store,
+)
+from ..core.prompts_library import (
+    PromptTemplateCreate, PromptTemplateInfo, PromptRenderRequest,
+    get_prompt_library,
+)
+from ..core.caching import get_response_cache
+from ..core.files import FileInfo, FileUploadResult, get_file_store
+from ..core.export_import import ExportRequest, ImportRequest, ExportResult, ImportResult, export_bundle, import_bundle
+from ..core.plugins import PluginRegister, PluginInfo, get_plugin_manager
 
 
 class BatchRequest(BaseModel):
@@ -1446,6 +1458,265 @@ async def connect_integration(service: str, body: dict) -> ConnectionInfo:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return conn.to_info()
+
+
+
+# ============================================================================
+# Extra feature endpoints
+# ============================================================================
+
+# --- Conversations -------------------------------------------------------------
+
+@router.post("/v1/conversations", status_code=201, tags=["conversations"])
+async def create_conversation(body: ConversationCreate) -> ConversationInfo:
+    """Create a new conversation thread."""
+    store = get_conversation_store()
+    conv = store.create(body)
+    return conv.to_info()
+
+
+@router.get("/v1/conversations", tags=["conversations"])
+async def list_conversations(
+    tags: str | None = None, mode: str | None = None, limit: int = 50, offset: int = 0,
+) -> dict:
+    """List conversation threads."""
+    store = get_conversation_store()
+    tag_list = tags.split(",") if tags else None
+    convs = store.list_conversations(tags=tag_list, mode=mode, limit=limit, offset=offset)
+    return {"data": [c.to_info().model_dump() for c in convs], "stats": store.stats()}
+
+
+@router.get("/v1/conversations/search", tags=["conversations"])
+async def search_conversations(q: str) -> dict:
+    """Search conversations by content."""
+    store = get_conversation_store()
+    results = store.search(q)
+    return {"data": [{"conversation": c.to_info().model_dump(), "matching_messages": len(msgs)} for c, msgs in results]}
+
+
+@router.get("/v1/conversations/{conv_id}", tags=["conversations"])
+async def get_conversation(conv_id: str) -> ConversationDetail:
+    """Get a full conversation with all messages."""
+    store = get_conversation_store()
+    conv = store.get(conv_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail=f"No conversation '{conv_id}'.")
+    return conv.to_detail()
+
+
+@router.post("/v1/conversations/{conv_id}/messages", tags=["conversations"])
+async def append_message(conv_id: str, body: MessageIn) -> dict:
+    """Append a message to a conversation."""
+    store = get_conversation_store()
+    msg = store.append(conv_id, body)
+    if msg is None:
+        raise HTTPException(status_code=404, detail=f"No conversation '{conv_id}' or message limit reached.")
+    return msg.to_dict()
+
+
+@router.delete("/v1/conversations/{conv_id}", tags=["conversations"])
+async def delete_conversation(conv_id: str) -> dict:
+    """Delete a conversation."""
+    if not get_conversation_store().delete(conv_id):
+        raise HTTPException(status_code=404, detail=f"No conversation '{conv_id}'.")
+    return {"deleted": conv_id}
+
+
+@router.get("/v1/conversations/{conv_id}/export", tags=["conversations"])
+async def export_conversation(conv_id: str, format: str = "json") -> dict:
+    """Export a conversation as JSON, Markdown, or plain text."""
+    store = get_conversation_store()
+    result = store.export_conversation(conv_id, fmt=format)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No conversation '{conv_id}'.")
+    return {"format": format, "content": result}
+
+
+# --- Prompt Templates ----------------------------------------------------------
+
+@router.post("/v1/prompts", status_code=201, tags=["prompts"])
+async def create_prompt_template(body: PromptTemplateCreate) -> PromptTemplateInfo:
+    """Create a reusable prompt template."""
+    lib = get_prompt_library()
+    try:
+        tpl = lib.create(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return tpl.to_info()
+
+
+@router.get("/v1/prompts", tags=["prompts"])
+async def list_prompt_templates(category: str | None = None, tags: str | None = None) -> dict:
+    """List prompt templates."""
+    lib = get_prompt_library()
+    tag_list = tags.split(",") if tags else None
+    tpls = lib.list_templates(category=category, tags=tag_list)
+    return {"data": [t.to_info().model_dump() for t in tpls], "stats": lib.stats()}
+
+
+@router.get("/v1/prompts/{tpl_id}", tags=["prompts"])
+async def get_prompt_template(tpl_id: str) -> dict:
+    """Get a prompt template with its full body."""
+    lib = get_prompt_library()
+    tpl = lib.get(tpl_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail=f"No template '{tpl_id}'.")
+    return {"info": tpl.to_info().model_dump(), "template": tpl.template, "variables": tpl.variables}
+
+
+@router.post("/v1/prompts/{tpl_id}/render", tags=["prompts"])
+async def render_prompt_template(tpl_id: str, body: PromptRenderRequest) -> dict:
+    """Render a prompt template with variable substitution."""
+    lib = get_prompt_library()
+    tpl = lib.get(tpl_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail=f"No template '{tpl_id}'.")
+    rendered = tpl.render(body.variables)
+    return {"template_id": tpl_id, "rendered": rendered}
+
+
+@router.delete("/v1/prompts/{tpl_id}", tags=["prompts"])
+async def delete_prompt_template(tpl_id: str) -> dict:
+    """Delete a prompt template."""
+    if not get_prompt_library().delete(tpl_id):
+        raise HTTPException(status_code=404, detail=f"No template '{tpl_id}'.")
+    return {"deleted": tpl_id}
+
+
+@router.post("/v1/prompts/defaults", tags=["prompts"])
+async def load_default_templates() -> dict:
+    """Load built-in default prompt templates."""
+    count = get_prompt_library().load_defaults()
+    return {"loaded": count}
+
+
+# --- Caching ------------------------------------------------------------------
+
+@router.get("/v1/cache", tags=["operations"])
+async def cache_stats() -> dict:
+    """Return response cache statistics."""
+    return get_response_cache().stats()
+
+
+@router.delete("/v1/cache", tags=["operations"])
+async def clear_cache() -> dict:
+    """Clear the response cache."""
+    return {"cleared": get_response_cache().clear()}
+
+
+# --- File Storage --------------------------------------------------------------
+
+@router.post("/v1/files", status_code=201, tags=["files"])
+async def upload_file(
+    file: UploadFile = File(..., description="File to upload."),
+    directory: str = Form(default="/"),
+    tags: str | None = Form(default=None),
+) -> FileUploadResult:
+    """Upload a file to the in-memory store."""
+    if not settings.file_storage_enabled:
+        raise HTTPException(status_code=403, detail="File storage is disabled.")
+    data = await file.read()
+    tag_list = tags.split(",") if tags else []
+    try:
+        f = get_file_store().put(
+            filename=file.filename or "upload",
+            data=data,
+            content_type=file.content_type or "",
+            directory=directory,
+            tags=tag_list,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    # Auto-index text files into RAG
+    indexed = False
+    if settings.rag_enabled and f.content_type.startswith("text/"):
+        try:
+            text = data.decode("utf-8")
+            doc = get_index().add(text, title=f.filename, source="upload")
+            indexed = True
+        except Exception:
+            pass
+    return FileUploadResult(
+        id=f.id, filename=f.filename, content_type=f.content_type,
+        size_bytes=f.size_bytes, checksum=f.checksum, indexed=indexed,
+    )
+
+
+@router.get("/v1/files", tags=["files"])
+async def list_files(directory: str | None = None, content_type: str | None = None) -> dict:
+    """List stored files."""
+    store = get_file_store()
+    files = store.list_files(directory=directory, content_type_prefix=content_type)
+    return {"data": [f.to_info().model_dump() for f in files], "stats": store.stats()}
+
+
+@router.get("/v1/files/{file_id}", tags=["files"])
+async def download_file(file_id: str) -> Response:
+    """Download a file's content."""
+    f = get_file_store().get(file_id)
+    if f is None:
+        raise HTTPException(status_code=404, detail=f"No file '{file_id}'.")
+    return Response(
+        content=f.data, media_type=f.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{f.filename}"', "X-Aetheris-File-Checksum": f.checksum},
+    )
+
+
+@router.delete("/v1/files/{file_id}", tags=["files"])
+async def delete_file(file_id: str) -> dict:
+    """Delete a stored file."""
+    if not get_file_store().delete(file_id):
+        raise HTTPException(status_code=404, detail=f"No file '{file_id}'.")
+    return {"deleted": file_id}
+
+
+# --- Export/Import -------------------------------------------------------------
+
+@router.post("/v1/export", tags=["operations"])
+async def create_export(body: ExportRequest) -> ExportResult:
+    """Export Aetheris data as a portable bundle."""
+    return export_bundle(body)
+
+
+@router.post("/v1/import", tags=["operations"])
+async def import_data(body: ImportRequest) -> ImportResult:
+    """Import an Aetheris bundle."""
+    return import_bundle(body)
+
+
+# --- Plugins ------------------------------------------------------------------
+
+@router.post("/v1/plugins", status_code=201, tags=["plugins"])
+async def register_plugin(body: PluginRegister) -> PluginInfo:
+    """Register a plugin or extension."""
+    mgr = get_plugin_manager()
+    try:
+        plugin = mgr.register(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return plugin.to_info()
+
+
+@router.get("/v1/plugins", tags=["plugins"])
+async def list_plugins(type: str | None = None) -> dict:
+    """List registered plugins."""
+    mgr = get_plugin_manager()
+    return {"data": [p.to_info().model_dump() for p in mgr.list_plugins(type=type)], "stats": mgr.stats()}
+
+
+@router.post("/v1/plugins/{plugin_id}/load", tags=["plugins"])
+async def load_plugin(plugin_id: str) -> PluginInfo:
+    """Load a registered plugin (import its module)."""
+    plugin = get_plugin_manager().load(plugin_id)
+    if plugin is None:
+        raise HTTPException(status_code=404, detail=f"No plugin '{plugin_id}'.")
+    return plugin.to_info()
+
+
+@router.post("/v1/plugins/discover", tags=["plugins"])
+async def discover_plugins() -> dict:
+    """Discover available aetheris.plugin entry points."""
+    return {"entry_points": get_plugin_manager().discover_entry_points()}
 
 
 __all__ = ["router"]

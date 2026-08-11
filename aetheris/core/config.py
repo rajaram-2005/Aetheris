@@ -329,6 +329,38 @@ class Settings(BaseSettings):
         description="Maximum registered workflows.",
     )
 
+    # --- Response caching -------------------------------------------------------
+    cache_enabled: bool = Field(
+        default=True, description="Enable response caching for identical requests.",
+    )
+    cache_default_ttl: float = Field(
+        default=300.0, gt=0, le=86400,
+        description="Default TTL for cached responses, in seconds.",
+    )
+    cache_max_entries: int = Field(
+        default=1000, ge=10, description="Maximum cached responses.",
+    )
+
+    # --- File storage ----------------------------------------------------------
+    file_storage_enabled: bool = Field(
+        default=True, description="Enable the file upload and storage system.",
+    )
+    file_max_count: int = Field(
+        default=200, ge=1, description="Maximum stored files.",
+    )
+    file_max_size_bytes: int = Field(
+        default=100 * 1024 * 1024, ge=1024,
+        description="Maximum total storage in bytes (default 100 MB).",
+    )
+
+    # --- Plugins ---------------------------------------------------------------
+    plugins_enabled: bool = Field(
+        default=True, description="Enable the plugin/extension system.",
+    )
+    plugins_max: int = Field(
+        default=50, ge=1, description="Maximum registered plugins.",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -378,6 +410,10 @@ class Settings(BaseSettings):
             # Automation & integration
             "automations": self.automations_enabled,
             "scheduler": self.scheduler_enabled,
+            # Extra features
+            "response_cache": self.cache_enabled,
+            "file_storage": self.file_storage_enabled,
+            "plugins": self.plugins_enabled,
         }
 
 
