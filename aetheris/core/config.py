@@ -446,6 +446,48 @@ class Settings(BaseSettings):
         default=500, ge=1, description="Maximum field definitions.",
     )
 
+    # --- Tags & taxonomy ------------------------------------------------------
+    tags_enabled: bool = Field(
+        default=True, description="Enable universal tagging system.",
+    )
+    tags_max_assignments: int = Field(
+        default=50_000, ge=100, description="Maximum tag assignments.",
+    )
+
+    # --- Health probes --------------------------------------------------------
+    health_probes_enabled: bool = Field(
+        default=True, description="Enable deep health probes.",
+    )
+
+    # --- Usage quotas ---------------------------------------------------------
+    quotas_enabled: bool = Field(
+        default=True, description="Enable usage quotas.",
+    )
+
+    # --- Command palette ------------------------------------------------------
+    commands_enabled: bool = Field(
+        default=True, description="Enable command palette.",
+    )
+    commands_max: int = Field(
+        default=200, ge=1, description="Maximum registered commands.",
+    )
+
+    # --- Sharing --------------------------------------------------------------
+    sharing_enabled: bool = Field(
+        default=True, description="Enable entity sharing.",
+    )
+    sharing_max: int = Field(
+        default=1000, ge=1, description="Maximum shares.",
+    )
+
+    # --- Changelog ------------------------------------------------------------
+    changelog_enabled: bool = Field(
+        default=True, description="Enable structured changelog.",
+    )
+    changelog_max_entries: int = Field(
+        default=5000, ge=100, description="Maximum changelog entries.",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -512,6 +554,13 @@ class Settings(BaseSettings):
             "batch_operations": self.batch_enabled,
             "activity_log": self.activity_log_enabled,
             "custom_fields": self.custom_fields_enabled,
+            # v0.7.0 features
+            "tags": self.tags_enabled,
+            "health_probes": self.health_probes_enabled,
+            "quotas": self.quotas_enabled,
+            "commands": self.commands_enabled,
+            "sharing": self.sharing_enabled,
+            "changelog": self.changelog_enabled,
         }
 
 

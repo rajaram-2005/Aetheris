@@ -142,6 +142,12 @@ from ..core.playground import PlaygroundEntryCreate, PlaygroundEntryInfo, get_pl
 from ..core.batch import BatchOperation, BatchRequest as OpsBatchRequest, BatchResult as OpsBatchResult, OperationResult, execute_batch
 from ..core.activity import ActivityCreate, ActivityInfo, get_activity_manager
 from ..core.custom_fields import FieldDefinitionCreate, FieldDefinitionInfo, ValidationResult, get_custom_field_manager
+from ..core.tags import TagAssignment, TagCloudResult, EntityTags, get_tag_manager
+from ..core.health import HealthReport, HealthStatus, check_health
+from ..core.quotas import QuotaTierCreate, QuotaTierInfo, QuotaAssignmentCreate, QuotaUsage, get_quota_manager
+from ..core.commands import CommandCreate, CommandInfo, CommandResult, get_command_manager
+from ..core.sharing import ShareCreate, ShareInfo, PermissionCheck, get_share_manager
+from ..core.changelog import ChangeEntryCreate, ChangeEntryInfo, VersionSummary, get_changelog_manager
 
 
 class BatchRequest(BaseModel):
@@ -2193,6 +2199,204 @@ async def delete_field(field_id: str) -> dict:
     if not get_custom_field_manager().delete(field_id):
         raise HTTPException(status_code=404, detail=f"No field '{field_id}'.")
     return {"deleted": field_id}
+
+
+# --- Tags & Taxonomy ----------------------------------------------------------
+
+@router.post("/v1/tags/assign", tags=["tags"])
+async def assign_tags(body: TagAssignment) -> EntityTags:
+    """Assign tags to an entity."""
+    try:
+        return get_tag_manager().assign(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/v1/tags", tags=["tags"])
+async def tag_cloud(entity_type: str | None = None, limit: int = 100) -> TagCloudResult:
+    """Get tag cloud with entity counts."""
+    return get_tag_manager().tag_cloud(entity_type=entity_type, limit=limit)
+
+
+@router.get("/v1/tags/autocomplete", tags=["tags"])
+async def autocomplete_tags(prefix: str, entity_type: str | None = None, limit: int = 20) -> dict:
+    """Autocomplete tags by prefix."""
+    return {"suggestions": get_tag_manager().autocomplete(prefix, entity_type=entity_type, limit=limit)}
+
+
+@router.get("/v1/tags/search", tags=["tags"])
+async def find_by_tag(tag: str, entity_type: str | None = None, limit: int = 50) -> dict:
+    """Find entities by tag."""
+    return {"results": get_tag_manager().find_by_tag(tag, entity_type=entity_type, limit=limit)}
+
+
+@router.get("/v1/tags/{entity_type}/{entity_id}", tags=["tags"])
+async def get_entity_tags(entity_type: str, entity_id: str) -> EntityTags:
+    """Get tags for an entity."""
+    return get_tag_manager().get_tags(entity_type, entity_id)
+
+
+@router.delete("/v1/tags/{entity_type}/{entity_id}", tags=["tags"])
+async def remove_entity_tags(entity_type: str, entity_id: str, tags: str = "") -> dict:
+    """Remove tags from an entity."""
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    removed = get_tag_manager().remove_tags(entity_type, entity_id, tag_list)
+    return {"removed": removed}
+
+
+# --- Health Probes ------------------------------------------------------------
+
+@router.get("/v1/health/detailed", tags=["health"])
+async def detailed_health() -> HealthReport:
+    """Deep health check of all subsystems."""
+    return check_health()
+
+
+# --- Usage Quotas -------------------------------------------------------------
+
+@router.post("/v1/quotas/tiers", status_code=201, tags=["quotas"])
+async def create_quota_tier(body: QuotaTierCreate) -> QuotaTierInfo:
+    """Create a quota tier."""
+    try:
+        return get_quota_manager().create_tier(body).to_info()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/v1/quotas/tiers", tags=["quotas"])
+async def list_quota_tiers() -> dict:
+    """List quota tiers."""
+    return {"data": [t.to_info().model_dump() for t in get_quota_manager().list_tiers()], "stats": get_quota_manager().stats()}
+
+
+@router.post("/v1/quotas/assign", tags=["quotas"])
+async def assign_quota_tier(body: QuotaAssignmentCreate) -> dict:
+    """Assign a quota tier to an identifier."""
+    try:
+        get_quota_manager().assign_tier(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"assigned": body.identifier, "tier": body.tier_name}
+
+
+@router.get("/v1/quotas/check", tags=["quotas"])
+async def check_quota(identifier: str) -> QuotaUsage:
+    """Check quota status for an identifier."""
+    return get_quota_manager().check_quota(identifier)
+
+
+@router.post("/v1/quotas/record", tags=["quotas"])
+async def record_quota_usage(identifier: str, tokens: int = 0, requests: int = 1) -> QuotaUsage:
+    """Record usage against quota."""
+    return get_quota_manager().record_usage(identifier, tokens=tokens, requests=requests)
+
+
+# --- Command Palette ----------------------------------------------------------
+
+@router.post("/v1/commands", status_code=201, tags=["commands"])
+async def create_command(body: CommandCreate) -> CommandInfo:
+    """Register a command."""
+    try:
+        return get_command_manager().create(body).to_info()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/v1/commands", tags=["commands"])
+async def list_commands(category: str | None = None) -> dict:
+    """List commands."""
+    mgr = get_command_manager()
+    return {"data": [c.to_info().model_dump() for c in mgr.list_commands(category=category)], "stats": mgr.stats()}
+
+
+@router.post("/v1/commands/defaults", tags=["commands"])
+async def load_default_commands() -> dict:
+    """Load built-in commands."""
+    count = get_command_manager().load_defaults()
+    return {"loaded": count}
+
+
+@router.post("/v1/commands/{cmd_id}/invoke", tags=["commands"])
+async def invoke_command(cmd_id: str, params: dict[str, Any] = None) -> CommandResult:
+    """Invoke a command."""
+    return get_command_manager().invoke(cmd_id, params)
+
+
+@router.delete("/v1/commands/{cmd_id}", tags=["commands"])
+async def delete_command(cmd_id: str) -> dict:
+    """Delete a command."""
+    try:
+        if not get_command_manager().delete(cmd_id):
+            raise HTTPException(status_code=404, detail=f"No command '{cmd_id}'.")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": cmd_id}
+
+
+# --- Sharing ------------------------------------------------------------------
+
+@router.post("/v1/shares", status_code=201, tags=["sharing"])
+async def create_share(body: ShareCreate) -> ShareInfo:
+    """Share an entity."""
+    try:
+        return get_share_manager().create(body).to_info()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/v1/shares", tags=["sharing"])
+async def list_shares(entity_type: str | None = None, entity_id: str | None = None) -> dict:
+    """List shares."""
+    return {"data": [s.to_info().model_dump() for s in get_share_manager().list_shares(entity_type=entity_type, entity_id=entity_id)], "stats": get_share_manager().stats()}
+
+
+@router.get("/v1/shares/check", tags=["sharing"])
+async def check_permission(entity_type: str, entity_id: str, user: str, permission: str = "viewer") -> PermissionCheck:
+    """Check permission on an entity."""
+    return get_share_manager().check_permission(entity_type, entity_id, user, permission)
+
+
+@router.post("/v1/shares/{share_id}/revoke", tags=["sharing"])
+async def revoke_share(share_id: str) -> dict:
+    """Revoke a share."""
+    if not get_share_manager().revoke(share_id):
+        raise HTTPException(status_code=404, detail=f"No share '{share_id}'.")
+    return {"revoked": share_id}
+
+
+@router.delete("/v1/shares/{share_id}", tags=["sharing"])
+async def delete_share(share_id: str) -> dict:
+    """Delete a share."""
+    if not get_share_manager().delete(share_id):
+        raise HTTPException(status_code=404, detail=f"No share '{share_id}'.")
+    return {"deleted": share_id}
+
+
+# --- Changelog ----------------------------------------------------------------
+
+@router.post("/v1/changelog", status_code=201, tags=["changelog"])
+async def create_changelog_entry(body: ChangeEntryCreate) -> ChangeEntryInfo:
+    """Record a changelog entry."""
+    return get_changelog_manager().create(body).to_info()
+
+
+@router.get("/v1/changelog", tags=["changelog"])
+async def list_changelog(version: str | None = None, category: str | None = None, limit: int = 50) -> dict:
+    """List changelog entries."""
+    mgr = get_changelog_manager()
+    return {"data": [e.to_info().model_dump() for e in mgr.list_entries(version=version, category=category, limit=limit)], "versions": mgr.list_versions(), "stats": mgr.stats()}
+
+
+@router.get("/v1/changelog/breaking", tags=["changelog"])
+async def breaking_changes(since: str = "") -> dict:
+    """Get breaking changes."""
+    return {"changes": [e.to_info().model_dump() for e in get_changelog_manager().breaking_changes(since)]}
+
+
+@router.get("/v1/changelog/search", tags=["changelog"])
+async def search_changelog(q: str, limit: int = 20) -> dict:
+    """Search changelog."""
+    return {"results": [e.to_info().model_dump() for e in get_changelog_manager().search(q, limit=limit)]}
 
 
 __all__ = ["router"]
