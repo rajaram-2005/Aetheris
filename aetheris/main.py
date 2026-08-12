@@ -35,6 +35,25 @@ async def lifespan(app: FastAPI):
     from .core.config import settings
     from .tools import all_tools, hydrate_from_dir
 
+    # Bring the unified Hermes runtime online: its knowledge corpus, cognition
+    # cascade, and the meta-learner (restoring learned state when configured).
+    if settings.hermes_enabled:
+        from .hermes import KNOWLEDGE_BASE, get_hermes
+        from .hermes.meta_learning import get_meta_learner
+
+        get_hermes()
+        learner = get_meta_learner()
+        stats = learner.stats()
+        log.info(
+            "Hermes online — %d knowledge articles, %d episode(s) learned from, "
+            "learning=%s",
+            len(KNOWLEDGE_BASE),
+            stats["episodes"],
+            settings.hermes_learning_enabled,
+        )
+        if settings.hermes_meta_state_path:
+            log.info("Meta-learning state path: %s", settings.hermes_meta_state_path)
+
     if settings.tools_enabled:
         log.info(
             "Toolbelt online (%d tools): %s",
@@ -75,6 +94,19 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Persist what the meta-learner learned this run, if a path is set.
+        if (
+            settings.hermes_enabled
+            and settings.hermes_meta_autosave
+            and settings.hermes_meta_state_path
+        ):
+            try:
+                from .hermes.meta_learning import get_meta_learner
+
+                path = get_meta_learner().save(settings.hermes_meta_state_path)
+                log.info("Meta-learned state saved to %s", path)
+            except Exception:  # pragma: no cover - shutdown must not fail
+                log.warning("Could not persist meta-learned state", exc_info=True)
         await close_provider()
 
 
@@ -103,6 +135,14 @@ def create_app() -> FastAPI:
 
     app.include_router(landing_router)
     app.include_router(api_router)
+
+    # The web UI is mounted LAST so its catch-all route can never shadow an
+    # API endpoint. Together with the /v1 routes above, this is the whole
+    # product in one process on one port.
+    from .api.ui import mount_ui, router as ui_router
+
+    mount_ui(app)
+    app.include_router(ui_router)
     return app
 
 

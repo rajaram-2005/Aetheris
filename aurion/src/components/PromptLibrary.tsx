@@ -20,7 +20,7 @@ const PROMPTS: Prompt[] = [
   // Identity
   { id: 'who', icon: '🤖', title: 'Who are you?', prompt: 'Who are you?', category: 'Identity' },
   { id: 'what', icon: '❓', title: 'What can you do?', prompt: 'What can you do?', category: 'Identity' },
-  { id: 'how', icon: '⚙️', title: 'How do you work?', prompt: 'How do you work? Explain the C7 cascade.', category: 'Identity' },
+  { id: 'how', icon: '⚙️', title: 'How do you work?', prompt: 'How do you work? Explain the Hermes cascade.', category: 'Identity' },
 
   // Write
   { id: 'email', icon: '📧', title: 'Professional email', prompt: 'Write a professional email to my manager requesting a meeting to discuss project progress.', category: 'Write' },
@@ -59,13 +59,13 @@ const PROMPTS: Prompt[] = [
   { id: 'es-translate', icon: '🇪🇸', title: 'English → Spanish', prompt: 'Translate "Where is the nearest restaurant?" to Spanish', category: 'Translate' },
   { id: 'fr-translate', icon: '🇫🇷', title: 'English → French', prompt: 'Translate "Thank you very much, have a good day" to French', category: 'Translate' },
 
-  // Visage
-  { id: 'aurora', icon: '🌌', title: 'Aurora poster', prompt: 'Draw an aurora poster', category: 'Visage' },
-  { id: 'mandala', icon: '🔮', title: 'Mandala', prompt: 'Draw a mandala pattern', category: 'Visage' },
-  { id: 'circuit', icon: '🔌', title: 'Circuit board', prompt: 'Draw a circuit board pattern', category: 'Visage' },
-  { id: 'stars', icon: '⭐', title: 'Star field', prompt: 'Draw a star field', category: 'Visage' },
-  { id: 'c7-flow', icon: '📊', title: 'C7 flowchart', prompt: 'Draw a C7 flowchart diagram', category: 'Visage' },
-  { id: 'palette', icon: '🎨', title: 'Color palette', prompt: 'Generate an aurora color palette', category: 'Visage' },
+  // Create
+  { id: 'aurora', icon: '🌌', title: 'Aurora image', prompt: 'Generate an image of an aurora over mountains', category: 'Create' },
+  { id: 'mandala', icon: '🔮', title: 'Mandala', prompt: 'Generate a mandala pattern image', category: 'Create' },
+  { id: 'circuit', icon: '🔌', title: 'Circuit board', prompt: 'Generate a circuit board pattern image', category: 'Create' },
+  { id: 'stars', icon: '⭐', title: 'Star field', prompt: 'Generate a star field image', category: 'Create' },
+  { id: 'hermes-flow', icon: '📊', title: 'Cascade diagram', prompt: 'Draw a diagram of the Hermes cascade', category: 'Image' },
+  { id: 'palette', icon: '🎨', title: 'Color palette', prompt: 'Generate an aurora color palette', category: 'Create' },
 
   // Lifestyle
   { id: 'biryani', icon: '🍚', title: 'Biryani recipe', prompt: 'Give me a Hyderabadi dum biryani recipe', category: 'Lifestyle' },

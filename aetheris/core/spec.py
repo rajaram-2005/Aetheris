@@ -30,7 +30,13 @@ from typing import Any, Final
 
 from .tiers import TIERS
 
-Evidence = str  # "blueprint" | "scaffold" | "pending"
+Evidence = str  # "live" | "blueprint" | "scaffold" | "pending"
+
+# The meta-learner's outer-loop rate, surfaced in the spec so the declared
+# hyperparameter and the running code cannot drift apart.
+from ..hermes.meta_learning import META_LR as _META_LR
+
+META_LR_DISPLAY: Final[float] = _META_LR
 
 
 # --- Architecture -------------------------------------------------------------
@@ -206,16 +212,18 @@ _STAGES: tuple[TrainingStage, ...] = (
         name="Agentic Tool-Use Instruction Tuning",
         phase="agent",
         objective=(
-            "Train multi-step planning, tool selection (web search, code sandbox "
-            "execution, API triggers), and self-correction before returning a "
-            "final answer."
+            "Train multi-step planning, tool selection (document retrieval, code "
+            "sandbox execution, media synthesis), and self-correction before "
+            "returning a final answer."
         ),
-        evidence="scaffold",
-        datasets=(),
+        evidence="live",
+        datasets=("runtime episodes recorded by the Hermes agent",),
         hyperparameters=_empty_hp(HP_AGENT),
         notes=(
-            "Extends the blueprint's 'autonomous tool usage' capability into a "
-            "training stage; rollout/task specifics pending the Hermes blueprint."
+            "First pillar, running in-process: aetheris.hermes.agent executes the "
+            "plan → act → observe → self-correct loop against the real toolbelt on "
+            "every request. Live telemetry is reported under `runtime` on "
+            "GET /v1/training, and per-run traces at POST /v1/hermes/run."
         ),
     ),
     TrainingStage(
@@ -223,17 +231,26 @@ _STAGES: tuple[TrainingStage, ...] = (
         name="Meta-Learning (Learning-to-Learn Adaptation)",
         phase="meta",
         objective=(
-            "Train a learning-to-learn capability so Aetheris rapidly adapts to "
-            "novel tasks, tools, and domains from few examples — improving "
-            "in-context generalization and sample-efficient fine-tuning."
+            "Learn-to-learn so Aetheris rapidly adapts to novel tasks, tools, and "
+            "domains from few examples — improving in-context generalization and "
+            "sample-efficient adaptation."
         ),
-        evidence="scaffold",
-        datasets=(),
-        hyperparameters=_empty_hp(HP_META),
+        evidence="live",
+        datasets=("runtime episodes + rewards recorded by the Hermes agent",),
+        hyperparameters={
+            "method": "Reptile-style online meta-update",
+            "inner_learning_rate": "fast-adapt from nearest-neighbour episodes",
+            "outer_learning_rate": META_LR_DISPLAY,
+            "inner_steps": 1,
+            "meta_batch_size": "1 (fully online)",
+            "support_shots": "top-3 trigram-nearest exemplars",
+            "epochs": "continuous",
+        },
         notes=(
-            "Second pillar of the Hermes Agent + Meta-Learning foundation. "
-            "Methods (e.g. MAML, Reptile, few-shot adaptation) and concrete "
-            "hyperparameters are representative scaffolds pending authoritative values."
+            "Second pillar, running in-process: aetheris.hermes.meta_learning "
+            "maintains Dirichlet intent priors, per-intent tool priors, few-shot "
+            "exemplars, and a Reptile-style strategy update, learned from the "
+            "agent's own episodes. Inspect at GET /v1/hermes/meta."
         ),
     ),
     TrainingStage(
@@ -262,30 +279,33 @@ class TrainingPipeline:
     name: str = "Aetheris Training Pipeline"
     foundation: str = "Hermes Agent + Meta-Learning"
     foundation_status: str = (
-        "Two-pillar foundation: the Hermes Agent program (source PDF pending "
-        "ingestion) plus a Meta-Learning pillar for learning-to-learn "
-        "adaptation. Sourced facts are populated; scaffold fields await "
-        "authoritative values."
+        "Two-pillar foundation, both live in this process: the Hermes Agent "
+        "(aetheris.hermes.agent) runs the plan → act → observe → self-correct "
+        "loop against the real toolbelt, and Meta-Learning "
+        "(aetheris.hermes.meta_learning) adapts the agent from its own episodes. "
+        "Runtime telemetry is reported under `runtime`. The pretraining and "
+        "alignment stages remain descriptive scaffolds."
     )
     alignment_methods: tuple[str, ...] = ("SFT", "DPO")
     meta_learning_methods: tuple[str, ...] = (
-        "MAML",
-        "Reptile",
-        "few-shot adaptation",
-        "in-context learning tuning",
+        "Reptile-style online meta-update",
+        "few-shot exemplar recall",
+        "Dirichlet intent priors",
+        "per-intent tool priors",
+        "in-context adaptation",
     )
     stages: tuple[TrainingStage, ...] = _STAGES
     evidence: dict[str, Evidence] = field(
         default_factory=lambda: {
             "alignment_methods": "blueprint",
-            "meta_learning_methods": "scaffold",
+            "meta_learning_methods": "live",
             "stages.sft": "blueprint",
             "stages.dpo": "blueprint",
             "stages.evaluation": "blueprint",
             "stages.continued_pretraining": "scaffold",
-            "stages.agent_tuning": "scaffold",
-            "stages.meta_learning": "scaffold",
-            "foundation": "pending",
+            "stages.agent_tuning": "live",
+            "stages.meta_learning": "live",
+            "foundation": "live",
         }
     )
 

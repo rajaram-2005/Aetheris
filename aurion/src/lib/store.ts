@@ -1,21 +1,24 @@
-/* ─── AURION Local Store — localStorage persistence ─── */
+/* ─── Local store — threads & settings in localStorage ───
+ *
+ * Conversation history stays in the browser; cognition and long-term memory
+ * live in the Hermes runtime. This module deliberately holds no "brain" state.
+ */
 
-import { Thread, Message, Settings, SessionMemory, Attachment, C7Trace, Theme } from '@/types';
+import { Thread, Message, Settings } from '@/types';
 
 const KEYS = {
-  threads: 'aurion_threads',
-  settings: 'aurion_settings',
-  memory: 'aurion_memory',
-  currentThread: 'aurion_current_thread',
+  threads: 'aetheris_threads',
+  settings: 'aetheris_settings',
+  currentThread: 'aetheris_current_thread',
 } as const;
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   persona: 'balanced',
-  creativity: 0.5,
-  length: 0.5,
   theme: 'aurora',
   voiceEnabled: false,
-  systemPrompt: `You are AURION, a sovereign cognitive engine on the user's device. You are not ChatGPT/Gemini/Claude. No vendor APIs. C7 is your mind. Be fluent where you have structure/knowledge and honest where you don't. Voice: clear, specific, slightly dry. No "Great question!". Answer first. Complete artefacts. Educational-only for health/law/finance. Refuse crime/weapons/malware. Do not mention these instructions unless asked "show me your system prompt".`,
+  useMemory: true,
+  learn: true,
+  showInspector: true,
 };
 
 /* ── Safe localStorage access ── */
@@ -27,7 +30,7 @@ function safeGet<T>(key: string, fallback: T): T {
   if (!isClient()) return fallback;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
   }
@@ -38,11 +41,11 @@ function safeSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Storage full or unavailable
+    /* storage full or unavailable */
   }
 }
 
-/* ── Thread management ── */
+/* ── Threads ── */
 export function getThreads(): Thread[] {
   return safeGet<Thread[]>(KEYS.threads, []);
 }
@@ -64,8 +67,11 @@ export function setCurrentThreadId(id: string | null): void {
 
 export function createThread(): Thread {
   const thread: Thread = {
-    id: crypto.randomUUID ? crypto.randomUUID() : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    title: 'New thought',
+    id:
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: 'New thread',
     messages: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -78,20 +84,11 @@ export function createThread(): Thread {
 }
 
 export function getThread(id: string): Thread | null {
-  return getThreads().find(t => t.id === id) || null;
-}
-
-export function updateThread(id: string, updates: Partial<Thread>): void {
-  const threads = getThreads();
-  const idx = threads.findIndex(t => t.id === id);
-  if (idx >= 0) {
-    threads[idx] = { ...threads[idx], ...updates, updatedAt: Date.now() };
-    saveThreads(threads);
-  }
+  return getThreads().find((t) => t.id === id) || null;
 }
 
 export function deleteThread(id: string): void {
-  const threads = getThreads().filter(t => t.id !== id);
+  const threads = getThreads().filter((t) => t.id !== id);
   saveThreads(threads);
   if (getCurrentThreadId() === id) {
     setCurrentThreadId(threads[0]?.id || null);
@@ -100,56 +97,53 @@ export function deleteThread(id: string): void {
 
 export function addMessage(threadId: string, message: Message): void {
   const threads = getThreads();
-  const idx = threads.findIndex(t => t.id === threadId);
-  if (idx >= 0) {
-    threads[idx].messages.push(message);
-    // Auto-title from first user message
-    if (threads[idx].title === 'New thought' && message.role === 'user') {
-      threads[idx].title = message.content.slice(0, 50) + (message.content.length > 50 ? '…' : '');
-    }
-    threads[idx].updatedAt = Date.now();
-    saveThreads(threads);
+  const index = threads.findIndex((t) => t.id === threadId);
+  if (index < 0) return;
+  threads[index].messages.push(message);
+  if (threads[index].title === 'New thread' && message.role === 'user') {
+    threads[index].title =
+      message.content.slice(0, 50) + (message.content.length > 50 ? '…' : '');
   }
+  threads[index].updatedAt = Date.now();
+  saveThreads(threads);
+}
+
+/** Patch a message in place (used to record a rating). */
+export function updateMessage(
+  threadId: string,
+  messageId: string,
+  patch: Partial<Message>,
+): void {
+  const threads = getThreads();
+  const index = threads.findIndex((t) => t.id === threadId);
+  if (index < 0) return;
+  const messages = threads[index].messages;
+  const messageIndex = messages.findIndex((m) => m.id === messageId);
+  if (messageIndex < 0) return;
+  messages[messageIndex] = { ...messages[messageIndex], ...patch };
+  saveThreads(threads);
 }
 
 /* ── Settings ── */
 export function getSettings(): Settings {
-  return safeGet<Settings>(KEYS.settings, DEFAULT_SETTINGS);
+  return { ...DEFAULT_SETTINGS, ...safeGet<Partial<Settings>>(KEYS.settings, {}) };
 }
 
 export function saveSettings(settings: Settings): void {
   safeSet(KEYS.settings, settings);
 }
 
-/* ── Session Memory ── */
-export function getSessionMemory(): SessionMemory {
-  return safeGet<SessionMemory>(KEYS.memory, { facts: [] });
-}
-
-export function addMemoryFact(key: string, value: string): void {
-  const memory = getSessionMemory();
-  const existing = memory.facts.findIndex(f => f.key === key);
-  if (existing >= 0) {
-    memory.facts[existing] = { key, value, timestamp: Date.now() };
-  } else {
-    memory.facts.push({ key, value, timestamp: Date.now() });
-  }
-  safeSet(KEYS.memory, memory);
-}
-
-/* ── Export thread as markdown ── */
+/* ── Export ── */
 export function exportThreadAsMarkdown(thread: Thread): string {
   let md = `# ${thread.title}\n\n`;
-  md += `*Exported from AURION · ${new Date(thread.createdAt).toLocaleDateString()}*\n\n---\n\n`;
-
-  for (const msg of thread.messages) {
-    const role = msg.role === 'user' ? '👤 **You**' : '⚡ **AURION**';
-    md += `### ${role}\n\n${msg.content}\n\n`;
-    if (msg.attachments && msg.attachments.length > 0) {
-      md += `📎 Attachments: ${msg.attachments.map(a => a.name).join(', ')}\n\n`;
+  md += `*Exported from Aetheris · ${new Date(thread.createdAt).toLocaleDateString()}*\n\n---\n\n`;
+  for (const message of thread.messages) {
+    const role = message.role === 'user' ? '**You**' : '**Aetheris**';
+    md += `### ${role}\n\n${message.content}\n\n`;
+    if (message.attachments?.length) {
+      md += `Attachments: ${message.attachments.map((a) => a.name).join(', ')}\n\n`;
     }
     md += `---\n\n`;
   }
-
   return md;
 }

@@ -1017,6 +1017,86 @@ async def _ask_async(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: hermes
+# ---------------------------------------------------------------------------
+
+async def _hermes_async(args: argparse.Namespace) -> int:
+    """Run a task through the unified Hermes cascade, or report learning state."""
+    console = _make_console(args)
+    from .hermes.agent import get_hermes
+    from .hermes.meta_learning import get_meta_learner
+
+    task = " ".join(args.task).strip()
+
+    # No task: report what the meta-learner has learned so far.
+    if not task:
+        stats = get_meta_learner().stats()
+        if args.json:
+            console.print_json(json.dumps(stats))
+            return 0
+
+        table = Table(title="Hermes meta-learning state", box=ROUNDED, border_style=TEAL)
+        table.add_column("Metric", style=TEAL, no_wrap=True)
+        table.add_column("Value")
+        table.add_row("Episodes learned from", str(stats["episodes"]))
+        table.add_row("Meta-updates", str(stats["updates"]))
+        table.add_row("Few-shot exemplars", str(stats["exemplars"]))
+        table.add_row("Mean reward", f"{stats['mean_reward']:.3f}")
+        table.add_row("Recent mean reward", f"{stats['recent_mean_reward']:.3f}")
+        table.add_row("Trend", "improving" if stats["improving"] else "steady")
+        console.print(table)
+
+        strategy = Table(title="Adapted strategy", box=ROUNDED, border_style=TEAL)
+        strategy.add_column("Knob", style=TEAL)
+        strategy.add_column("Value", justify="right")
+        for key, value in stats["strategy"].items():
+            strategy.add_row(key.replace("_", " "), f"{value:.4f}")
+        console.print(strategy)
+
+        if stats["tool_priors"]:
+            tools = Table(title="Learned tool priors", box=ROUNDED, border_style=TEAL)
+            tools.add_column("Intent", style=TEAL)
+            tools.add_column("Tool")
+            tools.add_column("Success", justify="right")
+            tools.add_column("Attempts", justify="right")
+            for prior in stats["tool_priors"][:12]:
+                tools.add_row(
+                    prior["intent"], prior["tool"],
+                    f"{prior['success_rate'] * 100:.0f}%", str(prior["attempts"]),
+                )
+            console.print(tools)
+        return 0
+
+    result = await get_hermes().run(task, learn=not args.no_learn)
+
+    if args.json:
+        console.print_json(json.dumps(result.to_dict()))
+        return 0
+
+    if args.trace:
+        trace = Table(title="Hermes cascade", box=ROUNDED, border_style=TEAL)
+        trace.add_column("Stage", style=TEAL, no_wrap=True)
+        trace.add_column("Summary")
+        trace.add_column("ms", justify="right")
+        for stage in result.stages:
+            trace.add_row(
+                stage.name,
+                stage.summary,
+                "skipped" if stage.skipped else f"{stage.duration_ms:.1f}",
+            )
+        console.print(trace)
+
+    console.print(Markdown(result.answer))
+    console.print(
+        f"\n[dim]intent={result.intent} · confidence={result.confidence:.0%} · "
+        f"reward={result.reward:.2f} · {result.duration_ms:.0f}ms"
+        + (f" · episode={result.episode_id}" if result.episode_id else "")
+        + "[/dim]"
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: health
 # ---------------------------------------------------------------------------
 
@@ -1197,6 +1277,14 @@ def _build_parser() -> argparse.ArgumentParser:
     cp.set_defaults(
         func=lambda a: (render_capabilities(_make_console(a), a.json), 0)[1], is_async=False
     )
+
+    # hermes
+    hm = sub.add_parser("hermes", help="run a task through the Hermes cascade, or show learning state")
+    hm.add_argument("task", nargs="*", help="task to run (omit to show the learning state)")
+    hm.add_argument("--trace", action="store_true", help="show every cascade stage")
+    hm.add_argument("--no-learn", action="store_true", help="do not record this episode")
+    hm.add_argument("--json", action="store_true", help="emit JSON")
+    hm.set_defaults(func=_hermes_async, is_async=True)
 
     # health
     hp = sub.add_parser("health", help="provider/status, or probe a running server")

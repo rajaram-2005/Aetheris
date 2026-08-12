@@ -187,12 +187,14 @@ class EmbeddingManager:
 
     # --- vector index ------------------------------------------------------
     def index_document(self, doc: IndexedDocument) -> _Doc:
+        # Embed *before* taking the lock: ``embed`` acquires the same
+        # non-reentrant lock, so embedding while holding it self-deadlocks.
+        did = doc.id or f"vec_{uuid.uuid4().hex[:10]}"
+        v = self.embed(doc.text)
         with self._lock:
             if len(self._docs) >= self._max:
                 oldest = min(self._docs.values(), key=lambda d: d.added_at)
                 self._docs.pop(oldest.id, None)
-            did = doc.id or f"vec_{uuid.uuid4().hex[:10]}"
-            v = self.embed(doc.text)
             d = _Doc(id=did, text=doc.text, metadata=dict(doc.metadata), vec=v, added_at=time.time())
             self._docs[did] = d
             return d

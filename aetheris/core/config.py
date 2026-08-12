@@ -34,9 +34,14 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535, description="Bind port.")
 
     # --- LLM provider ---------------------------------------------------------
-    llm_provider: Literal["mock", "openai"] = Field(
-        default="mock",
-        description="Backing LLM provider. 'mock' runs offline out of the box.",
+    llm_provider: Literal["hermes", "mock", "openai"] = Field(
+        default="hermes",
+        description=(
+            "Backing provider. 'hermes' (default) runs the local Hermes agent — real "
+            "computation, retrieval, tools, and meta-learning, fully offline with no "
+            "API key. 'mock' is the legacy persona responder. 'openai' forwards to an "
+            "OpenAI-compatible endpoint."
+        ),
     )
 
     # --- OpenAI-compatible provider (used only when llm_provider='openai') ----
@@ -486,6 +491,35 @@ class Settings(BaseSettings):
     )
     changelog_max_entries: int = Field(
         default=5000, ge=100, description="Maximum changelog entries.",
+    )
+
+    # --- Hermes agent + meta-learning ----------------------------------------
+    hermes_enabled: bool = Field(
+        default=True,
+        description="Enable the unified Hermes agent (the offline cognition runtime).",
+    )
+    hermes_learning_enabled: bool = Field(
+        default=True,
+        description=(
+            "Let the meta-learner record episodes and adapt. Disable for a "
+            "stateless, perfectly reproducible deployment."
+        ),
+    )
+    hermes_meta_state_path: str = Field(
+        default="",
+        description=(
+            "Optional path to a JSON file for persisting meta-learned state "
+            "(strategy, episodes, exemplars, priors) across restarts. Empty = "
+            "in-memory only."
+        ),
+    )
+    hermes_meta_autosave: bool = Field(
+        default=True,
+        description="Persist meta-learned state on shutdown when a state path is set.",
+    )
+    hermes_max_tools_per_turn: int = Field(
+        default=3, ge=0, le=8,
+        description="Maximum tools the Hermes agent may invoke for a single task.",
     )
 
     # --- Ætheris NOVA architecture -------------------------------------------

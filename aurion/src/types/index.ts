@@ -1,100 +1,113 @@
-/* ─── AURION Core Types ─── */
+/* ─── Aetheris UI types ───
+ *
+ * These mirror the payloads served by the unified Hermes runtime
+ * (`/v1/hermes/*`). Cognition types are no longer defined here as
+ * browser-side structures — they are what the backend reports.
+ */
 
-export type Intent =
-  | 'greet' | 'identity' | 'capability'
-  | 'write_email' | 'write_letter' | 'write_blog' | 'write_social'
-  | 'write_ad' | 'write_poem' | 'write_story' | 'rewrite' | 'summarize'
-  | 'code_gen' | 'code_explain' | 'code_debug'
-  | 'translate' | 'math' | 'explain' | 'howto' | 'compare'
-  | 'quiz' | 'flashcard' | 'study' | 'eli5'
-  | 'resume' | 'interview' | 'analyze' | 'brainstorm' | 'plan'
-  | 'image' | 'diagram' | 'palette'
-  | 'recipe' | 'travel' | 'health' | 'convert' | 'datetime'
-  | 'joke' | 'file_qa' | 'chat';
-
-export type Language = 'en' | 'hi' | 'te' | 'es' | 'fr' | 'de' | 'ta' | 'unknown';
-export type Style = 'formal' | 'brief' | 'simple' | 'creative' | 'precise';
-export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
 export type Theme = 'aurora' | 'daylight' | 'ink';
+export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
 
-export interface Entity {
-  type: 'email' | 'url' | 'money' | 'date' | 'proper_noun' | 'number' | 'phone';
-  value: string;
-  start: number;
-  end: number;
+/* ── Hermes cascade ── */
+
+/** One stage of the eleven-stage Hermes cascade. */
+export interface StageTrace {
+  stage: string;
+  summary: string;
+  duration_ms: number;
+  skipped: boolean;
+  detail: Record<string, unknown>;
 }
 
-export interface Token {
-  raw: string;
-  normalized: string;
-  isStopword: boolean;
-  stem: string;
-}
-
-export interface SenseResult {
-  tokens: Token[];
-  language: Language;
-  entities: Entity[];
-  sentiment: number; // -1 to 1
-  keywords: string[];
-  script: string;
-}
-
-export interface AlignResult {
-  intent: Intent;
-  confidence: number;
-  subIntents: { intent: Intent; score: number }[];
-}
-
-export interface PlotStep {
-  action: string;
-  description: string;
-}
-
-export interface PlotResult {
-  steps: PlotStep[];
-  style: Style;
-  format: string;
-}
-
-export interface RecallResult {
-  articles: { title: string; content: string; score: number }[];
-  sessionContext: string;
-  fileChunks: string[];
-}
-
-export interface ThinkResult {
-  type: 'math' | 'conversion' | 'percent' | 'quadratic' | 'stats' | 'none';
-  input: string;
+export interface ToolCallTrace {
+  tool: string;
+  arguments: Record<string, unknown>;
+  ok: boolean;
   output: string;
-  steps: string[];
-  value?: number;
+  error: string;
+  duration_ms: number;
 }
 
-export interface WeaveResult {
-  response: string;
-  format: 'text' | 'code' | 'list' | 'table' | 'markdown';
-  language?: string;
-  metadata?: Record<string, string>;
+export interface ExemplarPreview {
+  task: string;
+  intent: string;
+  reward: number;
+  answer_preview: string;
 }
 
-export interface RefineResult {
-  final: string;
-  safetyFlag: boolean;
-  safetyReason?: string;
-  honestyNote?: string;
-  stripped: string[];
+export interface Adaptation {
+  intent_prior: Record<string, number>;
+  exemplars: ExemplarPreview[];
+  preferred_tools: string[];
+  discouraged_tools: string[];
+  strategy: Record<string, number>;
+  familiarity: number;
+  episodes_seen: number;
+  rationale: string[];
 }
 
-export interface C7Trace {
-  sense: SenseResult;
-  align: AlignResult;
-  plot: PlotResult;
-  recall: RecallResult;
-  think: ThinkResult;
-  weave: WeaveResult;
-  refine: RefineResult;
-  timings: Record<string, number>;
+export interface ExpertRoute {
+  id?: string;
+  name?: string;
+  weight?: number;
+  signals?: Record<string, number>;
+}
+
+/** The full result of one Hermes run. */
+export interface HermesRun {
+  answer: string;
+  intent: string;
+  confidence: number;
+  episode_id: string;
+  grounded: boolean;
+  solved_exactly: boolean;
+  safety_flag: boolean;
+  reward: number;
+  duration_ms: number;
+  strategy: Record<string, number>;
+  adaptation: Adaptation;
+  experts: ExpertRoute[];
+  stages: StageTrace[];
+  tool_trace: ToolCallTrace[];
+}
+
+/* ── Meta-learning ── */
+
+export interface ToolPrior {
+  intent: string;
+  tool: string;
+  attempts: number;
+  successes: number;
+  success_rate: number;
+}
+
+export interface MetaStats {
+  episodes: number;
+  updates: number;
+  exemplars: number;
+  strategy: Record<string, number>;
+  mean_reward: number;
+  recent_mean_reward: number;
+  improving: boolean;
+  intent_prior: Record<string, number>;
+  intent_reward: Record<string, number>;
+  tool_priors: ToolPrior[];
+}
+
+export interface KnowledgeArticleMeta {
+  id: string;
+  title: string;
+  category: string;
+  chars: number;
+}
+
+/* ── Conversation ── */
+
+export interface Attachment {
+  name: string;
+  type: string;
+  content: string;
+  size: number;
 }
 
 export interface Message {
@@ -102,15 +115,11 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
-  trace?: C7Trace;
+  run?: HermesRun;
   attachments?: Attachment[];
-}
-
-export interface Attachment {
-  name: string;
-  type: string;
-  content: string;
-  size: number;
+  /** Set once the user has rated this answer, so the UI can show it. */
+  rated?: number;
+  error?: boolean;
 }
 
 export interface Thread {
@@ -123,13 +132,9 @@ export interface Thread {
 
 export interface Settings {
   persona: Persona;
-  creativity: number; // 0-1
-  length: number; // 0-1
   theme: Theme;
   voiceEnabled: boolean;
-  systemPrompt: string;
-}
-
-export interface SessionMemory {
-  facts: { key: string; value: string; timestamp: number }[];
+  useMemory: boolean;
+  learn: boolean;
+  showInspector: boolean;
 }

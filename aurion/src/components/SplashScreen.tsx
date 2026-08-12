@@ -1,4 +1,4 @@
-/* ─── Boot Splash — C7 cascade light animation ─── */
+/* ─── Boot Splash — Hermes cascade light animation ─── */
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -24,14 +24,14 @@ export function SplashScreen() {
           className="text-5xl font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-mint)' }}
         >
-          AURION
+          Aetheris
         </h1>
         <p className="text-center mt-2" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-ui)' }}>
           Sovereign Cognitive Engine
         </p>
       </div>
 
-      {/* C7 Cascade Dots */}
+      {/* Hermes cascade dots */}
       <div className="flex items-center gap-3 mb-6">
         {STAGES.map((stage, i) => (
           <div key={stage} className="flex flex-col items-center gap-1.5">
@@ -65,7 +65,7 @@ export function SplashScreen() {
         {!done ? (
           <>
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent-mint)' }} />
-            <span style={{ color: 'var(--text-secondary)' }}>Initializing C7 cascade…</span>
+            <span style={{ color: 'var(--text-secondary)' }}>Initializing Hermes cascade…</span>
           </>
         ) : (
           <>

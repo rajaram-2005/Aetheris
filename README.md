@@ -8,11 +8,72 @@ by multimodal intelligence and agentic problem-solving, Aetheris effortlessly
 writes clean code, analyzes complex data, and refines ideas—delivering clear,
 actionable intelligence for any workflow.
 
-This repository implements the **Aetheris Model Identity & Brand Blueprint** as a
-runnable service: a production-style FastAPI backend that exposes an
-OpenAI-compatible chat-completions API, a model-tier registry, a managed
-system-prompt suite that activates the official Aetheris identity, and a branded
-landing page.
+This repository is **one application**: a FastAPI backend and a Next.js web UI
+that ship and run as a single process, both driven by one brain — the
+**Hermes agent with meta-learning** — which runs **entirely offline**. No API
+key, no vendor API, no model weights, no network.
+
+---
+
+## One app, one brain
+
+Everything runs through a single cascade. There is no second engine, no
+browser-side copy of the logic, and no disconnected subsystem:
+
+```
+                        ┌──────────────────────────────┐
+  Browser UI  ──────────►  FastAPI (one process, :8000) │
+  (served at /)         │                              │
+                        │   /v1/hermes/*   /v1/chat/*  │
+                        └───────────────┬──────────────┘
+                                        │
+                              ┌─────────▼─────────┐
+                              │   HERMES AGENT    │
+                              └─────────┬─────────┘
+   perceive → classify → adapt → deliberate → ground → route → recall
+            → act → synthesize → polish → learn
+                          │                        │
+                   (meta-learning in)      (meta-learning out)
+```
+
+| Stage | What actually happens |
+|-------|----------------------|
+| `perceive` | Tokenization, language/script detection, entities, sentiment, keywords |
+| `classify` | Intent via cue regexes + TF-IDF cosine over 40 intent prototypes |
+| `adapt` | **Meta-learning inner loop** — few-shot exemplars, intent priors, tool priors, fast-adapted strategy |
+| `deliberate` | Exact symbolic computation: recursive-descent parser, conversions, percentages, quadratics, statistics |
+| `ground` | BM25 over a 31-article built-in corpus **and** any documents you mount |
+| `route` | NOVA sparse mixture-of-experts routing |
+| `recall` | NOVA hierarchical long-term memory |
+| `act` | **Real tool execution** — sandboxed Python, retrieval, media synthesis |
+| `synthesize` | Composes the answer, shaped by the learned strategy |
+| `polish` | Safety gating, vendor-voice stripping, honesty enforcement |
+| `learn` | **Meta-learning outer loop** — records the episode and updates the learner |
+
+### The two pillars are live, not planned
+
+`Hermes Agent + Meta-Learning` used to be a string in a spec file. Both pillars
+are now executing code you can call:
+
+* **Hermes Agent** ([`aetheris/hermes/agent.py`](aetheris/hermes/agent.py)) —
+  plan → act → observe → self-correct against the real toolbelt, every stage
+  traced. `POST /v1/hermes/run`
+* **Meta-Learning** ([`aetheris/hermes/meta_learning.py`](aetheris/hermes/meta_learning.py)) —
+  Dirichlet intent priors, per-intent tool priors, trigram-nearest few-shot
+  exemplar recall, and a Reptile-style online strategy update, all learned from
+  the agent's own episodes. `GET /v1/hermes/meta`
+
+Learning is observable. Ask something, rate the answer 👍/👎, and watch the
+strategy, priors, and exemplar store move in the Inspector's **learning** tab —
+or at `GET /v1/hermes/meta`. `GET /v1/training` reports this as live telemetry
+rather than a declared intention.
+
+### Offline by construction
+
+The default provider is the local Hermes agent. With every socket and DNS call
+blocked, arithmetic, retrieval, code execution, and generation all still work.
+Point `AETHERIS_LLM_PROVIDER=openai` at an upstream model if you want one — the
+Hermes runtime stays available at `/v1/hermes/*` either way.
 
 ---
 
@@ -26,14 +87,16 @@ landing page.
   `aetheris-ultra` (Reasoning Engine), addressable by id or alias.
 - **Production system-prompt suite** — the four official prompts, injected
   automatically so the Aetheris persona is always active.
-- **Provider abstraction** — runs out-of-the-box with a brand-aware **mock**
-  provider; switch to any OpenAI-compatible endpoint (OpenAI, Groq, Together,
-  vLLM, Ollama, LM Studio) via environment variables.
+- **Provider abstraction** — runs out-of-the-box on the offline **Hermes** agent;
+  switch to any OpenAI-compatible endpoint (OpenAI, Groq, Together, vLLM, Ollama,
+  LM Studio) via environment variables.
 - **Typed everywhere** — Pydantic v2 schemas, Python 3.11+ idioms, defensive error
   handling.
-- **Interactive product experience** at `/` with a live streaming playground,
-  adaptive model/mode controls, responsive light/dark themes, architecture
-  visualization, and copy-ready API examples in the canonical Aetheris palette.
+- **Integrated web application** at `/` — threaded chat, an eleven-stage cascade
+  Inspector, a live meta-learning dashboard, 👍/👎 reinforcement, file attachment,
+  command palette, and prompt library. Served by the Python process itself.
+- **Branded landing page** at `/landing` with a live streaming playground,
+  architecture visualization, and copy-ready API examples.
 - **God Mode orchestration** — activate an expert control deck with sampling
   controls, mission profiles, local context-file mounting, execution telemetry,
   a three-agent Council workflow, a Lite-vs-Pro-vs-Ultra Model Arena, sequential
@@ -70,26 +133,50 @@ landing page.
 
 Requires Python 3.11+.
 
+Requires Python 3.11+ (and Node 20+ once, to build the UI).
+
 ```bash
 # 1. Create a virtual environment and install dependencies
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# 2. (Optional) configure a real backend — otherwise the mock provider is used
-cp .env.example .env
-#   set AETHERIS_LLM_PROVIDER=openai and AETHERIS_LLM_API_KEY=sk-... to go live
+# 2. Build the web UI once (static export served by Python)
+cd aurion && npm install && npm run build && cd ..
 
-# 3. Run the server (binds 0.0.0.0:8000)
+# 3. Run the whole app — UI + API, one process, one port
 .venv/bin/uvicorn aetheris.main:app --host 0.0.0.0 --port 8000
-
-#   or: .venv/bin/python -m aetheris.main
 ```
+
+That's it. No API key, no network, no Node at runtime.
 
 Then open:
 
-- `http://localhost:8000/` — branded landing page
+- `http://localhost:8000/` — **the application**
+- `http://localhost:8000/landing` — branded landing page
 - `http://localhost:8000/docs` — interactive OpenAPI docs
-- `http://localhost:8000/v1/health` — liveness + active provider
+- `http://localhost:8000/v1/hermes` — the Hermes runtime manifest
+
+### Optional configuration
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Effect |
+|----------|--------|
+| `AETHERIS_LLM_PROVIDER` | `hermes` (default, offline), `openai`, or `mock` |
+| `AETHERIS_HERMES_LEARNING_ENABLED` | Set `false` for a stateless, reproducible deployment |
+| `AETHERIS_HERMES_META_STATE_PATH` | Persist meta-learned state across restarts |
+| `AETHERIS_LLM_API_KEY` | Only needed when using an upstream provider |
+
+### Developing the UI
+
+```bash
+# Terminal 1 — the runtime
+.venv/bin/uvicorn aetheris.main:app --port 8000
+# Terminal 2 — UI with hot reload, proxying /v1 to the runtime
+cd aurion && npm run dev
+```
 
 ---
 
@@ -279,11 +366,22 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `GET /v1/artifacts/{id}` | Fetch an artifact's bytes (`?download=true`). |
 | `DELETE /v1/documents/{id}` | Unmount one document (or all, without an id). |
 | `GET /v1/architecture` | Foundation-model architecture spec (transformer config, modalities, optimizations). |
-| `GET /v1/training` | Training pipeline — the Hermes Agent + Meta-Learning stages. |
+| `GET /v1/training` | Training pipeline + **live runtime telemetry** from the Hermes Agent + Meta-Learning pillars. |
+| `GET /v1/hermes` | Hermes runtime manifest — pillars, cascade stages, learning state. |
+| `POST /v1/hermes/run` | Run one task through the full 11-stage cascade (fully traced). |
+| `POST /v1/hermes/cognition` | Inspect perception/intent/computation/grounding only (no tools, no learning). |
+| `GET /v1/hermes/knowledge` | The built-in offline knowledge corpus. |
+| `GET /v1/hermes/knowledge/search/{q}` | BM25 search over the corpus. |
+| `GET /v1/hermes/meta` | Everything the meta-learner currently believes. |
+| `GET /v1/hermes/meta/episodes` | Recent learned episodes. |
+| `POST /v1/hermes/meta/adapt` | Preview the adaptation for a task without running it. |
+| `POST /v1/hermes/feedback` | Reinforce or penalise an episode (this is what teaches it). |
+| `DELETE /v1/hermes/meta` | Forget all meta-learned state. |
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
-| `GET /` | Branded landing page (now includes Architecture & Training sections). |
+| `GET /` | The web application (served from Python; falls back to the landing page if unbuilt). |
+| `GET /landing` | Branded landing page (Architecture & Training sections). |
 | `GET /docs` | Interactive OpenAPI docs. |
 
 ---
@@ -296,6 +394,7 @@ the training pipeline with **explicit provenance** on every field:
 
 | Evidence tag | Meaning |
 |--------------|---------|
+| `live` | Implemented and executing in this process — verifiable at runtime. |
 | `blueprint` | Sourced from the *Aetheris Model Identity & Brand Blueprint*. |
 | `scaffold` | A structured placeholder with the right shape, awaiting authoritative values. |
 | `pending` | Reserved for the *Aetheris Training & Architecture Blueprint (Hermes Agent Foundation)*. |
@@ -308,17 +407,21 @@ per-tier context windows (32K / 128K / 256K). The concrete transformer
 hyperparameters (layers, hidden size, heads, …) are a reference scaffold.
 
 **Training pipeline** (`GET /v1/training`) — the **Hermes Agent + Meta-Learning**
-program, a two-pillar foundation: the Hermes Agent program (agentic tool use and
-self-correction) plus a Meta-Learning pillar (learning-to-learn, sample-efficient
-adaptation). Alignment methods `SFT`, `DPO`; meta-learning methods `MAML`,
-`Reptile`, `few-shot adaptation`, `in-context learning tuning`.
+foundation. Both pillars are **live code running in this process**, not planned
+work, and the endpoint reports measured telemetry from them under `runtime`:
 
 1. `continued_pretraining` — domain-adaptive pretraining *(scaffold)*
 2. `sft` — Supervised Fine-Tuning / instruction alignment *(blueprint)*
 3. `dpo` — Direct Preference Optimization / hallucination reduction *(blueprint)*
-4. `agent_tuning` — agentic tool-use instruction tuning *(scaffold)*
-5. `meta_learning` — learning-to-learn / few-shot adaptation *(scaffold)*
+4. `agent_tuning` — agentic tool use and self-correction — **live**
+   ([`aetheris/hermes/agent.py`](aetheris/hermes/agent.py))
+5. `meta_learning` — learning-to-learn / few-shot adaptation — **live**
+   ([`aetheris/hermes/meta_learning.py`](aetheris/hermes/meta_learning.py))
 6. `evaluation` — output-fidelity & hallucination-rate gating *(blueprint)*
+
+The pretraining and alignment stages remain descriptive scaffolds — they
+describe how a model would be trained, which this repository does not do. The
+two Hermes pillars are marked `live` because you can execute them.
 
 ### Populating the Hermes blueprint details (no code change)
 

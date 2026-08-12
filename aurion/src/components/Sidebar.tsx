@@ -4,10 +4,19 @@
 import { useState } from 'react';
 import { Thread } from '@/types';
 
+interface RuntimeInfo {
+  foundation: string;
+  version: string;
+  episodes: number;
+  knowledge_articles: number;
+  online: boolean;
+}
+
 interface SidebarProps {
   threads: Thread[];
   currentThreadId: string | null;
   isOpen: boolean;
+  runtime?: RuntimeInfo | null;
   onToggle: () => void;
   onNewThread: () => void;
   onSelectThread: (id: string) => void;
@@ -21,15 +30,15 @@ const SKILL_CHIPS = [
   { icon: '✍️', label: 'Write', prompt: 'Help me write a professional email about' },
   { icon: '💻', label: 'Code', prompt: 'Write a Python function that' },
   { icon: '📐', label: 'Math', prompt: 'Calculate' },
-  { icon: '🌐', label: 'Translate', prompt: 'Translate hello to Hindi' },
+  { icon: '🧮', label: 'Compute', prompt: 'Convert 42 km to miles' },
   { icon: '📚', label: 'Study', prompt: 'Create a study plan for' },
-  { icon: '🎨', label: 'Visage', prompt: 'Draw an aurora poster' },
+  { icon: '🎨', label: 'Image', prompt: 'Generate an image of an aurora over mountains' },
   { icon: '🍳', label: 'Recipe', prompt: 'Give me a biryani recipe' },
   { icon: '✈️', label: 'Travel', prompt: 'Places to visit in Hyderabad' },
 ];
 
 export function Sidebar({
-  threads, currentThreadId, isOpen, onToggle, onNewThread,
+  threads, currentThreadId, isOpen, runtime, onToggle, onNewThread,
   onSelectThread, onDeleteThread, onOpenSettings, onOpenPrompts, onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -68,7 +77,7 @@ export function Sidebar({
             A
           </div>
           <span className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-mint)' }}>
-            AURION
+            Aetheris
           </span>
         </div>
         <button
@@ -212,6 +221,41 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Runtime status — proves what is actually serving inference */}
+      <div className="px-3 pb-2">
+        <div
+          className="px-3 py-2 rounded-lg text-[10px] space-y-1"
+          style={{
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-color)',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                background: runtime?.online ? 'var(--accent-mint)' : 'var(--accent-pink)',
+              }}
+            />
+            <span style={{ color: runtime?.online ? 'var(--accent-mint)' : 'var(--accent-pink)' }}>
+              {runtime?.online ? 'Hermes online' : 'Runtime offline'}
+            </span>
+            {runtime?.online && (
+              <span className="ml-auto" style={{ color: 'var(--text-muted)' }}>
+                v{runtime.version}
+              </span>
+            )}
+          </div>
+          {runtime?.online && (
+            <div style={{ color: 'var(--text-muted)' }}>
+              {runtime.episodes} episode{runtime.episodes === 1 ? '' : 's'} learned ·{' '}
+              {runtime.knowledge_articles} articles
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Privacy Pill */}
       <div className="px-3 pb-3">
         <div
@@ -219,7 +263,7 @@ export function Sidebar({
           style={{ background: 'rgba(61,255,194,0.08)', border: '1px solid rgba(61,255,194,0.15)', color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}
         >
           <span>🔒</span>
-          <span>On-device · No API keys · Private</span>
+          <span>Offline · No API keys · Private</span>
         </div>
       </div>
     </aside>

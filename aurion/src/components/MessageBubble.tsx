@@ -6,9 +6,11 @@ import { useState, useCallback } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
+  /** Rate an answer — the reward signal the meta-learner trains on. */
+  onRate?: (message: Message, reward: number) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onRate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
@@ -86,9 +88,57 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               {copied ? '✓ copied' : 'copy'}
             </button>
           )}
-          {message.trace && (
-            <span className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {Object.values(message.trace.timings).reduce((a, b) => a + b, 0).toFixed(0)}ms
+          {message.run && (
+            <>
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {message.run.duration_ms.toFixed(0)}ms · {message.run.intent}
+              </span>
+              {message.run.solved_exactly && (
+                <span className="text-[10px]" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
+                  exact
+                </span>
+              )}
+              {message.run.grounded && (
+                <span className="text-[10px]" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
+                  grounded
+                </span>
+              )}
+            </>
+          )}
+
+          {/* Rating — teaches the meta-learner */}
+          {!isUser && message.run?.episode_id && onRate && (
+            <span className="flex items-center gap-1">
+              {message.rated === undefined ? (
+                <>
+                  <button
+                    onClick={() => onRate(message, 1)}
+                    title="Helpful — reinforce this approach"
+                    className="text-[10px] px-1 rounded hover:opacity-80"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => onRate(message, 0)}
+                    title="Not helpful — learn from this"
+                    className="text-[10px] px-1 rounded hover:opacity-80"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    👎
+                  </button>
+                </>
+              ) : (
+                <span
+                  className="text-[10px]"
+                  style={{
+                    color: message.rated >= 0.5 ? 'var(--accent-mint)' : 'var(--accent-pink)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {message.rated >= 0.5 ? '👍 learned' : '👎 learned'}
+                </span>
+              )}
             </span>
           )}
         </div>
