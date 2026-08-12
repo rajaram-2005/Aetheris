@@ -21,6 +21,12 @@ env/
 .env.*
 !.env.example
 
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+
 # OS / editor
 .DS_Store
 .idea/
