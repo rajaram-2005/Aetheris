@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response, StreamingResponse
@@ -2397,6 +2398,1111 @@ async def breaking_changes(since: str = "") -> dict:
 async def search_changelog(q: str, limit: int = 20) -> dict:
     """Search changelog."""
     return {"results": [e.to_info().model_dump() for e in get_changelog_manager().search(q, limit=limit)]}
+
+
+# ============================================================================
+# ÆTHERIS NOVA — next-generation architecture endpoints
+# ============================================================================
+
+class ReasonRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=20_000)
+    effort: str = Field(default="medium", pattern="^(low|medium|high|max)$")
+    thinking_budget: int | None = Field(default=None, ge=500, le=64_000)
+    reflection_passes: int | None = Field(default=None, ge=0, le=6)
+    verification: bool | None = None
+    model: str | None = None
+    mode: str | None = None
+
+
+class RouteRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=20_000)
+    top_k: int | None = Field(default=None, ge=1, le=4)
+
+
+class OrchestrateRequest(BaseModel):
+    goal: str = Field(..., min_length=1, max_length=20_000)
+    mode: str = Field(default="council", pattern="^(council|debate|pipeline|swarm)$")
+    rounds: int = Field(default=3, ge=1, le=12)
+
+
+class ResearchRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=20_000)
+    depth: int = Field(default=1, ge=0, le=4)
+    max_searches: int = Field(default=8, ge=1, le=32)
+
+
+class MemoryAddRequest(BaseModel):
+    tier: str = Field(..., pattern="^(core|recall|archival)$")
+    text: str = Field(..., min_length=1, max_length=50_000)
+    kind: str = "note"
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MemorySearchRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    tiers: list[str] = Field(default_factory=lambda: ["core", "recall", "archival"])
+    top_k: int = Field(default=5, ge=1, le=50)
+
+
+class CanvasCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    kind: str = Field(..., pattern="^(document|svg|react_like|chart|mermaid|dashboard)$")
+    content: str = Field(default="")
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CanvasUpdateRequest(BaseModel):
+    content: str = Field(..., min_length=0)
+    note: str = ""
+    author: str = "aetheris"
+
+
+class PlanRequest(BaseModel):
+    goal: str = Field(..., min_length=1, max_length=20_000)
+
+
+class ComputerActionRequest(BaseModel):
+    session_id: str
+    kind: str = Field(..., pattern="^(screenshot|click|type|scroll|key|drag|navigate)$")
+    x: int | None = None
+    y: int | None = None
+    text: str | None = None
+    key: str | None = None
+    dx: int = 0
+    dy: int = 0
+    url: str | None = None
+
+
+def _nova_guard():
+    if not settings.nova_enabled:
+        raise HTTPException(status_code=403, detail="Ætheris NOVA is disabled on this deployment.")
+
+
+@router.get("/v1/nova", tags=["nova"])
+async def nova_manifest() -> dict:
+    """Return the full Ætheris NOVA architecture manifest."""
+    _nova_guard()
+    from ..core.nova import nova_manifest
+    return {
+        "codename": "NOVA",
+        "version": __version__,
+        "enabled": True,
+        **nova_manifest(),
+    }
+
+
+# --- Extended reasoning ------------------------------------------------------
+
+@router.post("/v1/nova/reason", tags=["nova"])
+async def nova_reason(body: ReasonRequest) -> dict:
+    """Deliberative reasoning (decompose → draft → reflect → verify → synthesize).
+
+    Returns a structured ``reasoning_trace`` alongside the final answer so
+    clients can render a live "thinking" view.
+    """
+    _nova_guard()
+    from ..services.reasoning import get_engine
+    from ..tools.sandbox import run_python
+
+    async def _code_sandbox(code: str):
+        if not settings.sandbox_enabled:
+            return {"stdout": "", "stderr": "sandbox disabled", "exit_code": -1}
+        r = await run_python(code)
+        return {"stdout": r.stdout, "stderr": r.stderr, "exit_code": r.exit_code}
+
+    tools = {"code_interpreter": _code_sandbox} if settings.sandbox_enabled else {}
+    engine = get_engine()
+    mem_ctx = ""
+    try:
+        from ..services.memory import get_memory
+        mem = get_memory()
+        # auto-memorize the prompt as an episode for future recall
+        mem.remember_episode("user", body.prompt)
+        mem_ctx = mem.context_window(body.prompt)
+    except Exception:
+        pass
+    result = await engine.reason(
+        body.prompt,
+        effort=body.effort,
+        thinking_budget=body.thinking_budget,
+        reflection_passes=body.reflection_passes,
+        verification=body.verification,
+        tools=tools,
+        memory_context=mem_ctx,
+    )
+    return result.to_dict()
+
+
+# --- MoE routing -------------------------------------------------------------
+
+@router.post("/v1/nova/route", tags=["nova"])
+async def nova_route(body: RouteRequest) -> dict:
+    """Route a prompt through the Sparse Mixture-of-Experts and return the
+    chosen experts with their weights and signals."""
+    _nova_guard()
+    from ..services.moe import get_router
+    router_moe = get_router()
+    routed = router_moe.route(body.text, top_k=body.top_k)
+    composed, report = router_moe.compose_system_prompt(body.text, top_k=body.top_k)
+    return {
+        "query": body.text,
+        "experts": report,
+        "composed_system_prompt": composed,
+        "router_stats": router_moe.stats(),
+    }
+
+
+@router.get("/v1/nova/experts", tags=["nova"])
+async def nova_experts() -> dict:
+    """List all routed experts with their triggers and specialisations."""
+    _nova_guard()
+    from ..core.nova import EXPERTS
+    from dataclasses import asdict
+    return {"experts": [asdict(e) for e in EXPERTS]}
+
+
+# --- Multi-agent orchestrator ------------------------------------------------
+
+@router.post("/v1/nova/orchestrate", tags=["nova"])
+async def nova_orchestrate(body: OrchestrateRequest) -> dict:
+    """Run a multi-agent orchestration (council, debate, pipeline, swarm)."""
+    _nova_guard()
+    from ..services.orchestrator import get_orchestrator
+    orch = get_orchestrator()
+    result = await orch.run(body.mode, body.goal, rounds=body.rounds)
+    return result.to_dict()
+
+
+@router.get("/v1/nova/roles", tags=["nova"])
+async def nova_roles() -> dict:
+    """List available agent roles and their system prompts."""
+    _nova_guard()
+    from ..services.orchestrator import ROLE_PROMPTS
+    return {"roles": ROLE_PROMPTS, "modes": ["council", "debate", "pipeline", "swarm"]}
+
+
+# --- Deep research -----------------------------------------------------------
+
+@router.post("/v1/nova/research", tags=["nova"])
+async def nova_research(body: ResearchRequest) -> dict:
+    """Run a deep-research loop with query expansion, grounding, and synthesis."""
+    _nova_guard()
+    from ..services.research import DeepResearcher
+    from ..tools.retrieval import get_index
+    from ..services.memory import get_memory
+
+    index = get_index()
+
+    def _doc_search(q: str, top_k: int = 3):
+        hits = index.search(q, top_k=top_k)
+        return [h.to_dict() for h in hits]
+
+    mem = get_memory() if settings.nova_enabled else None
+    dr = DeepResearcher(document_search=_doc_search, memory=mem, max_searches=body.max_searches)
+    result = await dr.research(body.question, depth=body.depth)
+    # Archive the synthesized answer for future recall.
+    try:
+        mem.add("archival", f"Research on: {body.question}\n\n{result.answer}", kind="note", importance=0.7)
+    except Exception:
+        pass
+    return result.to_dict()
+
+
+# --- Hierarchical memory -----------------------------------------------------
+
+@router.get("/v1/nova/memory", tags=["nova"])
+async def nova_memory_snapshot() -> dict:
+    """Snapshot the hierarchical memory (core/recall/archival)."""
+    _nova_guard()
+    from ..services.memory import get_memory
+    return get_memory().snapshot()
+
+
+@router.post("/v1/nova/memory", status_code=201, tags=["nova"])
+async def nova_memory_add(body: MemoryAddRequest) -> dict:
+    """Write a memory to a tier."""
+    _nova_guard()
+    from ..services.memory import get_memory
+    from dataclasses import asdict
+    entry = get_memory().add(body.tier, body.text, kind=body.kind, importance=body.importance, metadata=body.metadata)
+    return asdict(entry)
+
+
+@router.post("/v1/nova/memory/search", tags=["nova"])
+async def nova_memory_search(body: MemorySearchRequest) -> dict:
+    """Search the hierarchical memory with hybrid signature+BM25 retrieval."""
+    _nova_guard()
+    from ..services.memory import get_memory
+    return {"query": body.query, "results": get_memory().search(body.query, tiers=body.tiers, top_k=body.top_k)}
+
+
+@router.post("/v1/nova/memory/{entry_id}/promote", tags=["nova"])
+async def nova_memory_promote(entry_id: str, reason: str = "") -> dict:
+    """Promote a recall/archival memory into core (learn from experience)."""
+    _nova_guard()
+    from ..services.memory import get_memory
+    from dataclasses import asdict
+    try:
+        entry = get_memory().promote(entry_id, reason=reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@router.delete("/v1/nova/memory", tags=["nova"])
+async def nova_memory_clear(tier: str | None = None) -> dict:
+    """Clear a memory tier (or all)."""
+    _nova_guard()
+    from ..services.memory import get_memory
+    return {"removed": get_memory().clear(tier=tier)}
+
+
+# --- Canvas (live artifacts) -------------------------------------------------
+
+@router.get("/v1/nova/canvas", tags=["nova"])
+async def nova_canvas_list() -> dict:
+    """List canvas artifacts."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    return {"artifacts": get_canvas().list()}
+
+
+@router.post("/v1/nova/canvas", status_code=201, tags=["nova"])
+async def nova_canvas_create(body: CanvasCreateRequest) -> dict:
+    """Create a new canvas artifact."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    try:
+        art = get_canvas().create(body.title, body.kind, body.content, metadata=body.metadata)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_canvas().render(art.id)
+
+
+@router.get("/v1/nova/canvas/{artifact_id}", tags=["nova"])
+async def nova_canvas_get(artifact_id: str) -> dict:
+    """Render a canvas artifact (returns metadata + rendered HTML)."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    try:
+        return get_canvas().render(artifact_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"No artifact {artifact_id!r}") from exc
+
+
+@router.patch("/v1/nova/canvas/{artifact_id}", tags=["nova"])
+async def nova_canvas_update(artifact_id: str, body: CanvasUpdateRequest) -> dict:
+    """Update a canvas artifact (creates a new version)."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    try:
+        art = get_canvas().update(artifact_id, body.content, author=body.author, note=body.note)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return get_canvas().render(art.id)
+
+
+@router.get("/v1/nova/canvas/{artifact_id}/diff", tags=["nova"])
+async def nova_canvas_diff(artifact_id: str, from_version: int | None = None, to_version: int | None = None) -> dict:
+    """Get a unified diff between two versions of an artifact."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    try:
+        art = get_canvas().get(artifact_id)
+        return art.diff(from_version, to_version)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/v1/nova/canvas/{artifact_id}/revert", tags=["nova"])
+async def nova_canvas_revert(artifact_id: str, version: int) -> dict:
+    """Revert to a previous version."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    try:
+        art = get_canvas().revert(artifact_id, version)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_canvas().render(art.id)
+
+
+@router.delete("/v1/nova/canvas/{artifact_id}", tags=["nova"])
+async def nova_canvas_delete(artifact_id: str) -> dict:
+    """Delete a canvas artifact."""
+    _nova_guard()
+    from ..services.canvas import get_canvas
+    if not get_canvas().delete(artifact_id):
+        raise HTTPException(status_code=404, detail=f"No artifact {artifact_id!r}")
+    return {"deleted": artifact_id}
+
+
+# --- Tool Composition v2 (planner + DAG) -------------------------------------
+
+@router.post("/v1/nova/plan", tags=["nova"])
+async def nova_plan(body: PlanRequest, execute: bool = False) -> dict:
+    """Build a (DAG) plan for a goal, optionally executing it."""
+    _nova_guard()
+    from ..services.planner import get_composer
+    from ..tools.sandbox import run_python
+    from ..tools.retrieval import get_index
+
+    composer = get_composer()
+
+    async def _sandbox(args: dict) -> dict:
+        code = args.get("code") or args.get("expression") or "print('no code supplied')"
+        r = await run_python(code)
+        return {"stdout": r.stdout, "stderr": r.stderr, "exit_code": r.exit_code}
+
+    def _search(args: dict) -> dict:
+        q = args.get("query", "")
+        hits = get_index().search(q, top_k=3)
+        return {"results": [h.to_dict() for h in hits]}
+
+    def _respond(args: dict) -> dict:
+        return {"ok": True, "response": "Plan executed. See prior steps for outputs."}
+
+    composer.register("code_interpreter", _sandbox)
+    composer.register("calculator", _sandbox)
+    composer.register("document_search", _search)
+    composer.register("search", _search)
+    composer.register("respond", lambda args: asyncio.sleep(0, result=_respond(args)))
+    composer.register("write_code", lambda args: asyncio.sleep(0, result={"code": "def solve(items):\n    return sum(items)\n"}))
+    composer.register("synthesize", lambda args: asyncio.sleep(0, result=_respond(args)))
+
+    plan = composer.plan_for(body.goal)
+    if not execute:
+        return plan.to_dict()
+    return await composer.execute(plan)
+
+
+# --- Computer-Use (action schema + simulated desktop) ------------------------
+
+@router.post("/v1/nova/computer-use/sessions", status_code=201, tags=["nova"])
+async def nova_cu_create(confirmed: bool = False) -> dict:
+    """Create a computer-use session (confirmation-gated by default)."""
+    _nova_guard()
+    from ..services.computer import get_computer
+    s = get_computer().create_session(confirmed=confirmed)
+    return {"id": s.id, "confirmed": s.confirmed, "viewport": s.viewport}
+
+
+@router.post("/v1/nova/computer-use/sessions/{session_id}/confirm", tags=["nova"])
+async def nova_cu_confirm(session_id: str) -> dict:
+    """Confirm a session so mutating actions execute."""
+    _nova_guard()
+    from ..services.computer import get_computer
+    try:
+        return get_computer().confirm(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/v1/nova/computer-use/sessions/{session_id}/action", tags=["nova"])
+async def nova_cu_action(session_id: str, body: ComputerActionRequest) -> dict:
+    """Perform an action in a computer-use session.
+
+    Mutating actions (click/type/key/drag/navigate) require a confirmed
+    session.
+    """
+    _nova_guard()
+    from ..services.computer import get_computer, ComputerAction
+    cu = get_computer()
+    try:
+        action = ComputerAction(
+            kind=body.kind, x=body.x, y=body.y, text=body.text, key=body.key,
+            dx=body.dx, dy=body.dy, url=body.url,
+        )
+        return cu.perform(session_id, action)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/v1/nova/computer-use/sessions/{session_id}", tags=["nova"])
+async def nova_cu_close(session_id: str) -> dict:
+    """Close a computer-use session."""
+    _nova_guard()
+    from ..services.computer import get_computer
+    return get_computer().close(session_id)
+
+
+# ============================================================================
+# v0.10.0 endpoints
+# ============================================================================
+
+# --- Cost tracking -----------------------------------------------------------
+
+@router.get("/v1/costs", tags=["costs"])
+async def cost_snapshot(since: float | None = None, client_id: str | None = None, model: str | None = None) -> dict:
+    """Return aggregated token/cost snapshot."""
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    snap = get_cost_tracker().snapshot(since=since, client_id=client_id, model=model)
+    return snap.model_dump()
+
+
+@router.get("/v1/costs/entries", tags=["costs"])
+async def cost_entries(limit: int = 100, client_id: str | None = None) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return {"data": get_cost_tracker().list_entries(limit=limit, client_id=client_id)}
+
+
+@router.get("/v1/costs/alerts", tags=["costs"])
+async def cost_alerts(client_id: str | None = None, limit: int = 50) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return {"data": get_cost_tracker().list_alerts(client_id=client_id, limit=limit)}
+
+
+@router.get("/v1/costs/rates", tags=["costs"])
+async def cost_rates() -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return {"rates": get_cost_tracker().list_rates()}
+
+
+@router.put("/v1/costs/rates", tags=["costs"])
+async def cost_set_rate(body: dict) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker, CostRate
+    try:
+        rate = CostRate(**{k: body.get(k, v) for k, v in {"model": "", "prompt_per_1k": 0.0, "completion_per_1k": 0.0}.items()})
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    get_cost_tracker().set_rate(rate)
+    return {"ok": True, "rate": rate.model_dump()}
+
+
+@router.put("/v1/costs/budgets/{client_id}", tags=["costs"])
+async def cost_set_budget(client_id: str, body: dict) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker, Budget
+    try:
+        b = Budget(
+            client_id=client_id,
+            daily_usd=float(body.get("daily_usd", 0.0)),
+            monthly_usd=float(body.get("monthly_usd", 0.0)),
+            alert_threshold=float(body.get("alert_threshold", 0.8)),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    get_cost_tracker().set_budget(b)
+    return {"ok": True, "budget": b.model_dump()}
+
+
+@router.delete("/v1/costs/budgets/{client_id}", tags=["costs"])
+async def cost_delete_budget(client_id: str) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return {"deleted": get_cost_tracker().delete_budget(client_id)}
+
+
+@router.post("/v1/costs/record", tags=["costs"])
+async def cost_record(body: dict) -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker, UsageRecord
+    try:
+        rec = UsageRecord(
+            client_id=body.get("client_id", "anonymous"),
+            model=body.get("model", "aetheris-pro"),
+            prompt_tokens=int(body.get("prompt_tokens", 0)),
+            completion_tokens=int(body.get("completion_tokens", 0)),
+            cost_usd=float(body.get("cost_usd", 0.0)),
+            metadata=body.get("metadata", {}),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return get_cost_tracker().record(rec)
+
+
+@router.delete("/v1/costs", tags=["costs"])
+async def cost_clear() -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return {"deleted": get_cost_tracker().clear()}
+
+
+@router.get("/v1/costs/stats", tags=["costs"])
+async def cost_stats_endpoint() -> dict:
+    if not settings.cost_tracking_enabled:
+        raise HTTPException(status_code=403, detail="Cost tracking is disabled.")
+    from ..core.cost_tracking import get_cost_tracker
+    return get_cost_tracker().stats()
+
+
+# --- Drafts ------------------------------------------------------------------
+
+@router.post("/v1/drafts", status_code=201, tags=["drafts"])
+async def draft_create(body: dict) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, DraftCreate, _info
+    mgr = get_draft_manager()
+    try:
+        d = mgr.create(DraftCreate(**body))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _info(d).model_dump()
+
+
+@router.get("/v1/drafts", tags=["drafts"])
+async def draft_list(entity_type: str | None = None, entity_id: str | None = None, client_id: str | None = None) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, _info
+    mgr = get_draft_manager()
+    items = mgr.list_drafts(entity_type=entity_type, entity_id=entity_id, client_id=client_id)
+    return {"data": [_info(d).model_dump() for d in items], "stats": mgr.stats()}
+
+
+@router.get("/v1/drafts/stats", tags=["drafts"])
+async def draft_stats() -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager
+    return get_draft_manager().stats()
+
+
+@router.get("/v1/drafts/{draft_id}", tags=["drafts"])
+async def draft_get(draft_id: str) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, _detail
+    d = get_draft_manager().get(draft_id)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"No draft {draft_id!r}.")
+    return _detail(d).model_dump()
+
+
+@router.patch("/v1/drafts/{draft_id}", tags=["drafts"])
+async def draft_update(draft_id: str, body: dict) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, DraftUpdate, DraftConflict, _detail
+    mgr = get_draft_manager()
+    try:
+        up = DraftUpdate(**body)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    d, conflict = mgr.update(draft_id, up)
+    if conflict is not None:
+        raise HTTPException(status_code=409, detail=conflict)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"No draft {draft_id!r}.")
+    return _detail(d).model_dump()
+
+
+@router.post("/v1/drafts/{draft_id}/autosave", tags=["drafts"])
+async def draft_autosave(draft_id: str, body: dict) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, DraftUpdate, _detail
+    mgr = get_draft_manager()
+    d, conflict = mgr.autosave(draft_id, body.get("content", ""), client_id=body.get("client_id", "anonymous"), metadata=body.get("metadata", {}))
+    if conflict is not None:
+        raise HTTPException(status_code=409, detail=conflict)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"No draft {draft_id!r}.")
+    return _detail(d).model_dump()
+
+
+@router.post("/v1/drafts/{draft_id}/revert", tags=["drafts"])
+async def draft_revert(draft_id: str, version: int, client_id: str = "system") -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager, _detail
+    d = get_draft_manager().revert(draft_id, version, client_id=client_id)
+    if d is None:
+        raise HTTPException(status_code=400, detail="Invalid draft id or version.")
+    return _detail(d).model_dump()
+
+
+@router.post("/v1/drafts/{draft_id}/publish", tags=["drafts"])
+async def draft_publish(draft_id: str) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager
+    out = get_draft_manager().publish(draft_id)
+    if out is None:
+        raise HTTPException(status_code=404, detail=f"No draft {draft_id!r}.")
+    return out
+
+
+@router.delete("/v1/drafts/{draft_id}", tags=["drafts"])
+async def draft_delete(draft_id: str) -> dict:
+    if not settings.drafts_enabled:
+        raise HTTPException(status_code=403, detail="Drafts are disabled.")
+    from ..core.drafts import get_draft_manager
+    if not get_draft_manager().delete(draft_id):
+        raise HTTPException(status_code=404, detail=f"No draft {draft_id!r}.")
+    return {"deleted": draft_id}
+
+
+# --- Shortcuts / keybindings -------------------------------------------------
+
+@router.get("/v1/shortcuts", tags=["shortcuts"])
+async def shortcut_list_profiles() -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, _profile_info
+    mgr = get_shortcut_manager()
+    return {
+        "data": [_profile_info(p).model_dump() for p in mgr.list_profiles()],
+        "active": mgr.stats()["active_profile"],
+        "stats": mgr.stats(),
+    }
+
+
+@router.post("/v1/shortcuts/profiles", status_code=201, tags=["shortcuts"])
+async def shortcut_create_profile(body: dict) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, ProfileCreate, ShortcutBinding, _profile_detail
+    mgr = get_shortcut_manager()
+    try:
+        bindings = [ShortcutBinding(**b) for b in body.get("bindings", [])]
+        prof = mgr.create_profile(ProfileCreate(
+            name=body.get("name", ""),
+            description=body.get("description", ""),
+            bindings=bindings,
+            is_builtin=bool(body.get("is_builtin", False)),
+        ))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _profile_detail(prof).model_dump()
+
+
+@router.get("/v1/shortcuts/profiles/{pid}", tags=["shortcuts"])
+async def shortcut_get_profile(pid: str) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, _profile_detail
+    mgr = get_shortcut_manager()
+    p = mgr.get(pid) or mgr.get_by_name(pid)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"No profile {pid!r}.")
+    return _profile_detail(p).model_dump()
+
+
+@router.post("/v1/shortcuts/profiles/{pid}/clone", tags=["shortcuts"])
+async def shortcut_clone_profile(pid: str, body: dict) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, _profile_detail
+    mgr = get_shortcut_manager()
+    src = mgr.get(pid) or mgr.get_by_name(pid)
+    if src is None:
+        raise HTTPException(status_code=404, detail=f"No profile {pid!r}.")
+    try:
+        new_p = mgr.clone(src.id, body.get("name", f"{src.name}-clone"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _profile_detail(new_p).model_dump()
+
+
+@router.put("/v1/shortcuts/profiles/{pid}/bindings", tags=["shortcuts"])
+async def shortcut_bind(pid: str, body: dict) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, ShortcutBinding, _profile_detail
+    mgr = get_shortcut_manager()
+    try:
+        b = ShortcutBinding(**body)
+        mgr.bind(pid, b)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    p = mgr.get(pid)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"No profile {pid!r}.")
+    return _profile_detail(p).model_dump()
+
+
+@router.delete("/v1/shortcuts/profiles/{pid}/bindings", tags=["shortcuts"])
+async def shortcut_unbind(pid: str, keys: str) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, _profile_detail
+    mgr = get_shortcut_manager()
+    try:
+        mgr.unbind(pid, keys)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    p = mgr.get(pid)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"No profile {pid!r}.")
+    return _profile_detail(p).model_dump()
+
+
+@router.post("/v1/shortcuts/activate", tags=["shortcuts"])
+async def shortcut_activate(body: dict) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager, _profile_info
+    mgr = get_shortcut_manager()
+    try:
+        p = mgr.set_active(body.get("id", ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _profile_info(p).model_dump()
+
+
+@router.post("/v1/shortcuts/resolve", tags=["shortcuts"])
+async def shortcut_resolve(body: dict) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager
+    mgr = get_shortcut_manager()
+    res = mgr.resolve(body.get("keys", ""), when=body.get("when", "always"), profile=body.get("profile"))
+    return res.model_dump()
+
+
+@router.delete("/v1/shortcuts/profiles/{pid}", tags=["shortcuts"])
+async def shortcut_delete_profile(pid: str) -> dict:
+    if not settings.shortcuts_enabled:
+        raise HTTPException(status_code=403, detail="Shortcuts are disabled.")
+    from ..core.shortcuts import get_shortcut_manager
+    mgr = get_shortcut_manager()
+    try:
+        ok = mgr.delete_profile(pid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"No profile {pid!r}.")
+    return {"deleted": pid}
+
+
+# --- Comments / annotation threads -------------------------------------------
+
+@router.post("/v1/comments", status_code=201, tags=["comments"])
+async def comment_create(body: dict) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, CommentCreate, _info
+    mgr = get_comment_manager()
+    try:
+        c = mgr.create(CommentCreate(**body))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # build thread
+    thread = mgr.thread(c.thread_id)
+    return {
+        "thread_id": c.thread_id,
+        "comments": [_info(x).model_dump() for x in thread],
+    }
+
+
+@router.get("/v1/comments", tags=["comments"])
+async def comment_list(entity_type: str, entity_id: str, include_resolved: bool = True) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, _info
+    mgr = get_comment_manager()
+    roots = mgr.list_for_entity(entity_type, entity_id, include_resolved=include_resolved)
+    threads = []
+    for r in roots:
+        threads.append({
+            "root": _info(r).model_dump(),
+            "replies": [_info(x).model_dump() for x in mgr.thread(r.thread_id) if x.id != r.id],
+        })
+    return {"entity": {"type": entity_type, "id": entity_id}, "threads": threads, "stats": mgr.stats()}
+
+
+@router.get("/v1/comments/search", tags=["comments"])
+async def comment_search(q: str, limit: int = 20) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, _info
+    return {"query": q, "results": [_info(c).model_dump() for c in get_comment_manager().search(q, limit=limit)]}
+
+
+@router.get("/v1/comments/stats", tags=["comments"])
+async def comment_stats() -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager
+    return get_comment_manager().stats()
+
+
+@router.patch("/v1/comments/{comment_id}", tags=["comments"])
+async def comment_update(comment_id: str, body: dict) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, CommentUpdate, _info
+    mgr = get_comment_manager()
+    try:
+        up = CommentUpdate(**body)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    c = mgr.update(comment_id, up, actor=body.get("actor", "anonymous"))
+    if c is None:
+        raise HTTPException(status_code=404, detail=f"No comment {comment_id!r}.")
+    return _info(c).model_dump()
+
+
+@router.post("/v1/comments/{comment_id}/react", tags=["comments"])
+async def comment_react(comment_id: str, body: dict) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, ReactionCreate, _info
+    mgr = get_comment_manager()
+    try:
+        r = ReactionCreate(**body)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    c = mgr.react(comment_id, r)
+    if c is None:
+        raise HTTPException(status_code=404, detail=f"No comment {comment_id!r}.")
+    return _info(c).model_dump()
+
+
+@router.post("/v1/comments/{comment_id}/resolve", tags=["comments"])
+async def comment_resolve(comment_id: str, actor: str = "system") -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, CommentUpdate, _info
+    mgr = get_comment_manager()
+    c = mgr.update(comment_id, CommentUpdate(resolved=True), actor=actor)
+    if c is None:
+        raise HTTPException(status_code=404, detail=f"No comment {comment_id!r}.")
+    return _info(c).model_dump()
+
+
+@router.post("/v1/comments/{comment_id}/reopen", tags=["comments"])
+async def comment_reopen(comment_id: str, actor: str = "system") -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager, CommentUpdate, _info
+    mgr = get_comment_manager()
+    c = mgr.update(comment_id, CommentUpdate(resolved=False), actor=actor)
+    if c is None:
+        raise HTTPException(status_code=404, detail=f"No comment {comment_id!r}.")
+    return _info(c).model_dump()
+
+
+@router.delete("/v1/comments/{comment_id}", tags=["comments"])
+async def comment_delete(comment_id: str) -> dict:
+    if not settings.comments_enabled:
+        raise HTTPException(status_code=403, detail="Comments are disabled.")
+    from ..core.comments import get_comment_manager
+    if not get_comment_manager().delete(comment_id):
+        raise HTTPException(status_code=404, detail=f"No comment {comment_id!r}.")
+    return {"deleted": comment_id}
+
+
+# --- Recurring tasks ---------------------------------------------------------
+
+@router.post("/v1/recurring", status_code=201, tags=["recurrence"])
+async def recurrence_create(body: dict) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, RecurringTaskCreate, RecurrenceRule, _info
+    mgr = get_recurrence_manager()
+    try:
+        rule = RecurrenceRule(**body.get("rule", {}))
+        task = mgr.create(RecurringTaskCreate(
+            name=body.get("name", ""),
+            description=body.get("description", ""),
+            rule=rule,
+            action_type=body.get("action_type", "workflow"),
+            action_ref=body.get("action_ref", ""),
+            parameters=body.get("parameters", {}),
+            enabled=bool(body.get("enabled", True)),
+        ))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _info(task).model_dump()
+
+
+@router.get("/v1/recurring", tags=["recurrence"])
+async def recurrence_list(enabled_only: bool = False, action_type: str | None = None) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, _info
+    mgr = get_recurrence_manager()
+    items = mgr.list_tasks(enabled_only=enabled_only, action_type=action_type)
+    return {"data": [_info(t).model_dump() for t in items], "stats": mgr.stats()}
+
+
+@router.get("/v1/recurring/upcoming", tags=["recurrence"])
+async def recurrence_upcoming(limit: int = 20) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager
+    return {"upcoming": get_recurrence_manager().upcoming(limit=limit)}
+
+
+@router.get("/v1/recurring/due", tags=["recurrence"])
+async def recurrence_due() -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, _info
+    return {"due": [_info(t).model_dump() for t in get_recurrence_manager().due_tasks()]}
+
+
+@router.get("/v1/recurring/stats", tags=["recurrence"])
+async def recurrence_stats() -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager
+    return get_recurrence_manager().stats()
+
+
+@router.get("/v1/recurring/{tid}", tags=["recurrence"])
+async def recurrence_get(tid: str) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, _info
+    t = get_recurrence_manager().get(tid)
+    if t is None:
+        raise HTTPException(status_code=404, detail=f"No recurring task {tid!r}.")
+    return _info(t).model_dump()
+
+
+@router.get("/v1/recurring/{tid}/occurrences", tags=["recurrence"])
+async def recurrence_occurrences(tid: str, count: int = 10) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager
+    mgr = get_recurrence_manager()
+    if mgr.get(tid) is None:
+        raise HTTPException(status_code=404, detail=f"No recurring task {tid!r}.")
+    return {"id": tid, "occurrences": mgr.occurrences(tid, count=count)}
+
+
+@router.post("/v1/recurring/{tid}/run", tags=["recurrence"])
+async def recurrence_mark_run(tid: str) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, _info
+    t = get_recurrence_manager().mark_run(tid)
+    if t is None:
+        raise HTTPException(status_code=404, detail=f"No recurring task {tid!r}.")
+    return _info(t).model_dump()
+
+
+@router.post("/v1/recurring/{tid}/toggle", tags=["recurrence"])
+async def recurrence_toggle(tid: str, enabled: bool = True) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager, _info
+    t = get_recurrence_manager().set_enabled(tid, enabled)
+    if t is None:
+        raise HTTPException(status_code=404, detail=f"No recurring task {tid!r}.")
+    return _info(t).model_dump()
+
+
+@router.delete("/v1/recurring/{tid}", tags=["recurrence"])
+async def recurrence_delete(tid: str) -> dict:
+    if not settings.recurrence_enabled:
+        raise HTTPException(status_code=403, detail="Recurrence is disabled.")
+    from ..core.recurrence import get_recurrence_manager
+    if not get_recurrence_manager().delete(tid):
+        raise HTTPException(status_code=404, detail=f"No recurring task {tid!r}.")
+    return {"deleted": tid}
+
+
+# --- Embeddings & vector search ----------------------------------------------
+
+@router.post("/v1/embeddings", tags=["embeddings"])
+async def embeddings_create(body: dict) -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager
+    mgr = get_embedding_manager()
+    inp = body.get("input", "")
+    normalize = bool(body.get("normalize", True))
+    if isinstance(inp, str):
+        texts = [inp]
+    else:
+        texts = list(inp)
+    vecs = mgr.embed_many(texts, normalize=normalize)
+    data = [
+        {"object": "embedding", "index": i, "embedding": v}
+        for i, v in enumerate(vecs)
+    ]
+    return {"object": "list", "data": data, "model": body.get("model", "aetheris-signature"),
+            "usage": {"prompt_tokens": sum(len(t) for t in texts)}}
+
+
+@router.post("/v1/embeddings/index", status_code=201, tags=["embeddings"])
+async def embeddings_index(body: dict) -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager, IndexedDocument
+    mgr = get_embedding_manager()
+    try:
+        doc = mgr.index_document(IndexedDocument(
+            id=body.get("id", ""), text=body.get("text", ""), metadata=body.get("metadata", {}),
+        ))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"id": doc.id, "added_at": doc.added_at, "metadata": doc.metadata}
+
+
+@router.get("/v1/embeddings/index", tags=["embeddings"])
+async def embeddings_list(limit: int = 100) -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager
+    return {"data": get_embedding_manager().list_documents(limit=limit)}
+
+
+@router.post("/v1/embeddings/search", tags=["embeddings"])
+async def embeddings_search(body: dict) -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager, VectorSearchQuery
+    mgr = get_embedding_manager()
+    try:
+        q = VectorSearchQuery(
+            query=body.get("query", ""),
+            top_k=int(body.get("top_k", 5)),
+            threshold=float(body.get("threshold", 0.0)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    res = mgr.search(q)
+    return {
+        "query": res.query,
+        "count": res.count,
+        "hits": [h.model_dump() for h in res.hits],
+    }
+
+
+@router.delete("/v1/embeddings/index/{doc_id}", tags=["embeddings"])
+async def embeddings_delete(doc_id: str) -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager
+    if not get_embedding_manager().delete(doc_id):
+        raise HTTPException(status_code=404, detail=f"No indexed document {doc_id!r}.")
+    return {"deleted": doc_id}
+
+
+@router.delete("/v1/embeddings/index", tags=["embeddings"])
+async def embeddings_clear() -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager
+    return {"deleted": get_embedding_manager().clear()}
+
+
+@router.get("/v1/embeddings/stats", tags=["embeddings"])
+async def embeddings_stats() -> dict:
+    if not settings.embeddings_enabled:
+        raise HTTPException(status_code=403, detail="Embeddings are disabled.")
+    from ..core.embeddings import get_embedding_manager
+    return get_embedding_manager().stats()
 
 
 __all__ = ["router"]
