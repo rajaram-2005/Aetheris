@@ -488,6 +488,82 @@ class Settings(BaseSettings):
         default=5000, ge=100, description="Maximum changelog entries.",
     )
 
+    # --- Ætheris NOVA architecture -------------------------------------------
+    nova_enabled: bool = Field(
+        default=True,
+        description="Enable the NOVA next-gen architecture (reasoning, MoE, memory, orchestrator, research, canvas, planner, computer-use).",
+    )
+    nova_memory_recall_max: int = Field(
+        default=50_000, ge=100,
+        description="Maximum entries in the recall tier of hierarchical memory.",
+    )
+    nova_memory_archival_max: int = Field(
+        default=200_000, ge=100,
+        description="Maximum entries in the archival tier of hierarchical memory.",
+    )
+    nova_moe_top_k: int = Field(
+        default=2, ge=1, le=4,
+        description="Number of experts selected per MoE routing decision.",
+    )
+    nova_orchestrator_max_rounds: int = Field(
+        default=6, ge=1, le=12,
+        description="Maximum rounds for multi-agent orchestration.",
+    )
+    nova_research_max_searches: int = Field(
+        default=8, ge=1, le=32,
+        description="Maximum retrieval calls per deep-research run.",
+    )
+    nova_computer_use_confirm_required: bool = Field(
+        default=True,
+        description="Require explicit session confirmation before any mutating computer-use action.",
+    )
+
+    # --- v0.10.0 features ---------------------------------------------------
+    cost_tracking_enabled: bool = Field(
+        default=True,
+        description="Enable token + cost accounting per client/model/window.",
+    )
+    cost_tracking_max_entries: int = Field(
+        default=100_000, ge=100,
+        description="Maximum retained cost-tracking entries.",
+    )
+    drafts_enabled: bool = Field(
+        default=True, description="Enable auto-saved drafts with conflict detection.",
+    )
+    drafts_max: int = Field(
+        default=1000, ge=1, description="Maximum retained drafts.",
+    )
+    drafts_max_revisions: int = Field(
+        default=50, ge=1, description="Maximum revisions per draft.",
+    )
+    shortcuts_enabled: bool = Field(
+        default=True, description="Enable keyboard shortcut registry and profiles.",
+    )
+    shortcuts_max_profiles: int = Field(
+        default=50, ge=1, description="Maximum shortcut profiles.",
+    )
+    comments_enabled: bool = Field(
+        default=True, description="Enable inline comment threads.",
+    )
+    comments_max: int = Field(
+        default=20_000, ge=100, description="Maximum comments.",
+    )
+    recurrence_enabled: bool = Field(
+        default=True, description="Enable recurring schedules and cron-like tasks.",
+    )
+    recurrence_max_tasks: int = Field(
+        default=1000, ge=1, description="Maximum recurring tasks.",
+    )
+    embeddings_enabled: bool = Field(
+        default=True, description="Enable embedding generation and similarity search.",
+    )
+    embeddings_dimension: int = Field(
+        default=384, ge=64, le=4096, description="Embedding vector dimension.",
+    )
+    embeddings_max_docs: int = Field(
+        default=100_000, ge=100, description="Maximum vector-index documents.",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -561,6 +637,23 @@ class Settings(BaseSettings):
             "commands": self.commands_enabled,
             "sharing": self.sharing_enabled,
             "changelog": self.changelog_enabled,
+            # NOVA (next-gen architecture)
+            "nova": self.nova_enabled,
+            "nova_reasoning": self.nova_enabled,
+            "nova_moe": self.nova_enabled,
+            "nova_memory": self.nova_enabled,
+            "nova_orchestrator": self.nova_enabled,
+            "nova_research": self.nova_enabled,
+            "nova_canvas": self.nova_enabled,
+            "nova_tools_v2": self.nova_enabled,
+            "nova_computer_use": self.nova_enabled,
+            # v0.10.0 features
+            "cost_tracking": self.cost_tracking_enabled,
+            "drafts": self.drafts_enabled,
+            "shortcuts": self.shortcuts_enabled,
+            "comments": self.comments_enabled,
+            "recurrence": self.recurrence_enabled,
+            "embeddings": self.embeddings_enabled,
         }
 
 
