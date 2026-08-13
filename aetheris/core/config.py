@@ -631,6 +631,29 @@ class Settings(BaseSettings):
         default=True, description="Enable JSON-schema contracts and structured-output repair.",
     )
 
+    # --- v0.13.0 God Mode ---------------------------------------------------
+    god_mode_enabled: bool = Field(
+        default=True, description="Enable the God Mode meta-controller (fused ToT / causal / proof / red-team).",
+    )
+    tot_enabled: bool = Field(
+        default=True, description="Enable Tree-of-Thought UCB1 search.",
+    )
+    world_model_enabled: bool = Field(
+        default=True, description="Enable the causal world model (do() / counterfactuals).",
+    )
+    hypothesis_enabled: bool = Field(
+        default=True, description="Enable the Bayesian hypothesis engine.",
+    )
+    proof_kernel_enabled: bool = Field(
+        default=True, description="Enable the natural-deduction proof kernel.",
+    )
+    redteam_enabled: bool = Field(
+        default=True, description="Enable the constitution red-team battery.",
+    )
+    forecast_enabled: bool = Field(
+        default=True, description="Enable calibrated forecasting (Brier + buckets).",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -730,6 +753,14 @@ class Settings(BaseSettings):
             "skills": self.skills_enabled,
             "semantic_cache": self.semantic_cache_enabled,
             "guardrails": self.guardrails_enabled,
+            # v0.13.0 God Mode
+            "god_mode": self.god_mode_enabled,
+            "tree_of_thought": self.tot_enabled,
+            "world_model": self.world_model_enabled,
+            "hypothesis": self.hypothesis_enabled,
+            "proof_kernel": self.proof_kernel_enabled,
+            "redteam": self.redteam_enabled,
+            "forecast": self.forecast_enabled,
         }
 
 

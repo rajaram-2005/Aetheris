@@ -4824,5 +4824,171 @@ async def apex_manifest() -> dict:
     }
 
 
+# ===========================================================================
+# v0.13.0 — God Mode (ToT, causal world, hypotheses, proofs, red-team, forecasts)
+# ===========================================================================
+
+@router.get("/v1/god", tags=["god"])
+async def god_manifest() -> dict:
+    """Describe the God Mode arsenal and live stats."""
+    _apex_flag("god_mode_enabled", "God Mode is disabled.")
+    from ..core.god_mode import ENGINES, get_god_mode
+    from ..core.tot import get_tot
+    from ..core.world_model import get_world_model
+    from ..core.hypothesis import get_hypothesis_engine
+    from ..core.proof import get_proof_kernel
+    from ..core.redteam import get_redteam
+    from ..core.forecast import get_forecast_book
+
+    return {
+        "codename": "GOD",
+        "version": __version__,
+        "engines": list(ENGINES),
+        "stats": {
+            "god": get_god_mode().stats(),
+            "tot": get_tot().stats() if settings.tot_enabled else {},
+            "world": get_world_model().stats() if settings.world_model_enabled else {},
+            "hypothesis": get_hypothesis_engine().stats() if settings.hypothesis_enabled else {},
+            "proof": get_proof_kernel().stats() if settings.proof_kernel_enabled else {},
+            "redteam": get_redteam().stats() if settings.redteam_enabled else {},
+            "forecast": get_forecast_book().stats() if settings.forecast_enabled else {},
+        },
+    }
+
+
+@router.post("/v1/god/run", tags=["god"])
+async def god_run(body: dict) -> dict:
+    """Route a task through the ultra arsenal and return a fused briefing."""
+    _apex_flag("god_mode_enabled", "God Mode is disabled.")
+    from ..core.god_mode import GodRunRequest, get_god_mode
+    try:
+        req = GodRunRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_god_mode().run(req)
+
+
+@router.post("/v1/god/tot", tags=["god"])
+async def god_tot(body: dict) -> dict:
+    _apex_flag("tot_enabled", "Tree-of-Thought is disabled.")
+    from ..core.tot import ToTRequest, get_tot
+    try:
+        req = ToTRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_tot().search(req)
+
+
+@router.get("/v1/god/world", tags=["god"])
+async def god_world() -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    wm = get_world_model()
+    return {"variables": wm.list_variables(), "edges": wm.list_edges(), "stats": wm.stats()}
+
+
+@router.post("/v1/god/world/intervene", tags=["god"])
+async def god_intervene(body: dict) -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    do = body.get("do") or {}
+    if not do:
+        raise HTTPException(status_code=400, detail="do is required")
+    try:
+        return get_world_model().intervene(do, steps=int(body.get("steps", 4)))
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/world/counterfactual", tags=["god"])
+async def god_counterfactual(body: dict) -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    try:
+        return get_world_model().counterfactual(
+            body.get("fact") or {},
+            body.get("do") or {},
+            body.get("query") or "",
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/hypothesis", tags=["god"])
+async def god_hypothesis(body: dict) -> dict:
+    _apex_flag("hypothesis_enabled", "Hypothesis engine is disabled.")
+    from ..core.hypothesis import HypothesisRequest, get_hypothesis_engine
+    try:
+        req = HypothesisRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_hypothesis_engine().infer(req)
+
+
+@router.post("/v1/god/proof", tags=["god"])
+async def god_proof(body: dict) -> dict:
+    _apex_flag("proof_kernel_enabled", "Proof kernel is disabled.")
+    from ..core.proof import ProofIn, get_proof_kernel
+    try:
+        proof = ProofIn(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_proof_kernel().check(proof)
+
+
+@router.get("/v1/god/proof/demo", tags=["god"])
+async def god_proof_demo() -> dict:
+    _apex_flag("proof_kernel_enabled", "Proof kernel is disabled.")
+    from ..core.proof import get_proof_kernel
+    return get_proof_kernel().modus_ponens_demo()
+
+
+@router.get("/v1/god/redteam", tags=["god"])
+async def god_redteam_list() -> dict:
+    _apex_flag("redteam_enabled", "Red-team is disabled.")
+    from ..core.redteam import get_redteam
+    return {"probes": get_redteam().list_probes(), "stats": get_redteam().stats()}
+
+
+@router.post("/v1/god/redteam/run", tags=["god"])
+async def god_redteam_run(body: dict | None = None) -> dict:
+    _apex_flag("redteam_enabled", "Red-team is disabled.")
+    from ..core.redteam import get_redteam
+    ids = (body or {}).get("probes") or []
+    return get_redteam().run(ids)
+
+
+@router.post("/v1/god/forecasts", status_code=201, tags=["god"])
+async def god_forecast_file(body: dict) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import ForecastIn, get_forecast_book
+    try:
+        rec = get_forecast_book().file(ForecastIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return rec.to_dict()
+
+
+@router.get("/v1/god/forecasts", tags=["god"])
+async def god_forecast_list(resolved: bool | None = None) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import get_forecast_book
+    book = get_forecast_book()
+    return {"data": book.list_forecasts(resolved=resolved), "calibration": book.calibration()}
+
+
+@router.post("/v1/god/forecasts/{fid}/resolve", tags=["god"])
+async def god_forecast_resolve(fid: str, body: dict) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import ResolveIn, get_forecast_book
+    try:
+        rec = get_forecast_book().resolve(fid, ResolveIn(**body))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No forecast {fid!r}.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return rec.to_dict()
+
+
 __all__ = ["router"]
 

@@ -16,6 +16,7 @@ interface CommandPaletteProps {
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
   onOpenApexLab?: () => void;
+  onOpenGodDeck?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -40,6 +41,7 @@ export function CommandPalette({
   onOpenAgentStore,
   onOpenDeepResearch,
   onOpenApexLab,
+  onOpenGodDeck,
   onOpenSettings,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -54,6 +56,7 @@ export function CommandPalette({
     // Frontier Tycoon Studios & Hubs
     ...(onOpenCanvas ? [{ id: 'studio-canvas', label: 'Artifacts 2.0 Canvas Studio', description: 'Open side-by-side interactive code, SVG & HTML execution runner', icon: '📐', category: 'Studios & Hubs', action: () => { onOpenCanvas(); onClose(); } }] : []),
     ...(onOpenDeepResearch ? [{ id: 'studio-research', label: 'Autonomous Deep Research Engine', description: 'Run multi-hop document & web research with citations', icon: '🔬', category: 'Studios & Hubs', action: () => { onOpenDeepResearch(); onClose(); } }] : []),
+    ...(onOpenGodDeck ? [{ id: 'studio-god', label: 'God Deck', description: 'Tree-of-Thought MCTS, causal do(), proofs, red-team, forecasts', icon: 'Ω', category: 'Studios & Hubs', action: () => { onOpenGodDeck(); onClose(); } }] : []),
     ...(onOpenApexLab ? [{ id: 'studio-apex', label: 'Apex Cognition Lab', description: 'Knowledge graph, constitution, evals, and composable skills', icon: '✦', category: 'Studios & Hubs', action: () => { onOpenApexLab(); onClose(); } }] : []),
     ...(onOpenAgentStore ? [{ id: 'studio-agents', label: 'Sovereign Agents & Custom GPTs Store', description: 'Deploy, customize and run air-gapped domain agents', icon: '🤖', category: 'Studios & Hubs', action: () => { onOpenAgentStore(); onClose(); } }] : []),
     ...(onOpenGallery ? [{ id: 'studio-gallery', label: 'Neural Visual Design Studio Gallery', description: 'View & generate mind-blowing 8k cyberpunk visuals', icon: '🎨', category: 'Studios & Hubs', action: () => { onOpenGallery(); onClose(); } }] : []),

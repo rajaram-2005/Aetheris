@@ -143,6 +143,15 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - **Skills** — composable instruction packs matched per turn.
   - **Semantic cache** — near-duplicate prompt reuse via signature embeddings.
   - **Guardrails** — JSON Schema contracts with automatic repair.
+- **God Mode (v0.13)** — a fused ultra-reasoning arsenal, all offline and deterministic:
+  - **Tree-of-Thought MCTS** — UCB1 search over competing thoughts (formal, adversarial, causal, …).
+  - **Causal world model** — signed DAG with `do(X)` interventions and counterfactuals.
+  - **Bayesian hypotheses** — competing explanations, posteriors, a falsifier for the leader.
+  - **Proof kernel** — natural-deduction checker (modus ponens, ∧/∨, →-intro, explosion).
+  - **Red-team battery** — 10 constitution probes scored on the *first* critique verdict.
+  - **Calibrated forecasts** — log a probability, resolve it, read Brier + 10 calibration buckets.
+  - **Meta-controller** — `POST /v1/god/run` classifies the task and fuses the right engines.
+  - **God Deck UI** — Ω in the sidebar / header, or `⌘K` → God Deck (`⌘⇧G` to toggle).
 
 ---
 
@@ -414,6 +423,15 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/hermes/feedback` | Reinforce or penalise an episode (this is what teaches it). |
 | `DELETE /v1/hermes/meta` | Forget all meta-learned state. |
 | `GET /v1/apex` | Apex cognition manifest (graph, constitution, evals, skills, …). |
+| `GET /v1/god` | God Mode arsenal manifest + live engine stats. |
+| `POST /v1/god/run` | Classify a task and fuse ToT / causal / hypothesis / proof / red-team / forecast. |
+| `POST /v1/god/tot` | Tree-of-Thought UCB1 search. |
+| `POST /v1/god/world/intervene` | Causal `do(X)` intervention on the world model. |
+| `POST /v1/god/world/counterfactual` | Counterfactual query (`had we set X, what happens to Y`). |
+| `POST /v1/god/hypothesis` | Bayesian hypothesis ranking + falsifier. |
+| `POST /v1/god/proof` | Check a natural-deduction sequent (`GET /v1/god/proof/demo` for modus ponens). |
+| `POST /v1/god/redteam/run` | Run the 10-probe constitution attack suite. |
+| `POST /v1/god/forecasts` | File a calibrated forecast (`POST …/{id}/resolve` to score Brier). |
 | `POST /v1/graph/query` | Multi-hop Graph RAG over the in-process knowledge graph. |
 | `POST /v1/constitution/decide` | Critique and revise an answer against the live constitution. |
 | `POST /v1/evals/run` | Run a grader suite (`hermes-cognition` is built in). |
@@ -499,6 +517,10 @@ a client can discover what a deployment can actually do before relying on it.
 | Video generation | **on** | `AETHERIS_VIDEO_GENERATION_ENABLED` | Animated GIF synthesis. |
 | Audio generation | **on** | `AETHERIS_AUDIO_GENERATION_ENABLED` | WAV instrumental synthesis. |
 | Code generation | **on** | `AETHERIS_CODE_GENERATION_ENABLED` | Runnable project scaffolds. |
+| God Mode | **on** | `AETHERIS_GOD_MODE_ENABLED` | Fused ToT / causal / proof / red-team controller. |
+| Tree-of-Thought | **on** | `AETHERIS_TOT_ENABLED` | UCB1 search over competing thoughts. |
+| World model | **on** | `AETHERIS_WORLD_MODEL_ENABLED` | Causal `do(X)` + counterfactuals. |
+| Proof kernel | **on** | `AETHERIS_PROOF_KERNEL_ENABLED` | Natural-deduction sequent checker. |
 
 Capabilities contained inside the process are enabled by default; those that
 reach outside it are opt-in.

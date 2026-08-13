@@ -19,6 +19,7 @@ interface ChatAreaProps {
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
   onOpenApexLab?: () => void;
+  onOpenGodDeck?: () => void;
   activeModel?: ModelId;
   onSelectModel?: (model: ModelId) => void;
   showInspector: boolean;
@@ -48,6 +49,7 @@ export function ChatArea({
   onOpenAgentStore,
   onOpenDeepResearch,
   onOpenApexLab,
+  onOpenGodDeck,
   activeModel = 'aetheris-prime-v4',
   onSelectModel,
   showInspector,
@@ -218,6 +220,23 @@ export function ChatArea({
             >
               <span>✦</span>
               <span className="hidden md:inline">Apex</span>
+            </button>
+          )}
+
+          {onOpenGodDeck && (
+            <button
+              onClick={onOpenGodDeck}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(251, 191, 36, 0.16)',
+                border: '1px solid rgba(251, 191, 36, 0.45)',
+                color: '#fbbf24',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="God Deck — ToT, causal world, proofs, red-team"
+            >
+              <span>Ω</span>
+              <span className="hidden md:inline">God</span>
             </button>
           )}
 

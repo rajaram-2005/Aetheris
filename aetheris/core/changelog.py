@@ -191,6 +191,38 @@ _manager: ChangelogManager | None = None
 # Release notes shown in ``/v1/changelog`` on first boot (empty by default).
 _DEFAULT_RELEASES: tuple[dict[str, str], ...] = (
     {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "God Mode meta-controller",
+        "description": (
+            "POST /v1/god/run classifies a task and fuses Tree-of-Thought MCTS, "
+            "causal interventions, Bayesian hypotheses, the proof kernel, "
+            "red-team, and calibrated forecasts into one briefing."
+        ),
+        "module": "core.god_mode",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "Tree-of-Thought MCTS + causal world model",
+        "description": (
+            "UCB1 search over competing thoughts, and a signed causal DAG "
+            "with do(X) interventions and counterfactuals."
+        ),
+        "module": "core.tot",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "Proof kernel, red-team battery, Brier forecasts",
+        "description": (
+            "Natural-deduction checker (modus ponens, and/or, impl-intro), "
+            "a 10-probe constitution attack suite, and a forecast book with "
+            "calibration buckets."
+        ),
+        "module": "core.proof",
+    },
+    {
         "version": "0.12.0",
         "category": "feature",
         "title": "Knowledge graph (Graph RAG)",
