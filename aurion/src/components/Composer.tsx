@@ -1,4 +1,4 @@
-/* ─── Composer — Message input with file attach, mic, send ─── */
+/* ─── Composer — Clean, professional message input bar ─── */
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -37,11 +37,8 @@ interface ComposerProps {
   disabled: boolean;
   voiceActive: boolean;
   onToggleVoice: () => void;
-  /** Generate an image from the typed text (ChatGPT-style "create image"). */
   onGenerateImage?: (prompt: string) => void;
-  /** Speak the typed text aloud via text-to-speech. */
   onSpeak?: (text: string) => void;
-  /** Speak the assistant's last message aloud. */
   onSpeakLast?: () => void;
   canSpeakLast?: boolean;
   imageBusy?: boolean;
@@ -58,12 +55,11 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (ta) {
       ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+      ta.style.height = Math.min(ta.scrollHeight, 180) + 'px';
     }
   }, [text]);
 
@@ -85,16 +81,9 @@ export function Composer({
   const handleFileAttach = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     const newAttachments: Attachment[] = [];
     for (const file of Array.from(files)) {
-      const textContent = await readFileContent(file);
-      newAttachments.push({
-        name: file.name,
-        type: file.type,
-        content: textContent,
-        size: file.size,
-      });
+      newAttachments.push({ name: file.name, type: file.type, content: await readFileContent(file), size: file.size });
     }
     setAttachments(prev => [...prev, ...newAttachments]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -104,7 +93,6 @@ export function Composer({
     setAttachments(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
-  // Voice input via Web Speech API
   const handleVoice = useCallback(() => {
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
@@ -112,84 +100,61 @@ export function Composer({
       return;
     }
     onToggleVoice();
-
     if (!voiceActive) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
-
       recognition.onresult = (event: SpeechRecognitionEventLike) => {
-        const transcript = Array.from(event.results)
-          .map((r) => r[0].transcript)
-          .join('');
+        const transcript = Array.from(event.results).map((r) => r[0].transcript).join('');
         setText(transcript);
       };
-
-      recognition.onend = () => {
-        onToggleVoice();
-      };
-
-      recognition.onerror = () => {
-        onToggleVoice();
-      };
-
+      recognition.onend = () => onToggleVoice();
+      recognition.onerror = () => onToggleVoice();
       recognition.start();
     }
   }, [voiceActive, onToggleVoice]);
 
+  const canSend = text.trim().length > 0 || attachments.length > 0;
+
   return (
-    <div
-      className="border-t px-4 py-3 flex-shrink-0"
-      style={{ borderColor: 'var(--border-color)', background: 'var(--bg-primary)' }}
-    >
+    <div className="px-4 pb-3 pt-1 flex-shrink-0" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-3xl mx-auto">
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {attachments.map((att, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
-                style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}
-              >
-                📎 {att.name}
-                <button
-                  onClick={() => removeAttachment(i)}
-                  className="ml-1 hover:opacity-70"
-                  style={{ color: 'var(--accent-pink)' }}
-                >
-                  ✕
+              <span key={i} className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg text-xs"
+                style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                <span className="text-[11px]">{att.name}</span>
+                <button onClick={() => removeAttachment(i)} className="w-4 h-4 flex items-center justify-center rounded hover:bg-white/10"
+                  style={{ color: 'var(--text-muted)' }} title="Remove attachment">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 2l6 6M8 2l-6 6"/></svg>
                 </button>
               </span>
             ))}
           </div>
         )}
 
-        {/* Input area */}
+        {/* Input bar */}
         <div
-          className="flex items-end gap-2 rounded-xl px-3 py-2"
-          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
+          className="flex items-end gap-1.5 rounded-2xl px-3 py-2 transition-shadow"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
         >
-          {/* Attach button */}
+          {/* Attach */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5"
-            style={{ color: 'var(--text-muted)' }}
-            title="Attach file (txt, md, csv, json, pdf, code, images)"
+            className="btn btn-icon btn-ghost mb-0.5"
+            title="Attach files"
+            style={{ width: 32, height: 32 }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M15.5 9l-6.5 6.5a3.5 3.5 0 01-5-5L12 2.5a2 2 0 013 3L6.5 14a.5.5 0 01-.7-.7L13 6" />
             </svg>
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
+          <input ref={fileInputRef} type="file" multiple
             accept=".txt,.md,.csv,.json,.pdf,.py,.js,.ts,.java,.cpp,.c,.html,.css,.go,.rs,.sql,.sh,.xml,.yaml,.yml,.toml,.ini,.log,.bat,image/*"
-            onChange={handleFileAttach}
-            className="hidden"
-          />
+            onChange={handleFileAttach} className="hidden" />
 
           {/* Textarea */}
           <textarea
@@ -197,68 +162,55 @@ export function Composer({
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything… (Enter to send, Shift+Enter for new line)"
+            placeholder="Ask anything…"
             disabled={disabled}
             rows={1}
-            className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
-            style={{
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-ui)',
-              minHeight: '24px',
-              maxHeight: '200px',
-            }}
+            className="input flex-1 resize-none text-[15px] py-1"
+            style={{ minHeight: 26, maxHeight: 180, lineHeight: 1.5 }}
           />
 
-          {/* Generate image (from the typed text) */}
+          {/* Image generation */}
           {onGenerateImage && (
             <button
               onClick={() => text.trim() && onGenerateImage(text)}
               disabled={disabled || imageBusy || !text.trim()}
-              className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5 disabled:opacity-30"
-              style={{
-                color: text.trim() ? 'var(--accent-purple)' : 'var(--text-muted)',
-                background: imageBusy ? 'rgba(192,132,252,0.1)' : 'transparent',
-              }}
+              className="btn btn-icon btn-ghost mb-0.5"
               title="Create an image from your prompt"
+              style={{ width: 32, height: 32 }}
             >
               {imageBusy
-                ? <span className="text-xs" style={{ color: 'var(--accent-purple)' }}>…</span>
-                : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6">
+                ? <span className="dot-pulse text-sm" style={{ color: 'var(--accent-mint)' }}>…</span>
+                : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7">
                     <rect x="2" y="2" width="14" height="14" rx="2" />
-                    <circle cx="6.5" cy="6.5" r="1.5" />
-                    <path d="M2 13l4-4 3 3 3-3 4 4" />
+                    <circle cx="6.5" cy="6.5" r="1.3" />
+                    <path d="M2 12.5l3.5-3.5 2.5 2.5 2.5-2.5 5 5" />
                   </svg>}
             </button>
           )}
 
-          {/* Speak typed text aloud (TTS) */}
+          {/* Speak (TTS) */}
           {onSpeak && (
             <button
               onClick={() => text.trim() && onSpeak(text)}
               disabled={disabled || speaking || !text.trim()}
-              className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5 disabled:opacity-30"
-              style={{
-                color: text.trim() ? 'var(--accent-gold)' : 'var(--text-muted)',
-                background: speaking ? 'rgba(251,191,36,0.12)' : 'transparent',
-              }}
+              className="btn btn-icon btn-ghost mb-0.5"
               title="Speak this text aloud"
+              style={{ width: 32, height: 32 }}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7">
                 <path d="M3 7v4h3l4 3V4L6 7H3z" fill="currentColor" stroke="none" />
-                <path d="M12 6a3 3 0 010 6M14 4a6 6 0 010 10" />
+                <path d="M12 6a3.5 3.5 0 010 6" />
+                <path d="M13.5 4a6 6 0 010 10" />
               </svg>
             </button>
           )}
 
-          {/* Voice button (speech-to-text) */}
+          {/* Voice (STT) */}
           <button
             onClick={handleVoice}
-            className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5"
-            style={{
-              color: voiceActive ? 'var(--accent-mint)' : 'var(--text-muted)',
-              background: voiceActive ? 'rgba(61,255,194,0.1)' : 'transparent',
-            }}
-            title="Voice input (speech-to-text)"
+            className="btn btn-icon btn-ghost mb-0.5"
+            title="Voice input"
+            style={{ width: 32, height: 32, color: voiceActive ? 'var(--accent-mint)' : undefined }}
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
               <rect x="6" y="2" width="6" height="9" rx="3" />
@@ -267,43 +219,41 @@ export function Composer({
             </svg>
           </button>
 
-          {/* Send button */}
+          {/* Send */}
           <button
             onClick={handleSend}
-            disabled={disabled || (!text.trim() && attachments.length === 0)}
-            className="p-1.5 rounded-lg transition-all flex-shrink-0 mb-0.5 disabled:opacity-30"
-            style={{
-              background: text.trim() ? 'var(--accent-mint)' : 'transparent',
-              color: text.trim() ? '#0a0e1a' : 'var(--text-muted)',
-            }}
+            disabled={disabled || !canSend}
+            className="btn btn-primary btn-icon mb-0.5"
             title="Send message"
+            style={{ width: 34, height: 34, borderRadius: 10, opacity: canSend ? 1 : 0.35 }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9h12M10 4l5 5-5 5" />
             </svg>
           </button>
         </div>
 
-        {/* Speak-last button (read the assistant's answer aloud) */}
+        {/* Speak-last */}
         {onSpeakLast && canSpeakLast && (
           <button
             onClick={onSpeakLast}
             disabled={disabled || speaking}
-            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
-            style={{
-              background: 'rgba(251,191,36,0.1)',
-              border: '1px solid rgba(251,191,36,0.3)',
-              color: 'var(--accent-gold)',
-              fontFamily: 'var(--font-ui)',
-            }}
+            className="btn w-full mt-2"
+            style={{ justifyContent: 'center', color: 'var(--text-secondary)' }}
           >
-            {speaking ? '⏹ Speaking…' : '🔊 Speak the last answer aloud'}
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M2 6v2h2l2.5 2V4L4 6H2z" fill="currentColor" stroke="none" />
+              <path d="M9 5a2.5 2.5 0 010 4" />
+            </svg>
+            {speaking ? 'Speaking…' : 'Speak the last answer aloud'}
           </button>
         )}
 
-        <p className="text-center text-[10px] mt-1.5" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          Aetheris · Thamizh Mythos AI · text · voice · speech · image · ⌘K for commands
-        </p>
+        <div className="flex items-center justify-center gap-2 mt-1.5">
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Aetheris may make mistakes · ⌘K for commands
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -311,17 +261,12 @@ export function Composer({
 
 /* ── File reader ── */
 async function readFileContent(file: File): Promise<string> {
-  // Simple PDF text extraction
   if (file.type === 'application/pdf') {
     return `[PDF file: ${file.name} — ${(file.size / 1024).toFixed(1)} KB]\nPDF text extraction would require a PDF parser. For now, the file metadata is captured.`;
   }
-
-  // Images
   if (file.type.startsWith('image/')) {
     return `[Image file: ${file.name} — ${file.type} — ${(file.size / 1024).toFixed(1)} KB]`;
   }
-
-  // Text-based files
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');

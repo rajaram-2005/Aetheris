@@ -38,15 +38,12 @@ interface SidebarProps {
 }
 
 const SKILL_CHIPS = [
-  { icon: '🎨', label: 'Visual Art', prompt: 'Generate an image: futuristic holographic neural core in cyber space' },
+  { icon: '🎨', label: 'Visual Art', prompt: 'Generate an image of a tranquil forest at golden hour' },
   { icon: '💻', label: 'Code', prompt: 'Write a Python async pipeline for processing high-throughput events' },
-  { icon: '🧠', label: 'Reason', prompt: 'Prove step by step why P vs NP remains one of mathematics greatest open questions' },
-  { icon: '🧮', label: 'Compute', prompt: 'Calculate optimal matrix multiplication complexity' },
-  { icon: '✍️', label: 'Write', prompt: 'Help me draft a technical proposal for sovereign AI systems' },
-  { icon: '📚', label: 'Study', prompt: 'Create a deep-dive curriculum for transformer attention mechanisms' },
+  { icon: '🧠', label: 'Reason', prompt: 'Explain the difference between correlation and causation with an example' },
   { icon: '🪔', label: 'Thamizh', prompt: 'Speak to me in the Thamizh mythos mode' },
-  { icon: '🔊', label: 'Speak', prompt: 'What do you understand?' },
-  { icon: '🧩', label: 'Skills', prompt: 'Show me the Claude-style and Gemini-style skills available' },
+  { icon: '✍️', label: 'Write', prompt: 'Help me draft a clear technical proposal' },
+  { icon: '📚', label: 'Study', prompt: 'Create a study plan for learning transformers' },
 ];
 
 export function Sidebar({
@@ -122,11 +119,11 @@ export function Sidebar({
             <span>A</span>
           </div>
           <div>
-            <span className="font-bold block leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-mint)' }}>
-              Aetheris · Thamizh
+            <span className="font-semibold block leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+              Aetheris
             </span>
-            <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
-              Mythos AI · by a Tamil developer
+            <span className="text-[11px] mt-0.5 block" style={{ color: 'var(--text-muted)' }}>
+              Thamizh Mythos AI
             </span>
           </div>
         </div>
@@ -137,200 +134,36 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Action Buttons: New Thread, Visual Studio & Benchmark Arena */}
-      <div className="p-3 space-y-2">
-        <button
-          onClick={onNewThread}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:opacity-90 shadow-md"
-          style={{
-            background: 'var(--accent-mint)',
-            color: '#0a0e1a',
-            fontFamily: 'var(--font-ui)',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="8" y1="3" x2="8" y2="13" />
-            <line x1="3" y1="8" x2="13" y2="8" />
-          </svg>
-          New Exploration
+      {/* Actions — New chat + primary tools */}
+      <div className="p-3 space-y-1.5">
+        <button onClick={onNewThread} className="btn btn-primary w-full justify-center py-2.5" style={{ borderRadius: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="3" x2="8" y2="13" /><line x1="3" y1="8" x2="13" y2="8" /></svg>
+          New chat
         </button>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          {onOpenGallery && (
-            <button
-              onClick={onOpenGallery}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(0, 180, 216, 0.1)',
-                border: '1px solid rgba(0, 180, 216, 0.25)',
-                color: 'var(--accent-mint)',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🎨</span>
-              <span>Visuals</span>
-            </button>
-          )}
-
-          {onOpenBenchmarks && (
-            <button
-              onClick={onOpenBenchmarks}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(192, 132, 252, 0.1)',
-                border: '1px solid rgba(192, 132, 252, 0.25)',
-                color: 'var(--accent-purple)',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>📊</span>
-              <span>Arena</span>
-            </button>
-          )}
-
-          {onOpenCanvas && (
-            <button
-              onClick={onOpenCanvas}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(251, 191, 36, 0.1)',
-                border: '1px solid rgba(251, 191, 36, 0.25)',
-                color: 'var(--accent-gold)',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>📐</span>
-              <span>Canvas</span>
-            </button>
-          )}
-
-          {onOpenAgentStore && (
-            <button
-              onClick={onOpenAgentStore}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(74, 222, 128, 0.1)',
-                border: '1px solid rgba(74, 222, 128, 0.25)',
-                color: '#4ade80',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🤖</span>
-              <span>GPT Store</span>
-            </button>
-          )}
-
-          {onOpenDeepResearch && (
-            <button
-              onClick={onOpenDeepResearch}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                color: '#38bdf8',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🔬</span>
-              <span>Research</span>
-            </button>
-          )}
-
-          {onOpenApexLab && (
-            <button
-              onClick={onOpenApexLab}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(192, 132, 252, 0.12)',
-                border: '1px solid rgba(192, 132, 252, 0.3)',
-                color: '#c084fc',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>✦</span>
-              <span>Apex</span>
-            </button>
-          )}
-
-          {onOpenGodDeck && (
-            <button
-              onClick={onOpenGodDeck}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(251, 191, 36, 0.14)',
-                border: '1px solid rgba(251, 191, 36, 0.4)',
-                color: '#fbbf24',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>Ω</span>
-              <span>God</span>
-            </button>
-          )}
-
-          {onOpenSkills && (
-            <button
-              onClick={onOpenSkills}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(61, 255, 194, 0.1)',
-                border: '1px solid rgba(61, 255, 194, 0.3)',
-                color: 'var(--accent-mint)',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🧩</span>
-              <span>Skills</span>
-            </button>
-          )}
-
-          {onOpenIntegrations && (
-            <button
-              onClick={onOpenIntegrations}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(96, 165, 250, 0.12)',
-                border: '1px solid rgba(96, 165, 250, 0.3)',
-                color: '#60a5fa',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🔌</span>
-              <span>Connect</span>
-            </button>
-          )}
-
-          {onOpenResources && (
-            <button
-              onClick={onOpenResources}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(248, 113, 113, 0.1)',
-                border: '1px solid rgba(248, 113, 113, 0.3)',
-                color: '#f87171',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🧰</span>
-              <span>Models</span>
-            </button>
-          )}
-
-          {onOpenMythology && (
-            <button
-              onClick={onOpenMythology}
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
-              style={{
-                background: 'rgba(251, 191, 36, 0.12)',
-                border: '1px solid rgba(251, 191, 36, 0.35)',
-                color: '#fbbf24',
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              <span>🪔</span>
-              <span>Mythos</span>
-            </button>
-          )}
+        <div className="grid grid-cols-2 gap-1.5 pt-1">
+          <SideTool label="Visuals" onClick={onOpenGallery} show={!!onOpenGallery} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="2" width="12" height="12" rx="2" /><circle cx="5.5" cy="5.5" r="1.3" /><path d="M2 12l3.5-3.5 2.5 2.5 2.5-2.5 3.5 3.5" /></svg>} />
+          <SideTool label="Mythos" onClick={onOpenMythology} show={!!onOpenMythology} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M8 2c0 6-3 8-5 10h10C11 10 8 8 8 2z" /><path d="M8 2v10" /></svg>} />
+          <SideTool label="Skills" onClick={onOpenSkills} show={!!onOpenSkills} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="4" width="11" height="8" rx="2" /><path d="M6 8h4M8 6v4" /></svg>} />
+          <SideTool label="Connect" onClick={onOpenIntegrations} show={!!onOpenIntegrations} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5.5 10.5L10.5 5.5" /><circle cx="4" cy="12" r="2" /><circle cx="12" cy="4" r="2" /><path d="M6 6l1-1M10 10l-1 1" /></svg>} />
+          <SideTool label="Models" onClick={onOpenResources} show={!!onOpenResources} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 6h12v8H2zM2 6l1.5-3h9L14 6M5.5 2h5" /></svg>} />
+          <SideTool label="Research" onClick={onOpenDeepResearch} show={!!onOpenDeepResearch} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6.5" cy="6.5" r="3.5" /><line x1="9.5" y1="9.5" x2="13" y2="13" /><path d="M5.5 6.5l1 1 2-2" /></svg>} />
+          <SideTool label="Agents" onClick={onOpenAgentStore} show={!!onOpenAgentStore} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5" cy="5" r="2.5" /><circle cx="11" cy="5" r="2.5" /><path d="M3.5 13c.5-2 1-3 1.5-3s1 1 1.5 3M10 13c.5-2 1-3 1.5-3s1 1 1.5 3" /></svg>} />
+          <SideTool label="Apex" onClick={onOpenApexLab} show={!!onOpenApexLab} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M8 2l6 12H2z" /><path d="M8 6l3 6H5z" fill="currentColor" stroke="none" /></svg>} />
+          <SideTool label="God" onClick={onOpenGodDeck} show={!!onOpenGodDeck} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="5.5" /><path d="M8 3.5v9M3.5 8h9" /></svg>} />
+          <SideTool label="Canvas" onClick={onOpenCanvas} show={!!onOpenCanvas} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="2" width="12" height="12" rx="2" /><path d="M6 6h4v4H6z" /></svg>} />
+          <SideTool label="Arena" onClick={onOpenBenchmarks} show={!!onOpenBenchmarks} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="3" width="4.5" height="10" rx="1" /><rect x="9" y="3" width="4.5" height="10" rx="1" /></svg>} />
         </div>
       </div>
 
@@ -470,7 +303,7 @@ export function Sidebar({
               }}
             />
             <span style={{ color: runtime?.online ? 'var(--accent-mint)' : 'var(--accent-pink)' }}>
-              {runtime?.online ? 'Sovereign Core Online' : 'Runtime Offline'}
+              {runtime?.online ? 'Online' : 'Offline'}
             </span>
             {runtime?.online && (
               <span className="ml-auto" style={{ color: 'var(--text-muted)' }}>
@@ -480,8 +313,7 @@ export function Sidebar({
           </div>
           {runtime?.online && (
             <div style={{ color: 'var(--text-muted)' }}>
-              {runtime.episodes} episode{runtime.episodes === 1 ? '' : 's'} learned ·{' '}
-              {runtime.knowledge_articles} articles
+              Hermes agent · {runtime.knowledge_articles} knowledge articles
             </div>
           )}
         </div>
@@ -498,11 +330,22 @@ export function Sidebar({
             fontFamily: 'var(--font-mono)',
           }}
         >
-          <span>🪔</span>
-          <span>Thamizh Mythos · Offline · A Tamil Developer's AI</span>
+          <span>🔒</span>
+          <span>Private · Offline-first</span>
         </div>
       </div>
     </aside>
+  );
+}
+
+/* ── Clean, consistent sidebar tool button ── */
+function SideTool({ label, onClick, show, icon }: { label: string; onClick?: () => void; show?: boolean; icon: React.ReactNode }) {
+  if (!show || !onClick) return null;
+  return (
+    <button onClick={onClick} className="btn justify-start w-full px-2.5 py-2" style={{ borderRadius: 9, fontSize: 12 }}>
+      <span style={{ color: 'var(--text-secondary)' }}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 

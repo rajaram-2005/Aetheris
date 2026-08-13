@@ -118,302 +118,91 @@ export function ChatArea({
     <div className="flex-1 flex flex-col h-full min-w-0 relative" style={{ background: 'var(--bg-primary)' }}>
       {/* Top Bar */}
       <div
-        className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+        className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 gap-3"
         style={{ borderColor: 'var(--border-color)', background: 'var(--bg-primary)' }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           {!sidebarOpen && (
-            <button
-              onClick={onToggleSidebar}
-              className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
+            <button onClick={onToggleSidebar} className="btn btn-icon btn-ghost" title="Toggle sidebar" style={{ width: 32, height: 32 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <line x1="3" y1="4" x2="15" y2="4" /><line x1="3" y1="9" x2="15" y2="9" /><line x1="3" y1="14" x2="15" y2="14" />
               </svg>
             </button>
           )}
 
-          {/* New Exploration */}
-          <button
-            onClick={onNewThread}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
-            style={{
-              background: 'rgba(61,255,194,0.08)',
-              border: '1px solid rgba(61,255,194,0.25)',
-              color: 'var(--accent-mint)',
-              fontFamily: 'var(--font-ui)',
-            }}
-            title="Start a new thread"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="7" y1="1" x2="7" y2="13" /><line x1="1" y1="7" x2="13" y2="7" />
+          <button onClick={onNewThread} className="btn" title="Start a new thread">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <line x1="7.5" y1="2" x2="7.5" y2="13" /><line x1="2" y1="7.5" x2="13" y2="7.5" />
             </svg>
-            <span className="hidden sm:inline">New</span>
+            <span className="hidden sm:inline">New chat</span>
           </button>
 
-          {/* Model Switcher Pill */}
+          {/* Model switcher */}
           <div className="relative">
-            <button
-              onClick={() => { setModelDropdown(!modelDropdown); setModeDropdown(false); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
-              style={{
-                background: 'rgba(0, 180, 216, 0.1)',
-                border: '1px solid rgba(0, 180, 216, 0.3)',
-                color: 'var(--accent-mint)',
-                fontFamily: 'var(--font-mono)',
-              }}
-            >
-              <span>{currentModelInfo.icon}</span>
-              <span>{currentModelInfo.label}</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4.5L6 7.5L9 4.5" />
-              </svg>
+            <button onClick={() => { setModelDropdown(!modelDropdown); setModeDropdown(false); }} className="btn" title="Select model">
+              <span style={{ color: 'var(--accent-blue)' }}>{currentModelInfo.icon}</span>
+              <span className="font-mono">{currentModelInfo.label}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 4.5L6 7.5L9 4.5" /></svg>
             </button>
-
             {modelDropdown && (
-              <div
-                className="absolute left-0 top-full mt-2 w-56 rounded-xl shadow-2xl z-40 p-1.5 space-y-1 animate-fade-in"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid rgba(61, 255, 194, 0.3)',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                }}
-              >
+              <div className="absolute left-0 top-full mt-1.5 w-60 rounded-xl shadow-2xl z-40 p-1.5 space-y-0.5 animate-fade-in surface" style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
                 {(Object.keys(MODEL_NAMES) as ModelId[]).map((mId) => (
-                  <button
-                    key={mId}
-                    onClick={() => {
-                      if (onSelectModel) onSelectModel(mId);
-                      setModelDropdown(false);
-                    }}
+                  <button key={mId} onClick={() => { onSelectModel?.(mId); setModelDropdown(false); }}
                     className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
-                    style={{
-                      background: activeModel === mId ? 'rgba(61,255,194,0.1)' : 'transparent',
-                      color: activeModel === mId ? 'var(--accent-mint)' : 'var(--text-primary)',
-                    }}
-                  >
-                    <span className="flex items-center gap-2 font-mono">
-                      <span>{MODEL_NAMES[mId].icon}</span>
-                      <span>{MODEL_NAMES[mId].label}</span>
-                    </span>
-                    {activeModel === mId && <span className="text-xs">✓</span>}
+                    style={{ background: activeModel === mId ? 'var(--bg-hover)' : 'transparent', color: activeModel === mId ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    <span className="flex items-center gap-2 font-mono"><span>{MODEL_NAMES[mId].icon}</span><span>{MODEL_NAMES[mId].label}</span></span>
+                    {activeModel === mId && <span style={{ color: 'var(--accent-mint)' }}>✓</span>}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Mode Switcher — myth / legendary / pro / lite / flash on any model */}
+          {/* Mode switcher */}
           <div className="relative">
-            <button
-              onClick={() => { setModeDropdown(!modeDropdown); setModelDropdown(false); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
-              style={{
-                background: 'rgba(251, 191, 36, 0.1)',
-                border: '1px solid rgba(251, 191, 36, 0.35)',
-                color: '#fbbf24',
-                fontFamily: 'var(--font-mono)',
-              }}
-              title="Inference mode — works on Flash, Pro, and Ultra"
-            >
-              <span>{currentModeInfo.icon}</span>
-              <span>{currentModeInfo.label}</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 4.5L6 7.5L9 4.5" />
-              </svg>
+            <button onClick={() => { setModeDropdown(!modeDropdown); setModelDropdown(false); }} className="btn" title="Inference mode">
+              <span style={{ color: 'var(--accent-gold)' }}>{currentModeInfo.icon}</span>
+              <span className="font-mono">{currentModeInfo.label}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 4.5L6 7.5L9 4.5" /></svg>
             </button>
-
             {modeDropdown && (
-              <div
-                className="absolute left-0 top-full mt-2 w-56 rounded-xl shadow-2xl z-40 p-1.5 space-y-1 animate-fade-in"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid rgba(251, 191, 36, 0.35)',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                }}
-              >
+              <div className="absolute left-0 top-full mt-1.5 w-64 rounded-xl shadow-2xl z-40 p-1.5 space-y-0.5 animate-fade-in surface" style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
                 {(Object.keys(MODE_NAMES) as ModeId[]).map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      if (onSelectMode) onSelectMode(id);
-                      setModeDropdown(false);
-                    }}
+                  <button key={id} onClick={() => { onSelectMode?.(id); setModeDropdown(false); }}
                     className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
-                    style={{
-                      background: activeMode === id ? 'rgba(251,191,36,0.12)' : 'transparent',
-                      color: activeMode === id ? '#fbbf24' : 'var(--text-primary)',
-                    }}
-                  >
-                    <span className="flex items-center gap-2 font-mono">
-                      <span>{MODE_NAMES[id].icon}</span>
-                      <span>{MODE_NAMES[id].label}</span>
-                    </span>
-                    {activeMode === id && <span className="text-xs">✓</span>}
+                    style={{ background: activeMode === id ? 'var(--bg-hover)' : 'transparent', color: activeMode === id ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    <span className="flex items-center gap-2 font-mono"><span>{MODE_NAMES[id].icon}</span><span>{MODE_NAMES[id].label}</span></span>
+                    {activeMode === id && <span style={{ color: 'var(--accent-gold)' }}>✓</span>}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <h2
-            className="text-xs font-medium truncate max-w-[200px] hidden sm:block"
-            style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-muted)' }}
-          >
-            {thread?.title || 'New Exploration'}
-          </h2>
+          <span className="text-xs font-medium truncate max-w-[180px] hidden md:block" style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-muted)' }}>
+            {thread?.title || ''}
+          </span>
         </div>
 
-        {/* Right Tools */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {onOpenCanvas && (
-            <button
-              onClick={onOpenCanvas}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(251, 191, 36, 0.12)',
-                border: '1px solid rgba(251, 191, 36, 0.35)',
-                color: 'var(--accent-gold)',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Artifacts 2.0 Canvas Studio"
-            >
-              <span>📐</span>
-              <span className="hidden md:inline">Canvas</span>
-            </button>
-          )}
+        {/* Right tools — consistent icon toolbar */}
+        <div className="flex items-center gap-1">
+          <ToolButton icon="canvas" label="Canvas" onClick={onOpenCanvas} show={!!onOpenCanvas} />
+          <ToolButton icon="research" label="Research" onClick={onOpenDeepResearch} show={!!onOpenDeepResearch} />
+          <ToolButton icon="apex" label="Apex" onClick={onOpenApexLab} show={!!onOpenApexLab} />
+          <ToolButton icon="god" label="God" onClick={onOpenGodDeck} show={!!onOpenGodDeck} />
+          <ToolButton icon="agents" label="Agents" onClick={onOpenAgentStore} show={!!onOpenAgentStore} />
+          <ToolButton icon="arena" label="Arena" onClick={onOpenBenchmarks} show={!!onOpenBenchmarks} />
+          <ToolButton icon="visuals" label="Visuals" onClick={onOpenGallery} show={!!onOpenGallery} />
+          <ToolButton icon="mythos" label="Mythos" onClick={onOpenMythology} show={!!onOpenMythology} />
 
-          {onOpenDeepResearch && (
-            <button
-              onClick={onOpenDeepResearch}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(0, 180, 216, 0.12)',
-                border: '1px solid rgba(0, 180, 216, 0.35)',
-                color: 'var(--accent-blue)',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Autonomous Deep Research"
-            >
-              <span>🔬</span>
-              <span className="hidden md:inline">Research</span>
-            </button>
-          )}
-
-          {onOpenApexLab && (
-            <button
-              onClick={onOpenApexLab}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(192, 132, 252, 0.14)',
-                border: '1px solid rgba(192, 132, 252, 0.4)',
-                color: '#c084fc',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Apex Cognition Lab"
-            >
-              <span>✦</span>
-              <span className="hidden md:inline">Apex</span>
-            </button>
-          )}
-
-          {onOpenGodDeck && (
-            <button
-              onClick={onOpenGodDeck}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(251, 191, 36, 0.16)',
-                border: '1px solid rgba(251, 191, 36, 0.45)',
-                color: '#fbbf24',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="God Deck — ToT, causal world, proofs, red-team"
-            >
-              <span>Ω</span>
-              <span className="hidden md:inline">God</span>
-            </button>
-          )}
-
-          {onOpenAgentStore && (
-            <button
-              onClick={onOpenAgentStore}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(74, 222, 128, 0.12)',
-                border: '1px solid rgba(74, 222, 128, 0.35)',
-                color: '#4ade80',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Sovereign Agents & Custom GPTs"
-            >
-              <span>🤖</span>
-              <span className="hidden md:inline">GPT Store</span>
-            </button>
-          )}
-
-          {onOpenBenchmarks && (
-            <button
-              onClick={onOpenBenchmarks}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(192, 132, 252, 0.12)',
-                border: '1px solid rgba(192, 132, 252, 0.35)',
-                color: 'var(--accent-purple)',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Open-Source Benchmark Arena"
-            >
-              <span>📊</span>
-              <span className="hidden md:inline">Arena</span>
-            </button>
-          )}
-
-          {onOpenGallery && (
-            <button
-              onClick={onOpenGallery}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'linear-gradient(135deg, rgba(0, 180, 216, 0.15), rgba(61, 255, 194, 0.15))',
-                border: '1px solid rgba(61, 255, 194, 0.4)',
-                color: 'var(--accent-mint)',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Neural Visual Studio"
-            >
-              <span>🎨</span>
-              <span className="hidden md:inline">Visuals</span>
-            </button>
-          )}
-
-          {onOpenMythology && (
-            <button
-              onClick={onOpenMythology}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
-              style={{
-                background: 'rgba(251, 191, 36, 0.14)',
-                border: '1px solid rgba(251, 191, 36, 0.4)',
-                color: '#fbbf24',
-                fontFamily: 'var(--font-ui)',
-              }}
-              title="Summon Tamil mythology legends"
-            >
-              <span>🪔</span>
-              <span className="hidden md:inline">Mythos</span>
-            </button>
-          )}
-
-          <button
-            onClick={onToggleInspector}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
-            style={{
-              background: showInspector ? 'rgba(61,255,194,0.1)' : 'var(--bg-tertiary)',
-              border: `1px solid ${showInspector ? 'rgba(61,255,194,0.3)' : 'var(--border-color)'}`,
-              color: showInspector ? 'var(--accent-mint)' : 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            ⚡ Inspector
+          <div className="w-px h-5 mx-1" style={{ background: 'var(--border-color)' }} />
+          <button onClick={onToggleInspector} className="btn btn-ghost btn-icon" title="Toggle inspector" style={{ width: 32, height: 32, color: showInspector ? 'var(--accent-mint)' : 'var(--text-muted)' }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M2 3h12M2 8h12M2 13h12" />
+              <circle cx="4.5" cy="3" r="1.3" fill="currentColor" stroke="none" />
+              <circle cx="11.5" cy="8" r="1.3" fill="currentColor" stroke="none" />
+              <circle cx="7" cy="13" r="1.3" fill="currentColor" stroke="none" />
+            </svg>
           </button>
         </div>
       </div>
@@ -452,27 +241,14 @@ export function ChatArea({
                   />
                   <span>A</span>
                 </div>
-                <div
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl shadow-md"
-                  style={{
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid rgba(61, 255, 194, 0.3)',
-                  }}
-                >
+                <div className="flex items-center gap-3 px-4 py-3 surface">
                   <div className="flex gap-1.5">
                     {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          background: 'var(--accent-mint)',
-                          animation: `pulse-glow 1.4s ease-in-out ${i * 0.2}s infinite`,
-                        }}
-                      />
+                      <div key={i} className="w-1.5 h-1.5 rounded-full dot-pulse" style={{ background: 'var(--accent-mint)', animationDelay: `${i * 0.18}s` }} />
                     ))}
                   </div>
-                  <span className="text-xs" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
-                    Aetheris Sovereign Neural Core generating…
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    Aetheris is thinking…
                   </span>
                 </div>
               </div>
@@ -508,200 +284,66 @@ function EmptyState({
   onOpenBenchmarks?: () => void;
 }) {
   const suggestions = [
-    {
-      icon: '🎨',
-      title: 'Neural Visual Art',
-      text: 'Generate an image: ultra-detailed 8k holographic AI core with luminous crystal filaments in obsidian space',
-      badge: 'Visual Gen',
-    },
-    {
-      icon: '💻',
-      title: 'Precision Code',
-      text: 'Write an optimized async Python pipeline with token bucket rate limiting and retry backoff',
-      badge: 'Architecture',
-    },
-    {
-      icon: '🧠',
-      title: 'Deep Reasoning',
-      text: 'Solve and verify: Prove why the square root of 2 is irrational step by step with formal logic',
-      badge: 'Math Proof',
-    },
-    {
-      icon: '🌐',
-      title: 'Multi-Agent Mesh',
-      text: 'Design a distributed multi-agent consensus protocol with fault tolerance and low latency',
-      badge: 'Systems',
-    },
+    { icon: '🎨', title: 'Visual Art', text: 'Generate an image of a tranquil forest at golden hour' },
+    { icon: '💻', title: 'Code', text: 'Write an optimized async Python pipeline with rate limiting' },
+    { icon: '🧠', title: 'Reason', text: 'Prove step by step why the square root of 2 is irrational' },
+    { icon: '🪔', title: 'Mythos', text: 'Give me a kural about perseverance from Tiruvalluvar' },
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-4 py-8 max-w-4xl mx-auto">
-      {/* Mind-Blowing Hero Visual Card */}
-      <div
-        className="w-full rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden flex flex-col md:flex-row items-center gap-6 shadow-2xl animate-fade-in"
-        style={{
-          background: 'linear-gradient(135deg, rgba(11, 19, 43, 0.95), rgba(15, 22, 43, 0.85))',
-          border: '1px solid rgba(61, 255, 194, 0.3)',
-          boxShadow: '0 20px 50px -10px rgba(0, 180, 216, 0.3)',
-        }}
-      >
-        {/* Glow backdrop behind hero */}
-        <div
-          className="absolute -top-24 -left-24 w-72 h-72 rounded-full pointer-events-none opacity-40 blur-3xl"
-          style={{ background: '#00b4d8' }}
-        />
-        <div
-          className="absolute -bottom-24 -right-24 w-72 h-72 rounded-full pointer-events-none opacity-30 blur-3xl"
-          style={{ background: '#3dffc2' }}
-        />
-
-        {/* Hero Visual Image Thumbnail with Cybernetic Border */}
-        <div
-          className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer group shadow-xl"
-          style={{
-            border: '2px solid rgba(61, 255, 194, 0.4)',
-            boxShadow: '0 0 25px rgba(0, 180, 216, 0.4)',
-          }}
-          onClick={onOpenGallery}
-          title="Click to open Visual Studio Gallery"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/images/hero-neural-core.png"
-            alt="Aetheris Sovereign Neural Core"
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2.5">
-            <span
-              className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
-              style={{
-                background: 'rgba(0,0,0,0.8)',
-                color: 'var(--accent-mint)',
-                border: '1px solid rgba(61, 255, 194, 0.5)',
-              }}
-            >
-              ✦ Sovereign Core v4.0
-            </span>
-          </div>
+    <div className="flex flex-col items-center justify-center min-h-full px-4 py-8 max-w-3xl mx-auto">
+      {/* Welcome */}
+      <div className="text-center mb-10 animate-fade-in">
+        <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center brand-glow"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+          <span className="text-2xl">🪔</span>
         </div>
-
-        {/* Hero Copy */}
-        <div className="flex-1 text-center md:text-left z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono mb-3" style={{ background: 'rgba(61,255,194,0.1)', color: 'var(--accent-mint)', border: '1px solid rgba(61,255,194,0.3)' }}>
-            <span>⚡</span>
-            <span>Zero Third-Party Dependency · Sovereign Intelligence</span>
-          </div>
-
-          <h1
-            className="text-2xl sm:text-4xl font-extrabold tracking-tight mb-2 leading-tight"
-            style={{
-              fontFamily: 'var(--font-display)',
-              background: 'linear-gradient(135deg, #ffffff 0%, #a6b3ca 50%, #3dffc2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            Aetheris Sovereign Neural Platform
-          </h1>
-
-          <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-4 max-w-xl">
-            Experience next-generation in-house neural reasoning, multimodal synthesis, and autonomous meta-learning. Engineered entirely offline for maximum privacy and uncompromising performance.
-          </p>
-
-          <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-          {onOpenGallery && (
-            <button
-              onClick={onOpenGallery}
-              className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
-              style={{
-                background: 'var(--accent-mint)',
-                color: '#060914',
-              }}
-            >
-              <span>🎨</span>
-              <span>Visual Studio</span>
-            </button>
-          )}
-          {onOpenBenchmarks && (
-            <button
-              onClick={onOpenBenchmarks}
-              className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 flex items-center gap-2"
-              style={{
-                background: 'rgba(192, 132, 252, 0.15)',
-                border: '1px solid rgba(192, 132, 252, 0.35)',
-                color: 'var(--accent-purple)',
-              }}
-            >
-              <span>📊</span>
-              <span>Benchmark Arena</span>
-            </button>
-          )}
-          <button
-            onClick={() => onRunPrompt('Show me the Aetheris neural architecture specs and benchmark comparison')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:bg-white/10 flex items-center gap-1.5"
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <span>🔬</span>
-              <span>Architecture Specs</span>
-            </button>
-          </div>
-        </div>
+        <h1 className="text-2xl font-semibold mb-2" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
+          Aetheris
+        </h1>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          A private AI thought partner — reasoning, code, images, voice, and the living Tamil mythology.
+        </p>
       </div>
 
-      {/* Suggestion Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-6">
+      {/* Suggested prompts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full animate-fade-in">
         {suggestions.map((s) => (
-          <button
-            key={s.title}
-            onClick={() => onRunPrompt(s.text)}
-            className="group flex items-start gap-3.5 p-4 rounded-2xl text-left transition-all duration-300 hover:scale-[1.01] relative overflow-hidden"
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <span className="text-2xl p-2 rounded-xl" style={{ background: 'var(--bg-tertiary)' }}>
-              {s.icon}
+          <button key={s.title} onClick={() => onRunPrompt(s.text)}
+            className="surface surface-hover text-left px-4 py-3.5 flex items-start gap-3">
+            <span className="text-lg mt-0.5">{s.icon}</span>
+            <span>
+              <span className="block text-sm font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>{s.title}</span>
+              <span className="block text-xs leading-snug" style={{ color: 'var(--text-secondary)' }}>{s.text}</span>
             </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                  {s.title}
-                </span>
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded font-mono font-medium"
-                  style={{
-                    background: 'rgba(0,180,216,0.12)',
-                    color: 'var(--accent-blue)',
-                  }}
-                >
-                  {s.badge}
-                </span>
-              </div>
-              <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-ui)' }}>
-                {s.text}
-              </p>
-            </div>
           </button>
         ))}
       </div>
 
-      {/* Footer shortcut info */}
-      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-        <kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-          ⌘K
-        </kbd>
-        <span>Command Palette</span>
-        <span className="mx-1.5">·</span>
-        <kbd className="px-2 py-0.5 rounded" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-          Enter
-        </kbd>
-        <span>Send prompt</span>
-      </div>
+      <p className="text-[11px] mt-6 text-center" style={{ color: 'var(--text-muted)' }}>
+        Works fully offline · type below to begin
+      </p>
     </div>
+  );
+}
+
+/* ── Compact, consistent tool button (SVG icon + label) ── */
+const TOOL_ICONS: Record<string, React.ReactNode> = {
+  canvas: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="2" width="12" height="12" rx="2" /><path d="M6 6h4v4H6z" /></svg>,
+  research: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="6.5" cy="6.5" r="3.5" /><line x1="9.5" y1="9.5" x2="13" y2="13" /><path d="M5.5 6.5l1 1 2-2" /></svg>,
+  apex: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 2l6 12H2z" /><path d="M8 6l3 6H5z" fill="currentColor" stroke="none" /></svg>,
+  god: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="8" cy="8" r="5.5" /><path d="M8 3.5v9M3.5 8h9" /></svg>,
+  agents: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="5" cy="5" r="2.5" /><circle cx="11" cy="5" r="2.5" /><path d="M3.5 13c.5-2 1-3 1.5-3s1 1 1.5 3M10 13c.5-2 1-3 1.5-3s1 1 1.5 3" /></svg>,
+  arena: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2.5" y="3" width="4.5" height="10" rx="1" /><rect x="9" y="3" width="4.5" height="10" rx="1" /></svg>,
+  visuals: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="2" width="12" height="12" rx="2" /><circle cx="5.5" cy="5.5" r="1.3" /><path d="M2 12l3.5-3.5 2.5 2.5 2.5-2.5 3.5 3.5" /></svg>,
+  mythos: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 2c0 6-3 8-5 10h10C11 10 8 8 8 2z" /><path d="M8 2v10" /></svg>,
+};
+
+function ToolButton({ icon, label, onClick, show }: { icon: string; label: string; onClick?: () => void; show?: boolean }) {
+  if (!show || !onClick) return null;
+  return (
+    <button onClick={onClick} className="btn btn-ghost btn-icon hidden lg:flex" title={label} style={{ width: 34, height: 34, color: 'var(--text-muted)' }}>
+      {TOOL_ICONS[icon]}
+    </button>
   );
 }
