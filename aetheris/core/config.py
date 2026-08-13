@@ -34,14 +34,17 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535, description="Bind port.")
 
     # --- LLM provider ---------------------------------------------------------
-    llm_provider: Literal["hermes", "mock", "openai", "aetheris_neural", "neural"] = Field(
+    llm_provider: Literal[
+        "hermes", "mock", "openai", "aetheris_neural", "neural", "anthropic", "gemini"
+    ] = Field(
         default="hermes",
         description=(
             "Backing provider. 'hermes' (default) runs the local Hermes agent — real "
             "computation, retrieval, tools, and meta-learning, fully offline with no "
             "API key. 'aetheris_neural' runs the custom sovereign neural model engine. "
-            "'mock' is the legacy persona responder. 'openai' forwards to an "
-            "OpenAI-compatible endpoint."
+            "'mock' is the legacy persona responder. 'openai' forwards to any "
+            "OpenAI-compatible endpoint. 'anthropic' uses the Claude Messages API. "
+            "'gemini' uses the Google Gemini generateContent API."
         ),
     )
 
@@ -62,6 +65,34 @@ class Settings(BaseSettings):
         default=120.0,
         gt=0,
         description="Per-request upstream timeout in seconds.",
+    )
+
+    # --- Anthropic (Claude) ---------------------------------------------------
+    anthropic_api_key: str = Field(
+        default="",
+        description="API key for the Anthropic Messages API.",
+    )
+    anthropic_model: str = Field(
+        default="claude-sonnet-4-20250514",
+        description="Claude model used when AETHERIS_LLM_PROVIDER=anthropic.",
+    )
+    anthropic_base_url: str = Field(
+        default="https://api.anthropic.com",
+        description="Anthropic API base URL.",
+    )
+
+    # --- Google Gemini ---------------------------------------------------------
+    gemini_api_key: str = Field(
+        default="",
+        description="API key for the Google Generative Language (Gemini) API.",
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        description="Gemini model used when AETHERIS_LLM_PROVIDER=gemini.",
+    )
+    gemini_base_url: str = Field(
+        default="https://generativelanguage.googleapis.com",
+        description="Gemini API base URL.",
     )
 
     # --- Agentic tool use -----------------------------------------------------
@@ -194,6 +225,105 @@ class Settings(BaseSettings):
     media_store_max_mb: int = Field(
         default=192, ge=8, le=2048,
         description="Memory budget for the generated-artifact store, in MiB.",
+    )
+
+    # --- Image generation provider --------------------------------------------
+    # Image generation is *layered*: fully offline by default (the deterministic
+    # procedural renderer), upgraded to a real generative model whenever an
+    # upstream provider API key is configured. 'auto' picks the first provider
+    # with a key; otherwise it falls back to 'offline'.
+    image_provider: Literal["offline", "openai", "gemini", "stability", "auto"] = Field(
+        default="auto",
+        description=(
+            "Which engine renders images. 'offline' (default, no key) uses the "
+            "deterministic procedural renderer. 'openai' uses DALL-E 3 / gpt-image "
+            "from OpenAI. 'gemini' uses Google Imagen 3. 'stability' uses Stability "
+            "AI. 'auto' uses the first provider with a configured API key, else "
+            "falls back to offline."
+        ),
+    )
+    openai_image_api_key: str = Field(
+        default="",
+        description="OpenAI API key used specifically for image generation.",
+    )
+    openai_image_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="OpenAI images endpoint base URL.",
+    )
+    openai_image_model: str = Field(
+        default="gpt-image-1",
+        description="OpenAI image model (gpt-image-1, dall-e-3, dall-e-2).",
+    )
+    gemini_image_api_key: str = Field(
+        default="",
+        description="Google API key used specifically for Imagen image generation.",
+    )
+    gemini_image_model: str = Field(
+        default="imagen-3.0-generate-002",
+        description="Google Imagen model used for image generation.",
+    )
+    stability_api_key: str = Field(
+        default="",
+        description="Stability AI API key for image generation.",
+    )
+    stability_model: str = Field(
+        default="stable-image-core",
+        description="Stability AI model id.",
+    )
+    stability_base_url: str = Field(
+        default="https://api.stability.ai",
+        description="Stability AI API base URL.",
+    )
+    image_remote_timeout: float = Field(
+        default=90.0, gt=1, le=600,
+        description="Timeout for remote image generation, in seconds.",
+    )
+    image_fallback_offline: bool = Field(
+        default=True,
+        description=(
+            "When a remote image provider is configured but fails (network, quota, "
+            "rate limit), fall back to the offline procedural renderer so a request "
+            "still returns an image instead of failing."
+        ),
+    )
+
+    # --- Speech (text-to-speech & speech-to-text) -----------------------------
+    speech_provider: Literal["offline", "openai", "gemini"] = Field(
+        default="offline",
+        description=(
+            "Text-to-speech engine. 'offline' (default, no key) uses an in-process "
+            "formant synthesizer. 'openai' uses the OpenAI TTS API. 'gemini' uses "
+            "Google Gemini's text-to-speech (SynthesizeSpeech)."
+        ),
+    )
+    speech_model: str = Field(
+        default="tts-1",
+        description="Provider TTS voice model (OpenAI tts-1 / tts-1-hd, Gemini model).",
+    )
+    speech_voice: str = Field(
+        default="alloy",
+        description="Provider TTS voice id (OpenAI alloy|echo|…, Gemini en-US voice).",
+    )
+    speech_enabled: bool = Field(
+        default=True,
+        description="Enable text-to-speech synthesis.",
+    )
+    stt_provider: Literal["offline", "openai", "gemini"] = Field(
+        default="offline",
+        description=(
+            "Speech-to-text engine. 'offline' returns an explicit 'not available "
+            "offline' result (there is no in-process speech-recognition model). "
+            "'openai' uses the Whisper transcriptions API. 'gemini' uses Gemini "
+            "audio transcription."
+        ),
+    )
+    stt_model: str = Field(
+        default="whisper-1",
+        description="Provider speech-to-text model id.",
+    )
+    stt_enabled: bool = Field(
+        default=True,
+        description="Enable speech-to-text transcription.",
     )
 
     # --- Unrestricted / sovereign mode ---------------------------------------
@@ -659,6 +789,43 @@ class Settings(BaseSettings):
         """Whether a usable API key is configured for the OpenAI provider."""
         return bool(self.llm_api_key and self.llm_api_key.strip())
 
+    def _key(self, value: str) -> bool:
+        return bool(value and value.strip())
+
+    @property
+    def has_anthropic_credentials(self) -> bool:
+        return self._key(self.anthropic_api_key)
+
+    @property
+    def has_gemini_credentials(self) -> bool:
+        return self._key(self.gemini_api_key)
+
+    @property
+    def has_openai_image_credentials(self) -> bool:
+        return self._key(self.openai_image_api_key or self.llm_api_key)
+
+    @property
+    def has_gemini_image_credentials(self) -> bool:
+        return self._key(self.gemini_image_api_key or self.gemini_api_key)
+
+    @property
+    def has_stability_credentials(self) -> bool:
+        return self._key(self.stability_api_key)
+
+    @property
+    def has_image_credentials(self) -> bool:
+        """Whether any upstream image-generation provider has a key configured."""
+        return bool(
+            self.has_openai_image_credentials
+            or self.has_gemini_image_credentials
+            or self.has_stability_credentials
+        )
+
+    @property
+    def has_speech_credentials(self) -> bool:
+        """Whether an upstream TTS provider has a key configured."""
+        return bool(self.has_credentials or self.has_gemini_credentials)
+
     @property
     def auth_valid_keys(self) -> list[str]:
         """Return the list of valid API key hashes for auth middleware."""
@@ -689,9 +856,19 @@ class Settings(BaseSettings):
             "web_access": self.web_enabled,
             "sovereign_mode": self.sovereign_enabled,
             "image_generation": self.image_generation_enabled,
+            "image_provider": self.image_provider,
+            "image_provider_configured": self.has_image_credentials,
             "video_generation": self.video_generation_enabled,
             "audio_generation": self.audio_generation_enabled,
             "code_generation": self.code_generation_enabled,
+            # Provider mix (chat)
+            "anthropic_provider": self.has_anthropic_credentials,
+            "gemini_provider": self.has_gemini_credentials,
+            # Voice
+            "speech_tts": self.speech_enabled,
+            "speech_provider": self.speech_provider,
+            "speech_stt": self.stt_enabled,
+            "stt_provider": self.stt_provider,
             # Security & operations
             "auth": self.auth_enabled,
             "rate_limiting": self.rate_limit_enabled,

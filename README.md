@@ -121,11 +121,21 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 - **Creation, not just conversation** — Aetheris produces real files, encoded
   in-process with the standard library alone (no Pillow, no ffmpeg, no GPU, no
   API key):
-  - **Images** — procedural PNG synthesis across eight compositions.
+  - **Images** — *layered* generation: deterministic procedural PNG synthesis
+    (eight compositions) offline by default, upgraded to a real generative
+    model (**OpenAI DALL-E/gpt-image, Google Imagen 3, or Stability**) whenever
+    a matching API key is configured.
   - **Video** — looping animated GIFs across eight motion styles.
-  - **Audio** — 16-bit WAV melodies, chord progressions, and tones.
+  - **Audio** — 16-bit WAV melodies, chord progressions, tones, **and offline
+    text-to-speech** (a formant synthesizer) with provider voices on demand.
   - **Code** — projects scaffolded as runnable ZIPs, and snippets *executed*
     to prove they work before you are shown them.
+- **Multi-provider chat** — alongside the offline Hermes agent and the
+  OpenAI-compatible provider, Aetheris now ships first-class **Anthropic Claude**
+  and **Google Gemini** providers (non-streaming, streaming, tools, and vision).
+- **Voice endpoints** — `POST /v1/audio/speech` (text-to-speech, offline by
+  default) and `POST /v1/audio/transcriptions` (speech-to-text via Whisper or
+  Gemini when a key is set; an honest "not available offline" otherwise).
 - **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
   task (reasoning, math, code, research, latency, context length) and picks the
   best fit with the reasons behind it, before a request hits the provider.
@@ -212,7 +222,15 @@ cp .env.example .env
 
 | Variable | Effect |
 |----------|--------|
-| `AETHERIS_LLM_PROVIDER` | `hermes` (default, offline), `openai`, or `mock` |
+| `AETHERIS_LLM_PROVIDER` | `hermes` (default, offline), `openai`, `anthropic`, `gemini`, `mock`, or `neural` |
+| `AETHERIS_ANTHROPIC_API_KEY` | Enables the Claude provider (`llm_provider=anthropic`) |
+| `AETHERIS_GEMINI_API_KEY` | Enables the Gemini chat + Imagen + TTS/STT providers |
+| `AETHERIS_IMAGE_PROVIDER` | `auto` (default) · `offline` · `openai` · `gemini` · `stability` |
+| `AETHERIS_OPENAI_IMAGE_API_KEY` | Enables real DALL-E/gpt-image generation |
+| `AETHERIS_GEMINI_IMAGE_API_KEY` | Enables real Google Imagen 3 generation |
+| `AETHERIS_STABILITY_API_KEY` | Enables real Stability AI generation |
+| `AETHERIS_SPEECH_PROVIDER` | `offline` (default, formant TTS) · `openai` · `gemini` |
+| `AETHERIS_STT_PROVIDER` | `offline` (default) · `openai` (Whisper) · `gemini` |
 | `AETHERIS_HERMES_LEARNING_ENABLED` | Set `false` for a stateless, reproducible deployment |
 | `AETHERIS_HERMES_META_STATE_PATH` | Persist meta-learned state across restarts |
 | `AETHERIS_LLM_API_KEY` | Only needed when using an upstream provider |
@@ -419,6 +437,8 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/images/generations` | Generate a PNG from a prompt. |
 | `POST /v1/videos/generations` | Generate an animated GIF. |
 | `POST /v1/audio/generations` | Synthesise a WAV file. |
+| `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (offline by default). |
+| `POST /v1/audio/transcriptions` | Speech-to-text from an uploaded audio file (Whisper/Gemini when a key is set). |
 | `POST /v1/code/projects` | Scaffold a project as a ZIP. |
 | `GET /v1/artifacts` | List generated artifacts. |
 | `GET /v1/artifacts/{id}` | Fetch an artifact's bytes (`?download=true`). |
@@ -675,22 +695,35 @@ curl -s -X POST localhost:8000/v1/images/generations \
 aetheris image "deep space nebula" --style space --palette neon -o nebula.png
 ```
 
-Aetheris is **not a diffusion model**, and it does not pretend to be one. It is a
-procedural renderer that parses intent — subject, palette, mood, composition —
-out of the prompt and draws the result from generative primitives. That makes it
-genuinely good at abstract art, backdrops, wallpapers, gradients, posters, title
-cards, and placeholder assets, and genuinely unable to produce photorealistic
-scenes or specific real people. The artifact metadata says so explicitly rather
-than implying a capability it lacks.
+Image generation is **layered**:
 
-Eight compositions: `landscape` · `space` · `waves` · `particles` · `geometric`
-· `spiral` · `gradient` · `poster`. Ten palettes: `aetheris` · `sunset` ·
-`ocean` · `forest` · `ember` · `arctic` · `neon` · `mono` · `sakura` · `gold`,
-or pass your own comma-separated hex ramp. Both are inferred from the prompt
-when you do not name them.
+* By default (`AETHERIS_IMAGE_PROVIDER=auto` with no key) it uses the
+  deterministic procedural renderer. That engine parses intent — subject,
+  palette, mood, composition — out of the prompt and draws the result from
+  generative primitives: abstract art, backdrops, wallpapers, gradients,
+  posters, title cards, and placeholder assets.
+* When any upstream API key is configured, it automatically upgrades to a real
+  generative model, so you can also produce **photorealistic scenes, objects,
+  and people**:
 
-Renders are **deterministic**: the seed is derived from the prompt, so the same
-prompt always returns the same image. Pass `seed` to pin or vary it.
+  ```bash
+  # OpenAI DALL-E / gpt-image (set AETHERIS_OPENAI_IMAGE_API_KEY)
+  AETHERIS_IMAGE_PROVIDER=openai
+  # Google Imagen 3 (set AETHERIS_GEMINI_IMAGE_API_KEY)
+  AETHERIS_IMAGE_PROVIDER=gemini
+  # Stability (set AETHERIS_STABILITY_API_KEY)
+  AETHERIS_IMAGE_PROVIDER=stability
+  ```
+
+  On a remote failure (network, quota, rate limit), `AETHERIS_IMAGE_FALLBACK_OFFLINE`
+  (default `true`) falls back to the offline renderer so a request still returns
+  an image instead of erroring.
+
+The offline engine offers eight compositions: `landscape` · `space` · `waves` ·
+`particles` · `geometric` · `spiral` · `gradient` · `poster`, and ten palettes:
+`aetheris` · `sunset` · `ocean` · `forest` · `ember` · `arctic` · `neon` ·
+`mono` · `sakura` · `gold`. Renders are **deterministic**: the same prompt
+always returns the same image; pass `seed` to pin or vary it.
 
 #### Video
 
@@ -724,8 +757,30 @@ Four modes: `melody` (note notation, `R` for rests), `chords` (progressions),
 additive-harmonic with an ADSR envelope across six timbres, written as 16-bit
 44.1 kHz mono WAV.
 
-**Aetheris has no text-to-speech.** It cannot speak or sing; this is
-instrumental synthesis only, and the tool description says so.
+#### Voice (text-to-speech & speech-to-text)
+
+Aetheris now speaks, too. `POST /v1/audio/speech` synthesises spoken audio from
+text, and `POST /v1/audio/transcriptions` turns an uploaded audio file into text.
+
+```bash
+# Speak text aloud (offline by default — a formant synthesizer, no key needed)
+curl -s -X POST localhost:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Welcome to Aetheris. You can now generate images and voice offline."}'
+
+aetheris speech "Welcome to Aetheris" -o welcome.wav --voice high
+```
+
+Like image generation, voice is **layered**:
+
+* **Text-to-speech** (`AETHERIS_SPEECH_PROVIDER`): `offline` (default) uses an
+  in-process formant synthesizer — intelligible but deliberately synthetic, no
+  key and no network. Set `openai` (with `AETHERIS_LLM_API_KEY`) or `gemini`
+  (with `AETHERIS_GEMINI_API_KEY`) for natural cloud voices.
+* **Speech-to-text** (`AETHERIS_STT_PROVIDER`): offline has no in-process
+  speech-recognition model, so it returns an explicit, honest `available: false`
+  result with guidance. Set `openai` (Whisper) or `gemini` to enable real
+  transcription.
 
 #### Code
 

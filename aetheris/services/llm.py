@@ -137,6 +137,8 @@ def get_provider() -> LLMProvider:
         return _provider
 
     # Local imports keep the factory decoupled from the implementations.
+    from .anthropic_provider import AnthropicProvider
+    from .gemini_provider import GeminiProvider
     from .hermes_provider import HermesProvider
     from .mock_provider import MockProvider
     from .neural_provider import AetherisNeuralProvider
@@ -144,6 +146,20 @@ def get_provider() -> LLMProvider:
 
     if settings.llm_provider in ("aetheris_neural", "neural"):
         _provider = AetherisNeuralProvider(default_model=settings.llm_model)
+    elif settings.llm_provider == "anthropic" and settings.has_anthropic_credentials:
+        _provider = AnthropicProvider(
+            api_key=settings.anthropic_api_key,
+            model=settings.anthropic_model,
+            base_url=settings.anthropic_base_url,
+            timeout=settings.llm_timeout,
+        )
+    elif settings.llm_provider == "gemini" and settings.has_gemini_credentials:
+        _provider = GeminiProvider(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_model,
+            base_url=settings.gemini_base_url,
+            timeout=settings.llm_timeout,
+        )
     elif settings.llm_provider == "openai" and settings.has_credentials:
         _provider = OpenAIProvider(
             base_url=settings.llm_base_url,
@@ -155,11 +171,16 @@ def get_provider() -> LLMProvider:
         # Explicitly requested legacy persona responder.
         _provider = MockProvider()
     else:
-        if settings.llm_provider == "openai" and not settings.has_credentials:
+        if settings.llm_provider in ("openai", "anthropic", "gemini") and not (
+            settings.has_credentials
+            or settings.has_anthropic_credentials
+            or settings.has_gemini_credentials
+        ):
             # Graceful degradation: keep the API live and diagnosable.
             logger.warning(
-                "AETHERIS_LLM_PROVIDER=openai but no AETHERIS_LLM_API_KEY is set; "
-                "falling back to the offline Hermes agent."
+                "AETHERIS_LLM_PROVIDER=%s but no matching API key is set; "
+                "falling back to the offline Hermes agent.",
+                settings.llm_provider,
             )
         # Default: the local Hermes agent — real computation, retrieval, tools,
         # and meta-learning, with no API key and no network.

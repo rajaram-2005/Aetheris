@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response, StreamingResponse
@@ -625,31 +625,50 @@ async def clear_artifacts() -> dict:
     tags=["media"],
 )
 async def create_image(body: ImageRequest) -> GenerationResponse:
-    """Generate an image from a prompt (OpenAI-images-shaped endpoint)."""
+    """Generate an image from a prompt (OpenAI-images-shaped endpoint).
+
+    Dispatches through the layered image provider: offline procedural by default,
+    upgraded to a real generative model (OpenAI DALL-E/gpt-image, Google Imagen 3,
+    or Stability) when the matching API key is configured. Falls back to the
+    offline renderer on remote failure when ``AETHERIS_IMAGE_FALLBACK_OFFLINE``.
+    """
     if not settings.image_generation_enabled:
         raise HTTPException(status_code=403, detail="Image generation is disabled.")
-    from ..media.images import generate
+    from ..media.image_providers import generate_image_bytes
 
     width = min(body.width, settings.media_max_image_dimension)
     height = min(body.height, settings.media_max_image_dimension)
     try:
-        png, plan = generate(
-            body.prompt, width=width, height=height, style=body.style,
-            palette=body.palette, seed=body.seed, caption=body.caption,
+        results = await generate_image_bytes(
+            body.prompt, width=width, height=height, n=1, seed=body.seed,
         )
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    result = results[0]
+    ext = "jpg" if result.media_type == "image/jpeg" else "png"
+    kind_slug = str(result.meta.get("style") or result.model or "image")
     artifact = get_store().put(
-        kind="image", media_type="image/png",
-        filename=f"aetheris-{plan.scene}-{plan.seed}.png", data=png, prompt=body.prompt,
-        metadata={"style": plan.scene, "palette": plan.palette_name,
-                  "width": width, "height": height, "seed": plan.seed},
+        kind="image", media_type=result.media_type,
+        filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}.{ext}",
+        data=result.data, prompt=body.prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "width": width, "height": height,
+            "seed": result.seed,
+        },
     )
     return _generation_response(
         "image", artifact, body.response_format,
-        {"style": plan.scene, "palette": plan.palette_name, "seed": plan.seed,
-         "dimensions": f"{width}x{height}"},
+        {
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "seed": result.seed,
+            "dimensions": f"{width}x{height}",
+        },
     )
 
 
@@ -737,6 +756,92 @@ async def create_audio(body: AudioRequest) -> GenerationResponse:
     )
     detail["duration_seconds"] = round(track.duration, 2)
     return _generation_response("audio", artifact, body.response_format, detail)
+
+
+class SpeechRequest(BaseModel):
+    """Text-to-speech synthesis (``POST /v1/audio/speech``)."""
+
+    text: str = Field(..., min_length=1, max_length=5_000, description="Text to speak aloud.")
+    voice: str = Field(
+        default="default",
+        description=(
+            "Voice. Offline: default | high | low. OpenAI: alloy | echo | fable | "
+            "onyx | nova | shimmer. Gemini: 'languageCode' or 'lang|voice-name'."
+        ),
+    )
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+@router.post(
+    "/v1/audio/speech",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_speech(body: SpeechRequest) -> GenerationResponse:
+    """Synthesise spoken audio from text (layered TTS: offline formant by default)."""
+    if not settings.speech_enabled:
+        raise HTTPException(status_code=403, detail="Text-to-speech is disabled.")
+    from ..services.voice import get_tts_provider
+
+    provider = get_tts_provider()
+    try:
+        result = await provider.synthesize(body.text, voice=body.voice)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ext = "mp3" if result.media_type == "audio/mpeg" else "wav"
+    artifact = get_store().put(
+        kind="audio", media_type=result.media_type,
+        filename=f"aetheris-speech.{ext}", data=result.data,
+        prompt=body.text[:200], metadata={
+            **result.meta, "provider": result.provider, "model": result.model,
+            "voice": body.voice,
+        },
+    )
+    detail = {
+        **result.meta, "provider": result.provider, "model": result.model,
+        "voice": body.voice, "chars": len(body.text),
+        "estimated_seconds": len(body.text) * 0.18,
+    }
+    return _generation_response("audio", artifact, body.response_format, detail)
+
+
+@router.post("/v1/audio/transcriptions", tags=["media"])
+async def transcribe_audio(
+    file: UploadFile = File(..., description="An audio file (WAV, MP3, …) to transcribe."),
+    language: str = Form(default="en", description="Language hint (e.g. 'en')."),
+) -> dict:
+    """Transcribe speech in an uploaded audio file (layered STT).
+
+    Offline this returns an explicit ``available: false`` result because there is
+    no in-process speech-recognition model; set ``AETHERIS_STT_PROVIDER`` to
+    ``openai`` (Whisper) or ``gemini`` with an API key to enable real transcription.
+    """
+    if not settings.stt_enabled:
+        raise HTTPException(status_code=403, detail="Speech-to-text is disabled.")
+    from ..services.voice import get_stt_provider
+
+    audio = await file.read()
+    if not audio:
+        raise HTTPException(status_code=400, detail="No audio file received.")
+    media_type = file.content_type or "audio/wav"
+    provider = get_stt_provider()
+    try:
+        result = await provider.transcribe(audio, media_type=media_type, language=language)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    payload = {
+        "text": result.text,
+        "provider": result.provider,
+        "model": result.model,
+        "available": result.available,
+        "language": language,
+        "bytes": len(audio),
+    }
+    payload.update(result.meta)
+    return payload
 
 
 @router.post("/v1/code/projects", response_model=GenerationResponse, tags=["media"])

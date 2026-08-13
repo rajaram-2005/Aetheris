@@ -486,6 +486,23 @@ def cmd_audio(args: argparse.Namespace) -> int:
     return _save_artifact(console, track.to_wav(), args.out or "aetheris-audio.wav", "Audio")
 
 
+def cmd_speech(args: argparse.Namespace) -> int:
+    """``aetheris speech`` — speak text aloud to a WAV file (offline TTS)."""
+    console = _make_console(args)
+    from .media.speech import synthesize
+
+    text = " ".join(args.text).strip()
+    if not text:
+        console.print("[red]error:[/red] provide some text to speak.")
+        return 2
+    wav = synthesize(text, voice=args.voice)
+    console.print(
+        f"[{MUTED}]voice [bold]{args.voice}[/bold] · {len(text)} chars · "
+        f"offline formant synthesis[/{MUTED}]"
+    )
+    return _save_artifact(console, wav, args.out or "aetheris-speech.wav", "Speech")
+
+
 def cmd_project(args: argparse.Namespace) -> int:
     """``aetheris project`` — scaffold a runnable project."""
     console = _make_console(args)
@@ -1263,6 +1280,13 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--timbre", default="warm",
                     choices=("sine", "warm", "bright", "organ", "bell", "pluck"))
     ap.set_defaults(func=cmd_audio, is_async=False)
+
+    sp = sub.add_parser("speech", help="speak text aloud to a WAV file (offline TTS)")
+    sp.add_argument("text", nargs="+", help="text to speak")
+    sp.add_argument("-o", "--out", default=None, help="output path (default aetheris-speech.wav)")
+    sp.add_argument("--voice", default="default",
+                    choices=("default", "high", "low"), help="offline voice pitch")
+    sp.set_defaults(func=cmd_speech, is_async=False)
 
     pp = sub.add_parser("project", help="scaffold a runnable project")
     pp.add_argument("kind", choices=("fastapi-service", "python-package", "cli-tool", "static-site"))
