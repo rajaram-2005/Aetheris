@@ -166,6 +166,17 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - A dedicated **Mythos** panel in the UI (sidebar + top bar) brings every
     character to life with a live conversation and a "summon their form"
     portrait button.
+  - **One connected pantheon** — `GET /v1/mythology/graph` returns all 31
+    figures as a single web of family, fate, and battle (e.g. Murugan is the
+    son of Shiva & Parvati, wields the Vel, and slew Surapadman & Tarakasuran).
+    Selecting a figure shows its connections in the UI.
+  - **Layered living voices** — `POST /v1/mythology/chat` hands the figure's
+    full persona to a real model (OpenAI / Anthropic / Gemini) when an API key
+    is configured for vivid roleplay, and falls back to the offline in-character
+    responder otherwise — so nothing is ever disconnected and no key is required.
+  - **Expanded cast** — now 31 legends including the goddess **Meenakshi**,
+    folk guardians **Madurai Veeran** & **Karuppu Sami**, and the Nayanmar
+    poet-saints **Sambandar** & **Appar**.
 - **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
   task (reasoning, math, code, research, latency, context length) and picks the
   best fit with the reasons behind it, before a request hits the provider.

@@ -249,12 +249,30 @@ export function mythologyChat(
 ): Promise<{
   character: { id: string; name: string; tamil_name: string; category: string; epithet: string };
   reply: string;
+  engine: 'upstream-model' | 'in-character';
   episode_id: string;
 }> {
   return request('/v1/mythology/chat', {
     method: 'POST',
     body: JSON.stringify({ character_id: characterId, message }),
   });
+}
+
+/** The whole pantheon as one connected graph. */
+export function getMythologyGraph(): Promise<{
+  nodes: { id: string; name: string; tamil_name: string; category: string; epithet: string }[];
+  edges: { from: string; to: string; relation: string }[];
+  node_count: number;
+  edge_count: number;
+}> {
+  return request('/v1/mythology/graph');
+}
+
+/** Full details including a character's connections. */
+export function getMythologyCharacter(id: string): Promise<
+  MythCharacter & { connections: { other: string; relation: string }[] }
+> {
+  return request(`/v1/mythology/${encodeURIComponent(id)}`);
 }
 
 /** Generate a portrait of a mythological figure. */

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  getMythology, mythologyChat, mythologyPortrait,
+  getMythology, getMythologyCharacter, mythologyChat, mythologyPortrait,
   MythCharacter,
 } from '@/lib/hermes';
 
@@ -29,6 +29,7 @@ export function MythologyModal({ onClose }: MythologyModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [selected, setSelected] = useState<MythCharacter | null>(null);
+  const [connections, setConnections] = useState<{ other: string; relation: string }[]>([]);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,7 +55,12 @@ export function MythologyModal({ onClose }: MythologyModalProps) {
     setSelected(c);
     setTurns([{ role: c.name, name: c.name, text: c.summon }]);
     setPortrait(null);
+    setConnections([]);
     setInput('');
+    // Fetch this figure's place in the connected pantheon.
+    getMythologyCharacter(c.id)
+      .then((detail) => setConnections(detail.connections || []))
+      .catch(() => setConnections([]));
   };
 
   const send = async () => {
@@ -65,7 +71,10 @@ export function MythologyModal({ onClose }: MythologyModalProps) {
     setBusy(true);
     try {
       const res = await mythologyChat(selected.id, text);
-      setTurns((prev) => [...prev, { role: selected.name, name: selected.name, text: res.reply }]);
+      const engineNote = res.engine === 'upstream-model'
+        ? '\n\n*— summoned through the live model*'
+        : '';
+      setTurns((prev) => [...prev, { role: selected.name, name: selected.name, text: res.reply + engineNote }]);
     } catch (e) {
       setTurns((prev) => [...prev, {
         role: selected.name, name: selected.name,
@@ -229,6 +238,26 @@ export function MythologyModal({ onClose }: MythologyModalProps) {
                   <div className="px-5 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
                     <div className="rounded-xl overflow-hidden max-h-56 mx-auto" style={{ border: '1px solid var(--border-color)' }}>
                       <img src={portrait} alt={selected.name} className="w-full h-full object-contain max-h-56" />
+                    </div>
+                  </div>
+                )}
+
+                {/* connections in the pantheon */}
+                {connections.length > 0 && (
+                  <div className="px-5 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                    <p className="text-[10px] font-mono mb-1" style={{ color: 'var(--text-muted)' }}>
+                      Connected in the pantheon
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {connections.map((conn, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-1 rounded-lg text-[10px]"
+                          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}
+                        >
+                          {conn.other} · {conn.relation}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}

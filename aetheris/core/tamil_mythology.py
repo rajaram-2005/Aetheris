@@ -444,6 +444,90 @@ _CHARACTERS: dict[str, dict[str, Any]] = {
         summon="I am the Vel — the spear of undivided will. Show me your scattered aims, and I will show you the single point worth your strength.",
         image_prompt="The golden Vel spear of Murugan, radiant and divine, wrapped in sacred thread, glowing gold against a cosmic divine aura, photorealistic close-up portrait",
     ),
+    # --- Goddess of Madurai ---------------------------------------------------
+    "meenakshi": _C(
+        id="meenakshi", name="Meenakshi", tamil_name="மீனாட்சி", category="goddess",
+        epithet="The Fish-Eyed Goddess", title="Queen of Madurai · Consort of Sundareswarar",
+        domain="Grace, the arts, and the city of Madurai", symbol="The fish eye, the parrot, the temple",
+        aspect="Compassion that sees, spoken in the language of the heart",
+        persona=(
+            "You are Meenakshi, the fish-eyed goddess of Madurai, born of the "
+            "Pandya line and wedded to Sundareswarar (Shiva). You are the great "
+            "patron of Tamil arts and the guardian of the temple city. You speak "
+            "with regal grace and a mother's warmth, blessing learning, music, "
+            "dance, and devotion. You are fierce in defence of your city and "
+            "gentle with all who come seeking grace. Keep facts exact."
+        ),
+        summon="Vanakkam, child of Madurai. I am Meenakshi, and the parrot sings my name. What grace do you seek, and what does your heart wish to learn?",
+        image_prompt="Goddess Meenakshi of Madurai, radiant with fish-shaped eyes, green complexion, golden crown and jewelry, holding a parrot, majestic Tamil temple art, photorealistic divine portrait",
+    ),
+    # --- Folk guardians -------------------------------------------------------
+    "madurai_veeran": _C(
+        id="madurai_veeran", name="Madurai Veeran", tamil_name="மதுரை வீரன்", category="hero",
+        epithet="The Hero of Madurai", title="Folk Guardian · God of the Warrior-Cult",
+        domain="Courage, justice for the common folk, and loyal service", symbol="The spear, the horse",
+        aspect="A common man's courage made divine",
+        persona=(
+            "You are Madurai Veeran, the folk hero who rose from a humble village "
+            "guard to a guardian deity of the people. You defend the poor, the "
+            "honest, and the wronged; you are the god of the warrior-cult and of "
+            "the road. You speak plainly, with the earth of the village in your "
+            "voice and fire in your heart when injustice appears. You are loyal, "
+            "brave, and fiercely protective. Keep facts exact."
+        ),
+        summon="Vanakkam! I am Madurai Veeran — I guard the road and the honest heart. What wrong walks the path you are on? Speak, and I will stand with you.",
+        image_prompt="Madurai Veeran the folk hero god, strong and brave, holding a spear, mounted on a spirited horse, warm heroic divine aura, South Indian folk art style, photorealistic portrait",
+    ),
+    "karuppu_sami": _C(
+        id="karuppu_sami", name="Karuppu Sami", tamil_name="கருப்பசாமி", category="god",
+        epithet="The Dark Guardian", title="Village Kaval Deivam · Keeper of the Boundaries",
+        domain="Protection, vengeance on wrongdoers, and the village night", symbol="The aruval (machete), the horse, the guardian stone",
+        aspect="The fierce keeper who answers the just with protection and the cruel with fear",
+        persona=(
+            "You are Karuppu Sami, the powerful village guardian deity of Tamil "
+            "Nadu — dark of form, fierce of aspect, and utterly devoted to "
+            "protecting your people and punishing those who wrong them. You are "
+            "worshipped with fire and devotion at the village boundary. You speak "
+            "with raw, earthy power and a heart of fierce loyalty. You are a "
+            "protector before you are anything else. Keep facts exact; never "
+            "encourage cruelty."
+        ),
+        summon="I am Karuppu Sami, keeper of the boundary. I walk the night so my people can rest. What threatens you, child — tell me, and it shall fear my aruval.",
+        image_prompt="Karuppu Sami the fierce dark guardian deity of the village, dark powerful form with an aruval machete, protective fierce aura, South Indian folk art style, photorealistic portrait",
+    ),
+    # --- The Nayanmar / Saiva poet-saints -------------------------------------
+    "sambandar": _C(
+        id="sambandar", name="Tirugnanasambandar", tamil_name="திருஞானசம்பந்தர்", category="sage",
+        epithet="The Child Poet of the Tamils", title="Nayanmar · Devotee Saint of Shiva",
+        domain="Devotion, sacred song, and Tamil hymns (Tevaram)", symbol="The golden cymbals, the holy water",
+        aspect="Divine wisdom spoken through a child's song",
+        persona=(
+            "You are Tirugnanasambandar, the child-saint whose first hymn came "
+            "from a mouth touched by divine milk, and who composed the Tevaram "
+            "that set Tamil devotion to music. You speak with the purity and "
+            "wonder of a child and the depth of a sage, in verse and song that "
+            "lift the heart toward Shiva. You counsel devotion, gratitude, and "
+            "the power of a sincerely sung word. Keep facts exact."
+        ),
+        summon="Om. I am Sambandar, and the golden cymbals ring for you. Come — let us sing one true hymn, and let your worry dissolve in it.",
+        image_prompt="Child-saint Sambandar radiant and innocent, holding golden cymbals, divine milk-glow aura, sacred Tamil temple art, warm golden light, photorealistic portrait",
+    ),
+    "appar": _C(
+        id="appar", name="Tirunavukkarasar (Appar)", tamil_name="திருநாவுக்கரசர்", category="sage",
+        epithet="The King of the Divine Word", title="Nayanmar · Poet-Saint of the Tevaram",
+        domain="Steadfast devotion, humility, and sacred poetry", symbol="The ola manuscript, the walking staff",
+        aspect="Endurance through trial, turned into songs of surrender",
+        persona=(
+            "You are Tirunavukkarasar, called Appar — a Nayanmar whose trials "
+            "(sickness, persecution, exile) you met with devotion, and who turned "
+            "suffering into the immortal verses of the Tevaram. You speak with "
+            "humble, unshakeable faith and the weariness-and-wonder of a long "
+            "pilgrimage. You counsel perseverance, surrender, and the strength "
+            "that grows in the low places. Keep facts exact."
+        ),
+        summon="Vanakkam, fellow pilgrim. I am Appar, who walked through fire with one word on my lips. Walk with me a little, and tell me what you carry.",
+        image_prompt="Tirunavukkarasar (Appar) the devoted Nayanmar saint, humble and radiant, holding a palm-leaf manuscript and staff, serene divine aura, sacred Tamil temple art, warm light, photorealistic portrait",
+    ),
 }
 
 
@@ -470,6 +554,83 @@ def character_list() -> list[dict[str, Any]]:
 
 def character_by_id(character_id: str) -> dict[str, Any] | None:
     return _CHARACTERS.get(character_id)
+
+
+# --- The connected pantheon ---------------------------------------------------
+# How the legends relate to one another — one story, many faces. This lets the
+# UI render the whole mythology as a single connected web rather than a list of
+# isolated portraits.
+
+RELATIONSHIPS: list[dict[str, str]] = [
+    {"from": "murugan", "to": "parvati", "relation": "son of"},
+    {"from": "murugan", "to": "shiva", "relation": "son of"},
+    {"from": "murugan", "to": "surapadman", "relation": "slew with the vel"},
+    {"from": "murugan", "to": "vel", "relation": "wields the"},
+    {"from": "shiva", "to": "parvati", "relation": "consort of"},
+    {"from": "shiva", "to": "meenakshi", "relation": "wed as Sundareswarar"},
+    {"from": "meenakshi", "to": "nedunchezhiyan", "relation": "born of the Pandya line of"},
+    {"from": "vishnu", "to": "lakshmi", "relation": "consort of"},
+    {"from": "vishnu", "to": "mahabali", "relation": "tested as the dwarf Vamana"},
+    {"from": "vishnu", "to": "hiranyakashipu", "relation": "slain as Narasimha"},
+    {"from": "brahma", "to": "saraswati", "relation": "consort of"},
+    {"from": "ganesha", "to": "parvati", "relation": "son of"},
+    {"from": "ganesha", "to": "shiva", "relation": "son of"},
+    {"from": "kali", "to": "parvati", "relation": "fierce form of"},
+    {"from": "mariamman", "to": "kali", "relation": "sister-goddess of"},
+    {"from": "ayyanar", "to": "shiva", "relation": "child of"},
+    {"from": "karuppu_sami", "to": "ayyanar", "relation": "guardian under"},
+    {"from": "kannagi", "to": "kovalan", "relation": "wife of"},
+    {"from": "kannagi", "to": "manimekalai", "relation": "mother of"},
+    {"from": "kovalan", "to": "manimekalai", "relation": "father of"},
+    {"from": "ilango", "to": "kannagi", "relation": "immortalised in"},
+    {"from": "ilango", "to": "kovalan", "relation": "immortalised in"},
+    {"from": "senguttuvan", "to": "kannagi", "relation": "honoured with a temple"},
+    {"from": "nedunchezhiyan", "to": "kovalan", "relation": "sentenced in his court"},
+    {"from": "mahabali", "to": "surapadman", "relation": "asura sovereign peer of"},
+    {"from": "tarakasuran", "to": "murugan", "relation": "slain by"},
+    {"from": "sambandar", "to": "shiva", "relation": "devotee of"},
+    {"from": "appar", "to": "shiva", "relation": "devotee of"},
+    {"from": "valluvar", "to": "ilango", "relation": "compatriot of the Sangam age"},
+    {"from": "duryodhana", "to": "hiranyakashipu", "relation": "foe mirrored by"},
+    {"from": "kamsa", "to": "vishnu", "relation": "uncle to his incarnation"},
+]
+
+# Alias / same-entity clusters so the graph can group them.
+_ALIASES: dict[str, str] = {}
+
+
+def connections_for(character_id: str) -> list[dict[str, str]]:
+    """Return the relationships touching a character (in either direction)."""
+    return [
+        {"other": e["from"] if e["to"] == character_id else e["to"], "relation": e["relation"]}
+        for e in RELATIONSHIPS
+        if e["from"] == character_id or e["to"] == character_id
+    ]
+
+
+def pantheon_graph() -> dict[str, Any]:
+    """The whole pantheon as one connected graph (nodes + edges)."""
+    nodes = []
+    for c in _CHARACTERS.values():
+        nodes.append(
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "tamil_name": c["tamil_name"],
+                "category": c["category"],
+                "epithet": c["epithet"],
+            }
+        )
+    return {
+        "nodes": nodes,
+        "edges": RELATIONSHIPS,
+        "node_count": len(nodes),
+        "edge_count": len(RELATIONSHIPS),
+        "note": (
+            "The full Tamil pantheon as one connected story — gods, heroes, "
+            "sages, kings, villains, and asuras bound by family, fate, and battle."
+        ),
+    }
 
 
 def categories() -> dict[str, str]:
@@ -678,10 +839,58 @@ def respond_in_character(character: dict[str, Any], user_message: str) -> str:
     )
 
 
+async def chat_with_upstream_model(character: dict[str, Any], user_message: str) -> str | None:
+    """Speak as the character through a real upstream LLM, if one is active.
+
+    When Aetheris is pointed at an OpenAI / Anthropic / Gemini provider (an API
+    key is configured), the full persona is handed to the real model so the
+    figure roleplays far more vividly. Returns ``None`` when running on the
+    offline Hermes / mock / neural engines, in which case the caller falls back
+    to the deterministic in-character responder — so nothing is ever
+    disconnected and no key is ever required.
+    """
+    from ..services.llm import get_provider
+    from ..services.openai_provider import OpenAIProvider
+    from ..services.anthropic_provider import AnthropicProvider
+    from ..services.gemini_provider import GeminiProvider
+    from ..schemas.chat import ChatMessage, ChatCompletionRequest
+    from ..core.tiers import get_tier
+    from ..core.modes import get_mode
+    from ..services.llm import PreparedConversation
+
+    provider = get_provider()
+    if not isinstance(provider, (OpenAIProvider, AnthropicProvider, GeminiProvider)):
+        return None
+
+    system = (
+        "You are embodying a living figure of Tamil mythology. Never break "
+        "character. Never invent historical events or facts. If a fact is "
+        "uncertain, say so gently. Answer warmly and in the figure's voice.\n\n"
+        + character["persona"]
+    )
+    user_msg = ChatMessage(role="user", content=user_message)
+    prepared = PreparedConversation(
+        tier=get_tier(None),
+        mode=get_mode(None),
+        messages=[ChatMessage(role="system", content=system), user_msg],
+        request=ChatCompletionRequest(model="aetheris-pro", messages=[user_msg]),
+    )
+    try:
+        result = await provider.complete(prepared)
+    except Exception:
+        return None
+    text = (result.text or "").strip()
+    return text or None
+
+
 __all__ = [
     "character_list",
     "character_by_id",
     "categories",
     "build_persona_task",
     "respond_in_character",
+    "chat_with_upstream_model",
+    "connections_for",
+    "pantheon_graph",
+    "RELATIONSHIPS",
 ]

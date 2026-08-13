@@ -3727,34 +3727,53 @@ async def mythology_list() -> dict:
     }
 
 
+@router.get("/v1/mythology/graph", tags=["mythology"])
+async def mythology_graph() -> dict:
+    """The whole pantheon as one connected graph (family, fate & battle)."""
+    from ..core.tamil_mythology import pantheon_graph
+
+    return pantheon_graph()
+
+
 @router.get("/v1/mythology/{character_id}", tags=["mythology"])
 async def mythology_get(character_id: str) -> dict:
-    """Full details (including the persona) of one mythological figure."""
-    from ..core.tamil_mythology import character_by_id
+    """Full details (persona + connections) of one mythological figure."""
+    from ..core.tamil_mythology import character_by_id, connections_for
 
     character = character_by_id(character_id)
     if character is None:
         raise HTTPException(status_code=404, detail=f"No figure '{character_id}'.")
-    return character
+    detail = dict(character)
+    detail["connections"] = connections_for(character_id)
+    return detail
 
 
 @router.post("/v1/mythology/chat", tags=["mythology"])
 async def mythology_chat(body: MythologyChatRequest) -> dict:
     """Summon a mythological figure and speak with them.
 
-    The figure answers through its own voice using a dedicated in-character
-    responder, so the persona can never be hijacked by corpus grounding.
+    Layered by design so nothing is ever disconnected:
+      * If an upstream model (OpenAI / Anthropic / Gemini) is configured, the
+        figure's full persona is handed to the real model for vivid roleplay.
+      * Otherwise it falls back to a dedicated in-character responder so the
+        persona is never hijacked by corpus grounding and no key is required.
     """
     import time as _time
 
-    from ..core.tamil_mythology import character_by_id, respond_in_character
+    from ..core.tamil_mythology import (
+        character_by_id, chat_with_upstream_model, respond_in_character,
+    )
 
     character = character_by_id(body.character_id)
     if character is None:
         raise HTTPException(status_code=404, detail=f"No figure '{body.character_id}'.")
 
     started = _time.perf_counter()
-    reply = respond_in_character(character, body.message)
+    reply = await chat_with_upstream_model(character, body.message)
+    engine = "upstream-model"
+    if not reply:
+        reply = respond_in_character(character, body.message)
+        engine = "in-character"
     duration = (_time.perf_counter() - started) * 1000
     return {
         "character": {
@@ -3765,6 +3784,7 @@ async def mythology_chat(body: MythologyChatRequest) -> dict:
             "epithet": character["epithet"],
         },
         "reply": reply,
+        "engine": engine,
         "episode_id": "",
         "duration_ms": round(duration, 2),
     }
