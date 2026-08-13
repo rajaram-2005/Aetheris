@@ -88,6 +88,11 @@ async def lifespan(app: FastAPI):
         )
     if settings.security_headers_enabled:
         log.info("Security headers enabled.")
+
+    # Seed built-in release notes so /v1/changelog is populated on first boot.
+    from .core.changelog import seed_default_releases
+
+    seed_default_releases()
     if settings.security_hsts_max_age > 0:
         log.info("HSTS enabled (max-age=%d).", settings.security_hsts_max_age)
 

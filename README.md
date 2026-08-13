@@ -126,6 +126,14 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - **Audio** — 16-bit WAV melodies, chord progressions, and tones.
   - **Code** — projects scaffolded as runnable ZIPs, and snippets *executed*
     to prove they work before you are shown them.
+- **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
+  task (reasoning, math, code, research, latency, context length) and picks the
+  best fit with the reasons behind it, before a request hits the provider.
+- **Conversation summarizer** — `POST /v1/conversations/{id}/summarize` runs the
+  Hermes agent over a stored transcript and returns a structured recap
+  (summary, key points, action items), with a deterministic extractive fallback.
+- **Seeded release notes** — `/v1/changelog` is populated with the current
+  release's feature/fix entries on first boot.
 
 ---
 

@@ -95,6 +95,7 @@ export function Sidebar({
             className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center text-sm font-bold shadow-md"
             style={{ background: 'var(--accent-mint)', color: '#0a0e1a', fontFamily: 'var(--font-display)' }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/avatar-prime.png"
               alt="Aetheris Avatar"
@@ -201,6 +202,22 @@ export function Sidebar({
             >
               <span>🤖</span>
               <span>GPT Store</span>
+            </button>
+          )}
+
+          {onOpenDeepResearch && (
+            <button
+              onClick={onOpenDeepResearch}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(56, 189, 248, 0.1)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                color: '#38bdf8',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>🔬</span>
+              <span>Research</span>
             </button>
           )}
         </div>

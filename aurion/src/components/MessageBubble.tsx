@@ -39,14 +39,17 @@ export function MessageBubble({ message, onRate }: MessageBubbleProps) {
         {isUser ? (
           'U'
         ) : (
-          <img
-            src="/images/avatar-prime.png"
-            alt="Aetheris Avatar"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/avatar-prime.png"
+              alt="Aetheris Avatar"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </>
         )}
       </div>
 

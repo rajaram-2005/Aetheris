@@ -9,7 +9,7 @@
  * server's proxy — and never reaches for localhost from the browser.
  */
 
-import { HermesRun, MetaStats, KnowledgeArticleMeta, Adaptation, CustomNeuralModel, GalleryImage, ModelId } from '@/types';
+import { HermesRun, MetaStats, KnowledgeArticleMeta, Adaptation, CustomNeuralModel, GalleryImage } from '@/types';
 
 /** Base path for the API. Relative by design — see the module docstring. */
 const API = '';
