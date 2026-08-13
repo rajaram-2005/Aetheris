@@ -15,6 +15,7 @@ const KEYS = {
 export const DEFAULT_SETTINGS: Settings = {
   persona: 'balanced',
   theme: 'aurora',
+  model: 'aetheris-prime-v4',
   voiceEnabled: false,
   useMemory: true,
   learn: true,

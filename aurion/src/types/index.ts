@@ -1,12 +1,48 @@
 /* ─── Aetheris UI types ───
  *
  * These mirror the payloads served by the unified Hermes runtime
- * (`/v1/hermes/*`). Cognition types are no longer defined here as
- * browser-side structures — they are what the backend reports.
+ * (`/v1/hermes/*`) and sovereign neural architecture (`/v1/neural/*`).
  */
 
 export type Theme = 'aurora' | 'daylight' | 'ink';
 export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
+export type ModelId =
+  | 'aetheris-prime-v4'
+  | 'aetheris-omni-reasoner'
+  | 'aetheris-flash-v2'
+  | 'hermes-cognition-v4'
+  | 'aetheris-vision-v3';
+
+export interface CustomNeuralModel {
+  id: string;
+  name: string;
+  version: string;
+  parameters_total: string;
+  parameters_active: string;
+  architecture: string;
+  context_window: number;
+  max_output_tokens: number;
+  hidden_dim: number;
+  num_layers: number;
+  num_heads: number;
+  latency_ms_per_token: number;
+  description: string;
+  specialties: string[];
+  multimodal: boolean;
+  reasoning_pass: boolean;
+  is_sovereign: boolean;
+}
+
+export interface GalleryImage {
+  id: string;
+  url: string;
+  title: string;
+  tagline: string;
+  prompt: string;
+  category: string;
+  tags: string[];
+  dimensions: string;
+}
 
 /* ── Hermes cascade ── */
 
@@ -133,6 +169,7 @@ export interface Thread {
 export interface Settings {
   persona: Persona;
   theme: Theme;
+  model: ModelId;
   voiceEnabled: boolean;
   useMemory: boolean;
   learn: boolean;

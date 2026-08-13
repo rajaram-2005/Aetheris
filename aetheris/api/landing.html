@@ -826,6 +826,81 @@
       .closing { padding: 95px 0; }
     }
 
+    /* Gallery Section & Mind-Blowing Visual Cards */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 28px;
+    }
+    .gallery-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
+    }
+    .gallery-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--teal);
+      box-shadow: 0 16px 40px rgba(0, 180, 216, 0.2);
+    }
+    .gallery-card__image {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      width: 100%;
+      background: #02050c;
+      overflow: hidden;
+    }
+    .gallery-card__image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform .5s ease;
+    }
+    .gallery-card:hover .gallery-card__image img {
+      transform: scale(1.05);
+    }
+    .gallery-card__badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(6, 9, 20, 0.85);
+      border: 1px solid var(--teal-soft);
+      color: var(--teal-soft);
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      backdrop-filter: blur(4px);
+    }
+    .gallery-card__body {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .gallery-card__body h3 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .gallery-card__body .tagline {
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: var(--teal-soft);
+      font-weight: 500;
+    }
+    .gallery-card__body .prompt {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -847,6 +922,7 @@
         <a href="#playground">Playground</a>
         <a href="#capabilities">Capabilities</a>
         <a href="#models">Models</a>
+        <a href="#gallery">Visual Studio</a>
         <a href="#architecture">Architecture</a>
         <a href="#developers">Developers</a>
       </div>
@@ -908,8 +984,12 @@
             </div>
             <div class="window-body">
               <div class="prompt-block">
-                <div class="prompt-label"><span>Input / 01</span><span>Engineering mode</span></div>
+                <div class="prompt-label"><span>Input / 01</span><span>Engineering mode · Prime v4</span></div>
                 <p>Design a fault-tolerant event pipeline that can evolve without downtime.</p>
+              </div>
+              <div class="hero-image-banner" style="position:relative; border-radius:12px; overflow:hidden; margin:10px 0; border:1px solid rgba(0,180,216,0.3); max-height:140px; box-shadow:0 8px 24px rgba(0,180,216,0.2);">
+                <img src="/images/hero-neural-core.png" alt="Aetheris Neural Lattice" style="width:100%; height:140px; object-fit:cover; display:block;" />
+                <div style="position:absolute; bottom:8px; left:8px; background:rgba(6,9,20,0.85); backdrop-filter:blur(4px); padding:3px 8px; border-radius:6px; font-size:10px; font-family:monospace; color:var(--teal-soft); border:1px solid var(--teal-soft);">✦ Sovereign Neural Lattice v4.0</div>
               </div>
               <div class="reasoning-map" aria-hidden="true">
                 <span class="map-label l1">constraints</span>
@@ -1152,17 +1232,27 @@
     <section class="section models-section" id="models" aria-labelledby="models-title">
       <div class="container">
         <div class="section-heading">
-          <div><span class="eyebrow">04 / Intelligence tiers</span><h2 id="models-title">The right depth<br><span class="gradient-text">at the right speed.</span></h2></div>
-          <p>Choose the compute profile that matches the moment—from low-latency responses to deliberate, extended reasoning.</p>
+          <div><span class="eyebrow">04 / Sovereign neural tiers</span><h2 id="models-title">The right depth<br><span class="gradient-text">at the right speed.</span></h2></div>
+          <p>Choose the in-house compute profile that matches the moment—from sub-millisecond Flash v2 to deep multi-pass Omni reasoning.</p>
         </div>
         <div class="tier-grid">@@TIER_CARDS@@</div>
+      </div>
+    </section>
+
+    <section class="section gallery-section" id="gallery" aria-labelledby="gallery-title">
+      <div class="container">
+        <div class="section-heading">
+          <div><span class="eyebrow">05 / Visual Synthesis &amp; UI Design</span><h2 id="gallery-title">Mind-blowing visuals.<br><span class="gradient-text">Neural creativity unleashed.</span></h2></div>
+          <p>Explore high-dimensional generative art, procedural vector graphics, and 3D neural matrix visualizers produced directly by the Aetheris Vision-Gen model.</p>
+        </div>
+        <div class="gallery-grid">@@GALLERY_SHOWCASE@@</div>
       </div>
     </section>
 
     <section class="section architecture" id="architecture" aria-labelledby="architecture-title">
       <div class="architecture-layout container">
         <div class="architecture-copy">
-          <span class="eyebrow">05 / Foundation architecture</span>
+          <span class="eyebrow">06 / Foundation architecture</span>
           <h2 id="architecture-title">Engineered to<br><span class="gradient-text">hold the thread.</span></h2>
           <p>A decoder-only multimodal transformer optimized for long-context comprehension, structured code execution, and autonomous tool use.</p>
           <div class="modality-list" aria-label="Supported modalities">@@MODALITIES@@</div>

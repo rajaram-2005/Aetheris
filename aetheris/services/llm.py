@@ -139,9 +139,12 @@ def get_provider() -> LLMProvider:
     # Local imports keep the factory decoupled from the implementations.
     from .hermes_provider import HermesProvider
     from .mock_provider import MockProvider
+    from .neural_provider import AetherisNeuralProvider
     from .openai_provider import OpenAIProvider
 
-    if settings.llm_provider == "openai" and settings.has_credentials:
+    if settings.llm_provider in ("aetheris_neural", "neural"):
+        _provider = AetherisNeuralProvider(default_model=settings.llm_model)
+    elif settings.llm_provider == "openai" and settings.has_credentials:
         _provider = OpenAIProvider(
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,

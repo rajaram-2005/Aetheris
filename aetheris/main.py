@@ -133,6 +133,13 @@ def create_app() -> FastAPI:
     from .api.middleware import install_middleware
     install_middleware(app)
 
+    # Mount static assets directory
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+    static_dir = Path(__file__).resolve().parent / "api" / "static"
+    if static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
     app.include_router(landing_router)
     app.include_router(api_router)
 

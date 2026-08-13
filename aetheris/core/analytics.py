@@ -62,7 +62,7 @@ class _RequestRecord:
 @dataclass
 class _CostRates:
     """Per-token cost rates in USD."""
-    prompt_per_1k: float = 0.005   # $0.005 per 1K prompt tokens (GPT-4o-mini-ish)
+    prompt_per_1k: float = 0.002   # $0.002 per 1K prompt tokens (Aetheris Prime rate)
     completion_per_1k: float = 0.015  # $0.015 per 1K completion tokens
 
 

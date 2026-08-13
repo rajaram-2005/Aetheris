@@ -202,6 +202,69 @@ def _training_stages() -> str:
     )
 
 
+def _gallery_showcase() -> str:
+    images = [
+        {
+            "url": "/images/hero-neural-core.png",
+            "title": "Sovereign Neural Core v4.0",
+            "tagline": "Quantum Synaptic Crystal Lattice",
+            "badge": "Core Architecture",
+            "prompt": "A breathtaking ultra-high-definition 8k futuristic neural quantum AI core, glowing cybernetic crystal lattice with intricate luminous synaptic connections, neon cyan, electric teal, and deep cosmic indigo filaments pulsing with energy.",
+        },
+        {
+            "url": "/images/multi-agent-nexus.png",
+            "title": "Multi-Agent MoE Holographic Matrix",
+            "tagline": "Decentralized Swarm Orchestration",
+            "badge": "Agent Swarm",
+            "prompt": "An extraordinary isometric 3D visualization of an autonomous multi-agent AI neural orchestrator, glowing holographic floating interface nodes, futuristic cybernetic data streams, iridescent purple and electric mint lasers connecting floating cognitive modules.",
+        },
+        {
+            "url": "/images/neural-canvas-synthesis.png",
+            "title": "Neural Canvas & Multimodal Synthesis",
+            "tagline": "High-Dimensional Generative Flow",
+            "badge": "Generative Media",
+            "prompt": "A mind-blowing surreal generative AI visual synthesis art piece, iridescent liquid chrome and glowing neon particles morphing into futuristic digital geometry, vibrant teal, magenta and gold lighting.",
+        },
+        {
+            "url": "/images/deep-reasoning-matrix.png",
+            "title": "Aetheris Omni Deep Reasoning Matrix",
+            "tagline": "Recursive Mathematical Proof Engine",
+            "badge": "Reasoning Core",
+            "prompt": "A stunning futuristic quantum reasoning matrix, glowing mathematical geometric mandalas and synaptic decision trees floating in dark space, electric blue and neon gold highlights.",
+        },
+        {
+            "url": "/images/sovereign-shield-privacy.png",
+            "title": "Cryptographic Sovereign Shield",
+            "tagline": "Air-Gapped Private Intelligence",
+            "badge": "Zero Cloud",
+            "prompt": "A hyper-detailed futuristic cybernetic sovereign privacy shield, glowing cryptographic geometric rings, holographic data lock, neon mint and midnight indigo refraction.",
+        },
+        {
+            "url": "/images/aetheris-banner.png",
+            "title": "Aetheris Cosmic Intelligence Matrix",
+            "tagline": "Infinite Knowledge · Refined Synthesis",
+            "badge": "Neural Horizon",
+            "prompt": "Cinematic wide cyberpunk banner of Aetheris sovereign intelligence matrix, glowing neural networks spreading across a dark cosmic horizon, neon teal and deep violet light trails.",
+        },
+    ]
+    cards = []
+    for img in images:
+        cards.append(f"""
+        <div class="gallery-card" data-reveal>
+          <div class="gallery-card__image">
+            <img src="{_esc(img['url'])}" alt="{_esc(img['title'])}" loading="lazy" />
+            <span class="gallery-card__badge">{_esc(img['badge'])}</span>
+          </div>
+          <div class="gallery-card__body">
+            <h3>{_esc(img['title'])}</h3>
+            <p class="tagline">{_esc(img['tagline'])}</p>
+            <p class="prompt">{_esc(img['prompt'])}</p>
+          </div>
+        </div>
+        """)
+    return "\n".join(cards)
+
+
 def _render() -> str:
     modality_html, optimization_html, contexts_html = _architecture_content()
     replacements = {
@@ -216,6 +279,7 @@ def _render() -> str:
         "@@PLAYGROUND_MODES@@": _playground_modes(),
         "@@PLAYGROUND_MODELS@@": _playground_models(),
         "@@CAPABILITY_CARDS@@": _capability_cards(),
+        "@@GALLERY_SHOWCASE@@": _gallery_showcase(),
         "@@MODALITIES@@": modality_html,
         "@@OPTIMIZATIONS@@": optimization_html,
         "@@CONTEXTS@@": contexts_html,

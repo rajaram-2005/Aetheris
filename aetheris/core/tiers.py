@@ -65,71 +65,90 @@ class ModelTier:
 LITE_TIER: Final[ModelTier] = ModelTier(
     id="aetheris-lite",
     alias="flash",
-    display_name="Aetheris Lite",
-    tagline="Fast, low-latency intelligence for instant chat.",
+    display_name="Aetheris Lite (Flash v2)",
+    tagline="Fast, low-latency sovereign neural intelligence for instant chat.",
     description=(
-        "Aetheris Lite (Flash) is a fast, low-latency model for instant chat, "
+        "Aetheris Lite (Flash v2) is a custom low-latency sovereign model for instant chat, "
         "quick customer support, and lightweight task automation."
     ),
-    context_window=32_768,
-    max_output_tokens=4_096,
+    context_window=65_536,
+    max_output_tokens=8_192,
     latency_class="low",
     reasoning=False,
-    upstream_model="gpt-4o-mini",
-    capabilities=("instant_chat", "lightweight_automation", "low_latency"),
+    upstream_model="aetheris-flash-v2",
+    capabilities=("instant_chat", "lightweight_automation", "low_latency", "sovereign_neural"),
 )
 
 PRO_TIER: Final[ModelTier] = ModelTier(
     id="aetheris-pro",
     alias="pro",
-    display_name="Aetheris Pro",
-    tagline="The balanced daily workhorse for real work.",
+    display_name="Aetheris Pro (Prime v4)",
+    tagline="The balanced daily sovereign workhorse for real work.",
     description=(
-        "Aetheris Pro is the balanced daily workhorse for coding, complex document "
-        "analysis, and detailed writing."
+        "Aetheris Pro (Prime v4) is the sovereign multimodal workhorse for coding, complex document "
+        "analysis, multimodal perception, and detailed writing."
     ),
     context_window=131_072,
-    max_output_tokens=8_192,
+    max_output_tokens=16_384,
     latency_class="medium",
     reasoning=False,
-    upstream_model="gpt-4o",
+    upstream_model="aetheris-prime-v4",
     capabilities=(
         "deep_context_synthesis",
         "precision_code",
         "multimodal_fluidity",
         "tool_calling",
+        "sovereign_neural",
     ),
 )
 
 ULTRA_TIER: Final[ModelTier] = ModelTier(
     id="aetheris-ultra",
     alias="ultra",
-    display_name="Aetheris Ultra",
-    tagline="The heavyweight reasoning engine.",
+    display_name="Aetheris Ultra (Omni Reasoner)",
+    tagline="The sovereign heavyweight reasoning & proof engine.",
     description=(
-        "Aetheris Ultra (Reasoning Engine) is a heavyweight model trained for "
+        "Aetheris Ultra (Omni Reasoner) is a heavyweight sovereign model trained for "
         "advanced mathematical proofs, complex architecture design, and extended "
         "multi-step agent workflows."
     ),
     context_window=262_144,
-    max_output_tokens=16_384,
+    max_output_tokens=32_768,
     latency_class="high",
     reasoning=True,
-    upstream_model="o3-mini",
+    upstream_model="aetheris-omni-reasoner",
     capabilities=(
         "extended_reasoning",
         "mathematical_proofs",
         "architecture_design",
         "agentic_workflows",
         "self_correction",
+        "sovereign_neural",
     ),
 )
 
 TIERS: Final[tuple[ModelTier, ...]] = (LITE_TIER, PRO_TIER, ULTRA_TIER)
 
 # Map every accepted identifier (canonical id + alias) to its tier.
-_TIER_INDEX: Final[dict[str, ModelTier]] = {t.id: t for t in TIERS} | {
+_TIER_INDEX: Final[dict[str, ModelTier]] = {
+    t.id: t for t in TIERS
+} | {
     t.alias: t for t in TIERS
+} | {
+    "aetheris-prime-v4": PRO_TIER,
+    "aetheris-prime": PRO_TIER,
+    "prime-v4": PRO_TIER,
+    "prime": PRO_TIER,
+    "aetheris-omni-reasoner": ULTRA_TIER,
+    "aetheris-omni": ULTRA_TIER,
+    "omni-reasoner": ULTRA_TIER,
+    "omni": ULTRA_TIER,
+    "aetheris-flash-v2": LITE_TIER,
+    "aetheris-flash": LITE_TIER,
+    "flash-v2": LITE_TIER,
+    "lite": LITE_TIER,
+    "hermes-cognition-v4": PRO_TIER,
+    "hermes": PRO_TIER,
 }
 
 # The default tier when a request omits the model field.

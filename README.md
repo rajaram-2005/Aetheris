@@ -720,7 +720,7 @@ a `.env` file. See [`.env.example`](.env.example).
 | `AETHERIS_LLM_PROVIDER` | `mock` | `mock` (offline) or `openai`. |
 | `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL. |
 | `AETHERIS_LLM_API_KEY` | *(empty)* | API key for the upstream endpoint. |
-| `AETHERIS_LLM_MODEL` | `gpt-4o-mini` | Upstream fallback model. |
+| `AETHERIS_LLM_MODEL` | `aetheris-prime-v4` | Sovereign foundation model. |
 | `AETHERIS_LLM_TIMEOUT` | `120` | Per-request upstream timeout (seconds). |
 
 > If `AETHERIS_LLM_PROVIDER=openai` is set without an API key, Aetheris logs a

@@ -116,7 +116,7 @@ async def ui_index() -> HTMLResponse:
         return HTMLResponse(content=_BUILD_HINT)
 
 
-@router.get("/{asset_path:path}", include_in_schema=False)
+@router.api_route("/{asset_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 async def ui_asset(asset_path: str) -> FileResponse:
     """Serve any other static file from the export (favicon, svgs, routes).
 

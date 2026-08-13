@@ -1,13 +1,12 @@
 /* ─── Aetheris — main application shell ───
  *
- * The UI is a thin client over the unified Hermes runtime. It owns
- * presentation and local conversation history; every act of cognition is a
- * call to `/v1/hermes/*`.
+ * The UI is a thin client over the unified Hermes runtime & Sovereign Neural Core.
+ * Presentation owns local conversation history and rich visual studios.
  */
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Message, Thread, Settings, HermesRun, Attachment } from '@/types';
+import { Message, Thread, Settings, HermesRun, Attachment, ModelId } from '@/types';
 import { runHermes, sendFeedback, getManifest, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
@@ -21,6 +20,11 @@ import { SettingsPanel } from '@/components/SettingsPanel';
 import { CommandPalette } from '@/components/CommandPalette';
 import { SplashScreen } from '@/components/SplashScreen';
 import { PromptLibrary } from '@/components/PromptLibrary';
+import { GalleryModal } from '@/components/GalleryModal';
+import { BenchmarkModal } from '@/components/BenchmarkModal';
+import { CanvasWorkspace } from '@/components/CanvasWorkspace';
+import { AgentStoreModal } from '@/components/AgentStoreModal';
+import { DeepResearchModal } from '@/components/DeepResearchModal';
 
 interface RuntimeInfo {
   foundation: string;
@@ -41,6 +45,11 @@ export default function AetherisApp() {
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [showInspector, setShowInspector] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
+  const [showBenchmarks, setShowBenchmarks] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [showAgentStore, setShowAgentStore] = useState(false);
+  const [showDeepResearch, setShowDeepResearch] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -72,8 +81,8 @@ export default function AetherisApp() {
       .catch(() => {
         if (!cancelled) {
           setRuntime({
-            foundation: 'Hermes Agent + Meta-Learning',
-            version: '—',
+            foundation: 'Aetheris Sovereign Neural Core',
+            version: '4.2.0',
             episodes: 0,
             knowledge_articles: 0,
             online: false,
@@ -81,7 +90,7 @@ export default function AetherisApp() {
         }
       })
       .finally(() => {
-        if (!cancelled) setTimeout(() => setBooting(false), 900);
+        if (!cancelled) setTimeout(() => setBooting(false), 800);
       });
 
     return () => {
@@ -105,6 +114,10 @@ export default function AetherisApp() {
         e.preventDefault();
         setSidebarOpen((v) => !v);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+        e.preventDefault();
+        setShowGallery((v) => !v);
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
         e.preventDefault();
         setShowInspector((v) => !v);
@@ -113,6 +126,11 @@ export default function AetherisApp() {
         setShowCommandPalette(false);
         setShowPromptLibrary(false);
         setShowSettings(false);
+        setShowGallery(false);
+        setShowBenchmarks(false);
+        setShowCanvas(false);
+        setShowAgentStore(false);
+        setShowDeepResearch(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -205,7 +223,7 @@ export default function AetherisApp() {
         const message =
           error instanceof HermesError
             ? error.message
-            : 'Something went wrong reaching the Hermes runtime.';
+            : 'Something went wrong reaching the sovereign neural runtime.';
         addMessage(threadId, {
           id: `m-${Date.now()}-error`,
           role: 'assistant',
@@ -245,6 +263,15 @@ export default function AetherisApp() {
     saveSettings(next);
   }, []);
 
+  const handleSelectModel = useCallback(
+    (model: ModelId) => {
+      const next = { ...settings, model };
+      setSettings(next);
+      saveSettings(next);
+    },
+    [settings],
+  );
+
   const handleExportThread = useCallback(() => {
     if (!currentThread) return;
     const md = exportThreadAsMarkdown(currentThread);
@@ -261,6 +288,7 @@ export default function AetherisApp() {
     (text: string) => {
       setShowPromptLibrary(false);
       setShowCommandPalette(false);
+      setShowGallery(false);
       handleSendMessage(text);
     },
     [handleSendMessage],
@@ -284,6 +312,11 @@ export default function AetherisApp() {
         onDeleteThread={handleDeleteThread}
         onOpenSettings={() => setShowSettings(true)}
         onOpenPrompts={() => setShowPromptLibrary(true)}
+        onOpenGallery={() => setShowGallery(true)}
+        onOpenBenchmarks={() => setShowBenchmarks(true)}
+        onOpenCanvas={() => setShowCanvas(true)}
+        onOpenAgentStore={() => setShowAgentStore(true)}
+        onOpenDeepResearch={() => setShowDeepResearch(true)}
         onExport={handleExportThread}
       />
 
@@ -294,6 +327,13 @@ export default function AetherisApp() {
         onNewThread={handleNewThread}
         onToggleInspector={() => setShowInspector(!showInspector)}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onOpenGallery={() => setShowGallery(true)}
+        onOpenBenchmarks={() => setShowBenchmarks(true)}
+        onOpenCanvas={() => setShowCanvas(true)}
+        onOpenAgentStore={() => setShowAgentStore(true)}
+        onOpenDeepResearch={() => setShowDeepResearch(true)}
+        activeModel={settings.model || 'aetheris-prime-v4'}
+        onSelectModel={handleSelectModel}
         showInspector={showInspector}
         sidebarOpen={sidebarOpen}
         onRunPrompt={handleRunPrompt}
@@ -307,6 +347,10 @@ export default function AetherisApp() {
           settings={settings}
           onUpdate={handleUpdateSettings}
           onClose={() => setShowSettings(false)}
+          onOpenGallery={() => {
+            setShowSettings(false);
+            setShowGallery(true);
+          }}
         />
       )}
 
@@ -317,6 +361,12 @@ export default function AetherisApp() {
           threads={threads}
           onSelectThread={handleSelectThread}
           onNewThread={handleNewThread}
+          onOpenGallery={() => setShowGallery(true)}
+          onOpenBenchmarks={() => setShowBenchmarks(true)}
+          onOpenCanvas={() => setShowCanvas(true)}
+          onOpenAgentStore={() => setShowAgentStore(true)}
+          onOpenDeepResearch={() => setShowDeepResearch(true)}
+          onOpenSettings={() => setShowSettings(true)}
         />
       )}
 
@@ -324,6 +374,47 @@ export default function AetherisApp() {
         <PromptLibrary
           onClose={() => setShowPromptLibrary(false)}
           onRun={handleRunPrompt}
+        />
+      )}
+
+      {showGallery && (
+        <GalleryModal
+          isOpen={showGallery}
+          onClose={() => setShowGallery(false)}
+          onRunPrompt={handleRunPrompt}
+        />
+      )}
+
+      {showBenchmarks && (
+        <BenchmarkModal
+          isOpen={showBenchmarks}
+          onClose={() => setShowBenchmarks(false)}
+        />
+      )}
+
+      {showCanvas && (
+        <CanvasWorkspace
+          isOpen={showCanvas}
+          onClose={() => setShowCanvas(false)}
+          onRunInChat={handleRunPrompt}
+        />
+      )}
+
+      {showAgentStore && (
+        <AgentStoreModal
+          isOpen={showAgentStore}
+          onClose={() => setShowAgentStore(false)}
+          onSelectAgent={(agent) => {
+            handleRunPrompt(`[Activating Agent: ${agent.name}]\n${agent.system_prompt}\n\nHello! How can I assist you with ${agent.category}?`);
+          }}
+        />
+      )}
+
+      {showDeepResearch && (
+        <DeepResearchModal
+          isOpen={showDeepResearch}
+          onClose={() => setShowDeepResearch(false)}
+          onRunInChat={handleRunPrompt}
         />
       )}
     </div>
