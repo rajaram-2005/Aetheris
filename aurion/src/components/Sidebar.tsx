@@ -34,6 +34,7 @@ interface SidebarProps {
   onOpenIntegrations?: () => void;
   onOpenResources?: () => void;
   onOpenMythology?: () => void;
+  onOpenResearchEvolution?: () => void;
   onExport: () => void;
 }
 
@@ -68,6 +69,7 @@ export function Sidebar({
   onOpenIntegrations,
   onOpenResources,
   onOpenMythology,
+  onOpenResearchEvolution,
   onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -164,6 +166,8 @@ export function Sidebar({
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="2" width="12" height="12" rx="2" /><path d="M6 6h4v4H6z" /></svg>} />
           <SideTool label="Arena" onClick={onOpenBenchmarks} show={!!onOpenBenchmarks} icon={
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2.5" y="3" width="4.5" height="10" rx="1" /><rect x="9" y="3" width="4.5" height="10" rx="1" /></svg>} />
+          <SideTool label="AI Evol" onClick={onOpenResearchEvolution} show={!!onOpenResearchEvolution} icon={
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="6" /><path d="M8 2v4M8 10v4M2 8h4M10 8h4" /></svg>} />
         </div>
       </div>
 

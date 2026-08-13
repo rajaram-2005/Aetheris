@@ -265,6 +265,29 @@ def _gallery_showcase() -> str:
     return "\n".join(cards)
 
 
+def _research_evolution_showcase() -> str:
+    from ..core.research_hub import RESEARCH_REGISTRY, ERAS_METADATA
+    
+    era_cards = []
+    for era_id, meta in ERAS_METADATA.items():
+        era_feats = [f for f in RESEARCH_REGISTRY.values() if f.era == era_id]
+        highlights = ", ".join(f.name.split()[0] for f in era_feats[:4])
+        era_cards.append(f"""
+        <div class="cap-card" data-reveal>
+          <div class="cap-card__icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14"/></svg>
+          </div>
+          <span class="eyebrow">{_esc(meta['time_span'])} · {len(era_feats)} Milestones</span>
+          <h3>{_esc(meta['title'])}</h3>
+          <p>{_esc(meta['paradigm'])}</p>
+          <div style="margin-top: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--teal);">
+            Highlights: {_esc(highlights)}...
+          </div>
+        </div>
+        """)
+    return "\n".join(era_cards)
+
+
 def _render() -> str:
     modality_html, optimization_html, contexts_html = _architecture_content()
     replacements = {
@@ -279,6 +302,7 @@ def _render() -> str:
         "@@PLAYGROUND_MODES@@": _playground_modes(),
         "@@PLAYGROUND_MODELS@@": _playground_models(),
         "@@CAPABILITY_CARDS@@": _capability_cards(),
+        "@@RESEARCH_EVOLUTION_CARDS@@": _research_evolution_showcase(),
         "@@GALLERY_SHOWCASE@@": _gallery_showcase(),
         "@@MODALITIES@@": modality_html,
         "@@OPTIMIZATIONS@@": optimization_html,

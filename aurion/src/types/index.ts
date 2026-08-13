@@ -4,7 +4,24 @@
  * (`/v1/hermes/*`) and sovereign neural architecture (`/v1/neural/*`).
  */
 
-export type Theme = 'aurora' | 'daylight' | 'ink';
+export type Theme =
+  | 'aurora'
+  | 'daylight'
+  | 'ink'
+  | 'titanium'
+  | 'nordic'
+  | 'arcane'
+  | 'elven'
+  | 'celestial'
+  | 'alchemy'
+  | 'abyssal_horror'
+  | 'blood_moon'
+  | 'shadow_realm'
+  | 'cyberpunk_neon'
+  | 'synthwave'
+  | 'matrix_terminal'
+  | 'thamizh_mythos'
+  | 'olympus';
 export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
 export type ModeId =
   | 'general'
@@ -188,3 +205,49 @@ export interface Settings {
   learn: boolean;
   showInspector: boolean;
 }
+
+/* ── 50 AI Research Features (1950 - 2026) ── */
+
+export type EvolutionEraId =
+  | 'symbolic_foundations_1950_1980'
+  | 'statistical_learning_1990_2000'
+  | 'deep_learning_revolution_2010_2017'
+  | 'transformers_scaling_2018_2022'
+  | 'direct_alignment_efficiency_2023_2024'
+  | 'frontier_reasoning_compute_2024_2026';
+
+export interface ResearchFeatureItem {
+  id: string;
+  name: string;
+  era: EvolutionEraId;
+  year: number;
+  authors: string;
+  citation: string;
+  mathematical_formula: string;
+  summary: string;
+  description?: string;
+  key_innovations?: string[];
+  default_parameters?: Record<string, any>;
+}
+
+export interface ResearchTimelineItem {
+  year: number;
+  feature_id: string;
+  name: string;
+  era: EvolutionEraId;
+  paper_title: string;
+  milestone_impact: string;
+}
+
+export interface ResearchRunOutput {
+  feature_id: string;
+  name: string;
+  era: EvolutionEraId;
+  year: number;
+  status: string;
+  metrics: Record<string, any>;
+  artifacts: Record<string, any>;
+  theoretical_insight: string;
+  execution_time_ms: number;
+}
+

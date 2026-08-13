@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Thread } from '@/types';
+import { Thread, Theme } from '@/types';
 
 interface CommandPaletteProps {
   onClose: () => void;
@@ -19,6 +19,7 @@ interface CommandPaletteProps {
   onOpenGodDeck?: () => void;
   onOpenSettings?: () => void;
   onSelectMode?: (mode: 'myth' | 'legendary' | 'pro' | 'lite' | 'flash' | 'general') => void;
+  onSelectTheme?: (theme: Theme) => void;
 }
 
 interface Command {
@@ -45,6 +46,7 @@ export function CommandPalette({
   onOpenGodDeck,
   onOpenSettings,
   onSelectMode,
+  onSelectTheme,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -72,6 +74,25 @@ export function CommandPalette({
       { id: 'mode-pro', label: 'Mode: Pro', description: 'Operator voice — ship in the next hour', icon: '◆', category: 'Modes', action: () => { onSelectMode('pro'); onClose(); } },
       { id: 'mode-lite', label: 'Mode: Lite / Little', description: 'Simple short answers on any model', icon: '○', category: 'Modes', action: () => { onSelectMode('lite'); onClose(); } },
       { id: 'mode-flash', label: 'Mode: Flash', description: 'Fewest true words on any model', icon: '⚡', category: 'Modes', action: () => { onSelectMode('flash'); onClose(); } },
+    ] : []),
+    ...(onSelectTheme ? [
+      { id: 'theme-aurora', label: 'Theme: Aurora', description: 'Deep cosmic navy with electric mint', icon: '🌌', category: 'Themes (Professional)', action: () => { onSelectTheme('aurora'); onClose(); } },
+      { id: 'theme-daylight', label: 'Theme: Daylight', description: 'Crisp, high-legibility light studio', icon: '☀️', category: 'Themes (Professional)', action: () => { onSelectTheme('daylight'); onClose(); } },
+      { id: 'theme-ink', label: 'Theme: OLED Ink', description: 'True pitch black minimalist', icon: '🖤', category: 'Themes (Professional)', action: () => { onSelectTheme('ink'); onClose(); } },
+      { id: 'theme-titanium', label: 'Theme: Titanium', description: 'Enterprise slate-gray with cobalt', icon: '🛡️', category: 'Themes (Professional)', action: () => { onSelectTheme('titanium'); onClose(); } },
+      { id: 'theme-nordic', label: 'Theme: Nordic Frost', description: 'Glacial ice blue with arctic navy', icon: '❄️', category: 'Themes (Professional)', action: () => { onSelectTheme('nordic'); onClose(); } },
+      { id: 'theme-arcane', label: 'Theme: Arcane Sorcery', description: 'Mystic violet with runic amethyst', icon: '🔮', category: 'Themes (Magic & Fantasy)', action: () => { onSelectTheme('arcane'); onClose(); } },
+      { id: 'theme-elven', label: 'Theme: Elven Sanctuary', description: 'Enchanted forest emerald & gold', icon: '🌿', category: 'Themes (Magic & Fantasy)', action: () => { onSelectTheme('elven'); onClose(); } },
+      { id: 'theme-celestial', label: 'Theme: Celestial Starlight', description: 'Astral deep navy & luminous gold', icon: '✨', category: 'Themes (Magic & Fantasy)', action: () => { onSelectTheme('celestial'); onClose(); } },
+      { id: 'theme-alchemy', label: 'Theme: Philosopher Crucible', description: 'Alchemical brass & molten amber', icon: '⚗️', category: 'Themes (Magic & Fantasy)', action: () => { onSelectTheme('alchemy'); onClose(); } },
+      { id: 'theme-abyssal', label: 'Theme: Abyssal Horror', description: 'Lovecraftian void & toxic cyan glow', icon: '🐙', category: 'Themes (Horror & Gothic)', action: () => { onSelectTheme('abyssal_horror'); onClose(); } },
+      { id: 'theme-bloodmoon', label: 'Theme: Blood Moon', description: 'Gothic crimson & obsidian darkness', icon: '🩸', category: 'Themes (Horror & Gothic)', action: () => { onSelectTheme('blood_moon'); onClose(); } },
+      { id: 'theme-shadow', label: 'Theme: Shadow Realm', description: 'Spectral violet mist & haunted ash', icon: '👻', category: 'Themes (Horror & Gothic)', action: () => { onSelectTheme('shadow_realm'); onClose(); } },
+      { id: 'theme-cyberpunk', label: 'Theme: Cyberpunk 2077', description: 'Neon cyan, magenta & cyber yellow', icon: '⚡', category: 'Themes (Cyberpunk & Sci-Fi)', action: () => { onSelectTheme('cyberpunk_neon'); onClose(); } },
+      { id: 'theme-synthwave', label: 'Theme: Synthwave 1984', description: 'Retrofuturistic sunset pink & violet', icon: '🌴', category: 'Themes (Cyberpunk & Sci-Fi)', action: () => { onSelectTheme('synthwave'); onClose(); } },
+      { id: 'theme-matrix', label: 'Theme: Matrix Protocol', description: 'Phosphor green CRT terminal glow', icon: '💻', category: 'Themes (Cyberpunk & Sci-Fi)', action: () => { onSelectTheme('matrix_terminal'); onClose(); } },
+      { id: 'theme-thamizh', label: 'Theme: Dravidian Mythos', description: 'Temple terracotta & sacred saffron', icon: '🪔', category: 'Themes (Mythos & Lore)', action: () => { onSelectTheme('thamizh_mythos'); onClose(); } },
+      { id: 'theme-olympus', label: 'Theme: Mount Olympus', description: 'Divine marble, Olympian gold & lapis', icon: '🏛️', category: 'Themes (Mythos & Lore)', action: () => { onSelectTheme('olympus'); onClose(); } },
     ] : []),
     { id: 'new', label: 'New Exploration', description: 'Start a fresh conversation thread', icon: '✨', category: 'Actions', action: () => { onNewThread(); onClose(); } },
     { id: 'deep-reasoning', label: 'Deep Reasoning Proof', description: 'Perform multi-pass chain-of-thought verification', icon: '🧠', category: 'Reasoning', action: () => onRun('Solve and prove formally: ') },

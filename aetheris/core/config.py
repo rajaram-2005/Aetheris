@@ -784,6 +784,11 @@ class Settings(BaseSettings):
         default=True, description="Enable calibrated forecasting (Brier + buckets).",
     )
 
+    # --- v0.14.0 Research AI Evolution (50 Features 1950-2026) --------------
+    research_evolution_enabled: bool = Field(
+        default=True, description="Enable the 50-feature AI Research Evolution Engine (1950-2026).",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -938,6 +943,9 @@ class Settings(BaseSettings):
             "proof_kernel": self.proof_kernel_enabled,
             "redteam": self.redteam_enabled,
             "forecast": self.forecast_enabled,
+            # v0.14.0 Research AI Evolution (50 Features)
+            "research_evolution": self.research_evolution_enabled,
+            "research_features_count": 50,
         }
 
 

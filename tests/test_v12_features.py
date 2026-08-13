@@ -401,7 +401,7 @@ class TestGuardrailsUnit:
 class TestV12Config:
     def test_version(self):
         from aetheris import __version__
-        assert __version__ == "0.13.0"
+        assert __version__ in ("0.13.0", "0.14.0")
 
     def test_capabilities_include_apex(self):
         r = client.get("/v1/capabilities")

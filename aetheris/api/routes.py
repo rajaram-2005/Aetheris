@@ -73,6 +73,20 @@ from ..schemas.spec import (
     TrainingStageModel,
     TransformerConfigModel,
 )
+from ..schemas.research import (
+    EvolutionEra,
+    EvolutionSynthesisRequest,
+    EvolutionSynthesisResponse,
+    ResearchBenchmarkRequest,
+    ResearchBenchmarkResponse,
+    ResearchCatalogResponse,
+    ResearchErasResponse,
+    ResearchFeatureDetail,
+    ResearchFeatureSummary,
+    ResearchRunRequest,
+    ResearchRunResponse,
+    ResearchTimelineResponse,
+)
 from ..services.agent import run_agent, stream_agent
 from ..services.llm import (
     ProviderError,
@@ -5357,6 +5371,87 @@ async def god_forecast_resolve(fid: str, body: dict) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return rec.to_dict()
+
+
+# --- Research AI Evolution Engine (50 Research Features 1950-2026) ------------
+
+@router.get("/v1/research/catalog", response_model=ResearchCatalogResponse, tags=["research"])
+async def research_catalog(
+    era: EvolutionEra | None = None,
+    min_year: int | None = None,
+    max_year: int | None = None,
+) -> ResearchCatalogResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    hub = get_research_hub()
+    if era or min_year or max_year:
+        filtered = hub.list_features(era=era, min_year=min_year, max_year=max_year)
+        from ..core.research_hub import ERAS_METADATA
+        return ResearchCatalogResponse(
+            total_features=len(filtered),
+            eras=list(ERAS_METADATA.keys()),
+            features=filtered,
+        )
+    return hub.get_catalog()
+
+
+@router.get("/v1/research/timeline", response_model=ResearchTimelineResponse, tags=["research"])
+async def research_timeline() -> ResearchTimelineResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    return get_research_hub().get_timeline()
+
+
+@router.get("/v1/research/eras", response_model=ResearchErasResponse, tags=["research"])
+async def research_eras() -> ResearchErasResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    return get_research_hub().get_eras()
+
+
+@router.get("/v1/research/features/{feature_id}", response_model=ResearchFeatureDetail, tags=["research"])
+async def research_feature_detail(feature_id: str) -> ResearchFeatureDetail:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    detail = get_research_hub().get_feature(feature_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Research feature '{feature_id}' not found.")
+    return detail
+
+
+@router.post("/v1/research/features/{feature_id}/run", response_model=ResearchRunResponse, tags=["research"])
+async def research_feature_run(feature_id: str, request: ResearchRunRequest | None = None) -> ResearchRunResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    req = request or ResearchRunRequest()
+    try:
+        return get_research_hub().run_feature(feature_id, req)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Research feature '{feature_id}' not found.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/research/benchmark", response_model=ResearchBenchmarkResponse, tags=["research"])
+async def research_benchmark(request: ResearchBenchmarkRequest | None = None) -> ResearchBenchmarkResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    req = request or ResearchBenchmarkRequest()
+    return get_research_hub().run_benchmark(req)
+
+
+@router.post("/v1/research/evolution/synthesize", response_model=EvolutionSynthesisResponse, tags=["research"])
+async def research_evolution_synthesize(request: EvolutionSynthesisRequest) -> EvolutionSynthesisResponse:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    return get_research_hub().synthesize_evolution(request)
+
+
+@router.get("/v1/research/stats", tags=["research"])
+async def research_stats() -> dict[str, Any]:
+    _apex_flag("research_evolution_enabled", "Research AI Evolution is disabled.")
+    from ..core.research_hub import get_research_hub
+    return get_research_hub().get_stats()
 
 
 __all__ = ["router"]
