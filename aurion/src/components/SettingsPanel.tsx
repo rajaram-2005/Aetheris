@@ -78,6 +78,7 @@ const INFERENCE_MODES: { id: ModeId; label: string; desc: string }[] = [
   { id: 'pro', label: '◆ Pro', desc: 'Operator: ship in an hour' },
   { id: 'lite', label: '○ Lite / Little', desc: 'Simple, short, friendly' },
   { id: 'flash', label: '⚡ Flash', desc: 'Fewest true words' },
+  { id: 'thamizh', label: '🪔 Thamizh', desc: 'Sangam cadence · Tamil mythos · Tiruvalluvar' },
 ];
 
 const PERSONAS: { value: Persona; label: string; desc: string }[] = [

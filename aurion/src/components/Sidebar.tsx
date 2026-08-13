@@ -30,6 +30,9 @@ interface SidebarProps {
   onOpenDeepResearch?: () => void;
   onOpenApexLab?: () => void;
   onOpenGodDeck?: () => void;
+  onOpenSkills?: () => void;
+  onOpenIntegrations?: () => void;
+  onOpenResources?: () => void;
   onExport: () => void;
 }
 
@@ -40,6 +43,9 @@ const SKILL_CHIPS = [
   { icon: '🧮', label: 'Compute', prompt: 'Calculate optimal matrix multiplication complexity' },
   { icon: '✍️', label: 'Write', prompt: 'Help me draft a technical proposal for sovereign AI systems' },
   { icon: '📚', label: 'Study', prompt: 'Create a deep-dive curriculum for transformer attention mechanisms' },
+  { icon: '🪔', label: 'Thamizh', prompt: 'Speak to me in the Thamizh mythos mode' },
+  { icon: '🔊', label: 'Speak', prompt: 'What do you understand?' },
+  { icon: '🧩', label: 'Skills', prompt: 'Show me the Claude-style and Gemini-style skills available' },
 ];
 
 export function Sidebar({
@@ -60,6 +66,9 @@ export function Sidebar({
   onOpenDeepResearch,
   onOpenApexLab,
   onOpenGodDeck,
+  onOpenSkills,
+  onOpenIntegrations,
+  onOpenResources,
   onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -112,10 +121,10 @@ export function Sidebar({
           </div>
           <div>
             <span className="font-bold block leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-mint)' }}>
-              Aetheris
+              Aetheris · Thamizh
             </span>
             <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
-              Sovereign Neural Core
+              Mythos AI · by a Tamil developer
             </span>
           </div>
         </div>
@@ -254,6 +263,54 @@ export function Sidebar({
             >
               <span>Ω</span>
               <span>God</span>
+            </button>
+          )}
+
+          {onOpenSkills && (
+            <button
+              onClick={onOpenSkills}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(61, 255, 194, 0.1)',
+                border: '1px solid rgba(61, 255, 194, 0.3)',
+                color: 'var(--accent-mint)',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>🧩</span>
+              <span>Skills</span>
+            </button>
+          )}
+
+          {onOpenIntegrations && (
+            <button
+              onClick={onOpenIntegrations}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(96, 165, 250, 0.12)',
+                border: '1px solid rgba(96, 165, 250, 0.3)',
+                color: '#60a5fa',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>🔌</span>
+              <span>Connect</span>
+            </button>
+          )}
+
+          {onOpenResources && (
+            <button
+              onClick={onOpenResources}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(248, 113, 113, 0.1)',
+                border: '1px solid rgba(248, 113, 113, 0.3)',
+                color: '#f87171',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>🧰</span>
+              <span>Models</span>
             </button>
           )}
         </div>
@@ -423,8 +480,8 @@ export function Sidebar({
             fontFamily: 'var(--font-mono)',
           }}
         >
-          <span>🔒</span>
-          <span>Sovereign · No Cloud Mini 4.0 · Local</span>
+          <span>🪔</span>
+          <span>Thamizh Mythos · Offline · A Tamil Developer's AI</span>
         </div>
       </div>
     </aside>

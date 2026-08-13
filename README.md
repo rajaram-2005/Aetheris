@@ -136,6 +136,25 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 - **Voice endpoints** — `POST /v1/audio/speech` (text-to-speech, offline by
   default) and `POST /v1/audio/transcriptions` (speech-to-text via Whisper or
   Gemini when a key is set; an honest "not available offline" otherwise).
+- **Thamizh Mythos mode** — a mythology AI by a Tamil developer: the `thamizh`
+  inference mode speaks in the cadence of the Sangam poets and Tiruvalluvar's
+  kuṟaḷ (short, exact, resonant), while keeping every fact and number intact.
+- **Skills catalog** — `GET /v1/skills/catalog` lists browsable **Claude-style**
+  (artifacts, canvas, code review, projects) and **Gemini-style** (deep
+  research, vision, gems, multimodal synthesis) skill packs, each mapped to the
+  live toolbelt.
+- **Open-source resources** — `GET /v1/resources` is a curated catalog of local
+  runtimes (Ollama, LM Studio, vLLM, LiteLLM), hosted open-weight APIs (Groq,
+  Together, DeepSeek, Mistral, OpenRouter), and model families to plug in with
+  one `.env` change.
+- **More integrations** — Gmail, Google Meet, Google Calendar, Google Drive,
+  Google Sheets, Telegram, WhatsApp, LinkedIn, Instagram, YouTube — added to the
+  existing Slack / GitHub / Discord / Notion / Jira / Stripe / SendGrid / Twilio
+  templates.
+- **ChatGPT-style UI** — a chat shell with a visible input toolbar for every
+  form: text, voice (speech-to-text), speech (text-to-speech read-aloud),
+  image generation, and attachments, plus one-click Skills / Connect / Models
+  panels.
 - **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
   task (reasoning, math, code, research, latency, context length) and picks the
   best fit with the reasons behind it, before a request hits the provider.

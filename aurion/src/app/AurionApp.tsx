@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId } from '@/types';
-import { runHermes, sendFeedback, getManifest, HermesError } from '@/lib/hermes';
+import { runHermes, sendFeedback, getManifest, generateImage, synthesizeSpeech, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
   updateMessage, getSettings, saveSettings, getCurrentThreadId,
@@ -27,6 +27,9 @@ import { AgentStoreModal } from '@/components/AgentStoreModal';
 import { DeepResearchModal } from '@/components/DeepResearchModal';
 import { ApexLab } from '@/components/ApexLab';
 import { GodDeck } from '@/components/GodDeck';
+import { SkillsModal } from '@/components/SkillsModal';
+import { IntegrationsModal } from '@/components/IntegrationsModal';
+import { ResourcesModal } from '@/components/ResourcesModal';
 
 interface RuntimeInfo {
   foundation: string;
@@ -73,6 +76,12 @@ export default function AetherisApp() {
   const [showGodDeck, setShowGodDeck] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showResources, setShowResources] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [lastAssistantText, setLastAssistantText] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   /* Mount: confirm the runtime is reachable (local state was hydrated by the
@@ -149,6 +158,9 @@ export default function AetherisApp() {
         setShowDeepResearch(false);
         setShowApexLab(false);
         setShowGodDeck(false);
+        setShowSkills(false);
+        setShowIntegrations(false);
+        setShowResources(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -231,6 +243,7 @@ export default function AetherisApp() {
           mode: settings.mode || 'general',
         });
         setRun(result);
+        setLastAssistantText(result.answer);
         addMessage(threadId, {
           id: `m-${Date.now()}-assistant`,
           role: 'assistant',
@@ -317,10 +330,79 @@ export default function AetherisApp() {
       setShowPromptLibrary(false);
       setShowCommandPalette(false);
       setShowGallery(false);
+      setShowSkills(false);
       handleSendMessage(text);
     },
     [handleSendMessage],
   );
+
+  /** Append an assistant message to the current thread (for media results). */
+  const appendAssistantMessage = useCallback(
+    (content: string, run?: HermesRun) => {
+      let thread = currentThread;
+      if (!thread) {
+        thread = createThread();
+        setThreads((prev) => [thread!, ...prev]);
+      }
+      const id = thread.id;
+      addMessage(id, {
+        id: `m-${Date.now()}-assistant`,
+        role: 'assistant',
+        content,
+        timestamp: Date.now(),
+        run,
+      });
+      setLastAssistantText(content);
+      refreshThread(id);
+    },
+    [currentThread, refreshThread],
+  );
+
+  /** Generate an image (layered provider) and surface it in the chat. */
+  const handleGenerateImage = useCallback(
+    async (prompt: string) => {
+      if (!prompt.trim() || imageBusy) return;
+      setImageBusy(true);
+      appendAssistantMessage(`🎨 Generating an image for: *${prompt.trim()}*…`);
+      try {
+        const result = await generateImage(prompt.trim());
+        const md = `![generated image](${result.artifact.url})\n\n**${result.detail?.provider || 'Aetheris'}** · ${result.detail?.model || ''}`;
+        appendAssistantMessage(md);
+      } catch (e) {
+        appendAssistantMessage(
+          '⚠️ ' + (e instanceof Error ? e.message : 'Image generation failed.'),
+        );
+      } finally {
+        setImageBusy(false);
+      }
+    },
+    [appendAssistantMessage, imageBusy],
+  );
+
+  /** Speak text aloud via text-to-speech (offline formant by default). */
+  const handleSpeak = useCallback(
+    async (text: string) => {
+      if (!text.trim() || speaking) return;
+      setSpeaking(true);
+      try {
+        const result = await synthesizeSpeech(text.trim());
+        const audio = new Audio(result.artifact.url);
+        audio.onended = () => setSpeaking(false);
+        audio.onerror = () => setSpeaking(false);
+        audio.play();
+      } catch (e) {
+        setSpeaking(false);
+        appendAssistantMessage(
+          '⚠️ TTS failed: ' + (e instanceof Error ? e.message : 'Could not synthesize speech.'),
+        );
+      }
+    },
+    [speaking, appendAssistantMessage],
+  );
+
+  const handleSpeakLast = useCallback(() => {
+    if (lastAssistantText.trim()) handleSpeak(lastAssistantText);
+  }, [lastAssistantText, handleSpeak]);
 
   if (!mounted || booting) return <SplashScreen />;
 
@@ -347,6 +429,9 @@ export default function AetherisApp() {
         onOpenDeepResearch={() => setShowDeepResearch(true)}
         onOpenApexLab={() => setShowApexLab(true)}
         onOpenGodDeck={() => setShowGodDeck(true)}
+        onOpenSkills={() => setShowSkills(true)}
+        onOpenIntegrations={() => setShowIntegrations(true)}
+        onOpenResources={() => setShowResources(true)}
         onExport={handleExportThread}
       />
 
@@ -364,6 +449,9 @@ export default function AetherisApp() {
         onOpenDeepResearch={() => setShowDeepResearch(true)}
         onOpenApexLab={() => setShowApexLab(true)}
         onOpenGodDeck={() => setShowGodDeck(true)}
+        onOpenSkills={() => setShowSkills(true)}
+        onOpenIntegrations={() => setShowIntegrations(true)}
+        onOpenResources={() => setShowResources(true)}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
         activeMode={settings.mode || 'general'}
@@ -372,6 +460,12 @@ export default function AetherisApp() {
         sidebarOpen={sidebarOpen}
         onRunPrompt={handleRunPrompt}
         onRate={handleRate}
+        onGenerateImage={handleGenerateImage}
+        onSpeak={handleSpeak}
+        onSpeakLast={handleSpeakLast}
+        canSpeakLast={!!lastAssistantText}
+        imageBusy={imageBusy}
+        speaking={speaking}
       />
 
       {showInspector && <Inspector run={run} processing={processing} />}
@@ -470,6 +564,12 @@ export default function AetherisApp() {
           onRunInChat={handleRunPrompt}
         />
       )}
+
+      {showSkills && <SkillsModal onClose={() => setShowSkills(false)} onRun={handleRunPrompt} />}
+
+      {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
+
+      {showResources && <ResourcesModal onClose={() => setShowResources(false)} />}
     </div>
   );
 }
