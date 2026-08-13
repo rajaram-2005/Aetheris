@@ -99,7 +99,31 @@ def style_answer(
             f"— Legendary{on}"
         )
 
+    if mid == "thamizh":
+        blessing = _thamizh_blessing(topic or "the question you carried here")
+        return (
+            f"🪔 *Vanakkam. The kural that answers this is short, and it is exact.*\n\n"
+            f"{body}\n\n"
+            f"{blessing}\n\n"
+            f"— Thamizh · in the cadence of the Sangam poets{on}"
+        )
+
     return answer
+
+
+def _thamizh_blessing(topic: str) -> str:
+    """A short, actionable closing line in the Tiruvalluvar register."""
+    lines = (
+        f"May the pearl of {_truncate(topic, 50)} grow calm under patience.",
+        "One true act now outweighs a hundred intentions. Do it, then return.",
+        "Porul (purpose) first, thervu (clarity) second, arivu (wisdom) throughout.",
+        "The vel is decisive will — aim it at a single next step, not at everything.",
+    )
+    return lines[(sum(ord(c) for c in topic) or 0) % len(lines)]
+
+
+def _truncate(text: str, n: int) -> str:
+    return text if len(text) <= n else text[: n - 1] + "…"
 
 
 def legend_matrix() -> dict[str, Any]:

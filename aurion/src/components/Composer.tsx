@@ -37,9 +37,22 @@ interface ComposerProps {
   disabled: boolean;
   voiceActive: boolean;
   onToggleVoice: () => void;
+  /** Generate an image from the typed text (ChatGPT-style "create image"). */
+  onGenerateImage?: (prompt: string) => void;
+  /** Speak the typed text aloud via text-to-speech. */
+  onSpeak?: (text: string) => void;
+  /** Speak the assistant's last message aloud. */
+  onSpeakLast?: () => void;
+  canSpeakLast?: boolean;
+  imageBusy?: boolean;
+  speaking?: boolean;
 }
 
-export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: ComposerProps) {
+export function Composer({
+  onSend, disabled, voiceActive, onToggleVoice,
+  onGenerateImage, onSpeak, onSpeakLast, canSpeakLast,
+  imageBusy, speaking,
+}: ComposerProps) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -196,7 +209,48 @@ export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: Compo
             }}
           />
 
-          {/* Voice button */}
+          {/* Generate image (from the typed text) */}
+          {onGenerateImage && (
+            <button
+              onClick={() => text.trim() && onGenerateImage(text)}
+              disabled={disabled || imageBusy || !text.trim()}
+              className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5 disabled:opacity-30"
+              style={{
+                color: text.trim() ? 'var(--accent-purple)' : 'var(--text-muted)',
+                background: imageBusy ? 'rgba(192,132,252,0.1)' : 'transparent',
+              }}
+              title="Create an image from your prompt"
+            >
+              {imageBusy
+                ? <span className="text-xs" style={{ color: 'var(--accent-purple)' }}>…</span>
+                : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="2" y="2" width="14" height="14" rx="2" />
+                    <circle cx="6.5" cy="6.5" r="1.5" />
+                    <path d="M2 13l4-4 3 3 3-3 4 4" />
+                  </svg>}
+            </button>
+          )}
+
+          {/* Speak typed text aloud (TTS) */}
+          {onSpeak && (
+            <button
+              onClick={() => text.trim() && onSpeak(text)}
+              disabled={disabled || speaking || !text.trim()}
+              className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5 disabled:opacity-30"
+              style={{
+                color: text.trim() ? 'var(--accent-gold)' : 'var(--text-muted)',
+                background: speaking ? 'rgba(251,191,36,0.12)' : 'transparent',
+              }}
+              title="Speak this text aloud"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M3 7v4h3l4 3V4L6 7H3z" fill="currentColor" stroke="none" />
+                <path d="M12 6a3 3 0 010 6M14 4a6 6 0 010 10" />
+              </svg>
+            </button>
+          )}
+
+          {/* Voice button (speech-to-text) */}
           <button
             onClick={handleVoice}
             className="p-1.5 rounded-lg transition-colors flex-shrink-0 mb-0.5"
@@ -204,7 +258,7 @@ export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: Compo
               color: voiceActive ? 'var(--accent-mint)' : 'var(--text-muted)',
               background: voiceActive ? 'rgba(61,255,194,0.1)' : 'transparent',
             }}
-            title="Voice input"
+            title="Voice input (speech-to-text)"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
               <rect x="6" y="2" width="6" height="9" rx="3" />
@@ -230,8 +284,25 @@ export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: Compo
           </button>
         </div>
 
+        {/* Speak-last button (read the assistant's answer aloud) */}
+        {onSpeakLast && canSpeakLast && (
+          <button
+            onClick={onSpeakLast}
+            disabled={disabled || speaking}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+            style={{
+              background: 'rgba(251,191,36,0.1)',
+              border: '1px solid rgba(251,191,36,0.3)',
+              color: 'var(--accent-gold)',
+              fontFamily: 'var(--font-ui)',
+            }}
+          >
+            {speaking ? '⏹ Speaking…' : '🔊 Speak the last answer aloud'}
+          </button>
+        )}
+
         <p className="text-center text-[10px] mt-1.5" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          Aetheris · Hermes agent + meta-learning · offline · ⌘K for commands
+          Aetheris · Thamizh Mythos AI · text · voice · speech · image · ⌘K for commands
         </p>
       </div>
     </div>

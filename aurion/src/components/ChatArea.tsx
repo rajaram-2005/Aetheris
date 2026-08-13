@@ -20,6 +20,9 @@ interface ChatAreaProps {
   onOpenDeepResearch?: () => void;
   onOpenApexLab?: () => void;
   onOpenGodDeck?: () => void;
+  onOpenSkills?: () => void;
+  onOpenIntegrations?: () => void;
+  onOpenResources?: () => void;
   activeModel?: ModelId;
   onSelectModel?: (model: ModelId) => void;
   activeMode?: ModeId;
@@ -28,6 +31,15 @@ interface ChatAreaProps {
   sidebarOpen: boolean;
   onRunPrompt: (text: string) => void;
   onRate?: (message: Message, reward: number) => void;
+  /** Create an image from a prompt. */
+  onGenerateImage?: (prompt: string) => void;
+  /** Speak text aloud via TTS. */
+  onSpeak?: (text: string) => void;
+  /** Speak the last assistant answer aloud. */
+  onSpeakLast?: () => void;
+  canSpeakLast?: boolean;
+  imageBusy?: boolean;
+  speaking?: boolean;
 }
 
 const MODEL_NAMES: Record<ModelId, { label: string; icon: string }> = {
@@ -48,6 +60,7 @@ const MODE_NAMES: Record<ModeId, { label: string; icon: string }> = {
   pro: { label: 'Pro', icon: '◆' },
   lite: { label: 'Lite', icon: '○' },
   flash: { label: 'Flash', icon: '⚡' },
+  thamizh: { label: 'Thamizh', icon: '🪔' },
 };
 
 export function ChatArea({
@@ -64,6 +77,9 @@ export function ChatArea({
   onOpenDeepResearch,
   onOpenApexLab,
   onOpenGodDeck,
+  onOpenSkills,
+  onOpenIntegrations,
+  onOpenResources,
   activeModel = 'aetheris-prime-v4',
   onSelectModel,
   activeMode = 'general',
@@ -72,6 +88,12 @@ export function ChatArea({
   sidebarOpen,
   onRunPrompt,
   onRate,
+  onGenerateImage,
+  onSpeak,
+  onSpeakLast,
+  canSpeakLast,
+  imageBusy,
+  speaking,
 }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [voiceActive, setVoiceActive] = useState(false);
@@ -446,6 +468,12 @@ export function ChatArea({
         disabled={processing}
         voiceActive={voiceActive}
         onToggleVoice={() => setVoiceActive(!voiceActive)}
+        onGenerateImage={onGenerateImage}
+        onSpeak={onSpeak}
+        onSpeakLast={onSpeakLast}
+        canSpeakLast={canSpeakLast}
+        imageBusy={imageBusy}
+        speaking={speaking}
       />
     </div>
   );

@@ -150,3 +150,71 @@ export function getHealth(): Promise<{
 }> {
   return request('/v1/health');
 }
+
+/* ─── Multi-provider upgrade: skills, integrations, resources, media ─── */
+
+/** Curated skill packs (Claude-style & Gemini-style). */
+export function getSkillsCatalog(): Promise<{
+  label: string;
+  families: {
+    family: string;
+    note: string;
+    skills: {
+      id: string;
+      name: string;
+      icon: string;
+      description: string;
+      tools: string[];
+      trigger: string;
+    }[];
+  }[];
+}> {
+  return request('/v1/skills/catalog');
+}
+
+/** Available integration templates (Gmail, Meet, Telegram, …). */
+export function getIntegrations(): Promise<{
+  data: {
+    service: string;
+    name: string;
+    description: string;
+    auth_type: string;
+    required_fields: string[];
+    optional_fields: string[];
+  }[];
+}> {
+  return request('/v1/integrations');
+}
+
+/** Open-source runtimes, hosted APIs, and model families. */
+export function getResources(): Promise<{
+  label: string;
+  runtimes: { id: string; name: string; description: string; setup: string; offline: boolean }[];
+  hosted: { id: string; name: string; description: string; setup: string }[];
+  model_families: { id: string; name: string; license: string; url: string }[];
+  media: { id: string; name: string; kind: string; license: string; url: string }[];
+}> {
+  return request('/v1/resources');
+}
+
+/** Generate an image (layered: offline procedural or real model). */
+export function generateImage(prompt: string): Promise<{
+  artifact: { url: string; media_type: string };
+  detail: { provider: string; model: string };
+}> {
+  return request('/v1/images/generations', {
+    method: 'POST',
+    body: JSON.stringify({ prompt, width: 1024, height: 576 }),
+  });
+}
+
+/** Text-to-speech: returns an artifact URL to spoken audio. */
+export function synthesizeSpeech(text: string, voice = 'default'): Promise<{
+  artifact: { url: string };
+  detail: { provider: string; model: string };
+}> {
+  return request('/v1/audio/speech', {
+    method: 'POST',
+    body: JSON.stringify({ text, voice }),
+  });
+}

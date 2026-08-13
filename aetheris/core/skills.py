@@ -313,6 +313,98 @@ class SkillRegistry:
 _registry: SkillRegistry | None = None
 
 
+# --- Curated skill catalog (Claude-style & Gemini-style packs) -----------------
+
+def skill_catalog() -> dict[str, Any]:
+    """A curated, browsable catalog of skill packs inspired by Claude and Gemini.
+
+    Distinct from the live matching registry: this is a discoverable menu of
+    capabilities (Claude-style artifacts/canvas, Gemini-style deep research /
+    gems / multimodal), each mapping to prompts and tool hints the agent can run.
+    """
+    return {
+        "label": "Aetheris skill catalog — Claude-style & Gemini-style packs",
+        "families": [
+            {
+                "family": "Claude-style",
+                "note": "Deep work surfaces: artifacts, canvas, code review, projects.",
+                "skills": [
+                    {
+                        "id": "claude_artifacts",
+                        "name": "Artifacts",
+                        "icon": "🖼️",
+                        "description": "Produce runnable code / documents as a live artifact you can preview and iterate on.",
+                        "tools": ["create_project", "write_and_verify_code", "generate_image"],
+                        "trigger": "Build a reusable artifact I can run and refine.",
+                    },
+                    {
+                        "id": "claude_canvas",
+                        "name": "Canvas",
+                        "icon": "🎨",
+                        "description": "Open a shared workspace to draft, edit, and visualise long-form work collaboratively.",
+                        "tools": ["create_project", "think"],
+                        "trigger": "Open a canvas and help me draft this iteratively.",
+                    },
+                    {
+                        "id": "claude_code_review",
+                        "name": "Code review & pair programming",
+                        "icon": "💻",
+                        "description": "Architecture-first pair programming with review, debugging, and verified fixes.",
+                        "tools": ["code_interpreter", "write_and_verify_code"],
+                        "trigger": "Pair-program with me and review my code.",
+                    },
+                    {
+                        "id": "claude_projects",
+                        "name": "Projects / context",
+                        "icon": "🗂️",
+                        "description": "Mount your own documents and grounding so answers are anchored in your material.",
+                        "tools": ["document_search", "list_documents"],
+                        "trigger": "Use my project files as context.",
+                    },
+                ],
+            },
+            {
+                "family": "Gemini-style",
+                "note": "Broad multimodal depth: research, image understanding, gem specialists.",
+                "skills": [
+                    {
+                        "id": "gemini_deep_research",
+                        "name": "Deep Research",
+                        "icon": "🔬",
+                        "description": "Multi-step agentic research that searches, grounds, and synthesises with citations.",
+                        "tools": ["document_search", "web_fetch"],
+                        "trigger": "Deep-research this topic with citations.",
+                    },
+                    {
+                        "id": "gemini_image_understanding",
+                        "name": "Vision & image understanding",
+                        "icon": "👁️",
+                        "description": "Attach an image and have it analysed, described, or turned into code / copy.",
+                        "tools": ["generate_image"],
+                        "trigger": "Analyse the image I attached.",
+                    },
+                    {
+                        "id": "gemini_gems",
+                        "name": "Gems (specialist personas)",
+                        "icon": "💎",
+                        "description": "Spin up a custom agent persona with a system prompt and tool set for a domain.",
+                        "tools": ["think"],
+                        "trigger": "Create a specialist 'gem' for [domain].",
+                    },
+                    {
+                        "id": "gemini_multimodal",
+                        "name": "Multimodal synthesis",
+                        "icon": "🌐",
+                        "description": "Combine text, images, audio, and code in one workflow — create then narrate.",
+                        "tools": ["generate_image", "generate_audio"],
+                        "trigger": "Create an image and compose matching audio.",
+                    },
+                ],
+            },
+        ],
+    }
+
+
 def get_skill_registry() -> SkillRegistry:
     global _registry
     if _registry is None:
@@ -320,4 +412,4 @@ def get_skill_registry() -> SkillRegistry:
     return _registry
 
 
-__all__ = ["SkillRegistry", "SkillIn", "MatchRequest", "get_skill_registry"]
+__all__ = ["SkillRegistry", "SkillIn", "MatchRequest", "get_skill_registry", "skill_catalog"]

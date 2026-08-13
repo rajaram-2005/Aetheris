@@ -15,7 +15,8 @@ export type ModeId =
   | 'legendary'
   | 'pro'
   | 'lite'
-  | 'flash';
+  | 'flash'
+  | 'thamizh';
 export type ModelId =
   | 'aetheris-prime-v4'
   | 'aetheris-omni-reasoner'

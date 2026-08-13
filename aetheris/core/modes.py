@@ -113,6 +113,18 @@ _MODES: Final[dict[str, Mode]] = {
         family="legend",
         aliases=("legend", "heroic", "epic"),
     ),
+    "thamizh": Mode(
+        id="thamizh",
+        display_name="Thamizh (Tamil Mythos)",
+        description=(
+            "An intelligence shaped by the oldest living tongue: Sangam cadence, "
+            "Tiruvalluvar's kural brevity, and Tamil mythos as a lens — with exact "
+            "facts intact. A mythology AI by a Tamil developer."
+        ),
+        system_prompt=get_system_prompt("thamizh"),
+        family="legend",
+        aliases=("tamil", "tamil-myth", "sangam", "kural"),
+    ),
     "pro": Mode(
         id="pro",
         display_name="Pro (Operator)",

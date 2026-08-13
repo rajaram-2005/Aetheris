@@ -4775,6 +4775,28 @@ async def skills_create(body: dict) -> dict:
     return skill.to_dict()
 
 
+@router.get("/v1/skills/catalog", tags=["apex"])
+async def skills_catalog() -> dict:
+    """Curated skill packs inspired by Claude and Gemini (browsable menu)."""
+    from ..core.skills import skill_catalog
+
+    return skill_catalog()
+
+
+@router.get("/v1/resources", tags=["meta"])
+async def open_source_resources(provider: str | None = None) -> dict:
+    """Curated open-source runtimes, hosted APIs, and model families to plug in."""
+    from ..core.resources import resource_catalog, recommend_setup
+
+    catalog = resource_catalog()
+    if provider:
+        recipe = recommend_setup(provider)
+        if recipe is None:
+            raise HTTPException(status_code=404, detail=f"Unknown resource '{provider}'.")
+        return recipe
+    return catalog
+
+
 @router.get("/v1/skills/{skill_id}", tags=["apex"])
 async def skills_get(skill_id: str) -> dict:
     _apex_flag("skills_enabled", "Skills are disabled.")
