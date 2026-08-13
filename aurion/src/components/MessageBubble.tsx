@@ -31,7 +31,7 @@ export function MessageBubble({ message, onRate }: MessageBubbleProps) {
       <div
         className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-md overflow-hidden"
         style={{
-          background: isUser ? 'var(--accent-gold)' : 'linear-gradient(135deg, #00b4d8, #3dffc2)',
+          background: isUser ? 'var(--bg-tertiary)' : 'var(--bg-hover)',
           color: '#0a0e1a',
           fontFamily: 'var(--font-display)',
         }}
