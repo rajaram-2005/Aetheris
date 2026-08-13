@@ -3701,8 +3701,116 @@ async def embeddings_stats() -> dict:
 
 
 # ==============================================================================
-# Hermes — the unified offline agent + meta-learning runtime
+# Tamil Mythology — bring the legends to life
 # ==============================================================================
+
+class MythologyChatRequest(BaseModel):
+    """Speak with a summoned Tamil mythological character."""
+
+    character_id: str = Field(..., min_length=1, max_length=64)
+    message: str = Field(..., min_length=1, max_length=40_000)
+    session_id: str = Field(default="", max_length=128)
+    learn: bool | None = Field(default=None, description="Record this episode for meta-learning.")
+
+
+@router.get("/v1/mythology", tags=["mythology"])
+async def mythology_list() -> dict:
+    """List every summonable Tamil mythological figure (gods to villains)."""
+    from ..core.tamil_mythology import categories, character_list
+
+    characters = character_list()
+    return {
+        "count": len(characters),
+        "categories": categories(),
+        "characters": characters,
+        "note": "Summon any figure to talk to them, or generate their portrait.",
+    }
+
+
+@router.get("/v1/mythology/{character_id}", tags=["mythology"])
+async def mythology_get(character_id: str) -> dict:
+    """Full details (including the persona) of one mythological figure."""
+    from ..core.tamil_mythology import character_by_id
+
+    character = character_by_id(character_id)
+    if character is None:
+        raise HTTPException(status_code=404, detail=f"No figure '{character_id}'.")
+    return character
+
+
+@router.post("/v1/mythology/chat", tags=["mythology"])
+async def mythology_chat(body: MythologyChatRequest) -> dict:
+    """Summon a mythological figure and speak with them.
+
+    The figure answers through its own voice using a dedicated in-character
+    responder, so the persona can never be hijacked by corpus grounding.
+    """
+    import time as _time
+
+    from ..core.tamil_mythology import character_by_id, respond_in_character
+
+    character = character_by_id(body.character_id)
+    if character is None:
+        raise HTTPException(status_code=404, detail=f"No figure '{body.character_id}'.")
+
+    started = _time.perf_counter()
+    reply = respond_in_character(character, body.message)
+    duration = (_time.perf_counter() - started) * 1000
+    return {
+        "character": {
+            "id": character["id"],
+            "name": character["name"],
+            "tamil_name": character["tamil_name"],
+            "category": character["category"],
+            "epithet": character["epithet"],
+        },
+        "reply": reply,
+        "episode_id": "",
+        "duration_ms": round(duration, 2),
+    }
+
+
+@router.post("/v1/mythology/{character_id}/portrait", tags=["mythology"])
+async def mythology_portrait(character_id: str) -> GenerationResponse:
+    """Generate a portrait of a mythological figure (layered image provider)."""
+    from ..core.tamil_mythology import character_by_id
+
+    character = character_by_id(character_id)
+    if character is None:
+        raise HTTPException(status_code=404, detail=f"No figure '{character_id}'.")
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+
+    from ..media.image_providers import generate_image_bytes
+
+    prompt = character["image_prompt"]
+    try:
+        results = await generate_image_bytes(prompt, width=768, height=768, n=1)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    result = results[0]
+    ext = "jpg" if result.media_type == "image/jpeg" else "png"
+    artifact = get_store().put(
+        kind="image", media_type=result.media_type,
+        filename=f"mythology-{character_id}.{ext}", data=result.data,
+        prompt=prompt, metadata={
+            **result.meta, "provider": result.provider, "model": result.model,
+            "character": character_id,
+        },
+    )
+    return _generation_response(
+        "image", artifact, "url",
+        {
+            **result.meta, "provider": result.provider, "model": result.model,
+            "character": character_id, "name": character["name"],
+        },
+    )
+
+
+# ============================================================================
+# Hermes — the unified offline agent + meta-learning runtime
+# ============================================================================
 
 class HermesRunRequest(BaseModel):
     """A task for the unified Hermes agent."""

@@ -23,6 +23,7 @@ interface ChatAreaProps {
   onOpenSkills?: () => void;
   onOpenIntegrations?: () => void;
   onOpenResources?: () => void;
+  onOpenMythology?: () => void;
   activeModel?: ModelId;
   onSelectModel?: (model: ModelId) => void;
   activeMode?: ModeId;
@@ -80,6 +81,7 @@ export function ChatArea({
   onOpenSkills,
   onOpenIntegrations,
   onOpenResources,
+  onOpenMythology,
   activeModel = 'aetheris-prime-v4',
   onSelectModel,
   activeMode = 'general',
@@ -381,6 +383,23 @@ export function ChatArea({
             >
               <span>🎨</span>
               <span className="hidden md:inline">Visuals</span>
+            </button>
+          )}
+
+          {onOpenMythology && (
+            <button
+              onClick={onOpenMythology}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(251, 191, 36, 0.14)',
+                border: '1px solid rgba(251, 191, 36, 0.4)',
+                color: '#fbbf24',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="Summon Tamil mythology legends"
+            >
+              <span>🪔</span>
+              <span className="hidden md:inline">Mythos</span>
             </button>
           )}
 

@@ -218,3 +218,52 @@ export function synthesizeSpeech(text: string, voice = 'default'): Promise<{
     body: JSON.stringify({ text, voice }),
   });
 }
+
+/* ─── Tamil Mythology ─── */
+
+export interface MythCharacter {
+  id: string;
+  name: string;
+  tamil_name: string;
+  category: string;
+  epithet: string;
+  title: string;
+  domain: string;
+  symbol: string;
+  aspect: string;
+  summon: string;
+}
+
+export function getMythology(): Promise<{
+  count: number;
+  categories: Record<string, string>;
+  characters: MythCharacter[];
+}> {
+  return request('/v1/mythology');
+}
+
+/** Speak with a summoned mythological character. */
+export function mythologyChat(
+  characterId: string,
+  message: string,
+): Promise<{
+  character: { id: string; name: string; tamil_name: string; category: string; epithet: string };
+  reply: string;
+  episode_id: string;
+}> {
+  return request('/v1/mythology/chat', {
+    method: 'POST',
+    body: JSON.stringify({ character_id: characterId, message }),
+  });
+}
+
+/** Generate a portrait of a mythological figure. */
+export function mythologyPortrait(characterId: string): Promise<{
+  artifact: { url: string; media_type: string };
+  detail: { provider: string; name: string };
+}> {
+  return request(`/v1/mythology/${characterId}/portrait`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}

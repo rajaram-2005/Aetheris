@@ -30,6 +30,7 @@ import { GodDeck } from '@/components/GodDeck';
 import { SkillsModal } from '@/components/SkillsModal';
 import { IntegrationsModal } from '@/components/IntegrationsModal';
 import { ResourcesModal } from '@/components/ResourcesModal';
+import { MythologyModal } from '@/components/MythologyModal';
 
 interface RuntimeInfo {
   foundation: string;
@@ -79,6 +80,7 @@ export default function AetherisApp() {
   const [showSkills, setShowSkills] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [showMythology, setShowMythology] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [lastAssistantText, setLastAssistantText] = useState('');
@@ -161,6 +163,7 @@ export default function AetherisApp() {
         setShowSkills(false);
         setShowIntegrations(false);
         setShowResources(false);
+        setShowMythology(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -432,6 +435,7 @@ export default function AetherisApp() {
         onOpenSkills={() => setShowSkills(true)}
         onOpenIntegrations={() => setShowIntegrations(true)}
         onOpenResources={() => setShowResources(true)}
+        onOpenMythology={() => setShowMythology(true)}
         onExport={handleExportThread}
       />
 
@@ -452,6 +456,7 @@ export default function AetherisApp() {
         onOpenSkills={() => setShowSkills(true)}
         onOpenIntegrations={() => setShowIntegrations(true)}
         onOpenResources={() => setShowResources(true)}
+        onOpenMythology={() => setShowMythology(true)}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
         activeMode={settings.mode || 'general'}
@@ -570,6 +575,8 @@ export default function AetherisApp() {
       {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
 
       {showResources && <ResourcesModal onClose={() => setShowResources(false)} />}
+
+      {showMythology && <MythologyModal onClose={() => setShowMythology(false)} />}
     </div>
   );
 }
