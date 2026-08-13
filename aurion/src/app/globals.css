@@ -87,6 +87,263 @@
   --shadow-glow: rgba(52, 211, 153, 0.05);
 }
 
+/* ── Professional & Enterprise Themes ── */
+[data-theme="titanium"] {
+  --bg-primary: #0f141c;
+  --bg-secondary: #161c27;
+  --bg-tertiary: #1e2636;
+  --bg-hover: #263045;
+  --text-primary: #f0f3f8;
+  --text-secondary: #9aa5b8;
+  --text-muted: #606e84;
+  --accent-mint: #60a5fa;
+  --accent-gold: #38bdf8;
+  --accent-blue: #3b82f6;
+  --accent-purple: #818cf8;
+  --accent-pink: #93c5fd;
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-hover: rgba(96, 165, 250, 0.4);
+  --shadow-glow: rgba(96, 165, 250, 0.12);
+}
+
+[data-theme="nordic"] {
+  --bg-primary: #0b1118;
+  --bg-secondary: #111a24;
+  --bg-tertiary: #182432;
+  --bg-hover: #203042;
+  --text-primary: #eaf4fd;
+  --text-secondary: #9ec2e2;
+  --text-muted: #5b80a4;
+  --accent-mint: #38bdf8;
+  --accent-gold: #7dd3fc;
+  --accent-blue: #0ea5e9;
+  --accent-purple: #a5b4fc;
+  --accent-pink: #bae6fd;
+  --border-color: rgba(56, 189, 248, 0.12);
+  --border-hover: rgba(56, 189, 248, 0.4);
+  --shadow-glow: rgba(56, 189, 248, 0.15);
+}
+
+/* ── Magic & Fantasy Themes ── */
+[data-theme="arcane"] {
+  --bg-primary: #0e0919;
+  --bg-secondary: #171026;
+  --bg-tertiary: #221838;
+  --bg-hover: #2e214c;
+  --text-primary: #f5efff;
+  --text-secondary: #cbb8ea;
+  --text-muted: #846ca8;
+  --accent-mint: #c084fc;
+  --accent-gold: #f472b6;
+  --accent-blue: #818cf8;
+  --accent-purple: #d8b4fe;
+  --accent-pink: #f43f5e;
+  --border-color: rgba(192, 132, 252, 0.15);
+  --border-hover: rgba(192, 132, 252, 0.5);
+  --shadow-glow: rgba(192, 132, 252, 0.2);
+}
+
+[data-theme="elven"] {
+  --bg-primary: #08130e;
+  --bg-secondary: #0e1d16;
+  --bg-tertiary: #162a20;
+  --bg-hover: #1e382b;
+  --text-primary: #eefbf4;
+  --text-secondary: #a7dcc1;
+  --text-muted: #5e9c7e;
+  --accent-mint: #34d399;
+  --accent-gold: #fbbf24;
+  --accent-blue: #2dd4bf;
+  --accent-purple: #86efac;
+  --accent-pink: #fde047;
+  --border-color: rgba(52, 211, 153, 0.14);
+  --border-hover: rgba(251, 191, 36, 0.4);
+  --shadow-glow: rgba(52, 211, 153, 0.15);
+}
+
+[data-theme="celestial"] {
+  --bg-primary: #090d1f;
+  --bg-secondary: #101733;
+  --bg-tertiary: #19234a;
+  --bg-hover: #233063;
+  --text-primary: #fbfdff;
+  --text-secondary: #b8c7f2;
+  --text-muted: #697aa6;
+  --accent-mint: #facc15;
+  --accent-gold: #fde047;
+  --accent-blue: #60a5fa;
+  --accent-purple: #c084fc;
+  --accent-pink: #f472b6;
+  --border-color: rgba(250, 204, 21, 0.16);
+  --border-hover: rgba(250, 204, 21, 0.45);
+  --shadow-glow: rgba(250, 204, 21, 0.18);
+}
+
+[data-theme="alchemy"] {
+  --bg-primary: #140f09;
+  --bg-secondary: #1e170e;
+  --bg-tertiary: #2a2014;
+  --bg-hover: #382b1b;
+  --text-primary: #fff8ed;
+  --text-secondary: #dcc3a2;
+  --text-muted: #8e7657;
+  --accent-mint: #f59e0b;
+  --accent-gold: #fbbf24;
+  --accent-blue: #d97706;
+  --accent-purple: #ea580c;
+  --accent-pink: #f97316;
+  --border-color: rgba(245, 158, 11, 0.16);
+  --border-hover: rgba(245, 158, 11, 0.45);
+  --shadow-glow: rgba(245, 158, 11, 0.18);
+}
+
+/* ── Horror & Gothic Themes ── */
+[data-theme="abyssal_horror"] {
+  --bg-primary: #030708;
+  --bg-secondary: #061012;
+  --bg-tertiary: #0a1a1e;
+  --bg-hover: #10262c;
+  --text-primary: #d5f7f6;
+  --text-secondary: #78bec1;
+  --text-muted: #3b6f72;
+  --accent-mint: #06b6d4;
+  --accent-gold: #14b8a6;
+  --accent-blue: #0284c7;
+  --accent-purple: #6366f1;
+  --accent-pink: #22d3ee;
+  --border-color: rgba(6, 182, 212, 0.18);
+  --border-hover: rgba(6, 182, 212, 0.5);
+  --shadow-glow: rgba(6, 182, 212, 0.22);
+}
+
+[data-theme="blood_moon"] {
+  --bg-primary: #100507;
+  --bg-secondary: #1a090c;
+  --bg-tertiary: #260d12;
+  --bg-hover: #36131a;
+  --text-primary: #ffecef;
+  --text-secondary: #e2a3ac;
+  --text-muted: #935a64;
+  --accent-mint: #f43f5e;
+  --accent-gold: #fb7185;
+  --accent-blue: #fda4af;
+  --accent-purple: #e11d48;
+  --accent-pink: #be123c;
+  --border-color: rgba(244, 63, 94, 0.2);
+  --border-hover: rgba(244, 63, 94, 0.55);
+  --shadow-glow: rgba(244, 63, 94, 0.25);
+}
+
+[data-theme="shadow_realm"] {
+  --bg-primary: #0a090f;
+  --bg-secondary: #12101b;
+  --bg-tertiary: #1c192a;
+  --bg-hover: #28233b;
+  --text-primary: #eae6f5;
+  --text-secondary: #a89fc0;
+  --text-muted: #685f80;
+  --accent-mint: #8b5cf6;
+  --accent-gold: #a78bfa;
+  --accent-blue: #6366f1;
+  --accent-purple: #c4b5fd;
+  --accent-pink: #ec4899;
+  --border-color: rgba(139, 92, 246, 0.16);
+  --border-hover: rgba(139, 92, 246, 0.45);
+  --shadow-glow: rgba(139, 92, 246, 0.18);
+}
+
+/* ── Cyberpunk, Sci-Fi & Retro Themes ── */
+[data-theme="cyberpunk_neon"] {
+  --bg-primary: #07060f;
+  --bg-secondary: #0f0d1f;
+  --bg-tertiary: #181432;
+  --bg-hover: #231c49;
+  --text-primary: #00f0ff;
+  --text-secondary: #ff007f;
+  --text-muted: #8265a6;
+  --accent-mint: #00f0ff;
+  --accent-gold: #ffe600;
+  --accent-blue: #00a2ff;
+  --accent-purple: #d000ff;
+  --accent-pink: #ff0055;
+  --border-color: rgba(0, 240, 255, 0.22);
+  --border-hover: rgba(255, 0, 127, 0.6);
+  --shadow-glow: rgba(0, 240, 255, 0.3);
+}
+
+[data-theme="synthwave"] {
+  --bg-primary: #12071d;
+  --bg-secondary: #1c0c2e;
+  --bg-tertiary: #291242;
+  --bg-hover: #39195c;
+  --text-primary: #fff0f7;
+  --text-secondary: #f0abfc;
+  --text-muted: #a2588f;
+  --accent-mint: #f472b6;
+  --accent-gold: #fb923c;
+  --accent-blue: #38bdf8;
+  --accent-purple: #c084fc;
+  --accent-pink: #f43f5e;
+  --border-color: rgba(244, 114, 182, 0.2);
+  --border-hover: rgba(251, 146, 60, 0.5);
+  --shadow-glow: rgba(244, 114, 182, 0.22);
+}
+
+[data-theme="matrix_terminal"] {
+  --bg-primary: #030904;
+  --bg-secondary: #07150a;
+  --bg-tertiary: #0d2212;
+  --bg-hover: #14331b;
+  --text-primary: #22c55e;
+  --text-secondary: #86efac;
+  --text-muted: #2d7742;
+  --accent-mint: #4ade80;
+  --accent-gold: #a3e635;
+  --accent-blue: #22c55e;
+  --accent-purple: #16a34a;
+  --accent-pink: #84cc16;
+  --border-color: rgba(34, 197, 94, 0.2);
+  --border-hover: rgba(74, 222, 128, 0.55);
+  --shadow-glow: rgba(34, 197, 94, 0.25);
+}
+
+/* ── Mythos & Ancient Lore Themes ── */
+[data-theme="thamizh_mythos"] {
+  --bg-primary: #140a06;
+  --bg-secondary: #1e1009;
+  --bg-tertiary: #2b170d;
+  --bg-hover: #3d2113;
+  --text-primary: #fff6eb;
+  --text-secondary: #f5cca0;
+  --text-muted: #9e6e44;
+  --accent-mint: #f97316;
+  --accent-gold: #f59e0b;
+  --accent-blue: #ea580c;
+  --accent-purple: #c2410c;
+  --accent-pink: #fb923c;
+  --border-color: rgba(249, 115, 22, 0.2);
+  --border-hover: rgba(245, 158, 11, 0.5);
+  --shadow-glow: rgba(249, 115, 22, 0.2);
+}
+
+[data-theme="olympus"] {
+  --bg-primary: #0d131f;
+  --bg-secondary: #141d2e;
+  --bg-tertiary: #1e2b42;
+  --bg-hover: #283a59;
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --accent-mint: #fbbf24;
+  --accent-gold: #f59e0b;
+  --accent-blue: #38bdf8;
+  --accent-purple: #818cf8;
+  --accent-pink: #fcd34d;
+  --border-color: rgba(251, 191, 36, 0.18);
+  --border-hover: rgba(251, 191, 36, 0.5);
+  --shadow-glow: rgba(251, 191, 36, 0.2);
+}
+
 /* ── Base ── */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 

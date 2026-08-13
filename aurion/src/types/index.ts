@@ -4,7 +4,24 @@
  * (`/v1/hermes/*`) and sovereign neural architecture (`/v1/neural/*`).
  */
 
-export type Theme = 'aurora' | 'daylight' | 'ink';
+export type Theme =
+  | 'aurora'
+  | 'daylight'
+  | 'ink'
+  | 'titanium'
+  | 'nordic'
+  | 'arcane'
+  | 'elven'
+  | 'celestial'
+  | 'alchemy'
+  | 'abyssal_horror'
+  | 'blood_moon'
+  | 'shadow_realm'
+  | 'cyberpunk_neon'
+  | 'synthwave'
+  | 'matrix_terminal'
+  | 'thamizh_mythos'
+  | 'olympus';
 export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
 export type ModeId =
   | 'general'

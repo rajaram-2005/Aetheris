@@ -89,15 +89,47 @@ const PERSONAS: { value: Persona; label: string; desc: string }[] = [
   { value: 'concise', label: '⚡ Concise', desc: 'Short answers, essential info only' },
 ];
 
-const THEMES: { value: Theme; label: string; desc: string; preview: string }[] = [
-  { value: 'aurora', label: '🌌 Aurora', desc: 'Dark navy with mint & gold', preview: 'linear-gradient(135deg, #0a0e1a, #0f1629)' },
-  { value: 'daylight', label: '☀️ Daylight', desc: 'Light, clean, professional', preview: 'linear-gradient(135deg, #f8f9fa, #ffffff)' },
-  { value: 'ink', label: '🖤 Ink', desc: 'Pure black, minimal', preview: 'linear-gradient(135deg, #000000, #0a0a0a)' },
+interface ThemeDefinition {
+  value: Theme;
+  label: string;
+  category: 'All' | 'Professional' | 'Magic & Fantasy' | 'Horror & Gothic' | 'Cyberpunk & Sci-Fi' | 'Mythos & Lore';
+  desc: string;
+  preview: string;
+}
+
+const THEMES: { value: Theme; label: string; category: string; desc: string; preview: string }[] = [
+  // Professional
+  { value: 'aurora', label: '🌌 Aurora', category: 'Professional', desc: 'Cosmic deep navy with electric mint', preview: 'linear-gradient(135deg, #0a0d14, #10141f, #34d399)' },
+  { value: 'daylight', label: '☀️ Daylight', category: 'Professional', desc: 'High-legibility crisp light studio', preview: 'linear-gradient(135deg, #f7f8fa, #ffffff, #059669)' },
+  { value: 'ink', label: '🖤 OLED Ink', category: 'Professional', desc: 'True pitch black, distraction-free', preview: 'linear-gradient(135deg, #050505, #121212, #ffffff)' },
+  { value: 'titanium', label: '🛡️ Titanium', category: 'Professional', desc: 'Enterprise slate-gray with cobalt', preview: 'linear-gradient(135deg, #0f141c, #1e2636, #60a5fa)' },
+  { value: 'nordic', label: '❄️ Nordic Frost', category: 'Professional', desc: 'Glacial ice blue with arctic navy', preview: 'linear-gradient(135deg, #0b1118, #182432, #38bdf8)' },
+
+  // Magic & Fantasy
+  { value: 'arcane', label: '🔮 Arcane Sorcery', category: 'Magic & Fantasy', desc: 'Mystic violet with runic amethyst', preview: 'linear-gradient(135deg, #0e0919, #221838, #c084fc)' },
+  { value: 'elven', label: '🌿 Elven Sanctuary', category: 'Magic & Fantasy', desc: 'Enchanted forest emerald and mythic gold', preview: 'linear-gradient(135deg, #08130e, #162a20, #fbbf24)' },
+  { value: 'celestial', label: '✨ Celestial Starlight', category: 'Magic & Fantasy', desc: 'Astral deep navy with luminous gold', preview: 'linear-gradient(135deg, #090d1f, #19234a, #facc15)' },
+  { value: 'alchemy', label: '⚗️ Philosopher', category: 'Magic & Fantasy', desc: 'Alchemical brass & molten amber', preview: 'linear-gradient(135deg, #140f09, #2a2014, #f59e0b)' },
+
+  // Horror & Gothic
+  { value: 'abyssal_horror', label: '🐙 Abyssal Horror', category: 'Horror & Gothic', desc: 'Lovecraftian void & toxic cyan glow', preview: 'linear-gradient(135deg, #030708, #0a1a1e, #06b6d4)' },
+  { value: 'blood_moon', label: '🩸 Blood Moon', category: 'Horror & Gothic', desc: 'Gothic crimson & obsidian darkness', preview: 'linear-gradient(135deg, #100507, #260d12, #f43f5e)' },
+  { value: 'shadow_realm', label: '👻 Shadow Realm', category: 'Horror & Gothic', desc: 'Spectral violet mist & haunted ash', preview: 'linear-gradient(135deg, #0a090f, #1c192a, #8b5cf6)' },
+
+  // Cyberpunk & Sci-Fi
+  { value: 'cyberpunk_neon', label: '⚡ Cyberpunk 2077', category: 'Cyberpunk & Sci-Fi', desc: 'Neon cyan, hot magenta & cyber yellow', preview: 'linear-gradient(135deg, #07060f, #181432, #00f0ff)' },
+  { value: 'synthwave', label: '🌴 Synthwave 1984', category: 'Cyberpunk & Sci-Fi', desc: 'Retrofuturistic sunset pink & violet', preview: 'linear-gradient(135deg, #12071d, #291242, #f472b6)' },
+  { value: 'matrix_terminal', label: '💻 Matrix Protocol', category: 'Cyberpunk & Sci-Fi', desc: 'Phosphor green CRT terminal glow', preview: 'linear-gradient(135deg, #030904, #0d2212, #22c55e)' },
+
+  // Mythos & Lore
+  { value: 'thamizh_mythos', label: '🪔 Dravidian Mythos', category: 'Mythos & Lore', desc: 'Temple terracotta & sacred saffron', preview: 'linear-gradient(135deg, #140a06, #2b170d, #f97316)' },
+  { value: 'olympus', label: '🏛️ Mount Olympus', category: 'Mythos & Lore', desc: 'Divine marble, Olympian gold & lapis', preview: 'linear-gradient(135deg, #0d131f, #1e2b42, #fbbf24)' },
 ];
 
 export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: SettingsPanelProps) {
   const [meta, setMeta] = useState<MetaStats | null>(null);
   const [neuralEngineInfo, setNeuralEngineInfo] = useState<string>('Aetheris Neural Core v4.2');
+  const [selectedThemeCategory, setSelectedThemeCategory] = useState<string>('All');
 
   useEffect(() => {
     let cancelled = false;
@@ -244,22 +276,55 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
 
           {/* Theme */}
           <section>
-            <h3 className="text-xs uppercase tracking-wider mb-3 font-semibold" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              Interface Theme
-            </h3>
-            <div className="grid grid-cols-3 gap-2">
-              {THEMES.map((t) => (
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs uppercase tracking-wider font-semibold" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Interface Atmosphere &amp; Genre Themes
+              </h3>
+              <span className="text-[10px] font-mono" style={{ color: 'var(--accent-mint)' }}>
+                {THEMES.length} Themes Across 5 Genres
+              </span>
+            </div>
+
+            {/* Genre filter chips */}
+            <div className="flex flex-wrap gap-1 mb-3">
+              {['All', 'Professional', 'Magic & Fantasy', 'Horror & Gothic', 'Cyberpunk & Sci-Fi', 'Mythos & Lore'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedThemeCategory(cat)}
+                  className="px-2 py-1 text-[11px] rounded-lg transition"
+                  style={{
+                    background: selectedThemeCategory === cat ? 'var(--accent-mint)' : 'var(--bg-tertiary)',
+                    color: selectedThemeCategory === cat ? '#000000' : 'var(--text-secondary)',
+                    fontWeight: selectedThemeCategory === cat ? 600 : 400,
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+              {THEMES.filter((t) => selectedThemeCategory === 'All' || t.category === selectedThemeCategory).map((t) => (
                 <button
                   key={t.value}
                   onClick={() => update('theme', t.value)}
-                  className="flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl transition-all"
+                  className="flex flex-col items-start gap-1.5 p-2.5 rounded-xl transition-all text-left"
                   style={{
-                    background: settings.theme === t.value ? 'rgba(61,255,194,0.08)' : 'var(--bg-tertiary)',
-                    border: `1px solid ${settings.theme === t.value ? 'rgba(61,255,194,0.3)' : 'var(--border-color)'}`,
+                    background: settings.theme === t.value ? 'rgba(52, 211, 153, 0.1)' : 'var(--bg-tertiary)',
+                    border: `1px solid ${settings.theme === t.value ? 'var(--accent-mint)' : 'var(--border-color)'}`,
                   }}
                 >
-                  <div className="w-full h-7 rounded" style={{ background: t.preview, border: '1px solid var(--border-color)' }} />
-                  <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{t.label}</span>
+                  <div className="w-full h-8 rounded-lg shadow-sm" style={{ background: t.preview, border: '1px solid var(--border-color)' }} />
+                  <div className="w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t.label}</span>
+                      {settings.theme === t.value && (
+                        <span className="text-[10px] font-mono px-1 rounded bg-emerald-500/20 text-emerald-400">Active</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{t.desc}</p>
+                  </div>
                 </button>
               ))}
             </div>
