@@ -96,13 +96,15 @@ class CostTracker:
     """Thread-safe token cost accounting with budgets and alerts."""
 
     _DEFAULT_RATES: dict[str, tuple[float, float]] = {
-        "aetheris-lite":    (0.00015, 0.00060),
-        "aetheris-pro":     (0.00300, 0.01200),
-        "aetheris-ultra":   (0.01500, 0.07500),
-        "gpt-4o-mini":      (0.00015, 0.00060),
-        "gpt-4o":           (0.00250, 0.01000),
-        "gpt-4.1":          (0.00200, 0.00800),
-        "mock":             (0.0, 0.0),
+        "aetheris-lite":          (0.00015, 0.00060),
+        "aetheris-flash-v2":      (0.00015, 0.00060),
+        "aetheris-pro":           (0.00300, 0.01200),
+        "aetheris-prime-v4":      (0.00300, 0.01200),
+        "aetheris-ultra":         (0.01500, 0.07500),
+        "aetheris-omni-reasoner": (0.01500, 0.07500),
+        "aetheris-vision-v3":     (0.00300, 0.01200),
+        "hermes-cognition-v4":    (0.00000, 0.00000),
+        "mock":                   (0.0, 0.0),
     }
 
     def __init__(self, max_entries: int = 100_000) -> None:

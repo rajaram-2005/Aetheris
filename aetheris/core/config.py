@@ -34,17 +34,18 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535, description="Bind port.")
 
     # --- LLM provider ---------------------------------------------------------
-    llm_provider: Literal["hermes", "mock", "openai"] = Field(
+    llm_provider: Literal["hermes", "mock", "openai", "aetheris_neural", "neural"] = Field(
         default="hermes",
         description=(
             "Backing provider. 'hermes' (default) runs the local Hermes agent — real "
             "computation, retrieval, tools, and meta-learning, fully offline with no "
-            "API key. 'mock' is the legacy persona responder. 'openai' forwards to an "
+            "API key. 'aetheris_neural' runs the custom sovereign neural model engine. "
+            "'mock' is the legacy persona responder. 'openai' forwards to an "
             "OpenAI-compatible endpoint."
         ),
     )
 
-    # --- OpenAI-compatible provider (used only when llm_provider='openai') ----
+    # --- Upstream / Provider config -------------------------------------------
     llm_base_url: str = Field(
         default="https://api.openai.com/v1",
         description="Any OpenAI-compatible /v1 base URL.",
@@ -54,8 +55,8 @@ class Settings(BaseSettings):
         description="API key for the OpenAI-compatible endpoint.",
     )
     llm_model: str = Field(
-        default="gpt-4o-mini",
-        description="Upstream model used when a request omits an Aetheris tier.",
+        default="aetheris-prime-v4",
+        description="Model identifier used when a request omits an Aetheris tier.",
     )
     llm_timeout: float = Field(
         default=120.0,

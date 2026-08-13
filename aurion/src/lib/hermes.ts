@@ -9,7 +9,7 @@
  * server's proxy — and never reaches for localhost from the browser.
  */
 
-import { HermesRun, MetaStats, KnowledgeArticleMeta, Adaptation } from '@/types';
+import { HermesRun, MetaStats, KnowledgeArticleMeta, Adaptation, CustomNeuralModel, GalleryImage, ModelId } from '@/types';
 
 /** Base path for the API. Relative by design — see the module docstring. */
 const API = '';
@@ -120,6 +120,24 @@ export function getManifest(): Promise<{
   learning_enabled: boolean;
 }> {
   return request('/v1/hermes');
+}
+
+/** Sovereign in-house neural models list. */
+export function getNeuralModels(): Promise<{
+  count: number;
+  sovereign_engine: string;
+  zero_external_dependency: boolean;
+  models: CustomNeuralModel[];
+}> {
+  return request('/v1/neural/models');
+}
+
+/** Gallery of mind-blowing UI/UX visual assets. */
+export function getGalleryImages(): Promise<{
+  total: number;
+  images: GalleryImage[];
+}> {
+  return request('/v1/gallery/images');
 }
 
 /** Liveness + which provider is actually serving inference. */

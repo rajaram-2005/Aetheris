@@ -568,7 +568,7 @@ def compose_response(tier: ModelTier, mode: Mode, messages: list[ChatMessage]) -
             f"\n\n---\n\n**Visual input received.** {len(images)} image(s) are attached "
             "to this conversation and were forwarded with the request. Configure a "
             "vision-capable upstream (`AETHERIS_LLM_PROVIDER=openai` with a model such "
-            "as `gpt-4o`) to have their contents analyzed rather than acknowledged."
+            "as `aetheris-prime-v4`) to have their contents analyzed rather than acknowledged."
         )
     return body
 
