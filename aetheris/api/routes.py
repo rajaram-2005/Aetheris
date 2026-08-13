@@ -3735,6 +3735,91 @@ async def mythology_graph() -> dict:
     return pantheon_graph()
 
 
+@router.get("/v1/mythology/daily", tags=["mythology"])
+async def mythology_daily() -> dict:
+    """Wisdom of the day — a rotating figure + kural-sized counsel."""
+    from ..core.tamil_mythology import daily_wisdom
+
+    return daily_wisdom()
+
+
+class MythologyCouncilRequest(BaseModel):
+    """Convene several legends around one question."""
+
+    character_ids: list[str] = Field(
+        ..., min_length=2, max_length=4,
+        description="2-4 legend ids to convene.",
+    )
+    question: str = Field(..., min_length=1, max_length=40_000)
+
+
+@router.post("/v1/mythology/council", tags=["mythology"])
+async def mythology_council(body: MythologyCouncilRequest) -> dict:
+    """Summon several legends to advise together on a question."""
+    from ..core.tamil_mythology import legend_council
+
+    try:
+        return legend_council(body.character_ids, body.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class CustomLegendCreate(BaseModel):
+    """Define a new Tamil-mythology figure of your own making."""
+
+    name: str = Field(..., min_length=1, max_length=80)
+    tamil_name: str = Field(default="", max_length=80)
+    category: str = Field(default="hero", pattern="^(god|goddess|hero|sage|epic|villain|asura|divine-tool)$")
+    epithet: str = Field(default="", max_length=120)
+    title: str = Field(default="", max_length=120)
+    domain: str = Field(default="", max_length=120)
+    symbol: str = Field(default="", max_length=120)
+    aspect: str = Field(default="", max_length=200)
+    persona: str = Field(default="", max_length=4_000)
+    summon: str = Field(default="", max_length=500)
+    image_prompt: str = Field(default="", max_length=1_000)
+
+
+@router.get("/v1/mythology/custom", tags=["mythology"])
+async def mythology_custom_list() -> dict:
+    """List all user-created legends."""
+    from ..core.tamil_mythology import get_legend_store
+
+    legends = get_legend_store().list()
+    return {"count": len(legends), "legends": legends}
+
+
+@router.post("/v1/mythology/custom", status_code=201, tags=["mythology"])
+async def mythology_custom_create(body: CustomLegendCreate) -> dict:
+    """Create a custom legend that joins the pantheon."""
+    from ..core.tamil_mythology import get_legend_store
+
+    legend = get_legend_store().create(
+        body.name,
+        tamil_name=body.tamil_name,
+        category=body.category,
+        epithet=body.epithet,
+        title=body.title,
+        domain=body.domain,
+        symbol=body.symbol,
+        aspect=body.aspect,
+        persona=body.persona,
+        summon=body.summon,
+        image_prompt=body.image_prompt,
+    )
+    return legend
+
+
+@router.delete("/v1/mythology/custom/{legend_id}", tags=["mythology"])
+async def mythology_custom_delete(legend_id: str) -> dict:
+    """Remove a custom legend."""
+    from ..core.tamil_mythology import get_legend_store
+
+    if not get_legend_store().delete(legend_id):
+        raise HTTPException(status_code=404, detail=f"No custom legend '{legend_id}'.")
+    return {"deleted": legend_id}
+
+
 @router.get("/v1/mythology/{character_id}", tags=["mythology"])
 async def mythology_get(character_id: str) -> dict:
     """Full details (persona + connections) of one mythological figure."""
@@ -3761,19 +3846,27 @@ async def mythology_chat(body: MythologyChatRequest) -> dict:
     import time as _time
 
     from ..core.tamil_mythology import (
-        character_by_id, chat_with_upstream_model, respond_in_character,
+        character_by_id, chat_with_upstream_model, get_character_memory,
+        respond_in_character,
     )
 
     character = character_by_id(body.character_id)
     if character is None:
         raise HTTPException(status_code=404, detail=f"No figure '{body.character_id}'.")
 
+    memory = get_character_memory()
+    prior = memory.context(body.character_id, body.session_id)
+
     started = _time.perf_counter()
     reply = await chat_with_upstream_model(character, body.message)
     engine = "upstream-model"
     if not reply:
-        reply = respond_in_character(character, body.message)
+        reply = respond_in_character(character, body.message, prior_context=prior)
         engine = "in-character"
+
+    memory.add(body.character_id, body.session_id, "user", body.message)
+    memory.add(body.character_id, body.session_id, "assistant", reply)
+
     duration = (_time.perf_counter() - started) * 1000
     return {
         "character": {
@@ -3787,6 +3880,9 @@ async def mythology_chat(body: MythologyChatRequest) -> dict:
         "engine": engine,
         "episode_id": "",
         "duration_ms": round(duration, 2),
+        "remembered_turns": len(
+            memory.context(body.character_id, body.session_id).split("\n")
+        ),
     }
 
 

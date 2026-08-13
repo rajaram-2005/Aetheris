@@ -285,3 +285,56 @@ export function mythologyPortrait(characterId: string): Promise<{
     body: JSON.stringify({}),
   });
 }
+
+/* ─── Connected mythology features: council, daily wisdom, custom legends ─── */
+
+/** Wisdom of the day — a rotating figure + kural-sized counsel. */
+export function getDailyWisdom(): Promise<{
+  date: string;
+  character_id: string;
+  character: { id: string; name: string; tamil_name: string; category: string; epithet: string };
+  wisdom: string;
+}> {
+  return request('/v1/mythology/daily');
+}
+
+/** Convene several legends around a question. */
+export function mythologyCouncil(
+  characterIds: string[],
+  question: string,
+): Promise<{
+  question: string;
+  members: { id: string; name: string; tamil_name: string; category: string; epithet: string }[];
+  speeches: { id: string; name: string; category: string; voice: string }[];
+  synthesis: string;
+}> {
+  return request('/v1/mythology/council', {
+    method: 'POST',
+    body: JSON.stringify({ character_ids: characterIds, question }),
+  });
+}
+
+/** List user-created legends. */
+export function getCustomLegends(): Promise<{ count: number; legends: (MythCharacter & { custom: boolean })[] }> {
+  return request('/v1/mythology/custom');
+}
+
+/** Create a custom legend. */
+export function createCustomLegend(data: {
+  name: string;
+  tamil_name?: string;
+  category?: string;
+  epithet?: string;
+  title?: string;
+  domain?: string;
+  symbol?: string;
+  aspect?: string;
+  persona?: string;
+  summon?: string;
+  image_prompt?: string;
+}): Promise<MythCharacter & { custom: boolean }> {
+  return request('/v1/mythology/custom', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}

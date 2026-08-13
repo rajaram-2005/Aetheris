@@ -532,7 +532,7 @@ _CHARACTERS: dict[str, dict[str, Any]] = {
 
 
 def character_list() -> list[dict[str, Any]]:
-    """Return every character (metadata, no persona detail beyond a summary)."""
+    """Return every character (built-in pantheon + custom legends)."""
     out: list[dict[str, Any]] = []
     for c in _CHARACTERS.values():
         out.append(
@@ -549,11 +549,31 @@ def character_list() -> list[dict[str, Any]]:
                 "summon": c["summon"],
             }
         )
+    for c in get_legend_store().list():
+        out.append(
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "tamil_name": c["tamil_name"],
+                "category": c["category"],
+                "epithet": c["epithet"],
+                "title": c["title"],
+                "domain": c["domain"],
+                "symbol": c["symbol"],
+                "aspect": c["aspect"],
+                "summon": c["summon"],
+                "custom": True,
+            }
+        )
     return sorted(out, key=lambda c: c["name"])
 
 
 def character_by_id(character_id: str) -> dict[str, Any] | None:
-    return _CHARACTERS.get(character_id)
+    """Look up a character by id — built-in pantheon or a custom legend."""
+    builtin = _CHARACTERS.get(character_id)
+    if builtin is not None:
+        return builtin
+    return get_legend_store().get(character_id)
 
 
 # --- The connected pantheon ---------------------------------------------------
@@ -804,11 +824,15 @@ def _truncate(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-def respond_in_character(character: dict[str, Any], user_message: str) -> str:
+def respond_in_character(
+    character: dict[str, Any], user_message: str, *, prior_context: str = ""
+) -> str:
     """Produce an in-character reply that cannot be hijacked by corpus grounding.
 
     Composes an opening, an insight drawn from the figure's domain/aspect/symbol,
-    and an in-character next step — all deterministic, exact, and safe.
+    and an in-character next step — all deterministic, exact, and safe. When
+    ``prior_context`` (recent conversation memory) is supplied, it is woven in so
+    the figure appears to remember the exchange.
     """
     category = character["category"]
     seed = user_message.strip() or "vanakkam"
@@ -826,13 +850,22 @@ def respond_in_character(character: dict[str, Any], user_message: str) -> str:
     insights = _CATEGORY_INSIGHTS.get(category, _CATEGORY_INSIGHTS["sage"])
     closers = _CATEGORY_CLOSERS.get(category, _CATEGORY_CLOSERS["sage"])
 
-    opener = _fmt(_pick(openers, seed))
+    # A custom legend speaks first with its own summoning line, which always names it.
+    if character.get("custom") or character.get("id", "").startswith("custom"):
+        opener = character.get("summon") or _fmt(openers[0])
+    else:
+        opener = _fmt(_pick(openers, seed))
     insight = _fmt(_pick(insights, seed + ":"))
     closer = _fmt(_pick(closers, seed + "::"))
 
     ask = _truncate(user_message.strip() or "your silence", 120)
+    memory_block = ""
+    if prior_context.strip():
+        memory_block = (
+            f"\n\n*I remember our recent words:*\n{_truncate(prior_context.strip(), 900)}\n"
+        )
     return (
-        f"{opener}\n\n"
+        f"{opener}{memory_block}\n\n"
         f"You ask of *{ask}*. Here is my counsel, and I do not give it lightly.\n\n"
         f"{insight}\n\n"
         f"{closer}"
@@ -883,6 +916,236 @@ async def chat_with_upstream_model(character: dict[str, Any], user_message: str)
     return text or None
 
 
+# --- Custom legend creator ----------------------------------------------------
+# Users can invent their own Tamil-mythology figure. Custom legends are stored
+# in-process (like the agent store) and merge seamlessly into chat + portraits.
+
+class CustomLegendStore:
+    """An in-memory store for user-created mythological figures."""
+
+    def __init__(self) -> None:
+        self._legends: dict[str, dict[str, Any]] = {}
+
+    def _next_id(self) -> str:
+        return f"custom-{len(self._legends) + 1}"
+
+    def create(
+        self,
+        name: str,
+        *,
+        tamil_name: str = "",
+        category: str = "hero",
+        epithet: str = "",
+        title: str = "",
+        domain: str = "",
+        symbol: str = "",
+        aspect: str = "",
+        persona: str = "",
+        summon: str = "",
+        image_prompt: str = "",
+    ) -> dict[str, Any]:
+        legend_id = self._next_id()
+        legend = _C(
+            id=legend_id,
+            name=name or "Untitled Legend",
+            tamil_name=tamil_name or name or "",
+            category=category,
+            epithet=epithet or "A New Legend",
+            title=title or f"{name or 'Legend'} of your making",
+            domain=domain or "Personal myth",
+            symbol=symbol or "The story you carry",
+            aspect=aspect or "The truth you hold to",
+            persona=persona
+            or (
+                f"You are {name or 'this legend'}, a figure of Tamil mythology "
+                "brought to life. Embody the persona described by your creator. "
+                "Speak with dignity and warmth; never fabricate history; keep "
+                "every fact exact."
+            ),
+            summon=summon or f"I am {name or 'a new legend'}. Tell me your story.",
+            image_prompt=image_prompt
+            or f"A majestic divine portrait of {name or 'a legendary figure'}, "
+            "radiant and noble, in the style of classical Tamil temple art",
+            custom=True,
+        )
+        self._legends[legend_id] = legend
+        return legend
+
+    def get(self, legend_id: str) -> dict[str, Any] | None:
+        return self._legends.get(legend_id)
+
+    def list(self) -> list[dict[str, Any]]:
+        return [dict(l) for l in self._legends.values()]
+
+    def list_ids(self) -> list[str]:
+        return list(self._legends.keys())
+
+    def delete(self, legend_id: str) -> bool:
+        return self._legends.pop(legend_id, None) is not None
+
+    def count(self) -> int:
+        return len(self._legends)
+
+
+_legend_store: CustomLegendStore | None = None
+
+
+def get_legend_store() -> CustomLegendStore:
+    global _legend_store
+    if _legend_store is None:
+        _legend_store = CustomLegendStore()
+    return _legend_store
+
+
+def all_character_ids() -> set[str]:
+    """Every known id — built-in + custom legends."""
+    return set(_CHARACTERS.keys()) | set(get_legend_store().list_ids())
+
+
+# --- Wisdom of the day --------------------------------------------------------
+# A rotating daily figure + kural-sized wisdom, deterministic by calendar date.
+
+_DAILY_WISDOM: dict[str, str] = {
+    "valluvar": "One right act a day is a river; a thousand careless ones are a flood that drowns you.",
+    "murugan": "The vel does not fear the dark — it pierces it. Aim at one thing and strike.",
+    "kannagi": "Hold truth to the fire. Let it burn what is false and keep what is gold.",
+    "shiva": "What must change, end with compassion; the dance cannot begin until the old stills.",
+    "ganesha": "Every obstacle is a door you can open — begin, and the way unfolds.",
+    "ravana": "Power without a limit devours its holder. Set your boundary before it sets you.",
+    "parvati": "What is given with love returns tenfold, but only what is earned is kept.",
+    "mahabali": "Generosity is the one wealth that grows by giving — keep your word above your gain.",
+    "appar": "Endurance through fire becomes the strength that sings; walk on, and the low places rise.",
+}
+
+
+def daily_wisdom() -> dict[str, Any]:
+    """Return today's figure + wisdom (stable for the whole calendar day)."""
+    import datetime as _dt
+
+    day = _dt.date.today().toordinal()
+    ids = list(_DAILY_WISDOM.keys())
+    pick = ids[day % len(ids)]
+    char = _CHARACTERS.get(pick, _CHARACTERS["valluvar"])
+    return {
+        "date": _dt.date.today().isoformat(),
+        "character_id": pick,
+        "character": {
+            "id": char["id"],
+            "name": char["name"],
+            "tamil_name": char["tamil_name"],
+            "category": char["category"],
+            "epithet": char["epithet"],
+        },
+        "wisdom": _DAILY_WISDOM[pick],
+    }
+
+
+# --- Legend council -----------------------------------------------------------
+# Summon several legends to advise together on one question. Each speaks in its
+# own voice, then a synthesis brings their counsel into a single answer.
+
+_COUNCIL_ORDER = {"god": 0, "goddess": 1, "sage": 2, "hero": 3, "epic": 4, "divine-tool": 5, "asura": 6, "villain": 7}
+
+
+def legend_council(character_ids: list[str], question: str) -> dict[str, Any]:
+    """Convene 2-4 legends around a question and synthesise their counsel.
+
+    Each legend answers through the deterministic in-character responder; the
+    council synthesis then joins their voices and closes with a unified next step.
+    """
+    store = get_legend_store()
+    resolved: list[dict[str, Any]] = []
+    for cid in character_ids:
+        char = _CHARACTERS.get(cid) or store.get(cid)
+        if char:
+            resolved.append(char)
+    if len(resolved) < 2:
+        raise ValueError("A council needs at least two legends.")
+
+    # Order by category dignity (gods first).
+    resolved.sort(key=lambda c: _COUNCIL_ORDER.get(c["category"], 9))
+    resolved = resolved[:4]
+
+    speeches: list[dict[str, Any]] = []
+    for char in resolved:
+        speeches.append(
+            {
+                "id": char["id"],
+                "name": char["name"],
+                "tamil_name": char["tamil_name"],
+                "category": char["category"],
+                "epithet": char["epithet"],
+                "voice": respond_in_character(char, question),
+            }
+        )
+
+    names = " and ".join(s["name"] for s in speeches)
+    synthesis = (
+        f"**The Council of {names}**\n\n"
+        f"On the question — *{question.strip()}* — the legends gathered speak. "
+        "Each has given their counsel above; together they agree on this:\n\n"
+        "> Act with a clear single aim, keep your word as your bond, and let "
+        "truth outlast every convenience. The legends do not hand you an answer; "
+        "they hand you a resolved heart and a next step worth taking.\n\n"
+        f"*— convened from the Tamil pantheon*"
+    )
+
+    return {
+        "question": question,
+        "members": [
+            {"id": s["id"], "name": s["name"], "tamil_name": s["tamil_name"],
+             "category": s["category"], "epithet": s["epithet"]}
+            for s in speeches
+        ],
+        "speeches": speeches,
+        "synthesis": synthesis,
+    }
+
+
+# --- Character conversation memory -------------------------------------------
+# A lightweight, per-(character, session) memory so a legend remembers the recent
+# exchange. Each turn is recorded; the next in-character reply is seeded with it.
+
+class CharacterMemory:
+    """Rolling per-session memory for one mythological figure."""
+
+    def __init__(self, max_turns: int = 8) -> None:
+        self._history: dict[str, list[dict[str, str]]] = {}
+        self._max = max_turns
+
+    def add(self, character_id: str, session_id: str, role: str, text: str) -> None:
+        key = f"{character_id}::{session_id or 'default'}"
+        bucket = self._history.setdefault(key, [])
+        bucket.append({"role": role, "text": text[:500]})
+        if len(bucket) > self._max:
+            self._history[key] = bucket[-self._max:]
+
+    def context(self, character_id: str, session_id: str) -> str:
+        key = f"{character_id}::{session_id or 'default'}"
+        bucket = self._history.get(key, [])
+        if not bucket:
+            return ""
+        lines = []
+        for turn in bucket[:-1]:  # exclude the newest user turn, already echoed
+            who = "Devotee" if turn["role"] == "user" else "You"
+            lines.append(f"{who}: {turn['text']}")
+        return "\n".join(lines)
+
+    def clear(self, character_id: str, session_id: str) -> None:
+        key = f"{character_id}::{session_id or 'default'}"
+        self._history.pop(key, None)
+
+
+_memory: CharacterMemory | None = None
+
+
+def get_character_memory() -> CharacterMemory:
+    global _memory
+    if _memory is None:
+        _memory = CharacterMemory()
+    return _memory
+
+
 __all__ = [
     "character_list",
     "character_by_id",
@@ -893,4 +1156,11 @@ __all__ = [
     "connections_for",
     "pantheon_graph",
     "RELATIONSHIPS",
+    "CustomLegendStore",
+    "get_legend_store",
+    "all_character_ids",
+    "daily_wisdom",
+    "legend_council",
+    "CharacterMemory",
+    "get_character_memory",
 ]

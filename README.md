@@ -177,6 +177,17 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - **Expanded cast** — now 31 legends including the goddess **Meenakshi**,
     folk guardians **Madurai Veeran** & **Karuppu Sami**, and the Nayanmar
     poet-saints **Sambandar** & **Appar**.
+  - **Legend Council** — `POST /v1/mythology/council` convenes 2–4 legends to
+    advise together on a single question; each speaks in its own voice and a
+    synthesis joins their counsel.
+  - **Wisdom of the Day** — `GET /v1/mythology/daily` returns a rotating figure
+    plus kural-sized counsel, stable for the whole calendar day.
+  - **Custom Legend Creator** — `POST /v1/mythology/custom` lets you invent your
+    own figure (name, epithet, domain, symbol, persona, summoning line). Custom
+    legends join the pantheon and can be summoned, portrayed, and counseled.
+  - **Character memory** — mythos chat is now per-session: each legend remembers
+    your recent exchange, so a conversation flows naturally rather than starting
+    fresh every turn.
 - **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
   task (reasoning, math, code, research, latency, context length) and picks the
   best fit with the reasons behind it, before a request hits the provider.
