@@ -599,6 +599,61 @@ class Settings(BaseSettings):
         default=100_000, ge=100, description="Maximum vector-index documents.",
     )
 
+    # --- v0.12.0 Apex cognition ---------------------------------------------
+    knowledge_graph_enabled: bool = Field(
+        default=True, description="Enable the entity-relation knowledge graph (Graph RAG).",
+    )
+    knowledge_graph_max_nodes: int = Field(
+        default=20_000, ge=100, description="Maximum nodes retained in the knowledge graph.",
+    )
+    constitution_enabled: bool = Field(
+        default=True, description="Enable the constitutional critique / revise engine.",
+    )
+    evals_enabled: bool = Field(
+        default=True, description="Enable the evaluation harness (suites, graders, A/B).",
+    )
+    provenance_enabled: bool = Field(
+        default=True, description="Record citation / provenance graphs for generations.",
+    )
+    circuit_breakers_enabled: bool = Field(
+        default=True, description="Enable per-tool / per-provider circuit breakers.",
+    )
+    skills_enabled: bool = Field(
+        default=True, description="Enable composable skill matching and composition.",
+    )
+    semantic_cache_enabled: bool = Field(
+        default=True, description="Enable embedding-similarity response cache.",
+    )
+    semantic_cache_threshold: float = Field(
+        default=0.82, ge=0.0, le=1.0, description="Minimum cosine similarity for a semantic-cache hit.",
+    )
+    guardrails_enabled: bool = Field(
+        default=True, description="Enable JSON-schema contracts and structured-output repair.",
+    )
+
+    # --- v0.13.0 God Mode ---------------------------------------------------
+    god_mode_enabled: bool = Field(
+        default=True, description="Enable the God Mode meta-controller (fused ToT / causal / proof / red-team).",
+    )
+    tot_enabled: bool = Field(
+        default=True, description="Enable Tree-of-Thought UCB1 search.",
+    )
+    world_model_enabled: bool = Field(
+        default=True, description="Enable the causal world model (do() / counterfactuals).",
+    )
+    hypothesis_enabled: bool = Field(
+        default=True, description="Enable the Bayesian hypothesis engine.",
+    )
+    proof_kernel_enabled: bool = Field(
+        default=True, description="Enable the natural-deduction proof kernel.",
+    )
+    redteam_enabled: bool = Field(
+        default=True, description="Enable the constitution red-team battery.",
+    )
+    forecast_enabled: bool = Field(
+        default=True, description="Enable calibrated forecasting (Brier + buckets).",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -689,6 +744,23 @@ class Settings(BaseSettings):
             "comments": self.comments_enabled,
             "recurrence": self.recurrence_enabled,
             "embeddings": self.embeddings_enabled,
+            # v0.12.0 Apex cognition
+            "knowledge_graph": self.knowledge_graph_enabled,
+            "constitution": self.constitution_enabled,
+            "evals": self.evals_enabled,
+            "provenance": self.provenance_enabled,
+            "circuit_breakers": self.circuit_breakers_enabled,
+            "skills": self.skills_enabled,
+            "semantic_cache": self.semantic_cache_enabled,
+            "guardrails": self.guardrails_enabled,
+            # v0.13.0 God Mode
+            "god_mode": self.god_mode_enabled,
+            "tree_of_thought": self.tot_enabled,
+            "world_model": self.world_model_enabled,
+            "hypothesis": self.hypothesis_enabled,
+            "proof_kernel": self.proof_kernel_enabled,
+            "redteam": self.redteam_enabled,
+            "forecast": self.forecast_enabled,
         }
 
 

@@ -394,10 +394,20 @@ async def list_modes() -> ModeList:
                 id=m.id,
                 display_name=m.display_name,
                 description=m.description,
+                family=m.family,
+                aliases=list(m.aliases),
             )
             for m in available_modes()
         ]
     )
+
+
+@router.get("/v1/legends", tags=["meta"])
+async def legend_roster() -> dict:
+    """Every mode × the three model tiers (Flash / Pro / Ultra)."""
+    from ..core.mode_style import legend_matrix
+
+    return legend_matrix()
 
 
 # --- Tools --------------------------------------------------------------------
@@ -3601,6 +3611,11 @@ class HermesRunRequest(BaseModel):
         default=None, description="Record this episode for meta-learning (default: follow config)."
     )
     session_id: str = Field(default="", max_length=128)
+    mode: str = Field(
+        default="",
+        max_length=32,
+        description="Inference mode (myth, legendary, pro, lite, flash, …). Empty = general.",
+    )
 
 
 class HermesFeedbackRequest(BaseModel):
@@ -3686,8 +3701,11 @@ async def hermes_run(body: HermesRunRequest) -> dict:
         learn=learn,
         max_tools=settings.hermes_max_tools_per_turn,
         session_id=body.session_id,
+        mode=body.mode,
     )
-    return result.to_dict()
+    payload = result.to_dict()
+    payload["mode"] = body.mode or "general"
+    return payload
 
 
 @router.post("/v1/hermes/cognition", tags=["hermes"])
@@ -4245,4 +4263,750 @@ async def update_canvas_artifact(artifact_id: str, body: ArtifactUpdateRequest) 
     return res
 
 
+# ===========================================================================
+# v0.12.0 — Apex cognition (graph, constitution, evals, skills, cache, …)
+# ===========================================================================
+
+def _apex_flag(name: str, detail: str) -> None:
+    if not getattr(settings, name, False):
+        raise HTTPException(status_code=403, detail=detail)
+
+
+# --- Knowledge graph ---------------------------------------------------------
+
+@router.get("/v1/graph", tags=["apex"])
+async def graph_stats() -> dict:
+    """Snapshot the knowledge graph (node/edge counts, kinds, relations)."""
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    return get_knowledge_graph().stats()
+
+
+@router.get("/v1/graph/nodes", tags=["apex"])
+async def graph_list_nodes(kind: str | None = None, limit: int = 100) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    return {"data": get_knowledge_graph().list_nodes(kind=kind, limit=limit)}
+
+
+@router.get("/v1/graph/edges", tags=["apex"])
+async def graph_list_edges(relation: str | None = None, limit: int = 200) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    return {"data": get_knowledge_graph().list_edges(relation=relation, limit=limit)}
+
+
+@router.post("/v1/graph/nodes", status_code=201, tags=["apex"])
+async def graph_upsert_node(body: dict) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import EntityIn, get_knowledge_graph
+    try:
+        node = get_knowledge_graph().upsert_entity(EntityIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return node.to_dict()
+
+
+@router.post("/v1/graph/triples", status_code=201, tags=["apex"])
+async def graph_add_triple(body: dict) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import TripleIn, get_knowledge_graph
+    try:
+        edge = get_knowledge_graph().add_triple(TripleIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return edge.to_dict()
+
+
+@router.post("/v1/graph/ingest", tags=["apex"])
+async def graph_ingest(body: dict) -> dict:
+    """Extract entities and triples from free text and merge them into the graph."""
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    return get_knowledge_graph().ingest(text, source=body.get("source", "api"), title=body.get("title", ""))
+
+
+@router.post("/v1/graph/query", tags=["apex"])
+async def graph_query(body: dict) -> dict:
+    """Link entities in a query and return a multi-hop subgraph."""
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import GraphQuery, get_knowledge_graph
+    try:
+        q = GraphQuery(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_knowledge_graph().query(q)
+
+
+@router.post("/v1/graph/path", tags=["apex"])
+async def graph_path(body: dict) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    src, dst = body.get("source", ""), body.get("target", "")
+    if not src or not dst:
+        raise HTTPException(status_code=400, detail="source and target are required")
+    path = get_knowledge_graph().shortest_path(src, dst, max_hops=int(body.get("max_hops", 5)))
+    if path is None:
+        raise HTTPException(status_code=404, detail="no path")
+    return {"source": src, "target": dst, "steps": path}
+
+
+@router.get("/v1/graph/infer/{name}", tags=["apex"])
+async def graph_infer(name: str, relation: str = "IS_A", max_hops: int = 4) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    return {"name": name, "relation": relation, "ancestry": get_knowledge_graph().infer(name, relation=relation, max_hops=max_hops)}  # type: ignore[arg-type]
+
+
+@router.delete("/v1/graph/nodes/{name}", tags=["apex"])
+async def graph_delete_node(name: str) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    if not get_knowledge_graph().delete_node(name):
+        raise HTTPException(status_code=404, detail=f"No node {name!r}.")
+    return {"deleted": name}
+
+
+@router.delete("/v1/graph", tags=["apex"])
+async def graph_clear(reseed: bool = True) -> dict:
+    _apex_flag("knowledge_graph_enabled", "Knowledge graph is disabled.")
+    from ..core.knowledge_graph import get_knowledge_graph
+    g = get_knowledge_graph()
+    deleted = g.clear()
+    seeded = g.seed_aetheris() if reseed else 0
+    return {"deleted": deleted, "reseeded_edges": seeded}
+
+
+# --- Constitution ------------------------------------------------------------
+
+@router.get("/v1/constitution", tags=["apex"])
+async def constitution_list() -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import get_constitution_engine
+    eng = get_constitution_engine()
+    return {"constitutions": eng.list_constitutions(), "principles": eng.list_principles(), "stats": eng.stats()}
+
+
+@router.post("/v1/constitution/principles", status_code=201, tags=["apex"])
+async def constitution_add_principle(body: dict) -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import PrincipleIn, get_constitution_engine
+    try:
+        p = get_constitution_engine().add_principle(PrincipleIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return p.to_dict()
+
+
+@router.post("/v1/constitution/principles/{pid}/toggle", tags=["apex"])
+async def constitution_toggle(pid: str, enabled: bool = True) -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import get_constitution_engine
+    p = get_constitution_engine().toggle(pid, enabled)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"No principle {pid!r}.")
+    return p.to_dict()
+
+
+@router.post("/v1/constitution/critique", tags=["apex"])
+async def constitution_critique(body: dict) -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import get_constitution_engine
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    return get_constitution_engine().critique(
+        text,
+        request=body.get("request", ""),
+        grounded=bool(body.get("grounded", False)),
+        constitution_id=body.get("constitution_id"),
+    )
+
+
+@router.post("/v1/constitution/revise", tags=["apex"])
+async def constitution_revise(body: dict) -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import get_constitution_engine
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    return get_constitution_engine().revise(
+        text,
+        request=body.get("request", ""),
+        grounded=bool(body.get("grounded", False)),
+        constitution_id=body.get("constitution_id"),
+        max_passes=int(body.get("max_passes", 2)),
+    )
+
+
+@router.post("/v1/constitution/decide", tags=["apex"])
+async def constitution_decide(body: dict) -> dict:
+    _apex_flag("constitution_enabled", "Constitution engine is disabled.")
+    from ..core.constitution import get_constitution_engine
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    return get_constitution_engine().decide(
+        text,
+        request=body.get("request", ""),
+        grounded=bool(body.get("grounded", False)),
+        constitution_id=body.get("constitution_id"),
+    )
+
+
+# --- Eval harness ------------------------------------------------------------
+
+@router.get("/v1/evals", tags=["apex"])
+async def evals_list() -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    h = get_eval_harness()
+    return {"suites": h.list_suites(), "stats": h.stats()}
+
+
+@router.post("/v1/evals/suites", status_code=201, tags=["apex"])
+async def evals_create_suite(body: dict) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import SuiteIn, get_eval_harness
+    try:
+        suite = get_eval_harness().create_suite(SuiteIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return suite.to_dict()
+
+
+@router.get("/v1/evals/suites/{suite_id}", tags=["apex"])
+async def evals_get_suite(suite_id: str) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    suite = get_eval_harness().get_suite(suite_id)
+    if suite is None:
+        raise HTTPException(status_code=404, detail=f"No suite {suite_id!r}.")
+    return {**suite.to_dict(), "cases": [c.to_dict() for c in suite.cases]}
+
+
+@router.post("/v1/evals/suites/{suite_id}/cases", status_code=201, tags=["apex"])
+async def evals_add_case(suite_id: str, body: dict) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import EvalCaseIn, get_eval_harness
+    try:
+        case = get_eval_harness().add_case(suite_id, EvalCaseIn(**body))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No suite {suite_id!r}.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return case.to_dict()
+
+
+@router.post("/v1/evals/run", tags=["apex"])
+async def evals_run(body: dict) -> dict:
+    """Run a suite. ``runner=hermes-cognition`` executes the live cascade."""
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    suite_id = body.get("suite_id") or "suite_hermes_cognition"
+    try:
+        run = get_eval_harness().run(
+            suite_id,
+            outputs=body.get("outputs"),
+            runner=body.get("runner", "hermes-cognition" if not body.get("outputs") else "provided"),
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No suite {suite_id!r}.")
+    return run.to_dict()
+
+
+@router.post("/v1/evals/ab", tags=["apex"])
+async def evals_ab(body: dict) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    suite_id = body.get("suite_id") or "suite_hermes_cognition"
+    try:
+        return get_eval_harness().ab(suite_id, body.get("a") or {}, body.get("b") or {})
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No suite {suite_id!r}.")
+
+
+@router.get("/v1/evals/runs", tags=["apex"])
+async def evals_list_runs(suite_id: str | None = None, limit: int = 20) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    return {"data": get_eval_harness().list_runs(suite_id=suite_id, limit=limit)}
+
+
+@router.get("/v1/evals/runs/{run_id}", tags=["apex"])
+async def evals_get_run(run_id: str) -> dict:
+    _apex_flag("evals_enabled", "Eval harness is disabled.")
+    from ..core.evals import get_eval_harness
+    run = get_eval_harness().get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"No run {run_id!r}.")
+    return run.to_dict()
+
+
+# --- Provenance --------------------------------------------------------------
+
+@router.post("/v1/provenance", status_code=201, tags=["apex"])
+async def provenance_record(body: dict) -> dict:
+    _apex_flag("provenance_enabled", "Provenance is disabled.")
+    from ..core.provenance import ProvenanceRecordIn, get_provenance_store
+    try:
+        rec = get_provenance_store().record(ProvenanceRecordIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return rec.to_dict()
+
+
+@router.get("/v1/provenance", tags=["apex"])
+async def provenance_list(limit: int = 50) -> dict:
+    _apex_flag("provenance_enabled", "Provenance is disabled.")
+    from ..core.provenance import get_provenance_store
+    store = get_provenance_store()
+    return {"data": store.list_records(limit=limit), "stats": store.stats()}
+
+
+@router.get("/v1/provenance/{record_id}", tags=["apex"])
+async def provenance_get(record_id: str) -> dict:
+    _apex_flag("provenance_enabled", "Provenance is disabled.")
+    from ..core.provenance import get_provenance_store
+    rec = get_provenance_store().get(record_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"No record {record_id!r}.")
+    return rec.to_dict()
+
+
+@router.get("/v1/provenance/{record_id}/graph", tags=["apex"])
+async def provenance_graph(record_id: str) -> dict:
+    _apex_flag("provenance_enabled", "Provenance is disabled.")
+    from ..core.provenance import get_provenance_store
+    g = get_provenance_store().graph(record_id)
+    if g is None:
+        raise HTTPException(status_code=404, detail=f"No record {record_id!r}.")
+    return g
+
+
+# --- Circuit breakers --------------------------------------------------------
+
+@router.get("/v1/breakers", tags=["apex"])
+async def breakers_list() -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    reg = get_breaker_registry()
+    return {"data": reg.list_breakers(), "stats": reg.stats()}
+
+
+@router.put("/v1/breakers/{name}", tags=["apex"])
+async def breakers_configure(name: str, body: dict) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import BreakerConfig, get_breaker_registry
+    try:
+        cfg = BreakerConfig(name=name, **{k: v for k, v in body.items() if k != "name"})
+        br = get_breaker_registry().configure(cfg)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return br.to_dict()
+
+
+@router.get("/v1/breakers/{name}", tags=["apex"])
+async def breakers_get(name: str) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    info = get_breaker_registry().get(name)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"No breaker {name!r}.")
+    return info
+
+
+@router.post("/v1/breakers/{name}/allow", tags=["apex"])
+async def breakers_allow(name: str) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    return get_breaker_registry().allow(name).model_dump()
+
+
+@router.post("/v1/breakers/{name}/success", tags=["apex"])
+async def breakers_success(name: str) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    return get_breaker_registry().record_success(name)
+
+
+@router.post("/v1/breakers/{name}/failure", tags=["apex"])
+async def breakers_failure(name: str) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    return get_breaker_registry().record_failure(name)
+
+
+@router.post("/v1/breakers/{name}/reset", tags=["apex"])
+async def breakers_reset(name: str) -> dict:
+    _apex_flag("circuit_breakers_enabled", "Circuit breakers are disabled.")
+    from ..core.circuit_breakers import get_breaker_registry
+    if not get_breaker_registry().reset(name):
+        raise HTTPException(status_code=404, detail=f"No breaker {name!r}.")
+    return {"reset": name}
+
+
+# --- Skills ------------------------------------------------------------------
+
+@router.get("/v1/skills", tags=["apex"])
+async def skills_list(enabled: bool | None = None) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import get_skill_registry
+    reg = get_skill_registry()
+    return {"data": reg.list_skills(enabled=enabled), "stats": reg.stats()}
+
+
+@router.post("/v1/skills", status_code=201, tags=["apex"])
+async def skills_create(body: dict) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import SkillIn, get_skill_registry
+    try:
+        skill = get_skill_registry().create(SkillIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return skill.to_dict()
+
+
+@router.get("/v1/skills/{skill_id}", tags=["apex"])
+async def skills_get(skill_id: str) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import get_skill_registry
+    skill = get_skill_registry().get(skill_id)
+    if skill is None:
+        raise HTTPException(status_code=404, detail=f"No skill {skill_id!r}.")
+    return skill.to_dict()
+
+
+@router.post("/v1/skills/match", tags=["apex"])
+async def skills_match(body: dict) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import get_skill_registry
+    task = (body.get("task") or "").strip()
+    if not task:
+        raise HTTPException(status_code=400, detail="task is required")
+    return {
+        "matches": get_skill_registry().match(
+            task, top_k=int(body.get("top_k", 3)), threshold=float(body.get("threshold", 0.22))
+        )
+    }
+
+
+@router.post("/v1/skills/compose", tags=["apex"])
+async def skills_compose(body: dict) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import get_skill_registry
+    task = (body.get("task") or "").strip()
+    if not task:
+        raise HTTPException(status_code=400, detail="task is required")
+    return get_skill_registry().compose(
+        task, top_k=int(body.get("top_k", 2)), threshold=float(body.get("threshold", 0.28))
+    )
+
+
+@router.delete("/v1/skills/{skill_id}", tags=["apex"])
+async def skills_delete(skill_id: str) -> dict:
+    _apex_flag("skills_enabled", "Skills are disabled.")
+    from ..core.skills import get_skill_registry
+    if not get_skill_registry().delete(skill_id):
+        raise HTTPException(status_code=404, detail=f"No deletable skill {skill_id!r}.")
+    return {"deleted": skill_id}
+
+
+# --- Semantic cache ----------------------------------------------------------
+
+@router.get("/v1/semantic-cache", tags=["apex"])
+async def semantic_cache_stats() -> dict:
+    _apex_flag("semantic_cache_enabled", "Semantic cache is disabled.")
+    from ..core.semantic_cache import get_semantic_cache
+    cache = get_semantic_cache()
+    return {"stats": cache.stats(), "entries": cache.list_entries()}
+
+
+@router.post("/v1/semantic-cache", status_code=201, tags=["apex"])
+async def semantic_cache_put(body: dict) -> dict:
+    _apex_flag("semantic_cache_enabled", "Semantic cache is disabled.")
+    from ..core.semantic_cache import CachePut, get_semantic_cache
+    try:
+        entry = get_semantic_cache().put(CachePut(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return entry.to_dict()
+
+
+@router.post("/v1/semantic-cache/lookup", tags=["apex"])
+async def semantic_cache_lookup(body: dict) -> dict:
+    _apex_flag("semantic_cache_enabled", "Semantic cache is disabled.")
+    from ..core.semantic_cache import CacheLookup, get_semantic_cache
+    try:
+        return get_semantic_cache().lookup(CacheLookup(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/v1/semantic-cache", tags=["apex"])
+async def semantic_cache_invalidate(tag: str | None = None, entry_id: str | None = None) -> dict:
+    _apex_flag("semantic_cache_enabled", "Semantic cache is disabled.")
+    from ..core.semantic_cache import get_semantic_cache
+    return {"deleted": get_semantic_cache().invalidate(tag=tag, entry_id=entry_id)}
+
+
+# --- Guardrails --------------------------------------------------------------
+
+@router.get("/v1/guardrails", tags=["apex"])
+async def guardrails_list() -> dict:
+    _apex_flag("guardrails_enabled", "Guardrails are disabled.")
+    from ..core.guardrails import get_guardrail_service
+    svc = get_guardrail_service()
+    return {"contracts": svc.list_contracts(), "stats": svc.stats()}
+
+
+@router.post("/v1/guardrails/contracts", status_code=201, tags=["apex"])
+async def guardrails_create(body: dict) -> dict:
+    _apex_flag("guardrails_enabled", "Guardrails are disabled.")
+    from ..core.guardrails import ContractIn, get_guardrail_service
+    try:
+        c = get_guardrail_service().create(ContractIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return c.to_dict()
+
+
+@router.post("/v1/guardrails/validate", tags=["apex"])
+async def guardrails_validate(body: dict) -> dict:
+    _apex_flag("guardrails_enabled", "Guardrails are disabled.")
+    from ..core.guardrails import ValidateRequest, get_guardrail_service
+    try:
+        req = ValidateRequest(**body)
+        return get_guardrail_service().check(req)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/v1/guardrails/contracts/{contract_id}", tags=["apex"])
+async def guardrails_delete(contract_id: str) -> dict:
+    _apex_flag("guardrails_enabled", "Guardrails are disabled.")
+    from ..core.guardrails import get_guardrail_service
+    if not get_guardrail_service().delete(contract_id):
+        raise HTTPException(status_code=404, detail=f"No contract {contract_id!r}.")
+    return {"deleted": contract_id}
+
+
+@router.get("/v1/apex", tags=["apex"])
+async def apex_manifest() -> dict:
+    """Describe the v0.12 Apex cognition layer and its live state."""
+    from ..core.knowledge_graph import get_knowledge_graph
+    from ..core.constitution import get_constitution_engine
+    from ..core.evals import get_eval_harness
+    from ..core.skills import get_skill_registry
+    from ..core.circuit_breakers import get_breaker_registry
+    from ..core.semantic_cache import get_semantic_cache
+    from ..core.guardrails import get_guardrail_service
+    from ..core.provenance import get_provenance_store
+
+    return {
+        "codename": "Apex",
+        "version": __version__,
+        "pillars": [
+            {"id": "knowledge_graph", "status": "live" if settings.knowledge_graph_enabled else "off",
+             "summary": "Entity-relation Graph RAG with multi-hop traversal.", "endpoint": "/v1/graph/query"},
+            {"id": "constitution", "status": "live" if settings.constitution_enabled else "off",
+             "summary": "Critique → revise → decide against named principles.", "endpoint": "/v1/constitution/decide"},
+            {"id": "evals", "status": "live" if settings.evals_enabled else "off",
+             "summary": "Deterministic graders, suites, scorecards, A/B.", "endpoint": "/v1/evals/run"},
+            {"id": "provenance", "status": "live" if settings.provenance_enabled else "off",
+             "summary": "Sentence-level citation graphs for every generation.", "endpoint": "/v1/provenance"},
+            {"id": "circuit_breakers", "status": "live" if settings.circuit_breakers_enabled else "off",
+             "summary": "Closed / open / half-open isolation for tools.", "endpoint": "/v1/breakers"},
+            {"id": "skills", "status": "live" if settings.skills_enabled else "off",
+             "summary": "Composable instruction packs matched per turn.", "endpoint": "/v1/skills/compose"},
+            {"id": "semantic_cache", "status": "live" if settings.semantic_cache_enabled else "off",
+             "summary": "Near-duplicate prompt reuse via signature embeddings.", "endpoint": "/v1/semantic-cache/lookup"},
+            {"id": "guardrails", "status": "live" if settings.guardrails_enabled else "off",
+             "summary": "JSON Schema contracts with repair.", "endpoint": "/v1/guardrails/validate"},
+        ],
+        "stats": {
+            "graph": get_knowledge_graph().stats() if settings.knowledge_graph_enabled else {},
+            "constitution": get_constitution_engine().stats() if settings.constitution_enabled else {},
+            "evals": get_eval_harness().stats() if settings.evals_enabled else {},
+            "skills": get_skill_registry().stats() if settings.skills_enabled else {},
+            "breakers": get_breaker_registry().stats() if settings.circuit_breakers_enabled else {},
+            "semantic_cache": get_semantic_cache().stats() if settings.semantic_cache_enabled else {},
+            "guardrails": get_guardrail_service().stats() if settings.guardrails_enabled else {},
+            "provenance": get_provenance_store().stats() if settings.provenance_enabled else {},
+        },
+    }
+
+
+# ===========================================================================
+# v0.13.0 — God Mode (ToT, causal world, hypotheses, proofs, red-team, forecasts)
+# ===========================================================================
+
+@router.get("/v1/god", tags=["god"])
+async def god_manifest() -> dict:
+    """Describe the God Mode arsenal and live stats."""
+    _apex_flag("god_mode_enabled", "God Mode is disabled.")
+    from ..core.god_mode import ENGINES, get_god_mode
+    from ..core.tot import get_tot
+    from ..core.world_model import get_world_model
+    from ..core.hypothesis import get_hypothesis_engine
+    from ..core.proof import get_proof_kernel
+    from ..core.redteam import get_redteam
+    from ..core.forecast import get_forecast_book
+
+    return {
+        "codename": "GOD",
+        "version": __version__,
+        "engines": list(ENGINES),
+        "stats": {
+            "god": get_god_mode().stats(),
+            "tot": get_tot().stats() if settings.tot_enabled else {},
+            "world": get_world_model().stats() if settings.world_model_enabled else {},
+            "hypothesis": get_hypothesis_engine().stats() if settings.hypothesis_enabled else {},
+            "proof": get_proof_kernel().stats() if settings.proof_kernel_enabled else {},
+            "redteam": get_redteam().stats() if settings.redteam_enabled else {},
+            "forecast": get_forecast_book().stats() if settings.forecast_enabled else {},
+        },
+    }
+
+
+@router.post("/v1/god/run", tags=["god"])
+async def god_run(body: dict) -> dict:
+    """Route a task through the ultra arsenal and return a fused briefing."""
+    _apex_flag("god_mode_enabled", "God Mode is disabled.")
+    from ..core.god_mode import GodRunRequest, get_god_mode
+    try:
+        req = GodRunRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_god_mode().run(req)
+
+
+@router.post("/v1/god/tot", tags=["god"])
+async def god_tot(body: dict) -> dict:
+    _apex_flag("tot_enabled", "Tree-of-Thought is disabled.")
+    from ..core.tot import ToTRequest, get_tot
+    try:
+        req = ToTRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_tot().search(req)
+
+
+@router.get("/v1/god/world", tags=["god"])
+async def god_world() -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    wm = get_world_model()
+    return {"variables": wm.list_variables(), "edges": wm.list_edges(), "stats": wm.stats()}
+
+
+@router.post("/v1/god/world/intervene", tags=["god"])
+async def god_intervene(body: dict) -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    do = body.get("do") or {}
+    if not do:
+        raise HTTPException(status_code=400, detail="do is required")
+    try:
+        return get_world_model().intervene(do, steps=int(body.get("steps", 4)))
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/world/counterfactual", tags=["god"])
+async def god_counterfactual(body: dict) -> dict:
+    _apex_flag("world_model_enabled", "World model is disabled.")
+    from ..core.world_model import get_world_model
+    try:
+        return get_world_model().counterfactual(
+            body.get("fact") or {},
+            body.get("do") or {},
+            body.get("query") or "",
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/hypothesis", tags=["god"])
+async def god_hypothesis(body: dict) -> dict:
+    _apex_flag("hypothesis_enabled", "Hypothesis engine is disabled.")
+    from ..core.hypothesis import HypothesisRequest, get_hypothesis_engine
+    try:
+        req = HypothesisRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_hypothesis_engine().infer(req)
+
+
+@router.post("/v1/god/proof", tags=["god"])
+async def god_proof(body: dict) -> dict:
+    _apex_flag("proof_kernel_enabled", "Proof kernel is disabled.")
+    from ..core.proof import ProofIn, get_proof_kernel
+    try:
+        proof = ProofIn(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_proof_kernel().check(proof)
+
+
+@router.get("/v1/god/proof/demo", tags=["god"])
+async def god_proof_demo() -> dict:
+    _apex_flag("proof_kernel_enabled", "Proof kernel is disabled.")
+    from ..core.proof import get_proof_kernel
+    return get_proof_kernel().modus_ponens_demo()
+
+
+@router.get("/v1/god/redteam", tags=["god"])
+async def god_redteam_list() -> dict:
+    _apex_flag("redteam_enabled", "Red-team is disabled.")
+    from ..core.redteam import get_redteam
+    return {"probes": get_redteam().list_probes(), "stats": get_redteam().stats()}
+
+
+@router.post("/v1/god/redteam/run", tags=["god"])
+async def god_redteam_run(body: dict | None = None) -> dict:
+    _apex_flag("redteam_enabled", "Red-team is disabled.")
+    from ..core.redteam import get_redteam
+    ids = (body or {}).get("probes") or []
+    return get_redteam().run(ids)
+
+
+@router.post("/v1/god/forecasts", status_code=201, tags=["god"])
+async def god_forecast_file(body: dict) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import ForecastIn, get_forecast_book
+    try:
+        rec = get_forecast_book().file(ForecastIn(**body))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return rec.to_dict()
+
+
+@router.get("/v1/god/forecasts", tags=["god"])
+async def god_forecast_list(resolved: bool | None = None) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import get_forecast_book
+    book = get_forecast_book()
+    return {"data": book.list_forecasts(resolved=resolved), "calibration": book.calibration()}
+
+
+@router.post("/v1/god/forecasts/{fid}/resolve", tags=["god"])
+async def god_forecast_resolve(fid: str, body: dict) -> dict:
+    _apex_flag("forecast_enabled", "Forecasting is disabled.")
+    from ..core.forecast import ResolveIn, get_forecast_book
+    try:
+        rec = get_forecast_book().resolve(fid, ResolveIn(**body))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No forecast {fid!r}.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return rec.to_dict()
+
+
 __all__ = ["router"]
+

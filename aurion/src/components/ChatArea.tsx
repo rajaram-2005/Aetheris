@@ -2,7 +2,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from 'react';
-import { Thread, Message, Attachment, ModelId } from '@/types';
+import { Thread, Message, Attachment, ModelId, ModeId } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { Composer } from './Composer';
 
@@ -18,8 +18,12 @@ interface ChatAreaProps {
   onOpenCanvas?: () => void;
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
+  onOpenApexLab?: () => void;
+  onOpenGodDeck?: () => void;
   activeModel?: ModelId;
   onSelectModel?: (model: ModelId) => void;
+  activeMode?: ModeId;
+  onSelectMode?: (mode: ModeId) => void;
   showInspector: boolean;
   sidebarOpen: boolean;
   onRunPrompt: (text: string) => void;
@@ -34,6 +38,18 @@ const MODEL_NAMES: Record<ModelId, { label: string; icon: string }> = {
   'aetheris-vision-v3': { label: 'Vision-Gen v3', icon: '🎨' },
 };
 
+const MODE_NAMES: Record<ModeId, { label: string; icon: string }> = {
+  general: { label: 'General', icon: '✦' },
+  engineering: { label: 'Engineering', icon: '💻' },
+  editorial: { label: 'Editorial', icon: '✍️' },
+  structured: { label: 'Structured', icon: '{}' },
+  myth: { label: 'Myth', icon: '🜂' },
+  legendary: { label: 'Legendary', icon: '⚔' },
+  pro: { label: 'Pro', icon: '◆' },
+  lite: { label: 'Lite', icon: '○' },
+  flash: { label: 'Flash', icon: '⚡' },
+};
+
 export function ChatArea({
   thread,
   processing,
@@ -46,8 +62,12 @@ export function ChatArea({
   onOpenCanvas,
   onOpenAgentStore,
   onOpenDeepResearch,
+  onOpenApexLab,
+  onOpenGodDeck,
   activeModel = 'aetheris-prime-v4',
   onSelectModel,
+  activeMode = 'general',
+  onSelectMode,
   showInspector,
   sidebarOpen,
   onRunPrompt,
@@ -56,6 +76,7 @@ export function ChatArea({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [voiceActive, setVoiceActive] = useState(false);
   const [modelDropdown, setModelDropdown] = useState(false);
+  const [modeDropdown, setModeDropdown] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -67,6 +88,7 @@ export function ChatArea({
   const isEmpty = messages.length === 0;
 
   const currentModelInfo = MODEL_NAMES[activeModel] || MODEL_NAMES['aetheris-prime-v4'];
+  const currentModeInfo = MODE_NAMES[activeMode] || MODE_NAMES.general;
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 relative" style={{ background: 'var(--bg-primary)' }}>
@@ -109,7 +131,7 @@ export function ChatArea({
           {/* Model Switcher Pill */}
           <div className="relative">
             <button
-              onClick={() => setModelDropdown(!modelDropdown)}
+              onClick={() => { setModelDropdown(!modelDropdown); setModeDropdown(false); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
               style={{
                 background: 'rgba(0, 180, 216, 0.1)',
@@ -158,6 +180,59 @@ export function ChatArea({
             )}
           </div>
 
+          {/* Mode Switcher — myth / legendary / pro / lite / flash on any model */}
+          <div className="relative">
+            <button
+              onClick={() => { setModeDropdown(!modeDropdown); setModelDropdown(false); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
+              style={{
+                background: 'rgba(251, 191, 36, 0.1)',
+                border: '1px solid rgba(251, 191, 36, 0.35)',
+                color: '#fbbf24',
+                fontFamily: 'var(--font-mono)',
+              }}
+              title="Inference mode — works on Flash, Pro, and Ultra"
+            >
+              <span>{currentModeInfo.icon}</span>
+              <span>{currentModeInfo.label}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 4.5L6 7.5L9 4.5" />
+              </svg>
+            </button>
+
+            {modeDropdown && (
+              <div
+                className="absolute left-0 top-full mt-2 w-56 rounded-xl shadow-2xl z-40 p-1.5 space-y-1 animate-fade-in"
+                style={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                }}
+              >
+                {(Object.keys(MODE_NAMES) as ModeId[]).map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      if (onSelectMode) onSelectMode(id);
+                      setModeDropdown(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
+                    style={{
+                      background: activeMode === id ? 'rgba(251,191,36,0.12)' : 'transparent',
+                      color: activeMode === id ? '#fbbf24' : 'var(--text-primary)',
+                    }}
+                  >
+                    <span className="flex items-center gap-2 font-mono">
+                      <span>{MODE_NAMES[id].icon}</span>
+                      <span>{MODE_NAMES[id].label}</span>
+                    </span>
+                    {activeMode === id && <span className="text-xs">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <h2
             className="text-xs font-medium truncate max-w-[200px] hidden sm:block"
             style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-muted)' }}
@@ -199,6 +274,40 @@ export function ChatArea({
             >
               <span>🔬</span>
               <span className="hidden md:inline">Research</span>
+            </button>
+          )}
+
+          {onOpenApexLab && (
+            <button
+              onClick={onOpenApexLab}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(192, 132, 252, 0.14)',
+                border: '1px solid rgba(192, 132, 252, 0.4)',
+                color: '#c084fc',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="Apex Cognition Lab"
+            >
+              <span>✦</span>
+              <span className="hidden md:inline">Apex</span>
+            </button>
+          )}
+
+          {onOpenGodDeck && (
+            <button
+              onClick={onOpenGodDeck}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(251, 191, 36, 0.16)',
+                border: '1px solid rgba(251, 191, 36, 0.45)',
+                color: '#fbbf24',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="God Deck — ToT, causal world, proofs, red-team"
+            >
+              <span>Ω</span>
+              <span className="hidden md:inline">God</span>
             </button>
           )}
 

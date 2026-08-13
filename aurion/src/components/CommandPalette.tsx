@@ -15,7 +15,10 @@ interface CommandPaletteProps {
   onOpenCanvas?: () => void;
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
+  onOpenApexLab?: () => void;
+  onOpenGodDeck?: () => void;
   onOpenSettings?: () => void;
+  onSelectMode?: (mode: 'myth' | 'legendary' | 'pro' | 'lite' | 'flash' | 'general') => void;
 }
 
 interface Command {
@@ -38,7 +41,10 @@ export function CommandPalette({
   onOpenCanvas,
   onOpenAgentStore,
   onOpenDeepResearch,
+  onOpenApexLab,
+  onOpenGodDeck,
   onOpenSettings,
+  onSelectMode,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -52,12 +58,21 @@ export function CommandPalette({
     // Frontier Tycoon Studios & Hubs
     ...(onOpenCanvas ? [{ id: 'studio-canvas', label: 'Artifacts 2.0 Canvas Studio', description: 'Open side-by-side interactive code, SVG & HTML execution runner', icon: '📐', category: 'Studios & Hubs', action: () => { onOpenCanvas(); onClose(); } }] : []),
     ...(onOpenDeepResearch ? [{ id: 'studio-research', label: 'Autonomous Deep Research Engine', description: 'Run multi-hop document & web research with citations', icon: '🔬', category: 'Studios & Hubs', action: () => { onOpenDeepResearch(); onClose(); } }] : []),
+    ...(onOpenGodDeck ? [{ id: 'studio-god', label: 'God Deck', description: 'Tree-of-Thought MCTS, causal do(), proofs, red-team, forecasts', icon: 'Ω', category: 'Studios & Hubs', action: () => { onOpenGodDeck(); onClose(); } }] : []),
+    ...(onOpenApexLab ? [{ id: 'studio-apex', label: 'Apex Cognition Lab', description: 'Knowledge graph, constitution, evals, and composable skills', icon: '✦', category: 'Studios & Hubs', action: () => { onOpenApexLab(); onClose(); } }] : []),
     ...(onOpenAgentStore ? [{ id: 'studio-agents', label: 'Sovereign Agents & Custom GPTs Store', description: 'Deploy, customize and run air-gapped domain agents', icon: '🤖', category: 'Studios & Hubs', action: () => { onOpenAgentStore(); onClose(); } }] : []),
     ...(onOpenGallery ? [{ id: 'studio-gallery', label: 'Neural Visual Design Studio Gallery', description: 'View & generate mind-blowing 8k cyberpunk visuals', icon: '🎨', category: 'Studios & Hubs', action: () => { onOpenGallery(); onClose(); } }] : []),
     ...(onOpenBenchmarks ? [{ id: 'studio-benchmarks', label: 'Foundation Model Benchmark Arena', description: 'Compare against DeepSeek-R1, Llama 3.3 70B & Qwen 2.5 72B', icon: '📊', category: 'Studios & Hubs', action: () => { onOpenBenchmarks(); onClose(); } }] : []),
     ...(onOpenSettings ? [{ id: 'action-settings', label: 'Settings & Model Selection', description: 'Switch sovereign neural models, themes, personas, and memory', icon: '⚙️', category: 'Actions', action: () => { onOpenSettings(); onClose(); } }] : []),
 
     // Actions & Prompt Templates
+    ...(onSelectMode ? [
+      { id: 'mode-myth', label: 'Mode: Myth', description: 'Oracle voice — works on Flash, Pro, Ultra', icon: '🜂', category: 'Modes', action: () => { onSelectMode('myth'); onClose(); } },
+      { id: 'mode-legendary', label: 'Mode: Legendary', description: 'Strategist campaign voice on any model', icon: '⚔', category: 'Modes', action: () => { onSelectMode('legendary'); onClose(); } },
+      { id: 'mode-pro', label: 'Mode: Pro', description: 'Operator voice — ship in the next hour', icon: '◆', category: 'Modes', action: () => { onSelectMode('pro'); onClose(); } },
+      { id: 'mode-lite', label: 'Mode: Lite / Little', description: 'Simple short answers on any model', icon: '○', category: 'Modes', action: () => { onSelectMode('lite'); onClose(); } },
+      { id: 'mode-flash', label: 'Mode: Flash', description: 'Fewest true words on any model', icon: '⚡', category: 'Modes', action: () => { onSelectMode('flash'); onClose(); } },
+    ] : []),
     { id: 'new', label: 'New Exploration', description: 'Start a fresh conversation thread', icon: '✨', category: 'Actions', action: () => { onNewThread(); onClose(); } },
     { id: 'deep-reasoning', label: 'Deep Reasoning Proof', description: 'Perform multi-pass chain-of-thought verification', icon: '🧠', category: 'Reasoning', action: () => onRun('Solve and prove formally: ') },
     { id: 'code-pipeline', label: 'Async Python Pipeline', description: 'Generate high-throughput concurrent architecture', icon: '💻', category: 'Code', action: () => onRun('Write an async Python pipeline with rate limiting and retry backoff') },
@@ -75,7 +90,7 @@ export function CommandPalette({
       category: 'Recent Conversations',
       action: () => { onSelectThread(t.id); onClose(); },
     })),
-  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenSettings]);
+  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenGodDeck, onOpenSettings, onSelectMode]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;

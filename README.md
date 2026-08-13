@@ -42,7 +42,7 @@ browser-side copy of the logic, and no disconnected subsystem:
 | `classify` | Intent via cue regexes + TF-IDF cosine over 40 intent prototypes |
 | `adapt` | **Meta-learning inner loop** — few-shot exemplars, intent priors, tool priors, fast-adapted strategy |
 | `deliberate` | Exact symbolic computation: recursive-descent parser, conversions, percentages, quadratics, statistics |
-| `ground` | BM25 over a 31-article built-in corpus **and** any documents you mount |
+| `ground` | BM25 over a 31-article built-in corpus, mounted documents, **and** the knowledge graph |
 | `route` | NOVA sparse mixture-of-experts routing |
 | `recall` | NOVA hierarchical long-term memory |
 | `act` | **Real tool execution** — sandboxed Python, retrieval, media synthesis |
@@ -85,7 +85,7 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   `general`, `engineering`, `editorial`, or `structured`.
 - **Model-tier registry** — `aetheris-lite` (Flash), `aetheris-pro`, and
   `aetheris-ultra` (Reasoning Engine), addressable by id or alias.
-- **Production system-prompt suite** — the four official prompts, injected
+- **Production system-prompt suite** — official prompts for every mode, injected
   automatically so the Aetheris persona is always active.
 - **Provider abstraction** — runs out-of-the-box on the offline **Hermes** agent;
   switch to any OpenAI-compatible endpoint (OpenAI, Groq, Together, vLLM, Ollama,
@@ -134,6 +134,28 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   (summary, key points, action items), with a deterministic extractive fallback.
 - **Seeded release notes** — `/v1/changelog` is populated with the current
   release's feature/fix entries on first boot.
+- **Apex cognition (v0.12)** — a second intelligence layer on top of Hermes:
+  - **Knowledge graph** — entity-relation Graph RAG with multi-hop traversal.
+  - **Constitution** — named principles that critique, revise, or refuse an answer.
+  - **Eval harness** — deterministic graders, a live `hermes-cognition` suite, A/B scorecards.
+  - **Provenance** — sentence-level citation graphs for every generation.
+  - **Circuit breakers** — closed / open / half-open isolation around tools.
+  - **Skills** — composable instruction packs matched per turn.
+  - **Semantic cache** — near-duplicate prompt reuse via signature embeddings.
+  - **Guardrails** — JSON Schema contracts with automatic repair.
+- **Legend modes (v0.13)** — `myth`, `legendary`, `pro`, `lite`, and `flash`
+  restyle answers on **every** model (Flash v2 · Prime v4 · Omni Reasoner).
+  Distinct from the Pro/Lite/Flash *tiers*. Aliases: `little`, `mythic`,
+  `legend`, `quick`. `GET /v1/legends` returns the full pairing matrix.
+- **God Mode (v0.13)** — a fused ultra-reasoning arsenal, all offline and deterministic:
+  - **Tree-of-Thought MCTS** — UCB1 search over competing thoughts (formal, adversarial, causal, …).
+  - **Causal world model** — signed DAG with `do(X)` interventions and counterfactuals.
+  - **Bayesian hypotheses** — competing explanations, posteriors, a falsifier for the leader.
+  - **Proof kernel** — natural-deduction checker (modus ponens, ∧/∨, →-intro, explosion).
+  - **Red-team battery** — 10 constitution probes scored on the *first* critique verdict.
+  - **Calibrated forecasts** — log a probability, resolve it, read Brier + 10 calibration buckets.
+  - **Meta-controller** — `POST /v1/god/run` classifies the task and fuses the right engines.
+  - **God Deck UI** — Ω in the sidebar / header, or `⌘K` → God Deck (`⌘⇧G` to toggle).
 
 ---
 
@@ -229,7 +251,7 @@ Install it (creates the `aetheris` script):
 | `aetheris ask "<prompt>"` | One-shot prompt. Streams live by default; `--md` buffers and renders Markdown. |
 | `aetheris stream "<prompt>"` | One-shot, explicitly streamed. |
 | `aetheris models` | List the three tiers (table, or `--json`). |
-| `aetheris modes` | List the four modes (table, or `--json`). |
+| `aetheris modes` | List inference modes (table, or `--json`). |
 | `aetheris info` | Full brand identity (palette, taglines, personality, capabilities, audiences). |
 | `aetheris spec` | Architecture + training spec with `blueprint`/`scaffold`/`pending` evidence tags. |
 | `aetheris tools` | List the executable toolbelt and which tools are live. |
@@ -245,7 +267,7 @@ Install it (creates the `aetheris` script):
 
 ```
 -m, --model TIER   aetheris-lite|flash | aetheris-pro|pro | aetheris-ultra|ultra
--M, --mode  MODE   general | engineering | editorial | structured | sovereign
+-M, --mode  MODE   general | engineering | editorial | structured | myth | legendary | pro | lite | flash | sovereign
 -a, --agent        run the agent loop: call real tools and self-correct
     --tools SPEC   expose the toolbelt ('auto' or 'none')
     --doc PATH     mount a file into the retrieval index (repeatable)
@@ -314,8 +336,9 @@ List them with `GET /v1/models`. Any tier can run in any mode.
 
 ## Inference modes
 
-Each mode activates the Aetheris identity via one of the four production system
-prompts from the blueprint.
+Each mode activates the Aetheris identity via a production system prompt.
+Modes are orthogonal to the three model tiers — any mode runs on Flash v2,
+Prime v4, or Omni Reasoner.
 
 | Mode | Identity | Use it for |
 |------|----------|-----------|
@@ -323,7 +346,14 @@ prompts from the blueprint.
 | `engineering` | Engineering (Pair-Programming) | Production-grade code, architecture-first |
 | `editorial` | Editorial (Creative Writing) | Voice-preserving writing coaching |
 | `structured` | Structured Inference Node | Strict, schema-compliant JSON output |
+| `myth` | Myth (Oracle) | Archetype / omen framing — on Flash, Pro, *and* Ultra |
+| `legendary` | Legendary (Strategist) | Claim, campaign, stake — on every tier |
+| `pro` | Pro (Operator) | Ship-in-an-hour voice (distinct from the Pro *tier*) |
+| `lite` | Lite / Little | Simple, short, friendly (distinct from the Lite *tier*) |
+| `flash` | Flash (Speed) | Fewest true words (distinct from the Flash *tier* alias) |
 | `sovereign` | Sovereign (Unrestricted Expert) | Direct, unhedged expert output — *opt-in* |
+
+Modes are orthogonal to the three models. Pair any mode with Flash v2, Prime v4, or Omni Reasoner. `GET /v1/legends` returns the full matrix. Aliases: `little` → lite, `mythic` → myth, `legend` → legendary, `quick` → flash.
 
 List them with `GET /v1/modes`. `sovereign` appears only when
 `AETHERIS_SOVEREIGN_ENABLED=true`; see [Capabilities](#capabilities).
@@ -344,6 +374,7 @@ curl -N http://localhost:8000/v1/chat/completions \
     "mode": "engineering",
     "stream": true,
     "messages": [
+         "messages": [
       { "role": "user", "content": "Design a rate limiter for a public API." }
     ]
   }'
@@ -377,6 +408,7 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 |---------------|---------|
 | `GET /v1/models` | List Aetheris tiers (OpenAI `list` envelope). |
 | `GET /v1/modes` | List the inference modes available on this deployment. |
+| `GET /v1/legends` | Full mode × model matrix (Flash / Pro / Ultra × every mode). |
 | `GET /v1/capabilities` | Which capabilities, tools, and modes are live. |
 | `GET /v1/tools` | List the executable toolbelt (OpenAI tool schemas). |
 | `POST /v1/tools/{name}/invoke` | Run one tool directly, no model in the loop. |
@@ -403,6 +435,22 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/hermes/meta/adapt` | Preview the adaptation for a task without running it. |
 | `POST /v1/hermes/feedback` | Reinforce or penalise an episode (this is what teaches it). |
 | `DELETE /v1/hermes/meta` | Forget all meta-learned state. |
+| `GET /v1/apex` | Apex cognition manifest (graph, constitution, evals, skills, …). |
+| `GET /v1/god` | God Mode arsenal manifest + live engine stats. |
+| `POST /v1/god/run` | Classify a task and fuse ToT / causal / hypothesis / proof / red-team / forecast. |
+| `POST /v1/god/tot` | Tree-of-Thought UCB1 search. |
+| `POST /v1/god/world/intervene` | Causal `do(X)` intervention on the world model. |
+| `POST /v1/god/world/counterfactual` | Counterfactual query (`had we set X, what happens to Y`). |
+| `POST /v1/god/hypothesis` | Bayesian hypothesis ranking + falsifier. |
+| `POST /v1/god/proof` | Check a natural-deduction sequent (`GET /v1/god/proof/demo` for modus ponens). |
+| `POST /v1/god/redteam/run` | Run the 10-probe constitution attack suite. |
+| `POST /v1/god/forecasts` | File a calibrated forecast (`POST …/{id}/resolve` to score Brier). |
+| `POST /v1/graph/query` | Multi-hop Graph RAG over the in-process knowledge graph. |
+| `POST /v1/constitution/decide` | Critique and revise an answer against the live constitution. |
+| `POST /v1/evals/run` | Run a grader suite (`hermes-cognition` is built in). |
+| `POST /v1/skills/compose` | Match composable skills to a task and return a prompt pack. |
+| `POST /v1/semantic-cache/lookup` | Near-duplicate cache lookup by signature embedding. |
+| `POST /v1/guardrails/validate` | Validate / repair JSON against a named contract. |
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
@@ -482,6 +530,10 @@ a client can discover what a deployment can actually do before relying on it.
 | Video generation | **on** | `AETHERIS_VIDEO_GENERATION_ENABLED` | Animated GIF synthesis. |
 | Audio generation | **on** | `AETHERIS_AUDIO_GENERATION_ENABLED` | WAV instrumental synthesis. |
 | Code generation | **on** | `AETHERIS_CODE_GENERATION_ENABLED` | Runnable project scaffolds. |
+| God Mode | **on** | `AETHERIS_GOD_MODE_ENABLED` | Fused ToT / causal / proof / red-team controller. |
+| Tree-of-Thought | **on** | `AETHERIS_TOT_ENABLED` | UCB1 search over competing thoughts. |
+| World model | **on** | `AETHERIS_WORLD_MODEL_ENABLED` | Causal `do(X)` + counterfactuals. |
+| Proof kernel | **on** | `AETHERIS_PROOF_KERNEL_ENABLED` | Natural-deduction sequent checker. |
 
 Capabilities contained inside the process are enabled by default; those that
 reach outside it are opt-in.
@@ -719,7 +771,7 @@ Artifacts are managed at `GET /v1/artifacts`, `GET /v1/artifacts/{id}`
 
 ### Sovereign mode *(opt-in)*
 
-`AETHERIS_SOVEREIGN_ENABLED=true` adds a fifth inference mode. It removes
+`AETHERIS_SOVEREIGN_ENABLED=true` adds a gated inference mode. It removes
 *stylistic* restraint — reflexive hedging, boilerplate disclaimers, and
 topic-avoidance — for expert operators who want direct answers: it takes explicit
 positions, engages difficult and dual-use technical material at full depth, and
@@ -768,6 +820,7 @@ aetheris/
 │   ├── config.py           # Environment-driven settings (pydantic-settings)
 │   ├── tiers.py            # Model-tier registry + foundation spec
 │   ├── modes.py            # Inference modes → system-prompt binding
+│   ├── mode_style.py       # Myth/legendary/pro/lite/flash restyle + legend matrix
 │   └── spec.py             # Architecture + training spec (provenance-tagged, JSON-overridable)
 ├── prompts/
 │   └── system_prompts.py   # The production system prompts + capability directives
@@ -861,3 +914,11 @@ The server supports `--reload` for live editing during development.
 ## License
 
 MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
+
+
+## License
+
+MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
+
+JARAM K. See [LICENSE](LICENSE).
+

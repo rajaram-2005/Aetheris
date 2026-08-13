@@ -104,6 +104,7 @@ class HermesResult:
     experts: list[dict[str, Any]] = field(default_factory=list)
     reward: float = 0.0
     duration_ms: float = 0.0
+    mode: str = "general"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -121,6 +122,7 @@ class HermesResult:
             "experts": self.experts,
             "stages": [s.to_dict() for s in self.stages],
             "tool_trace": self.tool_trace,
+            "mode": self.mode,
         }
 
 
@@ -141,6 +143,7 @@ class HermesAgent:
         learn: bool = True,
         max_tools: int = 3,
         session_id: str = "",
+        mode: str = "",
     ) -> HermesResult:
         """Execute the full cascade for one task."""
         started = time.perf_counter()
@@ -203,13 +206,16 @@ class HermesAgent:
         adaptation = self.meta.adapt(task, intent_hint=classification.intent)
         classification = self._apply_prior(classification, adaptation)
         strategy = adaptation.strategy
+        skill_pack = self._match_skills(task)
         stage(
             "adapt",
             f"familiarity {adaptation.familiarity:.2f} · "
             f"{len(adaptation.exemplars)} exemplar(s) · "
-            f"{adaptation.episodes_seen} episode(s) learned from",
+            f"{adaptation.episodes_seen} episode(s) learned from"
+            + (f" · skills {', '.join(s['name'] for s in skill_pack.get('skills', []))}" if skill_pack.get("skills") else ""),
             t0,
             **adaptation.to_dict(),
+            skills=skill_pack.get("skills") or None,
         )
 
         # 4. Deliberate — exact symbolic computation.
@@ -222,16 +228,19 @@ class HermesAgent:
             **deliberation.to_dict(),
         )
 
-        # 5. Ground — built-in corpus + any mounted documents.
+        # 5. Ground — built-in corpus + any mounted documents + knowledge graph.
         t0 = time.perf_counter()
         hits = self._ground(task, strategy)
         mounted = self._search_mounted(task, strategy)
+        graph_ctx = self._graph_ground(task)
         stage(
             "ground",
-            f"{len(hits)} corpus hit(s), {len(mounted)} mounted-document hit(s)",
+            f"{len(hits)} corpus hit(s), {len(mounted)} mounted-document hit(s)"
+            + (f", {len(graph_ctx.get('linked', []))} graph entit(y/ies)" if graph_ctx else ""),
             t0,
             corpus=[h.to_dict() for h in hits],
             documents=mounted,
+            graph=graph_ctx or None,
         )
 
         # 6. Route — NOVA sparse mixture-of-experts.
@@ -272,7 +281,8 @@ class HermesAgent:
         if tools_enabled:
             t0 = time.perf_counter()
             tool_trace = await self._act(
-                task, classification, deliberation, adaptation, strategy, max_tools
+                task, classification, deliberation, adaptation, strategy, max_tools,
+                extra_tools=skill_pack.get("tools") or None,
             )
             stage(
                 "act",
@@ -295,17 +305,37 @@ class HermesAgent:
             strategy,
             tool_outputs=tool_trace or None,
         )
-        draft = self._attach_context(draft, mounted, memory_context, strategy)
+        draft = self._attach_context(draft, mounted, memory_context, strategy, graph_ctx)
         stage("synthesize", f"{len(draft)} chars composed", t0, length=len(draft))
 
-        # 10. Polish — safety, vendor-voice stripping, honesty.
+        # 10. Polish — safety, vendor-voice stripping, honesty, constitution.
         t0 = time.perf_counter()
-        grounded = bool(hits or mounted or tool_trace)
+        grounded = bool(hits or mounted or tool_trace or (graph_ctx and graph_ctx.get("linked")))
         verdict = polish(draft, grounded=grounded, request=task)
         answer = verdict.text
         if verdict.honesty_note:
             answer = f"{answer}\n\n> {verdict.honesty_note}"
-        stage("polish", "safe" if not verdict.safety_flag else "gated", t0, **verdict.to_dict())
+        constitution = self._apply_constitution(answer, request=task, grounded=grounded)
+        if constitution and constitution.get("text"):
+            answer = constitution["text"]
+        if mode and not verdict.safety_flag:
+            from ..core.mode_style import style_answer
+
+            answer = style_answer(
+                mode,
+                answer,
+                task=task,
+                exact=deliberation.solved,
+                refused=verdict.safety_flag,
+            )
+        stage(
+            "polish",
+            "safe" if not verdict.safety_flag else "gated",
+            t0,
+            **verdict.to_dict(),
+            constitution=constitution,
+            mode=mode or "general",
+        )
 
         duration = (time.perf_counter() - started) * 1000
 
@@ -335,6 +365,9 @@ class HermesAgent:
                 strategy_after=self.meta.strategy.as_dict(),
             )
             self._remember(task, answer, session_id)
+            self._record_provenance(
+                task, answer, hits, mounted, tool_trace, graph_ctx, episode_id
+            )
         else:
             skip("learn", "learning disabled for this request")
 
@@ -353,6 +386,7 @@ class HermesAgent:
             experts=experts,
             reward=reward,
             duration_ms=duration,
+            mode=mode or "general",
         )
 
     # --- stage helpers ------------------------------------------------------
@@ -383,6 +417,116 @@ class HermesAgent:
     def _ground(task: str, strategy: Strategy) -> list[GroundingHit]:
         top_k = 1 + int(strategy.grounding_weight * 3)
         return ground(task, top_k=top_k)
+
+    @staticmethod
+    def _graph_ground(task: str) -> dict[str, Any]:
+        """Multi-hop Graph RAG over the in-process knowledge graph."""
+        if not getattr(settings, "knowledge_graph_enabled", False):
+            return {}
+        try:
+            from ..core.knowledge_graph import GraphQuery, get_knowledge_graph
+
+            result = get_knowledge_graph().query(GraphQuery(query=task, hops=2, limit=8))
+            if not result.get("linked") and not result.get("neighborhood"):
+                return {}
+            return result
+        except Exception:  # pragma: no cover - grounding is best-effort
+            logger.debug("Knowledge-graph grounding failed", exc_info=True)
+            return {}
+
+    @staticmethod
+    def _match_skills(task: str) -> dict[str, Any]:
+        if not getattr(settings, "skills_enabled", False):
+            return {}
+        try:
+            from ..core.skills import get_skill_registry
+
+            return get_skill_registry().compose(task, top_k=2, threshold=0.35)
+        except Exception:  # pragma: no cover
+            logger.debug("Skill matching failed", exc_info=True)
+            return {}
+
+    @staticmethod
+    def _apply_constitution(text: str, *, request: str, grounded: bool) -> dict[str, Any]:
+        if not getattr(settings, "constitution_enabled", False):
+            return {}
+        try:
+            from ..core.constitution import get_constitution_engine
+
+            return get_constitution_engine().decide(text, request=request, grounded=grounded)
+        except Exception:  # pragma: no cover
+            logger.debug("Constitution pass failed", exc_info=True)
+            return {}
+
+    @staticmethod
+    def _record_provenance(
+        task: str,
+        answer: str,
+        hits: list[Any],
+        mounted: list[dict[str, Any]],
+        tool_trace: list[dict[str, Any]],
+        graph_ctx: dict[str, Any],
+        generation_id: str,
+    ) -> None:
+        if not getattr(settings, "provenance_enabled", False):
+            return
+        try:
+            from ..core.provenance import ProvenanceRecordIn, SourceIn, get_provenance_store
+
+            sources: list[SourceIn] = []
+            for hit in hits[:4]:
+                article = getattr(hit, "article", None)
+                sources.append(
+                    SourceIn(
+                        kind="corpus",
+                        ref=getattr(article, "id", ""),
+                        title=getattr(article, "title", ""),
+                        snippet=(getattr(article, "content", "") or "")[:800],
+                        score=float(getattr(hit, "score", 0.0) or 0.0),
+                    )
+                )
+            for doc in mounted[:4]:
+                sources.append(
+                    SourceIn(
+                        kind="document",
+                        ref=str(doc.get("doc_id") or doc.get("id") or ""),
+                        title=str(doc.get("doc_title") or doc.get("title") or ""),
+                        snippet=str(doc.get("text") or "")[:800],
+                        score=float(doc.get("score") or 0.0),
+                    )
+                )
+            for call in tool_trace[:4]:
+                sources.append(
+                    SourceIn(
+                        kind="tool",
+                        ref=str(call.get("tool") or ""),
+                        title=str(call.get("tool") or "tool"),
+                        snippet=str(call.get("output") or "")[:800],
+                        score=1.0 if call.get("ok") else 0.0,
+                    )
+                )
+            for node in (graph_ctx or {}).get("linked", [])[:4]:
+                sources.append(
+                    SourceIn(
+                        kind="graph",
+                        ref=str(node.get("id") or ""),
+                        title=str(node.get("name") or ""),
+                        snippet=str(node.get("name") or ""),
+                        score=1.0,
+                    )
+                )
+            if not sources:
+                return
+            get_provenance_store().record(
+                ProvenanceRecordIn(
+                    query=task,
+                    answer=answer,
+                    sources=sources,
+                    generation_id=generation_id,
+                )
+            )
+        except Exception:  # pragma: no cover
+            logger.debug("Provenance record failed", exc_info=True)
 
     @staticmethod
     def _search_mounted(task: str, strategy: Strategy) -> list[dict[str, Any]]:
@@ -465,11 +609,14 @@ class HermesAgent:
         adaptation: Adaptation,
         strategy: Strategy,
         max_tools: int,
+        extra_tools: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Select and execute tools — the act/observe half of the agent loop."""
         from ..tools import registry
 
-        selected = self._select_tools(task, classification, deliberation, adaptation, strategy)
+        selected = self._select_tools(
+            task, classification, deliberation, adaptation, strategy, extra_tools=extra_tools
+        )
         if not selected:
             return []
 
@@ -478,19 +625,54 @@ class HermesAgent:
         if not selected:
             return []
 
-        results = await asyncio.gather(
-            *(registry.execute(name, args, step=index) for index, (name, args) in enumerate(selected, 1)),
-            return_exceptions=True,
-        )
+        breaker = None
+        if getattr(settings, "circuit_breakers_enabled", False):
+            try:
+                from ..core.circuit_breakers import get_breaker_registry
 
-        trace: list[dict[str, Any]] = []
-        for (name, args), outcome in zip(selected, results):
+                breaker = get_breaker_registry()
+            except Exception:  # pragma: no cover
+                breaker = None
+
+        runnable: list[tuple[str, dict[str, Any]]] = []
+        blocked: list[dict[str, Any]] = []
+        for name, args in selected:
+            if breaker is not None:
+                probe = breaker.allow(f"tool:{name}")
+                if not probe.allowed:
+                    blocked.append(
+                        {
+                            "tool": name,
+                            "arguments": args,
+                            "ok": False,
+                            "output": "",
+                            "error": f"circuit open: {probe.reason}",
+                            "duration_ms": 0,
+                        }
+                    )
+                    continue
+            runnable.append((name, args))
+
+        results = await asyncio.gather(
+            *(registry.execute(name, args, step=index) for index, (name, args) in enumerate(runnable, 1)),
+            return_exceptions=True,
+        ) if runnable else []
+
+        trace: list[dict[str, Any]] = list(blocked)
+        for (name, args), outcome in zip(runnable, results):
             if isinstance(outcome, BaseException):
+                if breaker is not None:
+                    breaker.record_failure(f"tool:{name}")
                 trace.append(
                     {"tool": name, "arguments": args, "ok": False, "output": "",
                      "error": f"{type(outcome).__name__}: {outcome}", "duration_ms": 0}
                 )
                 continue
+            if breaker is not None:
+                if outcome.ok:
+                    breaker.record_success(f"tool:{name}")
+                else:
+                    breaker.record_failure(f"tool:{name}")
             trace.append(
                 {
                     "tool": outcome.tool,
@@ -510,6 +692,7 @@ class HermesAgent:
         deliberation: Deliberation,
         adaptation: Adaptation,
         strategy: Strategy,
+        extra_tools: list[str] | None = None,
     ) -> list[tuple[str, dict[str, Any]]]:
         """Decide which tools to call, informed by learned tool priors."""
         selected: list[tuple[str, dict[str, Any]]] = []
@@ -517,6 +700,9 @@ class HermesAgent:
         lowered = task.lower()
 
         candidates = list(_INTENT_TOOLS.get(intent, ()))
+        for extra in extra_tools or ():
+            if extra not in candidates:
+                candidates.append(extra)
 
         # A fenced code block is an intent-independent signal: the user pasted
         # code, so the sandbox is relevant no matter how the text classified.
@@ -597,9 +783,13 @@ class HermesAgent:
 
     @staticmethod
     def _attach_context(
-        draft: str, mounted: list[dict[str, Any]], memory_context: str, strategy: Strategy
+        draft: str,
+        mounted: list[dict[str, Any]],
+        memory_context: str,
+        strategy: Strategy,
+        graph_ctx: dict[str, Any] | None = None,
     ) -> str:
-        """Append grounded material from mounted docs and long-term memory."""
+        """Append grounded material from mounted docs, memory, and the knowledge graph."""
         blocks = [draft]
         if mounted and strategy.grounding_weight > 0.35:
             blocks.append("")
@@ -615,6 +805,11 @@ class HermesAgent:
             blocks.append("**Recalled from earlier sessions**")
             snippet = memory_context.strip()
             blocks.append(snippet[:600] + ("…" if len(snippet) > 600 else ""))
+        grounding = (graph_ctx or {}).get("grounding") or ""
+        if grounding and strategy.grounding_weight > 0.4 and (graph_ctx or {}).get("linked"):
+            blocks.append("")
+            blocks.append("**From the knowledge graph**")
+            blocks.append(grounding[:700])
         return "\n".join(blocks)
 
     # --- feedback -----------------------------------------------------------

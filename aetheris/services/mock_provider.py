@@ -433,12 +433,78 @@ def _compose_sovereign(tier: ModelTier, user_text: str) -> str:
     )
 
 
+def _compose_myth(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "the question you carried here"
+    return (
+        f"*At the well, the pattern named itself: {topic}.*\n\n"
+        "You are not lost. You are between two crossings. The first is the fact "
+        "of the matter; the second is the act that would make the fact useful.\n\n"
+        f"**The fact.** On {tier.display_name}, the load-bearing constraint is "
+        "usually time or clarity — name which, then cut the rest.\n\n"
+        "**The act.** Take one reversible step today that would change this "
+        "answer if it failed. Return only if the terrain shifts.\n\n"
+        f"— Myth · {tier.display_name}"
+    )
+
+
+def _compose_legendary(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "the campaign"
+    return (
+        f"**The claim.** On {topic}, I would put my name on the path that "
+        "minimizes irreversible regret — not the path that looks optimal in one forecast.\n\n"
+        f"**The terrain.** {tier.display_name} is the engine; the adversary is "
+        "complexity wearing the mask of options.\n\n"
+        "1. Name the load-bearing constraint.\n"
+        "2. Kill every move that cannot survive that constraint.\n"
+        "3. Execute the remainder as if the record will be read later.\n\n"
+        "**The stake.** Recant if the constraint was misnamed. Until then, no menu.\n\n"
+        f"— Legendary · {tier.display_name}"
+    )
+
+
+def _compose_pro(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "the task"
+    return (
+        f"**Decision.** Scope {topic} to one deliverable you can ship in the next hour "
+        f"on {tier.display_name}.\n\n"
+        "1. Write the acceptance check first.\n"
+        "2. Do the smallest change that would pass it.\n"
+        "3. Note the rollback in one line.\n\n"
+        "**Risk.** Unknowns stay unlabeled until measured. Do not pad the plan.\n\n"
+        f"— Pro · {tier.display_name}"
+    )
+
+
+def _compose_lite(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text) or "this"
+    return (
+        f"**Simple version.** Here's {topic} in plain words.\n\n"
+        "The short answer is: start with the one thing that, if it were true, "
+        "would make the rest easy. Check that first.\n\n"
+        "Next step: do that one check, then come back if it wasn't enough.\n\n"
+        f"— Lite · {tier.display_name}"
+    )
+
+
+def _compose_flash(tier: ModelTier, user_text: str) -> str:
+    topic = _truncate(user_text, 80) or "it"
+    return (
+        f"{topic}: decide the constraint, cut the rest, ship one step.\n\n"
+        f"— Flash · {tier.display_name}"
+    )
+
+
 _COMPOSERS = {
     "general": _compose_general,
     "engineering": _compose_engineering,
     "editorial": _compose_editorial,
     "structured": _compose_structured,
     "sovereign": _compose_sovereign,
+    "myth": _compose_myth,
+    "legendary": _compose_legendary,
+    "pro": _compose_pro,
+    "lite": _compose_lite,
+    "flash": _compose_flash,
 }
 
 

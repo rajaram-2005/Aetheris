@@ -18,7 +18,7 @@ Subcommands:
 
 Common flags on chat/ask/stream:
     -m, --model TIER   aetheris-lite|flash|aetheris-pro|pro|aetheris-ultra|ultra
-    -M, --mode  MODE   general|engineering|editorial|structured
+    -M, --mode  MODE   general|engineering|editorial|structured|myth|legendary|pro|lite|flash
     --md               buffer the response and render it as Markdown (non-streaming)
     --no-color         disable ANSI color
 """
@@ -655,7 +655,7 @@ HELP_TEXT = """\
 [b]Aetheris chat[/b] — slash commands:
 
   [teal]/model[/teal] [TIER]   show or switch tier (lite|flash|pro|ultra|aetheris-*)
-  [teal]/mode[/teal]   [MODE]   show or switch mode (general|engineering|editorial|structured|sovereign)
+  [teal]/mode[/teal]   [MODE]   show or switch mode (general|engineering|editorial|myth|legendary|pro|lite|flash|sovereign)
   [teal]/models[/teal]          list all tiers
   [teal]/modes[/teal]           list all modes
   [teal]/agent[/teal] [on|off]  toggle agentic tool use (plan → call tools → self-correct)
@@ -1310,7 +1310,7 @@ def _add_inference_flags(p: argparse.ArgumentParser) -> None:
     p.add_argument("-m", "--model", default=None,
                    help="tier: aetheris-lite|flash|aetheris-pro|pro|aetheris-ultra|ultra")
     p.add_argument("-M", "--mode", default=None,
-                   help="mode: general|engineering|editorial|structured|sovereign")
+                   help="mode: general|engineering|editorial|structured|myth|legendary|pro|lite|flash|sovereign")
     p.add_argument("--md", dest="markdown", action="store_true",
                    help="buffer and render the response as Markdown (non-streaming)")
     p.add_argument("--temperature", type=float, default=None)

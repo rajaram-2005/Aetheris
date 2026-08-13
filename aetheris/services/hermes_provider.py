@@ -125,7 +125,9 @@ class HermesProvider(LLMProvider):
             max_tools=settings.hermes_max_tools_per_turn,
             session_id=prepared.meta.get("session", ""),
         )
-        text = self._apply_mode(prepared, task, result.answer, result.safety_flag)
+        text = self._apply_mode(
+            prepared, task, result.answer, result.safety_flag, exact=result.solved_exactly
+        )
 
         images = [image for message in messages for image in message.images]
         if images and prepared.mode.id != "structured":
@@ -139,7 +141,11 @@ class HermesProvider(LLMProvider):
 
     @staticmethod
     def _apply_mode(
-        prepared: PreparedConversation, task: str, answer: str, refused: bool
+        prepared: PreparedConversation,
+        task: str,
+        answer: str,
+        refused: bool,
+        exact: bool = False,
     ) -> str:
         """Shape the Hermes answer to the requested inference mode.
 
@@ -170,7 +176,16 @@ class HermesProvider(LLMProvider):
             )
         if mode == "sovereign":
             return f"{answer}\n\n---\n\n{_compose_sovereign(prepared.tier, task)}"
-        return answer
+        from ..core.mode_style import style_answer
+
+        return style_answer(
+            mode,
+            answer,
+            tier=prepared.tier.id,
+            task=task,
+            exact=exact,
+            refused=refused,
+        )
 
     # --- provider interface -------------------------------------------------
 

@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Settings, Persona, Theme, ModelId, MetaStats } from '@/types';
+import { Settings, Persona, Theme, ModelId, ModeId, MetaStats } from '@/types';
 import { getMetaStats, getNeuralModels } from '@/lib/hermes';
 
 interface SettingsPanelProps {
@@ -66,6 +66,18 @@ const MODELS: {
     desc: 'Specialized generative visual synthesis core for procedural graphics, UI designs, and vector art.',
     icon: '🎨',
   },
+];
+
+const INFERENCE_MODES: { id: ModeId; label: string; desc: string }[] = [
+  { id: 'general', label: '✦ General', desc: 'Default thought partner' },
+  { id: 'engineering', label: '💻 Engineering', desc: 'Architecture-first code' },
+  { id: 'editorial', label: '✍️ Editorial', desc: 'Voice-preserving editor' },
+  { id: 'structured', label: '{} Structured', desc: 'JSON-only output' },
+  { id: 'myth', label: '🜂 Myth', desc: 'Oracle / archetype lens' },
+  { id: 'legendary', label: '⚔ Legendary', desc: 'Named-strategist campaign' },
+  { id: 'pro', label: '◆ Pro', desc: 'Operator: ship in an hour' },
+  { id: 'lite', label: '○ Lite / Little', desc: 'Simple, short, friendly' },
+  { id: 'flash', label: '⚡ Flash', desc: 'Fewest true words' },
 ];
 
 const PERSONAS: { value: Persona; label: string; desc: string }[] = [
@@ -176,6 +188,31 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
                   </button>
                 );
               })}
+            </div>
+          </section>
+
+          {/* Inference modes — work on Flash, Pro, and Ultra */}
+          <section>
+            <h3 className="text-xs uppercase tracking-wider mb-3 font-semibold" style={{ color: 'var(--accent-gold, #fbbf24)', fontFamily: 'var(--font-mono)' }}>
+              Inference Mode · all three models
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {INFERENCE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => update('mode', m.id)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all"
+                  style={{
+                    background: (settings.mode || 'general') === m.id ? 'rgba(251,191,36,0.1)' : 'var(--bg-tertiary)',
+                    border: `1px solid ${(settings.mode || 'general') === m.id ? 'rgba(251,191,36,0.4)' : 'var(--border-color)'}`,
+                  }}
+                >
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{m.label}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{m.desc}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </section>
 

@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
-import { Message, Thread, Settings, HermesRun, Attachment, ModelId } from '@/types';
+import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId } from '@/types';
 import { runHermes, sendFeedback, getManifest, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
@@ -25,6 +25,8 @@ import { BenchmarkModal } from '@/components/BenchmarkModal';
 import { CanvasWorkspace } from '@/components/CanvasWorkspace';
 import { AgentStoreModal } from '@/components/AgentStoreModal';
 import { DeepResearchModal } from '@/components/DeepResearchModal';
+import { ApexLab } from '@/components/ApexLab';
+import { GodDeck } from '@/components/GodDeck';
 
 interface RuntimeInfo {
   foundation: string;
@@ -67,6 +69,8 @@ export default function AetherisApp() {
   const [showCanvas, setShowCanvas] = useState(false);
   const [showAgentStore, setShowAgentStore] = useState(false);
   const [showDeepResearch, setShowDeepResearch] = useState(false);
+  const [showApexLab, setShowApexLab] = useState(false);
+  const [showGodDeck, setShowGodDeck] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -130,6 +134,10 @@ export default function AetherisApp() {
         e.preventDefault();
         setShowInspector((v) => !v);
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
+        e.preventDefault();
+        setShowGodDeck((v) => !v);
+      }
       if (e.key === 'Escape') {
         setShowCommandPalette(false);
         setShowPromptLibrary(false);
@@ -139,6 +147,8 @@ export default function AetherisApp() {
         setShowCanvas(false);
         setShowAgentStore(false);
         setShowDeepResearch(false);
+        setShowApexLab(false);
+        setShowGodDeck(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -218,6 +228,7 @@ export default function AetherisApp() {
           sessionId: threadId,
           useMemory: settings.useMemory,
           learn: settings.learn,
+          mode: settings.mode || 'general',
         });
         setRun(result);
         addMessage(threadId, {
@@ -244,7 +255,7 @@ export default function AetherisApp() {
         setProcessing(false);
       }
     },
-    [currentThread, processing, settings.useMemory, settings.learn, refreshThread],
+    [currentThread, processing, settings.useMemory, settings.learn, settings.mode, refreshThread],
   );
 
   /** Rate an answer — this is the signal the meta-learner trains on. */
@@ -274,6 +285,15 @@ export default function AetherisApp() {
   const handleSelectModel = useCallback(
     (model: ModelId) => {
       const next = { ...settings, model };
+      setSettings(next);
+      saveSettings(next);
+    },
+    [settings],
+  );
+
+  const handleSelectMode = useCallback(
+    (mode: ModeId) => {
+      const next = { ...settings, mode };
       setSettings(next);
       saveSettings(next);
     },
@@ -325,6 +345,8 @@ export default function AetherisApp() {
         onOpenCanvas={() => setShowCanvas(true)}
         onOpenAgentStore={() => setShowAgentStore(true)}
         onOpenDeepResearch={() => setShowDeepResearch(true)}
+        onOpenApexLab={() => setShowApexLab(true)}
+        onOpenGodDeck={() => setShowGodDeck(true)}
         onExport={handleExportThread}
       />
 
@@ -340,8 +362,12 @@ export default function AetherisApp() {
         onOpenCanvas={() => setShowCanvas(true)}
         onOpenAgentStore={() => setShowAgentStore(true)}
         onOpenDeepResearch={() => setShowDeepResearch(true)}
+        onOpenApexLab={() => setShowApexLab(true)}
+        onOpenGodDeck={() => setShowGodDeck(true)}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
+        activeMode={settings.mode || 'general'}
+        onSelectMode={handleSelectMode}
         showInspector={showInspector}
         sidebarOpen={sidebarOpen}
         onRunPrompt={handleRunPrompt}
@@ -374,7 +400,10 @@ export default function AetherisApp() {
           onOpenCanvas={() => setShowCanvas(true)}
           onOpenAgentStore={() => setShowAgentStore(true)}
           onOpenDeepResearch={() => setShowDeepResearch(true)}
+          onOpenApexLab={() => setShowApexLab(true)}
+          onOpenGodDeck={() => setShowGodDeck(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onSelectMode={handleSelectMode}
         />
       )}
 
@@ -422,6 +451,22 @@ export default function AetherisApp() {
         <DeepResearchModal
           isOpen={showDeepResearch}
           onClose={() => setShowDeepResearch(false)}
+          onRunInChat={handleRunPrompt}
+        />
+      )}
+
+      {showApexLab && (
+        <ApexLab
+          isOpen={showApexLab}
+          onClose={() => setShowApexLab(false)}
+          onRunInChat={handleRunPrompt}
+        />
+      )}
+
+      {showGodDeck && (
+        <GodDeck
+          isOpen={showGodDeck}
+          onClose={() => setShowGodDeck(false)}
           onRunInChat={handleRunPrompt}
         />
       )}

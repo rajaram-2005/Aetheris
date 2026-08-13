@@ -191,6 +191,90 @@ _manager: ChangelogManager | None = None
 # Release notes shown in ``/v1/changelog`` on first boot (empty by default).
 _DEFAULT_RELEASES: tuple[dict[str, str], ...] = (
     {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "Myth, Legendary, Pro, Lite, Flash modes",
+        "description": (
+            "Five new inference modes that run on all three model tiers "
+            "(Flash / Pro / Ultra). Aliases: little, mythic, legend, quick. "
+            "GET /v1/legends returns the full 3×N pairing matrix."
+        ),
+        "module": "core.modes",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "God Mode meta-controller",
+        "description": (
+            "POST /v1/god/run classifies a task and fuses Tree-of-Thought MCTS, "
+            "causal interventions, Bayesian hypotheses, the proof kernel, "
+            "red-team, and calibrated forecasts into one briefing."
+        ),
+        "module": "core.god_mode",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "Tree-of-Thought MCTS + causal world model",
+        "description": (
+            "UCB1 search over competing thoughts, and a signed causal DAG "
+            "with do(X) interventions and counterfactuals."
+        ),
+        "module": "core.tot",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
+        "title": "Proof kernel, red-team battery, Brier forecasts",
+        "description": (
+            "Natural-deduction checker (modus ponens, and/or, impl-intro), "
+            "a 10-probe constitution attack suite, and a forecast book with "
+            "calibration buckets."
+        ),
+        "module": "core.proof",
+    },
+    {
+        "version": "0.12.0",
+        "category": "feature",
+        "title": "Knowledge graph (Graph RAG)",
+        "description": (
+            "Typed entity-relation graph with heuristic extraction, multi-hop "
+            "BFS, shortest paths, and transitive IS_A/PART_OF inference. "
+            "Hermes grounds on it during the existing ground stage."
+        ),
+        "module": "core.knowledge_graph",
+    },
+    {
+        "version": "0.12.0",
+        "category": "feature",
+        "title": "Constitutional critique and revise",
+        "description": (
+            "Named principles (must/should/prefer) score an answer, repair "
+            "what they can, and refuse weapons/self-harm. Wired into Hermes polish."
+        ),
+        "module": "core.constitution",
+    },
+    {
+        "version": "0.12.0",
+        "category": "feature",
+        "title": "Eval harness with A/B scorecards",
+        "description": (
+            "Suites, seven deterministic graders, a built-in hermes-cognition "
+            "suite, and paired A/B comparison."
+        ),
+        "module": "core.evals",
+    },
+    {
+        "version": "0.12.0",
+        "category": "feature",
+        "title": "Provenance, skills, breakers, semantic cache, guardrails",
+        "description": (
+            "Sentence-level citation graphs; composable skills; per-tool circuit "
+            "breakers; embedding-similarity cache; JSON Schema contracts with repair."
+        ),
+        "module": "core.apex",
+    },
+    {
         "version": "0.11.0",
         "category": "feature",
         "title": "Smart model routing",
