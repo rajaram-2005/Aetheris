@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
-import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId, Theme } from '@/types';
+import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId, Theme, AppView } from '@/types';
 import { runHermes, sendFeedback, getManifest, generateImage, synthesizeSpeech, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
@@ -14,6 +14,8 @@ import {
   setCurrentThreadId, exportThreadAsMarkdown,
 } from '@/lib/store';
 import { Sidebar } from '@/components/Sidebar';
+import { TopNav } from '@/components/TopNav';
+import { HomeView } from '@/components/HomeView';
 import { ChatArea } from '@/components/ChatArea';
 import { Inspector } from '@/components/Inspector';
 import { SettingsPanel } from '@/components/SettingsPanel';
@@ -52,9 +54,28 @@ function useHydrated(): boolean {
   );
 }
 
+/** Read the initial view from the URL hash (default: home). */
+function getInitialView(): AppView {
+  if (typeof window === 'undefined') return 'home';
+  return window.location.hash.replace('#', '') === 'workspace' ? 'workspace' : 'home';
+}
+
+/** Curated subset of themes the TopNav cycles through. */
+const THEME_CYCLE: Theme[] = [
+  'aurora',
+  'daylight',
+  'ink',
+  'cyberpunk_neon',
+  'matrix_terminal',
+  'thamizh_mythos',
+  'olympus',
+  'blood_moon',
+];
+
 export default function AetherisApp() {
   const mounted = useHydrated();
   const [booting, setBooting] = useState(true);
+  const [view, setView] = useState<AppView>(getInitialView);
   // Local history is read once at init (SSR-safe) instead of being written by
   // an effect, which avoids a synchronously-set-state render cascade.
   const [threads, setThreads] = useState<Thread[]>(() => getThreads());
@@ -127,6 +148,13 @@ export default function AetherisApp() {
   useEffect(() => {
     if (mounted) document.documentElement.setAttribute('data-theme', settings.theme);
   }, [settings.theme, mounted]);
+
+  /* Keep the view in sync with the URL hash (deep-linkable + refresh-safe). */
+  useEffect(() => {
+    const onHash = () => setView(getInitialView());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   /* Keyboard shortcuts */
   useEffect(() => {
@@ -419,13 +447,83 @@ export default function AetherisApp() {
     if (lastAssistantText.trim()) handleSpeak(lastAssistantText);
   }, [lastAssistantText, handleSpeak]);
 
+  /* ─── Single-app navigation (Home ⇄ Workspace) ─── */
+  const navigate = useCallback((next: AppView) => {
+    setView(next);
+    if (typeof window !== 'undefined' && window.location.hash !== `#${next}`) {
+      window.location.hash = next;
+    }
+  }, []);
+
+  const handleLaunch = useCallback(() => navigate('workspace'), [navigate]);
+
+  const handleCycleTheme = useCallback(() => {
+    const index = THEME_CYCLE.indexOf(settings.theme);
+    const next = THEME_CYCLE[(index + 1) % THEME_CYCLE.length];
+    handleSelectTheme(next);
+  }, [settings.theme, handleSelectTheme]);
+
+  const handleHomeTryModel = useCallback(
+    (model: ModelId) => {
+      handleSelectModel(model);
+      navigate('workspace');
+    },
+    [handleSelectModel, navigate],
+  );
+
+  const handleHomeTryMode = useCallback(
+    (mode: ModeId) => {
+      handleSelectMode(mode);
+      navigate('workspace');
+    },
+    [handleSelectMode, navigate],
+  );
+
+  const handleHomeGenerate = useCallback(
+    (prompt: string) => {
+      navigate('workspace');
+      handleGenerateImage(prompt);
+    },
+    [navigate, handleGenerateImage],
+  );
+
+  const handleHomeRunPrompt = useCallback(
+    (text: string) => {
+      navigate('workspace');
+      handleRunPrompt(text);
+    },
+    [navigate, handleRunPrompt],
+  );
+
   if (!mounted || booting) return <SplashScreen />;
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="flex flex-col h-screen overflow-hidden"
       style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
     >
+      <TopNav
+        view={view}
+        onNavigate={navigate}
+        runtime={runtime}
+        onOpenGodDeck={() => setShowGodDeck(true)}
+        onOpenSettings={() => setShowSettings(true)}
+        onCycleTheme={handleCycleTheme}
+      />
+
+      {view === 'home' ? (
+        <HomeView
+          online={!!runtime?.online}
+          onLaunch={handleLaunch}
+          onTryModel={handleHomeTryModel}
+          onTryMode={handleHomeTryMode}
+          onOpenGallery={() => setShowGallery(true)}
+          onOpenResearch={() => setShowResearchEvolution(true)}
+          onGenerateImage={handleHomeGenerate}
+          onRunPrompt={handleHomeRunPrompt}
+        />
+      ) : (
+      <div className="flex flex-1 overflow-hidden">
       <Sidebar
         threads={threads}
         currentThreadId={currentThread?.id || null}
@@ -487,6 +585,8 @@ export default function AetherisApp() {
       />
 
       {showInspector && <Inspector run={run} processing={processing} />}
+      </div>
+      )}
 
       {showSettings && (
         <SettingsPanel

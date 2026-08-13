@@ -9,7 +9,19 @@
  * server's proxy — and never reaches for localhost from the browser.
  */
 
-import { HermesRun, MetaStats, KnowledgeArticleMeta, Adaptation, CustomNeuralModel, GalleryImage } from '@/types';
+import {
+  HermesRun,
+  MetaStats,
+  KnowledgeArticleMeta,
+  Adaptation,
+  CustomNeuralModel,
+  GalleryImage,
+  ModelList,
+  ModeList,
+  ArchitectureModel,
+  TrainingPipelineModel,
+  ResearchErasResponse,
+} from '@/types';
 
 /** Base path for the API. Relative by design — see the module docstring. */
 const API = '';
@@ -139,6 +151,33 @@ export function getGalleryImages(): Promise<{
   images: GalleryImage[];
 }> {
   return request('/v1/gallery/images');
+}
+
+/* ─── Unified Home view — product introspection for the single app shell ─── */
+
+/** The three Aetheris model tiers (OpenAI-compatible envelope). */
+export function getModels(): Promise<ModelList> {
+  return request<ModelList>('/v1/models');
+}
+
+/** The inference modes available on this deployment. */
+export function getModes(): Promise<ModeList> {
+  return request<ModeList>('/v1/modes');
+}
+
+/** Foundation architecture spec: modalities, optimizations, context windows. */
+export function getArchitecture(): Promise<ArchitectureModel> {
+  return request<ArchitectureModel>('/v1/architecture');
+}
+
+/** Training pipeline spec plus live meta-learning runtime telemetry. */
+export function getTraining(): Promise<TrainingPipelineModel> {
+  return request<TrainingPipelineModel>('/v1/training');
+}
+
+/** The six AI-evolution research eras (1950–2026). */
+export function getResearchEras(): Promise<ResearchErasResponse> {
+  return request<ResearchErasResponse>('/v1/research/eras');
 }
 
 /** Liveness + which provider is actually serving inference. */
