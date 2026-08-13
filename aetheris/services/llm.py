@@ -137,6 +137,7 @@ def get_provider() -> LLMProvider:
         return _provider
 
     # Local imports keep the factory decoupled from the implementations.
+    from .hermes_provider import HermesProvider
     from .mock_provider import MockProvider
     from .openai_provider import OpenAIProvider
 
@@ -147,14 +148,19 @@ def get_provider() -> LLMProvider:
             default_model=settings.llm_model,
             timeout=settings.llm_timeout,
         )
+    elif settings.llm_provider == "mock":
+        # Explicitly requested legacy persona responder.
+        _provider = MockProvider()
     else:
         if settings.llm_provider == "openai" and not settings.has_credentials:
             # Graceful degradation: keep the API live and diagnosable.
             logger.warning(
                 "AETHERIS_LLM_PROVIDER=openai but no AETHERIS_LLM_API_KEY is set; "
-                "falling back to the mock provider."
+                "falling back to the offline Hermes agent."
             )
-        _provider = MockProvider()
+        # Default: the local Hermes agent — real computation, retrieval, tools,
+        # and meta-learning, with no API key and no network.
+        _provider = HermesProvider()
 
     return _provider
 

@@ -67,6 +67,14 @@ class TrainingPipelineModel(BaseModel):
     meta_learning_methods: list[str] = Field(default_factory=list)
     stages: list[TrainingStageModel]
     evidence: dict[str, str] = Field(default_factory=dict)
+    runtime: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Live telemetry from the running Hermes Agent + Meta-Learning "
+            "runtime: episodes learned from, current adapted strategy, intent "
+            "and tool priors. This is measured, not declared."
+        ),
+    )
 
 
 class SpecModel(BaseModel):

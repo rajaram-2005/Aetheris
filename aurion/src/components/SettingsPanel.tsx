@@ -1,8 +1,9 @@
 /* ─── Settings Panel — Modal for persona, creativity, theme, system prompt ─── */
 "use client";
 
-import { Settings, Persona, Theme } from '@/types';
-import { getSystemPrompt } from '@/lib/c7/system';
+import { useEffect, useState } from 'react';
+import { Settings, Persona, Theme, MetaStats } from '@/types';
+import { getMetaStats } from '@/lib/hermes';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -25,6 +26,18 @@ const THEMES: { value: Theme; label: string; desc: string; preview: string }[] =
 ];
 
 export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProps) {
+  const [meta, setMeta] = useState<MetaStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMetaStats()
+      .then((stats) => !cancelled && setMeta(stats))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     onUpdate({ ...settings, [key]: value });
   };
@@ -70,54 +83,6 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
                   </div>
                 </button>
               ))}
-            </div>
-          </section>
-
-          {/* Creativity */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                Creativity
-              </h3>
-              <span className="text-xs" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
-                {settings.creativity.toFixed(1)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={settings.creativity}
-              onChange={e => update('creativity', parseFloat(e.target.value))}
-              className="w-full accent-[#3dffc2]"
-            />
-            <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              <span>Precise</span><span>Creative</span>
-            </div>
-          </section>
-
-          {/* Length */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                Response Length
-              </h3>
-              <span className="text-xs" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
-                {settings.length.toFixed(1)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={settings.length}
-              onChange={e => update('length', parseFloat(e.target.value))}
-              className="w-full accent-[#3dffc2]"
-            />
-            <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              <span>Brief</span><span>Detailed</span>
             </div>
           </section>
 
@@ -171,31 +136,51 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
             </div>
           </section>
 
-          {/* System Prompt */}
+          {/* Memory & learning */}
           <section>
-            <h3 className="text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              System Prompt
+            <h3 className="text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              Memory &amp; Learning
             </h3>
-            <textarea
-              value={settings.systemPrompt}
-              onChange={e => update('systemPrompt', e.target.value)}
-              rows={6}
-              className="w-full px-3 py-2 rounded-xl text-xs outline-none resize-none"
-              style={{
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-primary)',
-                fontFamily: 'var(--font-mono)',
-                lineHeight: '1.6',
-              }}
-            />
-            <button
-              onClick={() => update('systemPrompt', getSystemPrompt())}
-              className="mt-2 text-xs px-3 py-1.5 rounded-lg"
-              style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}
-            >
-              Reset to default
-            </button>
+
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm" style={{ color: 'var(--text-primary)' }}>Long-term memory</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Let Hermes recall earlier sessions
+                </p>
+              </div>
+              <Toggle on={settings.useMemory} onClick={() => update('useMemory', !settings.useMemory)} />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm" style={{ color: 'var(--text-primary)' }}>Meta-learning</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Learn from each episode to improve next time
+                </p>
+              </div>
+              <Toggle on={settings.learn} onClick={() => update('learn', !settings.learn)} />
+            </div>
+
+            {meta && (
+              <div
+                className="mt-3 px-3 py-2 rounded-xl text-[11px] space-y-1"
+                style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', fontFamily: 'var(--font-mono)' }}
+              >
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--text-muted)' }}>Episodes learned from</span>
+                  <span style={{ color: 'var(--accent-mint)' }}>{meta.episodes}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--text-muted)' }}>Few-shot exemplars</span>
+                  <span style={{ color: 'var(--accent-gold)' }}>{meta.exemplars}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--text-muted)' }}>Mean reward</span>
+                  <span style={{ color: 'var(--accent-blue)' }}>{meta.mean_reward.toFixed(3)}</span>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Privacy */}
@@ -208,7 +193,8 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
               <div>
                 <p className="text-xs font-medium" style={{ color: 'var(--accent-mint)' }}>Privacy Guarantee</p>
                 <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  All data stays in your browser. No external APIs. No tracking. No API keys.
+                  Everything runs on this machine: the Hermes runtime is local, no
+                  vendor API is called, and no API key is required.
                 </p>
               </div>
             </div>
@@ -216,5 +202,20 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
         </div>
       </div>
     </div>
+  );
+}
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-10 h-6 rounded-full transition-colors relative flex-shrink-0"
+      style={{ background: on ? 'var(--accent-mint)' : 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}
+    >
+      <div
+        className="w-4 h-4 rounded-full absolute top-0.5 transition-all"
+        style={{ background: on ? '#0a0e1a' : 'var(--text-muted)', left: on ? '20px' : '2px' }}
+      />
+    </button>
   );
 }

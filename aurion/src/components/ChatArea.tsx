@@ -16,11 +16,12 @@ interface ChatAreaProps {
   showInspector: boolean;
   sidebarOpen: boolean;
   onRunPrompt: (text: string) => void;
+  onRate?: (message: Message, reward: number) => void;
 }
 
 export function ChatArea({
   thread, processing, onSendMessage, onNewThread,
-  onToggleInspector, onToggleSidebar, showInspector, sidebarOpen, onRunPrompt,
+  onToggleInspector, onToggleSidebar, showInspector, sidebarOpen, onRunPrompt, onRate,
 }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [voiceActive, setVoiceActive] = useState(false);
@@ -57,7 +58,7 @@ export function ChatArea({
             className="text-sm font-medium truncate max-w-[300px]"
             style={{ fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}
           >
-            {thread?.title || 'AURION'}
+            {thread?.title || 'Aetheris'}
           </h2>
         </div>
         <div className="flex items-center gap-1">
@@ -83,7 +84,7 @@ export function ChatArea({
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
             {messages.map(msg => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble key={msg.id} message={msg} onRate={onRate} />
             ))}
             {processing && (
               <div className="flex items-start gap-3 animate-fade-in">
@@ -107,7 +108,7 @@ export function ChatArea({
                     ))}
                   </div>
                   <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    C7 processing…
+                    Hermes cascade running…
                   </span>
                 </div>
               </div>
@@ -134,7 +135,7 @@ function EmptyState({ onRunPrompt, onNewThread }: { onRunPrompt: (text: string) 
     { icon: '📐', text: 'Solve x² + 5x + 6 = 0', category: 'Math' },
     { icon: '🌐', text: 'Translate "How are you?" to Hindi', category: 'Translate' },
     { icon: '📚', text: 'Quiz me on photosynthesis', category: 'Study' },
-    { icon: '🎨', text: 'Draw an aurora poster', category: 'Visage' },
+    { icon: '🎨', text: 'Generate an image of an aurora', category: 'Create' },
     { icon: '🍳', text: 'Give me a biryani recipe', category: 'Cook' },
     { icon: '✈️', text: 'Weekend plan for Hyderabad', category: 'Travel' },
   ];
@@ -149,7 +150,7 @@ function EmptyState({ onRunPrompt, onNewThread }: { onRunPrompt: (text: string) 
           What's on your mind?
         </h1>
         <p className="text-sm max-w-md mx-auto" style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>
-          A sovereign cognitive engine powered by C7 — all processing happens on your device.
+          Powered by the Hermes agent with meta-learning — running entirely offline on this machine.
         </p>
       </div>
 

@@ -228,10 +228,19 @@ def _render() -> str:
     return html
 
 
-@router.get("/", include_in_schema=False)
+@router.get("/landing", include_in_schema=False)
 async def landing() -> HTMLResponse:
-    """Serve the progressively enhanced Aetheris product page."""
+    """Serve the progressively enhanced Aetheris product page.
+
+    The application UI owns ``/``; this marketing/architecture page stays
+    available at ``/landing`` (and is served at ``/`` when the UI is not built).
+    """
     return HTMLResponse(content=_render())
 
 
-__all__ = ["router"]
+def render_landing() -> str:
+    """The rendered landing page, for reuse as the ``/`` fallback."""
+    return _render()
+
+
+__all__ = ["router", "render_landing"]

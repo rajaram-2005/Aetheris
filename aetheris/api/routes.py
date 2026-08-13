@@ -791,6 +791,43 @@ def _architecture_to_model(arch) -> ArchitectureModel:
     )
 
 
+def _hermes_runtime_telemetry() -> dict:
+    """Live measurements from the running Hermes + meta-learning runtime.
+
+    This is what turns ``/v1/training`` from a static document into a report on
+    a system that is actually executing: the two foundation pillars report their
+    real state rather than a declared one.
+    """
+    if not settings.hermes_enabled:
+        return {"hermes_enabled": False}
+    try:
+        from ..hermes.meta_learning import get_meta_learner
+
+        stats = get_meta_learner().stats()
+    except Exception:  # pragma: no cover - telemetry must never break the endpoint
+        logger.debug("Hermes telemetry unavailable", exc_info=True)
+        return {"hermes_enabled": True, "available": False}
+
+    return {
+        "hermes_enabled": True,
+        "available": True,
+        "learning_enabled": settings.hermes_learning_enabled,
+        "pillars": {
+            "hermes_agent": "live",
+            "meta_learning": "live",
+        },
+        "episodes_learned_from": stats["episodes"],
+        "meta_updates": stats["updates"],
+        "few_shot_exemplars": stats["exemplars"],
+        "adapted_strategy": stats["strategy"],
+        "mean_reward": stats["mean_reward"],
+        "recent_mean_reward": stats["recent_mean_reward"],
+        "improving": stats["improving"],
+        "intent_prior": stats["intent_prior"],
+        "tool_priors": stats["tool_priors"][:8],
+    }
+
+
 def _training_to_model(training) -> TrainingPipelineModel:
     return TrainingPipelineModel(
         name=training.name,
@@ -798,6 +835,7 @@ def _training_to_model(training) -> TrainingPipelineModel:
         foundation_status=training.foundation_status,
         alignment_methods=list(training.alignment_methods),
         meta_learning_methods=list(training.meta_learning_methods),
+        runtime=_hermes_runtime_telemetry(),
         stages=[
             TrainingStageModel(
                 id=s.id,
@@ -3503,6 +3541,251 @@ async def embeddings_stats() -> dict:
         raise HTTPException(status_code=403, detail="Embeddings are disabled.")
     from ..core.embeddings import get_embedding_manager
     return get_embedding_manager().stats()
+
+
+# ==============================================================================
+# Hermes — the unified offline agent + meta-learning runtime
+# ==============================================================================
+
+class HermesRunRequest(BaseModel):
+    """A task for the unified Hermes agent."""
+
+    task: str = Field(..., min_length=1, max_length=40_000, description="The task to run.")
+    use_tools: bool | None = Field(
+        default=None, description="Override tool use for this run (default: follow config)."
+    )
+    use_memory: bool = Field(default=True, description="Consult NOVA long-term memory.")
+    learn: bool | None = Field(
+        default=None, description="Record this episode for meta-learning (default: follow config)."
+    )
+    session_id: str = Field(default="", max_length=128)
+
+
+class HermesFeedbackRequest(BaseModel):
+    """Explicit reward signal for a past episode."""
+
+    episode_id: str = Field(..., min_length=1, max_length=64)
+    reward: float = Field(..., ge=0.0, le=1.0, description="0 = useless, 1 = perfect.")
+    feedback: str = Field(default="", max_length=2_000)
+
+
+class HermesCognitionRequest(BaseModel):
+    """Inspect the cognition cascade without running tools or learning."""
+
+    text: str = Field(..., min_length=1, max_length=40_000)
+
+
+def _hermes_guard() -> None:
+    if not settings.hermes_enabled:
+        raise HTTPException(status_code=403, detail="The Hermes agent is disabled on this deployment.")
+
+
+@router.get("/v1/hermes", tags=["hermes"])
+async def hermes_manifest() -> dict:
+    """Describe the Hermes runtime: its pillars, stages, and live learning state."""
+    _hermes_guard()
+    from ..hermes import FOUNDATION, KNOWLEDGE_BASE
+    from ..hermes.cognition import INTENTS
+    from ..hermes.meta_learning import get_meta_learner
+
+    learner = get_meta_learner()
+    return {
+        "codename": "Hermes",
+        "foundation": FOUNDATION,
+        "version": __version__,
+        "offline": True,
+        "requires_api_key": False,
+        "pillars": [
+            {
+                "id": "hermes_agent",
+                "name": "Hermes Agent",
+                "status": "live",
+                "summary": (
+                    "perceive → classify → adapt → deliberate → ground → route → "
+                    "recall → act → synthesize → polish → learn, with the toolbelt "
+                    "executed for real and every stage traced."
+                ),
+                "endpoint": "/v1/hermes/run",
+            },
+            {
+                "id": "meta_learning",
+                "name": "Meta-Learning",
+                "status": "live",
+                "summary": (
+                    "Few-shot exemplar recall, Dirichlet intent priors, per-intent "
+                    "tool priors, and a Reptile-style strategy update learned from "
+                    "the agent's own episodes."
+                ),
+                "endpoint": "/v1/hermes/meta",
+            },
+        ],
+        "stages": [
+            "perceive", "classify", "adapt", "deliberate", "ground",
+            "route", "recall", "act", "synthesize", "polish", "learn",
+        ],
+        "intents": list(INTENTS),
+        "knowledge_articles": len(KNOWLEDGE_BASE),
+        "learning_enabled": settings.hermes_learning_enabled,
+        "episodes": learner.stats()["episodes"],
+    }
+
+
+@router.post("/v1/hermes/run", tags=["hermes"])
+async def hermes_run(body: HermesRunRequest) -> dict:
+    """Run one task through the full Hermes cascade and return the traced result."""
+    _hermes_guard()
+    from ..hermes.agent import get_hermes
+
+    learn = settings.hermes_learning_enabled if body.learn is None else body.learn
+    result = await get_hermes().run(
+        body.task,
+        use_tools=body.use_tools,
+        use_memory=body.use_memory,
+        learn=learn,
+        max_tools=settings.hermes_max_tools_per_turn,
+        session_id=body.session_id,
+    )
+    return result.to_dict()
+
+
+@router.post("/v1/hermes/cognition", tags=["hermes"])
+async def hermes_cognition(body: HermesCognitionRequest) -> dict:
+    """Run only the deterministic cognition stages (no tools, no learning).
+
+    Useful for inspecting exactly how a prompt is understood.
+    """
+    _hermes_guard()
+    from ..hermes.cognition import classify, deliberate, ground, perceive
+
+    perception = perceive(body.text)
+    classification = classify(perception)
+    computation = deliberate(body.text)
+    hits = ground(body.text)
+    return {
+        "text": body.text,
+        "perceive": perception.to_dict(),
+        "classify": classification.to_dict(),
+        "deliberate": computation.to_dict(),
+        "ground": [h.to_dict() for h in hits],
+    }
+
+
+@router.get("/v1/hermes/knowledge", tags=["hermes"])
+async def hermes_knowledge(category: str | None = None) -> dict:
+    """List the built-in offline knowledge corpus."""
+    _hermes_guard()
+    from ..hermes.knowledge import CATEGORIES, KNOWLEDGE_BASE
+
+    articles = [a for a in KNOWLEDGE_BASE if not category or a.category == category]
+    return {
+        "count": len(articles),
+        "categories": list(CATEGORIES),
+        "articles": [
+            {
+                "id": a.id,
+                "title": a.title,
+                "category": a.category,
+                "chars": len(a.content),
+            }
+            for a in articles
+        ],
+    }
+
+
+@router.get("/v1/hermes/knowledge/{article_id}", tags=["hermes"])
+async def hermes_knowledge_article(article_id: str) -> dict:
+    """Return one knowledge article in full."""
+    _hermes_guard()
+    from ..hermes.knowledge import KB_BY_ID
+
+    article = KB_BY_ID.get(article_id)
+    if article is None:
+        raise HTTPException(status_code=404, detail=f"No article {article_id!r}.")
+    return {
+        "id": article.id,
+        "title": article.title,
+        "category": article.category,
+        "content": article.content,
+    }
+
+
+@router.get("/v1/hermes/knowledge/search/{query}", tags=["hermes"])
+async def hermes_knowledge_search(query: str, top_k: int = 5) -> dict:
+    """BM25 search over the built-in corpus."""
+    _hermes_guard()
+    from ..hermes.cognition import get_knowledge_index
+
+    hits = get_knowledge_index().search(query, top_k=max(1, min(top_k, 20)))
+    return {"query": query, "hits": [h.to_dict() for h in hits]}
+
+
+# --- Meta-learning ------------------------------------------------------------
+
+@router.get("/v1/hermes/meta", tags=["hermes"])
+async def hermes_meta_stats() -> dict:
+    """Everything the meta-learner currently believes."""
+    _hermes_guard()
+    from ..hermes.meta_learning import get_meta_learner
+
+    return get_meta_learner().stats()
+
+
+@router.get("/v1/hermes/meta/episodes", tags=["hermes"])
+async def hermes_meta_episodes(limit: int = 20) -> dict:
+    """The most recent learned episodes."""
+    _hermes_guard()
+    from ..hermes.meta_learning import get_meta_learner
+
+    return {"episodes": get_meta_learner().recent_episodes(limit=max(1, min(limit, 200)))}
+
+
+@router.post("/v1/hermes/meta/adapt", tags=["hermes"])
+async def hermes_meta_adapt(body: HermesCognitionRequest) -> dict:
+    """Preview the adaptation the learner would apply to a task, without running it."""
+    _hermes_guard()
+    from ..hermes.meta_learning import get_meta_learner
+
+    return get_meta_learner().adapt(body.text).to_dict()
+
+
+@router.post("/v1/hermes/feedback", tags=["hermes"])
+async def hermes_feedback(body: HermesFeedbackRequest) -> dict:
+    """Reinforce (or penalise) a past episode with an explicit reward."""
+    _hermes_guard()
+    from ..hermes.agent import get_hermes
+
+    episode = get_hermes().reinforce(body.episode_id, body.reward, body.feedback)
+    if episode is None:
+        raise HTTPException(status_code=404, detail=f"No episode {body.episode_id!r}.")
+    from ..hermes.meta_learning import get_meta_learner
+
+    return {"episode": episode, "strategy": get_meta_learner().strategy.as_dict()}
+
+
+@router.delete("/v1/hermes/meta", tags=["hermes"])
+async def hermes_meta_reset() -> dict:
+    """Forget all meta-learned state (episodes, exemplars, priors, strategy)."""
+    _hermes_guard()
+    from ..hermes.meta_learning import get_meta_learner
+
+    learner = get_meta_learner()
+    learner.reset()
+    return {"reset": True, "strategy": learner.strategy.as_dict()}
+
+
+@router.post("/v1/hermes/meta/save", tags=["hermes"])
+async def hermes_meta_save() -> dict:
+    """Persist meta-learned state to the configured path."""
+    _hermes_guard()
+    if not settings.hermes_meta_state_path:
+        raise HTTPException(
+            status_code=400,
+            detail="No AETHERIS_HERMES_META_STATE_PATH is configured.",
+        )
+    from ..hermes.meta_learning import get_meta_learner
+
+    path = get_meta_learner().save(settings.hermes_meta_state_path)
+    return {"saved": True, "path": str(path)}
 
 
 __all__ = ["router"]

@@ -47,8 +47,8 @@ export function CommandPalette({ onClose, onRun, threads, onSelectThread, onNewT
     { id: 'eli5', label: 'Explain simply (ELI5)', description: 'Simple explanation of a topic', icon: '🧒', category: 'Learn', action: () => onRun('ELI5 ') },
     { id: 'resume', label: 'Build resume', description: 'Create a professional resume', icon: '📄', category: 'Career', action: () => onRun('Help me build a resume') },
     { id: 'interview', label: 'Interview prep', description: 'Practice interview questions', icon: '🎯', category: 'Career', action: () => onRun('Prepare me for a software engineer interview') },
-    { id: 'aurora', label: 'Draw aurora', description: 'Generate aurora art via Visage', icon: '🎨', category: 'Visage', action: () => onRun('Draw an aurora poster') },
-    { id: 'mandala', label: 'Draw mandala', description: 'Generate mandala pattern', icon: '🔮', category: 'Visage', action: () => onRun('Draw a mandala') },
+    { id: 'aurora', label: 'Generate image', description: 'Synthesize a PNG in-process', icon: '🎨', category: 'Create', action: () => onRun('Generate an image of an aurora over mountains') },
+    { id: 'meta', label: 'Show learning state', description: 'What the meta-learner has learned', icon: '🧬', category: 'Hermes', action: () => onRun('What have you learned so far?') },
     { id: 'recipe', label: 'Biryani recipe', description: 'Hyderabadi dum biryani', icon: '🍚', category: 'Cook', action: () => onRun('Give me a biryani recipe') },
     { id: 'hyderabad', label: 'Hyderabad guide', description: 'Weekend travel plan', icon: '🏛️', category: 'Travel', action: () => onRun('Weekend plan for Hyderabad') },
     // Threads

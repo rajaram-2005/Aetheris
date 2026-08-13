@@ -203,7 +203,7 @@ export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: Compo
         </div>
 
         <p className="text-center text-[10px] mt-1.5" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          AURION C7 · on-device · no API keys · ⌘K for commands
+          Aetheris · Hermes agent + meta-learning · offline · ⌘K for commands
         </p>
       </div>
     </div>

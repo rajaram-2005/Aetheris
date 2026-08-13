@@ -1,148 +1,60 @@
-# AURION — Sovereign Cognitive Engine
+# Aetheris — web application
 
-A production-ready, ChatGPT-like product surface powered by the **C7 cascade** — an original 7-stage processing pipeline that runs entirely on-device. No third-party AI APIs. No API keys. No data leaves your browser.
+The browser front-end for the Aetheris runtime. It is a **thin client**: all
+cognition happens in the Python process behind `/v1/hermes/*`. This app owns
+presentation and local conversation history, nothing else.
 
-## What is C7?
+> Previously this directory held a second, independent brain (the "C7 cascade")
+> written in TypeScript. That logic now lives in Python at `aetheris/hermes/`,
+> so the system has one engine instead of two divergent ones.
 
-C7 is a deterministic, on-device cognitive pipeline with seven stages:
+## Running it
 
-| Stage | Name | What It Does |
-|-------|------|-------------|
-| 1 | **SENSE** | Tokenization, language detection (en/hi/te/es/fr/de/ta), entity extraction, sentiment analysis, keyword extraction |
-| 2 | **ALIGN** | Hybrid intent classifier using cue/regex patterns + TF-IDF cosine similarity against intent prototypes. Classifies 40+ intents |
-| 3 | **PLOT** | Maps intent → task-graph steps + style (formal/brief/simple/creative/precise) |
-| 4 | **RECALL** | BM25 search over built-in knowledge base (science, CS, India/Hyderabad, programming, etc.), session memory, and file chunks |
-| 5 | **THINK** | Recursive-descent math parser (+, -, *, /, ^, %, sqrt, log, sin, cos), unit conversions (km↔mi, kg↔lb, °C↔°F), percentages, quadratic equations, CSV statistics |
-| 6 | **WEAVE** | Compositional generators per intent — emails, code (Python/JS/Java/C++/SQL/HTML/Go/bash), poems, stories, quizzes, recipes, travel guides, Visage canvas art |
-| 7 | **REFINE** | Safety filtering, vendor voice stripping, honesty enforcement, persona polish |
+The normal path is to build once and let FastAPI serve the result — one process,
+one port, no Node at runtime:
 
-### Key Algorithms Implemented
+```bash
+npm install
+npm run build          # static export → out/
+cd .. && .venv/bin/uvicorn aetheris.main:app --host 0.0.0.0 --port 8000
+```
 
-- **TF-IDF** — Term Frequency–Inverse Document Frequency for intent classification
-- **BM25** — Best Matching 25 for knowledge base retrieval
-- **Recursive-descent math parser** — Full expression evaluator with operator precedence
-- **Visage** — Canvas2D procedural renderer (aurora, mandala, circuit, stars, poster, flowchart)
-- **Translation** — Phrase memory + word lexicon for Hindi, Telugu, Spanish, French, German, Tamil
+Open `http://localhost:8000/`.
 
-## No LLM Vendor
+## Developing
 
-AURION does **NOT** use:
-- ❌ OpenAI / ChatGPT
-- ❌ Anthropic Claude
-- ❌ Google Gemini
-- ❌ Groq
-- ❌ xAI
-- ❌ Hugging Face Inference
-- ❌ Any third-party LLM / chat API
+For hot reload, run the UI dev server alongside the runtime. `/v1/*` is proxied
+to Python, so browser code only ever calls its own origin:
 
-All "AI" runs in the browser using our own deterministic code. No API keys. No streaming tokens from a vendor.
+```bash
+# terminal 1
+cd .. && .venv/bin/uvicorn aetheris.main:app --port 8000
+# terminal 2
+npm run dev            # http://localhost:3000
+```
+
+Set `AETHERIS_BACKEND` to point the proxy somewhere other than
+`http://127.0.0.1:8000`.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `src/lib/hermes.ts` | The only seam to the backend — every API call lives here |
+| `src/types/index.ts` | Types mirroring the runtime's payloads |
+| `src/lib/store.ts` | Threads and settings in `localStorage` |
+| `src/components/Inspector.tsx` | Live cascade trace + meta-learning dashboard |
+| `src/app/AurionApp.tsx` | Application shell and orchestration |
+
+## What you can see in the UI
+
+- **Inspector → cascade** — all eleven stages with timings and expandable detail
+- **Inspector → learning** — adapted strategy, intent priors, tool priors,
+  episode count, and reward trend
+- **👍 / 👎 on any answer** — sends a reward to `/v1/hermes/feedback`; the
+  learner updates immediately
 
 ## Privacy
 
-- Prompts, files, threads stay in the browser (localStorage)
-- Nothing is POSTed to an LLM or external server
-- Session memory is stored locally only
-
-## Features
-
-- 💬 **Chat** — Conversational interface with multi-thread history
-- ✍️ **Write** — Emails, letters, blogs, stories, poems, social posts, ads
-- 💻 **Code** — Generate, explain, debug code in Python, JS, Java, C++, SQL, HTML, Go, bash
-- 📐 **Math** — Arithmetic, algebra, unit conversions, percentages, quadratic equations, statistics
-- 🌐 **Translate** — English ↔ Hindi, Telugu, Spanish, French, German, Tamil
-- 📚 **Study** — Quizzes, flashcards, study plans, ELI5 explanations
-- 🎨 **Visage** — Canvas2D procedural art (aurora, mandala, circuit, stars, posters, flowcharts)
-- 🎨 **Color Palettes** — Generate harmonious palettes for any mood
-- 📁 **File Analysis** — Attach txt, md, csv, json, code, images
-- 🎤 **Voice** — Web Speech API for voice input
-- ⚡ **C7 Inspector** — Live trace of all 7 stages with timing
-- 🎯 **Command Palette** — ⌘K for quick actions
-- 📋 **Prompt Library** — 40+ curated prompts
-- ⚙️ **Settings** — Persona, creativity, length, theme, voice, editable system prompt
-- 📤 **Export** — Export threads as Markdown
-- 🔒 **Privacy Pill** — Always visible on-device indicator
-
-## Tech Stack
-
-- **Next.js** App Router
-- **TypeScript**
-- **Tailwind CSS** v4
-- **Zero env vars** — deploys to Vercel with no secrets
-
-## Deploy to Vercel
-
-```bash
-# Clone the repo
-git clone <repo-url>
-cd aurion
-
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Deploy to Vercel
-npx vercel
-```
-
-Or connect your GitHub repo to [vercel.com](https://vercel.com) and deploy automatically.
-
-## Local Development
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── layout.tsx       # Root layout
-│   ├── page.tsx          # Home page
-│   ├── AurionApp.tsx     # Main app component
-│   └── globals.css       # Theme variables + base styles
-├── components/
-│   ├── Sidebar.tsx       # Left sidebar (brand, threads, skills)
-│   ├── ChatArea.tsx      # Center chat panel
-│   ├── Composer.tsx      # Message input with file attach + voice
-│   ├── MessageBubble.tsx # Message rendering with markdown
-│   ├── Inspector.tsx     # Right C7 trace panel
-│   ├── SettingsPanel.tsx # Settings modal
-│   ├── CommandPalette.tsx # ⌘K command palette
-│   ├── PromptLibrary.tsx # Curated prompt library
-│   └── SplashScreen.tsx  # Boot splash with C7 cascade animation
-├── lib/
-│   ├── c7/
-│   │   ├── sense.ts      # Stage 1: Tokenize, language, entities
-│   │   ├── align.ts      # Stage 2: Intent classification (TF-IDF)
-│   │   ├── plot.ts       # Stage 3: Task graph planning
-│   │   ├── recall.ts     # Stage 4: Knowledge retrieval (BM25)
-│   │   ├── think.ts      # Stage 5: Math parser + conversions
-│   │   ├── weave.ts      # Stage 6: Response generators
-│   │   ├── refine.ts     # Stage 7: Safety + polish
-│   │   └── system.ts     # C7 orchestrator
-│   ├── skills/
-│   │   ├── code.ts       # Code generators (Python, JS, etc.)
-│   │   ├── translate.ts  # Translation lexicons
-│   │   └── visage.ts     # Canvas2D procedural renderer
-│   ├── kb/
-│   │   └── index.ts      # Knowledge base articles
-│   └── store.ts          # localStorage persistence
-└── types/
-    └── index.ts           # TypeScript types
-```
-
-## Themes
-
-- 🌌 **Aurora** — Dark navy with mint & gold accents (default)
-- ☀️ **Daylight** — Clean, light, professional
-- 🖤 **Ink** — Pure black, minimal
-
-## License
-
-MIT
+Prompts and threads stay on your machine. The runtime is local, no vendor API is
+called, and no API key is required.

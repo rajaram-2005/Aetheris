@@ -1,15 +1,15 @@
-/* ─── AURION Root Layout ─── */
+/* ─── Aetheris Root Layout ─── */
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AURION — Sovereign Cognitive Engine",
-  description: "A sovereign cognitive engine powered by C7 cascade. On-device, private, no AI vendor APIs.",
-  keywords: ["AURION", "AI", "cognitive engine", "C7", "on-device", "private", "no API keys"],
-  authors: [{ name: "AURION" }],
+  title: "Aetheris — Hermes Agent + Meta-Learning",
+  description: "A unified offline cognitive runtime: the Hermes agent with meta-learning. No vendor APIs, no API keys.",
+  keywords: ["Aetheris", "Hermes", "meta-learning", "agent", "offline", "private", "no API keys"],
+  authors: [{ name: "Aetheris" }],
   openGraph: {
-    title: "AURION — Sovereign Cognitive Engine",
-    description: "On-device AI powered by C7 cascade. No OpenAI. No Gemini. No Claude.",
+    title: "Aetheris — Hermes Agent + Meta-Learning",
+    description: "Hermes agent + meta-learning, running entirely offline.",
     type: "website",
   },
 };
