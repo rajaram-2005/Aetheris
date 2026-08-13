@@ -30,11 +30,12 @@ def _require(flag: str, label: str) -> None:
     "generate_image",
     (
         "Create an image from a text description and return a URL to the PNG. "
-        "Aetheris renders procedurally (gradients, landscapes, starfields, node "
-        "graphs, geometric patterns, spirals, waveforms, and typographic posters) "
-        "rather than by diffusion, so it excels at abstract art, backdrops, "
-        "wallpapers, posters, title cards, and placeholder assets — not "
-        "photorealistic scenes or specific real people. Same prompt, same image."
+        "By default Aetheris renders procedurally (gradients, landscapes, "
+        "starfields, geometric patterns, spirals, waveforms, and typographic "
+        "posters). When an upstream image provider (OpenAI DALL-E/gpt-image, "
+        "Google Imagen 3, or Stability) is configured with an API key, this uses "
+        "that real generative model instead, so it can also produce "
+        "photorealistic scenes, objects, and people."
     ),
     {
         "type": "object",
@@ -77,34 +78,45 @@ async def generate_image(
     height: int = 576,
     seed: int | None = None,
 ) -> str:
-    """Render a PNG and return its artifact URL."""
+    """Render a PNG (via the layered image provider) and return its artifact URL."""
     _require("image_generation_enabled", "Image generation")
-    from ..media.images import generate
+    from ..media.image_providers import generate_image_bytes
 
     width = max(64, min(int(width or 1024), settings.media_max_image_dimension))
     height = max(64, min(int(height or 576), settings.media_max_image_dimension))
     try:
-        png, p = generate(prompt, width=width, height=height, style=style,
-                          palette=palette, seed=seed)
-    except ValueError as exc:
+        results = await generate_image_bytes(
+            prompt, width=width, height=height, n=1, seed=seed,
+        )
+    except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc)) from exc
 
+    result = results[0]
+    ext = "jpg" if result.media_type == "image/jpeg" else "png"
+    kind_slug = str(result.meta.get("style") or result.model or "image")
     artifact = get_store().put(
-        kind="image", media_type="image/png",
-        filename=f"aetheris-{p.scene}-{p.seed}.png", data=png, prompt=prompt,
-        metadata={"style": p.scene, "palette": p.palette_name, "width": width,
-                  "height": height, "seed": p.seed, "renderer": "procedural"},
+        kind="image", media_type=result.media_type,
+        filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}.{ext}",
+        data=result.data, prompt=prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "width": width, "height": height, "seed": result.seed,
+        },
     )
     return json.dumps({
         "created": "image",
         "url": artifact.url,
-        "markdown": f"![{p.caption or prompt}]({artifact.url})",
-        "style": p.scene,
-        "palette": p.palette_name,
+        "markdown": f"![{prompt}]({artifact.url})",
+        "provider": result.provider,
+        "model": result.model,
+        "style": result.meta.get("style"),
+        "palette": result.meta.get("palette"),
         "dimensions": f"{width}x{height}",
-        "seed": p.seed,
+        "seed": result.seed,
         "bytes": artifact.size,
-        "note": "Procedurally rendered by Aetheris (not a diffusion model).",
+        "note": result.meta.get("note", f"Generated via {result.provider}."),
     }, indent=2)
 
 
