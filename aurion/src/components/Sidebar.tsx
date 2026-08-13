@@ -33,6 +33,7 @@ interface SidebarProps {
   onOpenSkills?: () => void;
   onOpenIntegrations?: () => void;
   onOpenResources?: () => void;
+  onOpenMythology?: () => void;
   onExport: () => void;
 }
 
@@ -69,6 +70,7 @@ export function Sidebar({
   onOpenSkills,
   onOpenIntegrations,
   onOpenResources,
+  onOpenMythology,
   onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -311,6 +313,22 @@ export function Sidebar({
             >
               <span>🧰</span>
               <span>Models</span>
+            </button>
+          )}
+
+          {onOpenMythology && (
+            <button
+              onClick={onOpenMythology}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(251, 191, 36, 0.12)',
+                border: '1px solid rgba(251, 191, 36, 0.35)',
+                color: '#fbbf24',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>🪔</span>
+              <span>Mythos</span>
             </button>
           )}
         </div>

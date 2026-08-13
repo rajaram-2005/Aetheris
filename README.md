@@ -155,6 +155,17 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   form: text, voice (speech-to-text), speech (text-to-speech read-aloud),
   image generation, and attachments, plus one-click Skills / Connect / Models
   panels.
+- **Living Tamil Mythology** — a full pantheon of 26 legendary figures
+  (gods, goddesses, heroes, sages, kings, villains, asuras, and divine
+  symbols) that you can summon and speak with, from Murugan to Ravana:
+  - `GET /v1/mythology` — browse the pantheon by category.
+  - `POST /v1/mythology/chat` — summon a figure and talk to them; each answers
+    in its own voice (a god's clarity, a sage's kural, a villain's warning).
+  - `POST /v1/mythology/{id}/portrait` — generate a figure's portrait via the
+    layered image provider.
+  - A dedicated **Mythos** panel in the UI (sidebar + top bar) brings every
+    character to life with a live conversation and a "summon their form"
+    portrait button.
 - **Smart model routing** — `POST /v1/models/recommend` scores every tier for a
   task (reasoning, math, code, research, latency, context length) and picks the
   best fit with the reasons behind it, before a request hits the provider.
