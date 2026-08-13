@@ -42,7 +42,7 @@ browser-side copy of the logic, and no disconnected subsystem:
 | `classify` | Intent via cue regexes + TF-IDF cosine over 40 intent prototypes |
 | `adapt` | **Meta-learning inner loop** — few-shot exemplars, intent priors, tool priors, fast-adapted strategy |
 | `deliberate` | Exact symbolic computation: recursive-descent parser, conversions, percentages, quadratics, statistics |
-| `ground` | BM25 over a 31-article built-in corpus **and** any documents you mount |
+| `ground` | BM25 over a 31-article built-in corpus, mounted documents, **and** the knowledge graph |
 | `route` | NOVA sparse mixture-of-experts routing |
 | `recall` | NOVA hierarchical long-term memory |
 | `act` | **Real tool execution** — sandboxed Python, retrieval, media synthesis |
@@ -134,6 +134,15 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   (summary, key points, action items), with a deterministic extractive fallback.
 - **Seeded release notes** — `/v1/changelog` is populated with the current
   release's feature/fix entries on first boot.
+- **Apex cognition (v0.12)** — a second intelligence layer on top of Hermes:
+  - **Knowledge graph** — entity-relation Graph RAG with multi-hop traversal.
+  - **Constitution** — named principles that critique, revise, or refuse an answer.
+  - **Eval harness** — deterministic graders, a live `hermes-cognition` suite, A/B scorecards.
+  - **Provenance** — sentence-level citation graphs for every generation.
+  - **Circuit breakers** — closed / open / half-open isolation around tools.
+  - **Skills** — composable instruction packs matched per turn.
+  - **Semantic cache** — near-duplicate prompt reuse via signature embeddings.
+  - **Guardrails** — JSON Schema contracts with automatic repair.
 
 ---
 
@@ -344,6 +353,7 @@ curl -N http://localhost:8000/v1/chat/completions \
     "mode": "engineering",
     "stream": true,
     "messages": [
+         "messages": [
       { "role": "user", "content": "Design a rate limiter for a public API." }
     ]
   }'
@@ -403,6 +413,13 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/hermes/meta/adapt` | Preview the adaptation for a task without running it. |
 | `POST /v1/hermes/feedback` | Reinforce or penalise an episode (this is what teaches it). |
 | `DELETE /v1/hermes/meta` | Forget all meta-learned state. |
+| `GET /v1/apex` | Apex cognition manifest (graph, constitution, evals, skills, …). |
+| `POST /v1/graph/query` | Multi-hop Graph RAG over the in-process knowledge graph. |
+| `POST /v1/constitution/decide` | Critique and revise an answer against the live constitution. |
+| `POST /v1/evals/run` | Run a grader suite (`hermes-cognition` is built in). |
+| `POST /v1/skills/compose` | Match composable skills to a task and return a prompt pack. |
+| `POST /v1/semantic-cache/lookup` | Near-duplicate cache lookup by signature embedding. |
+| `POST /v1/guardrails/validate` | Validate / repair JSON against a named contract. |
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
@@ -861,3 +878,4 @@ The server supports `--reload` for live editing during development.
 ## License
 
 MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
+

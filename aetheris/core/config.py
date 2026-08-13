@@ -599,6 +599,38 @@ class Settings(BaseSettings):
         default=100_000, ge=100, description="Maximum vector-index documents.",
     )
 
+    # --- v0.12.0 Apex cognition ---------------------------------------------
+    knowledge_graph_enabled: bool = Field(
+        default=True, description="Enable the entity-relation knowledge graph (Graph RAG).",
+    )
+    knowledge_graph_max_nodes: int = Field(
+        default=20_000, ge=100, description="Maximum nodes retained in the knowledge graph.",
+    )
+    constitution_enabled: bool = Field(
+        default=True, description="Enable the constitutional critique / revise engine.",
+    )
+    evals_enabled: bool = Field(
+        default=True, description="Enable the evaluation harness (suites, graders, A/B).",
+    )
+    provenance_enabled: bool = Field(
+        default=True, description="Record citation / provenance graphs for generations.",
+    )
+    circuit_breakers_enabled: bool = Field(
+        default=True, description="Enable per-tool / per-provider circuit breakers.",
+    )
+    skills_enabled: bool = Field(
+        default=True, description="Enable composable skill matching and composition.",
+    )
+    semantic_cache_enabled: bool = Field(
+        default=True, description="Enable embedding-similarity response cache.",
+    )
+    semantic_cache_threshold: float = Field(
+        default=0.82, ge=0.0, le=1.0, description="Minimum cosine similarity for a semantic-cache hit.",
+    )
+    guardrails_enabled: bool = Field(
+        default=True, description="Enable JSON-schema contracts and structured-output repair.",
+    )
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -689,6 +721,15 @@ class Settings(BaseSettings):
             "comments": self.comments_enabled,
             "recurrence": self.recurrence_enabled,
             "embeddings": self.embeddings_enabled,
+            # v0.12.0 Apex cognition
+            "knowledge_graph": self.knowledge_graph_enabled,
+            "constitution": self.constitution_enabled,
+            "evals": self.evals_enabled,
+            "provenance": self.provenance_enabled,
+            "circuit_breakers": self.circuit_breakers_enabled,
+            "skills": self.skills_enabled,
+            "semantic_cache": self.semantic_cache_enabled,
+            "guardrails": self.guardrails_enabled,
         }
 
 

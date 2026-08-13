@@ -18,6 +18,7 @@ interface ChatAreaProps {
   onOpenCanvas?: () => void;
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
+  onOpenApexLab?: () => void;
   activeModel?: ModelId;
   onSelectModel?: (model: ModelId) => void;
   showInspector: boolean;
@@ -46,6 +47,7 @@ export function ChatArea({
   onOpenCanvas,
   onOpenAgentStore,
   onOpenDeepResearch,
+  onOpenApexLab,
   activeModel = 'aetheris-prime-v4',
   onSelectModel,
   showInspector,
@@ -199,6 +201,23 @@ export function ChatArea({
             >
               <span>🔬</span>
               <span className="hidden md:inline">Research</span>
+            </button>
+          )}
+
+          {onOpenApexLab && (
+            <button
+              onClick={onOpenApexLab}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(192, 132, 252, 0.14)',
+                border: '1px solid rgba(192, 132, 252, 0.4)',
+                color: '#c084fc',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="Apex Cognition Lab"
+            >
+              <span>✦</span>
+              <span className="hidden md:inline">Apex</span>
             </button>
           )}
 

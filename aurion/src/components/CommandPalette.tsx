@@ -15,6 +15,7 @@ interface CommandPaletteProps {
   onOpenCanvas?: () => void;
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
+  onOpenApexLab?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -38,6 +39,7 @@ export function CommandPalette({
   onOpenCanvas,
   onOpenAgentStore,
   onOpenDeepResearch,
+  onOpenApexLab,
   onOpenSettings,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -52,6 +54,7 @@ export function CommandPalette({
     // Frontier Tycoon Studios & Hubs
     ...(onOpenCanvas ? [{ id: 'studio-canvas', label: 'Artifacts 2.0 Canvas Studio', description: 'Open side-by-side interactive code, SVG & HTML execution runner', icon: '📐', category: 'Studios & Hubs', action: () => { onOpenCanvas(); onClose(); } }] : []),
     ...(onOpenDeepResearch ? [{ id: 'studio-research', label: 'Autonomous Deep Research Engine', description: 'Run multi-hop document & web research with citations', icon: '🔬', category: 'Studios & Hubs', action: () => { onOpenDeepResearch(); onClose(); } }] : []),
+    ...(onOpenApexLab ? [{ id: 'studio-apex', label: 'Apex Cognition Lab', description: 'Knowledge graph, constitution, evals, and composable skills', icon: '✦', category: 'Studios & Hubs', action: () => { onOpenApexLab(); onClose(); } }] : []),
     ...(onOpenAgentStore ? [{ id: 'studio-agents', label: 'Sovereign Agents & Custom GPTs Store', description: 'Deploy, customize and run air-gapped domain agents', icon: '🤖', category: 'Studios & Hubs', action: () => { onOpenAgentStore(); onClose(); } }] : []),
     ...(onOpenGallery ? [{ id: 'studio-gallery', label: 'Neural Visual Design Studio Gallery', description: 'View & generate mind-blowing 8k cyberpunk visuals', icon: '🎨', category: 'Studios & Hubs', action: () => { onOpenGallery(); onClose(); } }] : []),
     ...(onOpenBenchmarks ? [{ id: 'studio-benchmarks', label: 'Foundation Model Benchmark Arena', description: 'Compare against DeepSeek-R1, Llama 3.3 70B & Qwen 2.5 72B', icon: '📊', category: 'Studios & Hubs', action: () => { onOpenBenchmarks(); onClose(); } }] : []),
@@ -75,7 +78,7 @@ export function CommandPalette({
       category: 'Recent Conversations',
       action: () => { onSelectThread(t.id); onClose(); },
     })),
-  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenSettings]);
+  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenSettings]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;

@@ -25,6 +25,7 @@ import { BenchmarkModal } from '@/components/BenchmarkModal';
 import { CanvasWorkspace } from '@/components/CanvasWorkspace';
 import { AgentStoreModal } from '@/components/AgentStoreModal';
 import { DeepResearchModal } from '@/components/DeepResearchModal';
+import { ApexLab } from '@/components/ApexLab';
 
 interface RuntimeInfo {
   foundation: string;
@@ -67,6 +68,7 @@ export default function AetherisApp() {
   const [showCanvas, setShowCanvas] = useState(false);
   const [showAgentStore, setShowAgentStore] = useState(false);
   const [showDeepResearch, setShowDeepResearch] = useState(false);
+  const [showApexLab, setShowApexLab] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -139,6 +141,7 @@ export default function AetherisApp() {
         setShowCanvas(false);
         setShowAgentStore(false);
         setShowDeepResearch(false);
+        setShowApexLab(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -325,6 +328,7 @@ export default function AetherisApp() {
         onOpenCanvas={() => setShowCanvas(true)}
         onOpenAgentStore={() => setShowAgentStore(true)}
         onOpenDeepResearch={() => setShowDeepResearch(true)}
+        onOpenApexLab={() => setShowApexLab(true)}
         onExport={handleExportThread}
       />
 
@@ -340,6 +344,7 @@ export default function AetherisApp() {
         onOpenCanvas={() => setShowCanvas(true)}
         onOpenAgentStore={() => setShowAgentStore(true)}
         onOpenDeepResearch={() => setShowDeepResearch(true)}
+        onOpenApexLab={() => setShowApexLab(true)}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
         showInspector={showInspector}
@@ -422,6 +427,14 @@ export default function AetherisApp() {
         <DeepResearchModal
           isOpen={showDeepResearch}
           onClose={() => setShowDeepResearch(false)}
+          onRunInChat={handleRunPrompt}
+        />
+      )}
+
+      {showApexLab && (
+        <ApexLab
+          isOpen={showApexLab}
+          onClose={() => setShowApexLab(false)}
           onRunInChat={handleRunPrompt}
         />
       )}

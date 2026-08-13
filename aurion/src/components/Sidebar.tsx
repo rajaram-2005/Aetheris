@@ -28,6 +28,7 @@ interface SidebarProps {
   onOpenCanvas?: () => void;
   onOpenAgentStore?: () => void;
   onOpenDeepResearch?: () => void;
+  onOpenApexLab?: () => void;
   onExport: () => void;
 }
 
@@ -56,6 +57,7 @@ export function Sidebar({
   onOpenCanvas,
   onOpenAgentStore,
   onOpenDeepResearch,
+  onOpenApexLab,
   onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -218,6 +220,22 @@ export function Sidebar({
             >
               <span>🔬</span>
               <span>Research</span>
+            </button>
+          )}
+
+          {onOpenApexLab && (
+            <button
+              onClick={onOpenApexLab}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-semibold transition-all hover:bg-white/5"
+              style={{
+                background: 'rgba(192, 132, 252, 0.12)',
+                border: '1px solid rgba(192, 132, 252, 0.3)',
+                color: '#c084fc',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              <span>✦</span>
+              <span>Apex</span>
             </button>
           )}
         </div>
