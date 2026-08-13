@@ -523,6 +523,14 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/skills/compose` | Match composable skills to a task and return a prompt pack. |
 | `POST /v1/semantic-cache/lookup` | Near-duplicate cache lookup by signature embedding. |
 | `POST /v1/guardrails/validate` | Validate / repair JSON against a named contract. |
+| `GET /v1/research/catalog` | List all 50 research features across 6 evolutionary eras (1950–2026). |
+| `GET /v1/research/timeline` | Full chronological milestone timeline of AI breakthroughs. |
+| `GET /v1/research/eras` | Summary breakdown of all 6 AI evolutionary eras. |
+| `GET /v1/research/features/{id}` | Full mathematical formula, citation, and parameter spec for a feature. |
+| `POST /v1/research/features/{id}/run` | Execute the exact research algorithm / simulation with custom parameters. |
+| `POST /v1/research/benchmark` | Comparative benchmarking across AI research paradigms. |
+| `POST /v1/research/evolution/synthesize` | Multi-paradigm synthesis combining symbolic logic, statistical bounds, deep learning, alignment, and frontier reasoning. |
+| `GET /v1/research/stats` | Telemetry & execution counts across all 50 research features. |
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
@@ -890,6 +898,90 @@ and targeted harassment, and your upstream provider's own policies still apply.
 While disabled, the mode is hidden from `/v1/modes` and the playground, and
 requesting it returns a `400` explaining how to enable it — it never silently
 downgrades to a different identity.
+
+---
+
+### AI Evolution Research Engine (50 Seminal Milestones 1950–2026)
+
+Aetheris v0.14.0 ships with the definitive executable archive of **50 seminal research paradigms** spanning 75 years of Artificial Intelligence evolution. Every feature runs **entirely offline** with exact mathematical equations, algorithmic simulations, and theoretical takeaways.
+
+#### The 6 Evolutionary Eras & 50 Research Features
+
+1. **Symbolic & Foundational AI (1950–1980s)**:
+   - `turing_test_1950` — Turing Imitation Game & Indistinguishability Evaluator (Turing 1950)
+   - `perceptron_rosenblatt_1958` — Rosenblatt Perceptron & Margin Classifier (Rosenblatt 1958)
+   - `resolution_refutation_1965` — Robinson First-Order Resolution Refutation Theorem Prover (Robinson 1965)
+   - `eliza_rogerian_1966` — ELIZA Pattern-Matching Rogerian Agent (Weizenbaum 1966)
+   - `mycin_certainty_factors_1976` — MYCIN Expert System & Certainty Factor Calculus (Shortliffe 1976)
+   - `hopfield_associative_memory_1982` — Hopfield Associative Memory & Energy Attractors (Hopfield 1982)
+   - `backprop_mlp_1986` — Multi-Layer Perceptron Backpropagation (Rumelhart, Hinton, Williams 1986)
+   - `q_learning_td_1989` — Watkins Q-Learning & Bellman Temporal Difference (Watkins 1989 / Sutton 1988)
+
+2. **Statistical Learning, Probabilistic Models & Kernel Methods (1990s–2000s)**:
+   - `svm_kernel_trick_1995` — Support Vector Machine & Mercer Kernel Trick (Cortes & Vapnik 1995)
+   - `lstm_cell_1997` — Long Short-Term Memory Cell with Constant Error Carrousels (Hochreiter & Schmidhuber 1997)
+   - `hmm_viterbi_1989` — Hidden Markov Model & Viterbi Trellis Dynamic Decoder (Rabiner 1989)
+   - `lda_topic_model_2003` — Latent Dirichlet Allocation Hierarchical Topic Engine (Blei, Ng, Jordan 2003)
+   - `random_forest_oob_2001` — Random Forest Bagging & Out-of-Bag Ensemble (Breiman 2001)
+   - `rbm_contrastive_divergence_2002` — Restricted Boltzmann Machine & CD-k (Hinton 2002/2006)
+   - `gaussian_process_bo_2006` — Gaussian Process Regression & Bayesian Optimization (Rasmussen & Williams 2006)
+   - `mcts_uct_2006` — Monte Carlo Tree Search with UCB1 (Kocsis & Szepesvári 2006)
+
+3. **Deep Representation Learning Revolution (2010–2017)**:
+   - `alexnet_cnn_2012` — AlexNet Deep Convolutional Feature Extractor (Krizhevsky, Sutskever, Hinton 2012)
+   - `word2vec_skipgram_2013` — Word2Vec Skip-Gram & Semantic Vector Arithmetic (Mikolov et al. 2013)
+   - `gan_minimax_2014` — Generative Adversarial Network Minimax Game (Goodfellow et al. 2014)
+   - `bahdanau_attention_2014` — Bahdanau Additive Attention Alignment (Bahdanau, Cho, Bengio 2014)
+   - `dqn_experience_replay_2015` — Deep Q-Network with Replay Buffer & Target Network (Mnih et al. Nature 2015)
+   - `resnet_skip_connection_2015` — Deep Residual Network & Identity Skip Highway (He et al. 2015)
+   - `alphago_policy_value_2016` — AlphaGo Dual Policy-Value Network & Self-Play (Silver et al. Nature 2016)
+   - `transformer_mha_2017` — Transformer Scaled Dot-Product & Multi-Head Attention (Vaswani et al. 2017)
+
+4. **Transformers, Pre-training & Scaling Frontiers (2018–2022)**:
+   - `bert_masked_lm_2018` — BERT Bidirectional Masked Language Model (Devlin et al. 2018)
+   - `gpt_causal_decoder_2018` — Autoregressive GPT Causal Decoder (Radford et al. OpenAI 2018)
+   - `scaling_laws_chinchilla_2022` — Neural Scaling Laws & Compute-Optimal Frontier (Kaplan 2020 / Hoffmann 2022)
+   - `clip_dual_encoder_2021` — CLIP Contrastive Vision-Language Dual Encoder (Radford et al. 2021)
+   - `ddpm_diffusion_2020` — Denoising Diffusion Probabilistic Model (Ho, Jain, Abbeel 2020)
+   - `rag_hybrid_fusion_2020` — Retrieval-Augmented Generation & Reciprocal Rank Fusion (Lewis et al. 2020)
+   - `rlhf_bradley_terry_2022` — RLHF Bradley-Terry Reward Modeling & PPO Alignment (Ouyang et al. 2022)
+   - `lora_peft_2021` — Low-Rank Adaptation of Large Models (Hu et al. Microsoft 2021)
+   - `flash_attention_tiling_2022` — FlashAttention Hardware-Aware SRAM Tiling (Dao et al. 2022)
+   - `cot_self_consistency_2022` — Chain-of-Thought & Self-Consistency Consensus Voting (Wei / Wang 2022)
+   - `react_agent_loop_2022` — ReAct Reason + Act Interactive Execution Loop (Yao et al. 2022)
+   - `moe_sparse_gating_2024` — Mixture of Experts Sparse Top-k Router & Load Balancing (Shazeer / Mixtral 2024)
+
+5. **Direct Alignment, Efficiency & Latent Architecture (2023–2024)**:
+   - `dpo_direct_preference_2023` — Direct Preference Optimization (Rafailov et al. 2023)
+   - `speculative_decoding_2023` — Speculative Decoding & Parallel Verification (Leviathan et al. 2023)
+   - `mla_latent_attention_2024` — Multi-Head Latent Attention with Decoupled RoPE (DeepSeek 2024)
+   - `mtp_multi_token_prediction_2024` — Multi-Token Prediction Heads (Meta / DeepSeek-V3 2024)
+   - `rope_yarn_context_2023` — RoPE Rotary Embedding & YaRN Context Extension (Su / Peng 2023)
+   - `mamba_selective_ssm_2023` — Mamba Selective State Space Model in O(L) Time (Gu & Dao 2023)
+   - `prm_process_supervision_2023` — Process Reward Model (PRM) Step-by-Step Supervision (Lightman et al. 2023)
+   - `sae_sparse_autoencoder_2023` — Sparse Autoencoders for Monosemantic Interpretability (Bricken et al. 2023)
+   - `activation_steering_vectors_2023` — Representation Engineering & Activation Steering (Turner et al. 2023)
+   - `rome_knowledge_editing_2022` — Rank-One Factual Knowledge Editing ROME/MEMIT (Meng et al. 2022)
+
+6. **Frontier Reasoning, Test-Time Compute & Emergence (2024–2026)**:
+   - `grpo_deepseek_r1_2025` — Group Relative Policy Optimization Baseline-Free RL (DeepSeek-R1 2025)
+   - `test_time_compute_scaling_2024` — Test-Time Compute Scaling & Dynamic Search Budget (Snell et al. 2024)
+   - `kan_kolmogorov_arnold_2024` — Kolmogorov-Arnold Network with Edge Splines (Liu et al. 2024)
+   - `pinn_physics_informed_nn_2019` — Physics-Informed Neural Network with PDE Residual Loss (Raissi et al. 2019)
+
+```bash
+# Explore the AI Evolution Catalog
+curl -s localhost:8000/v1/research/catalog
+
+# Run DeepSeek-R1 GRPO Simulation
+curl -s -X POST localhost:8000/v1/research/features/grpo_deepseek_r1_2025/run \
+  -H "Content-Type: application/json" -d '{"parameters": {"group_size": 8}}'
+
+# Synthesize insights across AI history
+curl -s -X POST localhost:8000/v1/research/evolution/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "How can neural networks combine formal logic and test-time search?"}'
+```
 
 ---
 

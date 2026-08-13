@@ -31,6 +31,7 @@ import { SkillsModal } from '@/components/SkillsModal';
 import { IntegrationsModal } from '@/components/IntegrationsModal';
 import { ResourcesModal } from '@/components/ResourcesModal';
 import { MythologyModal } from '@/components/MythologyModal';
+import { ResearchEvolutionModal } from '@/components/ResearchEvolutionModal';
 
 interface RuntimeInfo {
   foundation: string;
@@ -81,6 +82,7 @@ export default function AetherisApp() {
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showResources, setShowResources] = useState(false);
   const [showMythology, setShowMythology] = useState(false);
+  const [showResearchEvolution, setShowResearchEvolution] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [lastAssistantText, setLastAssistantText] = useState('');
@@ -164,6 +166,7 @@ export default function AetherisApp() {
         setShowIntegrations(false);
         setShowResources(false);
         setShowMythology(false);
+        setShowResearchEvolution(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -436,6 +439,7 @@ export default function AetherisApp() {
         onOpenIntegrations={() => setShowIntegrations(true)}
         onOpenResources={() => setShowResources(true)}
         onOpenMythology={() => setShowMythology(true)}
+        onOpenResearchEvolution={() => setShowResearchEvolution(true)}
         onExport={handleExportThread}
       />
 
@@ -577,6 +581,11 @@ export default function AetherisApp() {
       {showResources && <ResourcesModal onClose={() => setShowResources(false)} />}
 
       {showMythology && <MythologyModal onClose={() => setShowMythology(false)} />}
+
+      <ResearchEvolutionModal
+        isOpen={showResearchEvolution}
+        onClose={() => setShowResearchEvolution(false)}
+      />
     </div>
   );
 }
