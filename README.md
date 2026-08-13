@@ -92,11 +92,13 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   LM Studio) via environment variables.
 - **Typed everywhere** — Pydantic v2 schemas, Python 3.11+ idioms, defensive error
   handling.
-- **Integrated web application** at `/` — threaded chat, an eleven-stage cascade
-  Inspector, a live meta-learning dashboard, 👍/👎 reinforcement, file attachment,
-  command palette, and prompt library. Served by the Python process itself.
-- **Branded landing page** at `/landing` with a live streaming playground,
-  architecture visualization, and copy-ready API examples.
+- **One integrated web application** at `/` — a single shell with a **Home**
+  view (hero, capabilities, model tiers, inference modes, visual studio,
+  architecture, training, research hub, and copy-ready API examples) and a
+  **Workspace** view (threaded chat, eleven-stage cascade Inspector, live
+  meta-learning dashboard, 👍/👎 reinforcement, file attachment, command
+  palette, and prompt library). Served by the Python process itself — no second
+  surface, no separate frontend server.
 - **God Mode orchestration** — activate an expert control deck with sampling
   controls, mission profiles, local context-file mounting, execution telemetry,
   a three-agent Council workflow, a Lite-vs-Pro-vs-Ultra Model Arena, sequential
@@ -223,19 +225,20 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 
 ## Screenshots
 
-The web application and the branded landing page, both served by the single
-FastAPI process — no separate frontend server required.
+One application served by the single FastAPI process — no separate frontend
+server required.
 
 ![Aetheris application — Sovereign Neural Platform chat home](screenshots/aetheris-home.png)
 
-*The application home at `/`: the chat interface with capability tiles
+*The Workspace view: the chat interface with capability tiles
 (Visual Art, Code, Reason, Compute, Write, Study), the prompt library, and the
 live Sovereign Core status.*
 
 ![Aetheris landing page](screenshots/aetheris-landing.png)
 
-*The branded landing page at `/landing`: streaming playground, architecture
-visualization, and copy-ready API examples.*
+*The Home view (formerly the standalone `/landing` page): architecture
+visualization, model tiers, and copy-ready API examples — now reachable in-app
+from the shared top navigation.*
 
 ---
 
@@ -261,10 +264,12 @@ That's it. No API key, no network, no Node at runtime.
 
 Then open:
 
-- `http://localhost:8000/` — **the application**
-- `http://localhost:8000/landing` — branded landing page
+- `http://localhost:8000/` — **the application** (Home view; switch to the Workspace from the top nav)
 - `http://localhost:8000/docs` — interactive OpenAPI docs
 - `http://localhost:8000/v1/hermes` — the Hermes runtime manifest
+
+`/landing` now redirects to `/` — the old landing content lives in the app as
+its **Home** view (`/#home`), with the chat as the **Workspace** (`/#workspace`).
 
 ### Optional configuration
 
@@ -534,8 +539,8 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `GET /v1/spec` | Combined architecture + training specification. |
 | `GET /v1/identity` | Foundation-model spec + full brand identity (media-kit surface). |
 | `GET /v1/health` | Liveness, version, active provider. |
-| `GET /` | The web application (served from Python; falls back to the landing page if unbuilt). |
-| `GET /landing` | Branded landing page (Architecture & Training sections). |
+| `GET /` | The single web application (Home ⇄ Workspace; falls back to the Home view if unbuilt). |
+| `GET /landing` | Redirects to `/` (legacy alias for the Home view). |
 | `GET /docs` | Interactive OpenAPI docs. |
 
 ---
@@ -1050,7 +1055,7 @@ aetheris/
 │   └── openai_provider.py  # OpenAI-compatible forwarding (tools + vision)
 └── api/
     ├── routes.py           # /v1/chat/completions, /v1/tools, /v1/documents, …
-    └── landing.py          # Branded HTML landing page (data-driven)
+    └── landing.py          # Legacy landing template + /landing → / redirect
 ```
 
 **Request flow:** a chat request is resolved into a `PreparedConversation` — tier
@@ -1070,7 +1075,7 @@ promising code execution — the identity and the abilities cannot drift apart.
 
 **Design note:** the brand identity lives in exactly one place
 (`core/branding.py`) and the system prompts in exactly one place
-(`prompts/system_prompts.py`). The tiers, modes, landing page, mock persona, and
+(`prompts/system_prompts.py`). The tiers, modes, Home view, mock persona, and
 `/v1/identity` endpoint all read from these sources, so the blueprint cannot
 drift across surfaces.
 

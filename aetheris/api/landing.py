@@ -12,7 +12,7 @@ from html import escape
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 
 from .. import __version__
 from ..core import branding as b
@@ -317,17 +317,22 @@ def _render() -> str:
 
 
 @router.get("/landing", include_in_schema=False)
-async def landing() -> HTMLResponse:
-    """Serve the progressively enhanced Aetheris product page.
+async def landing() -> RedirectResponse:
+    """Redirect the legacy landing route to the unified application.
 
-    The application UI owns ``/``; this marketing/architecture page stays
-    available at ``/landing`` (and is served at ``/`` when the UI is not built).
+    The marketing/architecture content now lives inside the web app as its
+    *Home* view (served at ``/``), so ``/landing`` is kept only as a
+    compatibility alias that forwards to the single application surface.
     """
-    return HTMLResponse(content=_render())
+    return RedirectResponse(url="/", status_code=307)
 
 
 def render_landing() -> str:
-    """The rendered landing page, for reuse as the ``/`` fallback."""
+    """Render the legacy landing page for reuse as the ``/`` fallback.
+
+    Only shown when the web UI has not been built yet — a graceful degradation
+    so the service is never broken by a missing build artifact.
+    """
     return _render()
 
 

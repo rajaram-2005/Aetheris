@@ -4,6 +4,9 @@
  * (`/v1/hermes/*`) and sovereign neural architecture (`/v1/neural/*`).
  */
 
+/** The two views of the single application shell. */
+export type AppView = 'home' | 'workspace';
+
 export type Theme =
   | 'aurora'
   | 'daylight'
@@ -250,4 +253,111 @@ export interface ResearchRunOutput {
   theoretical_insight: string;
   execution_time_ms: number;
 }
+
+/* ── Unified Home view data (mirrors /v1/models, /v1/modes, /v1/architecture,
+      /v1/training, /v1/research/eras) ── */
+
+export interface ModelInfo {
+  id: string;
+  alias: string;
+  display_name: string;
+  tagline: string;
+  description: string;
+  context_window: number;
+  max_output_tokens: number;
+  latency_class: string;
+  reasoning: boolean;
+  capabilities: string[];
+}
+
+export interface ModelList {
+  object: 'list';
+  data: ModelInfo[];
+}
+
+export interface ModeInfo {
+  id: string;
+  display_name: string;
+  description: string;
+  family: string;
+  aliases: string[];
+}
+
+export interface ModeList {
+  object: 'list';
+  data: ModeInfo[];
+}
+
+export interface ModalitySupport {
+  text: boolean;
+  code: boolean;
+  structured_data: boolean;
+  ui_schematics: boolean;
+  image: boolean;
+  logical_diagrams: boolean;
+  evidence?: string;
+}
+
+export interface ArchitectureModel {
+  name: string;
+  architecture_type: string;
+  optimizations: string[];
+  modalities: ModalitySupport;
+  alignment: string;
+  output_fidelity_domains: string[];
+  hallucination_policy: string;
+  context_windows: Record<string, number>;
+  evidence: Record<string, string>;
+}
+
+export interface TrainingStageModel {
+  id: string;
+  name: string;
+  phase: string;
+  objective: string;
+  evidence: string;
+  datasets: string[];
+  notes: string;
+}
+
+export interface TrainingRuntimeTelemetry {
+  hermes_enabled?: boolean;
+  available?: boolean;
+  learning_enabled?: boolean;
+  pillars?: { hermes_agent?: string; meta_learning?: string };
+  episodes_learned_from?: number;
+  meta_updates?: number;
+  few_shot_exemplars?: number;
+  adapted_strategy?: Record<string, number>;
+  mean_reward?: number;
+  recent_mean_reward?: number;
+  improving?: boolean;
+  intent_prior?: Record<string, number>;
+  tool_priors?: unknown[];
+}
+
+export interface TrainingPipelineModel {
+  name: string;
+  foundation: string;
+  foundation_status: string;
+  alignment_methods: string[];
+  meta_learning_methods: string[];
+  stages: TrainingStageModel[];
+  evidence: Record<string, string>;
+  runtime?: TrainingRuntimeTelemetry;
+}
+
+export interface EraSummary {
+  era_id: EvolutionEraId;
+  title: string;
+  time_span: string;
+  paradigm: string;
+  feature_count: number;
+  features: string[];
+}
+
+export interface ResearchErasResponse {
+  eras: EraSummary[];
+}
+
 
