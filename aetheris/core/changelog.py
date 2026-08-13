@@ -188,6 +188,52 @@ class ChangelogManager:
 
 _manager: ChangelogManager | None = None
 
+# Release notes shown in ``/v1/changelog`` on first boot (empty by default).
+_DEFAULT_RELEASES: tuple[dict[str, str], ...] = (
+    {
+        "version": "0.11.0",
+        "category": "feature",
+        "title": "Smart model routing",
+        "description": (
+            "POST /v1/models/recommend scores every Aetheris tier for a task and "
+            "picks the best fit (reasoning, math, code, research, latency, context)."
+        ),
+        "module": "core.model_router",
+    },
+    {
+        "version": "0.11.0",
+        "category": "feature",
+        "title": "Conversation summarizer",
+        "description": (
+            "POST /v1/conversations/{id}/summarize produces a structured recap "
+            "(summary, key points, action items) via the Hermes agent, with an "
+            "extractive fallback."
+        ),
+        "module": "services.conversation_summary",
+    },
+    {
+        "version": "0.11.0",
+        "category": "fix",
+        "title": "Tool Composition execution repaired",
+        "description": (
+            "Fixed NameError ('asyncio') and non-awaitable tool results in the "
+            "NOVA plan executor, so /v1/nova/plan?execute=true now runs for real."
+        ),
+        "module": "api.routes",
+    },
+    {
+        "version": "0.11.0",
+        "category": "fix",
+        "title": "Frontend lint clean-up",
+        "description": (
+            "Resolved all ESLint errors and warnings in the web UI (effect "
+            "setState cascades, unused props/imports, any types) and surfaced "
+            "New/Research/GPT-Store quick actions."
+        ),
+        "module": "web",
+    },
+)
+
 
 def get_changelog_manager() -> ChangelogManager:
     global _manager
@@ -196,4 +242,16 @@ def get_changelog_manager() -> ChangelogManager:
     return _manager
 
 
-__all__ = ["ChangelogManager", "ChangeEntryCreate", "ChangeEntryInfo", "VersionSummary", "get_changelog_manager"]
+def seed_default_releases(manager: ChangelogManager | None = None) -> None:
+    """Populate the built-in release notes once, if the changelog is empty."""
+    mgr = manager or get_changelog_manager()
+    if mgr.stats()["total"]:
+        return
+    for entry in _DEFAULT_RELEASES:
+        mgr.create(ChangeEntryCreate(**entry))
+
+
+__all__ = [
+    "ChangelogManager", "ChangeEntryCreate", "ChangeEntryInfo", "VersionSummary",
+    "get_changelog_manager", "seed_default_releases",
+]

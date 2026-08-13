@@ -88,6 +88,24 @@ export function ChatArea({
             </button>
           )}
 
+          {/* New Exploration */}
+          <button
+            onClick={onNewThread}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
+            style={{
+              background: 'rgba(61,255,194,0.08)',
+              border: '1px solid rgba(61,255,194,0.25)',
+              color: 'var(--accent-mint)',
+              fontFamily: 'var(--font-ui)',
+            }}
+            title="Start a new thread"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="7" y1="1" x2="7" y2="13" /><line x1="1" y1="7" x2="13" y2="7" />
+            </svg>
+            <span className="hidden sm:inline">New</span>
+          </button>
+
           {/* Model Switcher Pill */}
           <div className="relative">
             <button
@@ -184,6 +202,23 @@ export function ChatArea({
             </button>
           )}
 
+          {onOpenAgentStore && (
+            <button
+              onClick={onOpenAgentStore}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: 'rgba(74, 222, 128, 0.12)',
+                border: '1px solid rgba(74, 222, 128, 0.35)',
+                color: '#4ade80',
+                fontFamily: 'var(--font-ui)',
+              }}
+              title="Sovereign Agents & Custom GPTs"
+            >
+              <span>🤖</span>
+              <span className="hidden md:inline">GPT Store</span>
+            </button>
+          )}
+
           {onOpenBenchmarks && (
             <button
               onClick={onOpenBenchmarks}
@@ -240,10 +275,6 @@ export function ChatArea({
             onRunPrompt={onRunPrompt}
             onOpenGallery={onOpenGallery}
             onOpenBenchmarks={onOpenBenchmarks}
-            onOpenCanvas={onOpenCanvas}
-            onOpenAgentStore={onOpenAgentStore}
-            onOpenDeepResearch={onOpenDeepResearch}
-            activeModel={activeModel}
           />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
@@ -260,6 +291,7 @@ export function ChatArea({
                     fontFamily: 'var(--font-display)',
                   }}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/images/avatar-prime.png"
                     alt="Aetheris Avatar"
@@ -314,18 +346,10 @@ function EmptyState({
   onRunPrompt,
   onOpenGallery,
   onOpenBenchmarks,
-  onOpenCanvas,
-  onOpenAgentStore,
-  onOpenDeepResearch,
-  activeModel,
 }: {
   onRunPrompt: (text: string) => void;
   onOpenGallery?: () => void;
   onOpenBenchmarks?: () => void;
-  onOpenCanvas?: () => void;
-  onOpenAgentStore?: () => void;
-  onOpenDeepResearch?: () => void;
-  activeModel: ModelId;
 }) {
   const suggestions = [
     {
@@ -385,6 +409,7 @@ function EmptyState({
           onClick={onOpenGallery}
           title="Click to open Visual Studio Gallery"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/images/hero-neural-core.png"
             alt="Aetheris Sovereign Neural Core"
@@ -428,35 +453,35 @@ function EmptyState({
           </p>
 
           <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-            {onOpenGallery && (
-              <button
-                onClick={onOpenGallery}
-                className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
-                style={{
-                  background: 'var(--accent-mint)',
-                  color: '#060914',
-                }}
-              >
-                <span>🎨</span>
-                <span>Visual Studio</span>
-              </button>
-            )}
-            {onOpenBenchmarks && (
-              <button
-                onClick={onOpenBenchmarks}
-                className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 flex items-center gap-2"
-                style={{
-                  background: 'rgba(192, 132, 252, 0.15)',
-                  border: '1px solid rgba(192, 132, 252, 0.35)',
-                  color: 'var(--accent-purple)',
-                }}
-              >
-                <span>📊</span>
-                <span>Benchmark Arena</span>
-              </button>
-            )}
+          {onOpenGallery && (
             <button
-              onClick={() => onRunPrompt('Show me the Aetheris neural architecture specs and benchmark comparison')}
+              onClick={onOpenGallery}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
+              style={{
+                background: 'var(--accent-mint)',
+                color: '#060914',
+              }}
+            >
+              <span>🎨</span>
+              <span>Visual Studio</span>
+            </button>
+          )}
+          {onOpenBenchmarks && (
+            <button
+              onClick={onOpenBenchmarks}
+              className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 flex items-center gap-2"
+              style={{
+                background: 'rgba(192, 132, 252, 0.15)',
+                border: '1px solid rgba(192, 132, 252, 0.35)',
+                color: 'var(--accent-purple)',
+              }}
+            >
+              <span>📊</span>
+              <span>Benchmark Arena</span>
+            </button>
+          )}
+          <button
+            onClick={() => onRunPrompt('Show me the Aetheris neural architecture specs and benchmark comparison')}
               className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:bg-white/10 flex items-center gap-1.5"
               style={{
                 background: 'rgba(255,255,255,0.06)',

@@ -296,6 +296,7 @@ export function GalleryModal({ isOpen, onClose, onRunPrompt }: GalleryModalProps
               >
                 {/* Image Container with Ambient Glow */}
                 <div className="relative aspect-video w-full overflow-hidden bg-black/60">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.url}
                     alt={img.title}
@@ -392,6 +393,7 @@ export function GalleryModal({ isOpen, onClose, onRunPrompt }: GalleryModalProps
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative aspect-video w-full bg-black">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={activeImage.url}
                 alt={activeImage.title}

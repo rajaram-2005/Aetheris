@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Message, Thread, Settings, HermesRun, Attachment, ModelId } from '@/types';
 import { runHermes, sendFeedback, getManifest, HermesError } from '@/lib/hermes';
 import {
@@ -34,11 +34,28 @@ interface RuntimeInfo {
   online: boolean;
 }
 
+/** True once rendered on the client — guards the SSR/hydration gate.
+ *  Implemented with useSyncExternalStore so no synchronous setState runs
+ *  inside an effect. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
 export default function AetherisApp() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [booting, setBooting] = useState(true);
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [currentThread, setCurrentThread] = useState<Thread | null>(null);
+  // Local history is read once at init (SSR-safe) instead of being written by
+  // an effect, which avoids a synchronously-set-state render cascade.
+  const [threads, setThreads] = useState<Thread[]>(() => getThreads());
+  const [currentThread, setCurrentThread] = useState<Thread | null>(() => {
+    const currentId = getCurrentThreadId();
+    if (!currentId) return null;
+    return getThreads().find((t) => t.id === currentId) || null;
+  });
   const [settings, setSettings] = useState<Settings>(getSettings());
   const [processing, setProcessing] = useState(false);
   const [run, setRun] = useState<HermesRun | null>(null);
@@ -54,18 +71,9 @@ export default function AetherisApp() {
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  /* Mount: restore local state and confirm the runtime is reachable. */
+  /* Mount: confirm the runtime is reachable (local state was hydrated by the
+   * state initializers above). */
   useEffect(() => {
-    setMounted(true);
-    const loaded = getThreads();
-    setThreads(loaded);
-
-    const currentId = getCurrentThreadId();
-    if (currentId) {
-      const found = loaded.find((t) => t.id === currentId);
-      if (found) setCurrentThread(found);
-    }
-
     let cancelled = false;
     getManifest()
       .then((manifest) => {

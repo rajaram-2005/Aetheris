@@ -3,6 +3,8 @@
 
 import { useState } from 'react';
 
+type DeepResearchDepth = 'standard' | 'deep' | 'exhaustive';
+
 interface ResearchSource {
   id: number;
   title: string;
@@ -30,7 +32,7 @@ interface DeepResearchModalProps {
 
 export function DeepResearchModal({ isOpen, onClose, onRunInChat }: DeepResearchModalProps) {
   const [topic, setTopic] = useState('');
-  const [depth, setDepth] = useState<'standard' | 'deep' | 'exhaustive'>('deep');
+  const [depth, setDepth] = useState<DeepResearchDepth>('deep');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<ResearchReport | null>(null);
   const [copied, setCopied] = useState(false);
@@ -134,7 +136,7 @@ export function DeepResearchModal({ isOpen, onClose, onRunInChat }: DeepResearch
 
               <select
                 value={depth}
-                onChange={(e) => setDepth(e.target.value as any)}
+                onChange={(e) => setDepth(e.target.value as DeepResearchDepth)}
                 className="bg-black border border-gray-700 px-3 py-2 rounded-xl text-xs font-mono text-cyan-300 outline-none"
               >
                 <option value="standard">Standard (2 hops)</option>

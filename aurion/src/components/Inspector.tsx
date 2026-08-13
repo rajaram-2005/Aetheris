@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { HermesRun, MetaStats, StageTrace } from '@/types';
+import { HermesRun, MetaStats } from '@/types';
 import { getMetaStats } from '@/lib/hermes';
 
 interface InspectorProps {

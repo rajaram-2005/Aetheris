@@ -32,7 +32,7 @@ export function AgentStoreModal({ isOpen, onClose, onSelectAgent }: AgentStoreMo
   const [newTagline, setNewTagline] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
   const [newIcon, setNewIcon] = useState('🤖');
-  const [newCategory, setNewCategory] = useState('Custom');
+  const newCategory = 'Custom';
 
   useEffect(() => {
     if (!isOpen) return;

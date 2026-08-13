@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Settings, Persona, Theme, ModelId, MetaStats, CustomNeuralModel } from '@/types';
+import { Settings, Persona, Theme, ModelId, MetaStats } from '@/types';
 import { getMetaStats, getNeuralModels } from '@/lib/hermes';
 
 interface SettingsPanelProps {
@@ -253,6 +253,31 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
               </button>
             </div>
           </section>
+
+          {/* Visual Studio Gallery */}
+          {onOpenGallery && (
+            <section>
+              <button
+                onClick={onOpenGallery}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:scale-[1.01]"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(0,180,216,0.12), rgba(61,255,194,0.12))',
+                  border: '1px solid rgba(61,255,194,0.35)',
+                }}
+              >
+                <span className="text-lg">🎨</span>
+                <div className="flex-1 text-left">
+                  <p className="text-xs font-bold" style={{ color: 'var(--accent-mint)' }}>
+                    Neural Visual Studio Gallery
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Browse &amp; generate sovereign 8k visuals and artwork
+                  </p>
+                </div>
+                <span style={{ color: 'var(--accent-mint)' }}>→</span>
+              </button>
+            </section>
+          )}
 
           {/* Memory & learning */}
           <section>

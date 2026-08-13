@@ -87,9 +87,12 @@ export function CommandPalette({
     );
   }, [query, commands]);
 
-  useEffect(() => {
+  // Reset the highlighted row when the filter changes, without an effect.
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
     setSelectedIdx(0);
-  }, [query]);
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

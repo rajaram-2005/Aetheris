@@ -17,6 +17,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -166,6 +167,16 @@ class BatchResult(BaseModel):
     id: str
     results: list[ChatCompletionResponse | dict]
     errors: list[dict] = Field(default_factory=list)
+
+
+class ModelRecommendRequest(BaseModel):
+    """Ask the smart router which tier fits a task."""
+
+    task: str = Field(..., min_length=1, max_length=50_000, description="The task or prompt text.")
+    latency: str = Field("balanced", pattern="^(low|medium|high|balanced)$")
+    reasoning: bool | None = Field(None, description="Override the reasoning-signal heuristic.")
+    max_context: int | None = Field(None, ge=1, description="Estimated input length in tokens.")
+    preferred: str | None = Field(None, max_length=64, description="Optional explicit tier id/alias.")
 
 router = APIRouter()
 
@@ -354,6 +365,20 @@ async def list_models() -> ModelList:
             )
             for t in TIERS
         ]
+    )
+
+
+@router.post("/v1/models/recommend", tags=["meta"])
+async def recommend_model(body: ModelRecommendRequest) -> dict:
+    """Recommend the best Aetheris tier for a task (smart model routing)."""
+    from ..core.model_router import recommend_model as route_model
+
+    return route_model(
+        body.task,
+        latency=body.latency,  # type: ignore[arg-type]
+        reasoning=body.reasoning,
+        max_context=body.max_context,
+        preferred=body.preferred,
     )
 
 
@@ -1589,6 +1614,23 @@ async def export_conversation(conv_id: str, format: str = "json") -> dict:
     return {"format": format, "content": result}
 
 
+@router.post("/v1/conversations/{conv_id}/summarize", tags=["conversations"])
+async def summarize_conversation(conv_id: str) -> dict:
+    """Produce a concise recap of a conversation via the Hermes agent."""
+    from ..services.conversation_summary import summarize_conversation as _summarize
+
+    store = get_conversation_store()
+    conv = store.get(conv_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail=f"No conversation '{conv_id}'.")
+
+    result = await _summarize(conv)
+    # Keep the conversation's stored summary in sync with the new recap.
+    if conv._summary != result["summary"]:
+        conv._summary = result["summary"]
+    return {"conversation_id": conv_id, **result}
+
+
 # --- Prompt Templates ----------------------------------------------------------
 
 @router.post("/v1/prompts", status_code=201, tags=["prompts"])
@@ -2792,7 +2834,7 @@ async def nova_plan(body: PlanRequest, execute: bool = False) -> dict:
         r = await run_python(code)
         return {"stdout": r.stdout, "stderr": r.stderr, "exit_code": r.exit_code}
 
-    def _search(args: dict) -> dict:
+    async def _search(args: dict) -> dict:
         q = args.get("query", "")
         hits = get_index().search(q, top_k=3)
         return {"results": [h.to_dict() for h in hits]}

@@ -4,6 +4,34 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Attachment } from '@/types';
 
+/* Minimal Web Speech API surface — the lib.dom typings don't cover it yet. */
+interface SpeechRecognitionResultLike {
+  0: { transcript: string };
+  [index: number]: { transcript: string };
+}
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognition(): SpeechRecognitionConstructor | undefined {
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return w.SpeechRecognition || w.webkitSpeechRecognition;
+}
+
 interface ComposerProps {
   onSend: (text: string, attachments?: Attachment[]) => void;
   disabled: boolean;
@@ -65,22 +93,22 @@ export function Composer({ onSend, disabled, voiceActive, onToggleVoice }: Compo
 
   // Voice input via Web Speech API
   const handleVoice = useCallback(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    const SpeechRecognition = getSpeechRecognition();
+    if (!SpeechRecognition) {
       alert('Speech recognition is not supported in this browser.');
       return;
     }
     onToggleVoice();
 
     if (!voiceActive) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
         const transcript = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
+          .map((r) => r[0].transcript)
           .join('');
         setText(transcript);
       };
