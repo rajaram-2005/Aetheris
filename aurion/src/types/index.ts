@@ -6,6 +6,16 @@
 
 export type Theme = 'aurora' | 'daylight' | 'ink';
 export type Persona = 'balanced' | 'precise' | 'imaginative' | 'mentor' | 'concise';
+export type ModeId =
+  | 'general'
+  | 'engineering'
+  | 'editorial'
+  | 'structured'
+  | 'myth'
+  | 'legendary'
+  | 'pro'
+  | 'lite'
+  | 'flash';
 export type ModelId =
   | 'aetheris-prime-v4'
   | 'aetheris-omni-reasoner'
@@ -95,6 +105,7 @@ export interface HermesRun {
   intent: string;
   confidence: number;
   episode_id: string;
+  mode?: string;
   grounded: boolean;
   solved_exactly: boolean;
   safety_flag: boolean;
@@ -170,6 +181,7 @@ export interface Settings {
   persona: Persona;
   theme: Theme;
   model: ModelId;
+  mode: ModeId;
   voiceEnabled: boolean;
   useMemory: boolean;
   learn: boolean;

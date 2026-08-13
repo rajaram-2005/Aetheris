@@ -104,6 +104,7 @@ class HermesResult:
     experts: list[dict[str, Any]] = field(default_factory=list)
     reward: float = 0.0
     duration_ms: float = 0.0
+    mode: str = "general"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -121,6 +122,7 @@ class HermesResult:
             "experts": self.experts,
             "stages": [s.to_dict() for s in self.stages],
             "tool_trace": self.tool_trace,
+            "mode": self.mode,
         }
 
 
@@ -141,6 +143,7 @@ class HermesAgent:
         learn: bool = True,
         max_tools: int = 3,
         session_id: str = "",
+        mode: str = "",
     ) -> HermesResult:
         """Execute the full cascade for one task."""
         started = time.perf_counter()
@@ -315,12 +318,23 @@ class HermesAgent:
         constitution = self._apply_constitution(answer, request=task, grounded=grounded)
         if constitution and constitution.get("text"):
             answer = constitution["text"]
+        if mode and not verdict.safety_flag:
+            from ..core.mode_style import style_answer
+
+            answer = style_answer(
+                mode,
+                answer,
+                task=task,
+                exact=deliberation.solved,
+                refused=verdict.safety_flag,
+            )
         stage(
             "polish",
             "safe" if not verdict.safety_flag else "gated",
             t0,
             **verdict.to_dict(),
             constitution=constitution,
+            mode=mode or "general",
         )
 
         duration = (time.perf_counter() - started) * 1000
@@ -372,6 +386,7 @@ class HermesAgent:
             experts=experts,
             reward=reward,
             duration_ms=duration,
+            mode=mode or "general",
         )
 
     # --- stage helpers ------------------------------------------------------

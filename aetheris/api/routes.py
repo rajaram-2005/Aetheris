@@ -394,10 +394,20 @@ async def list_modes() -> ModeList:
                 id=m.id,
                 display_name=m.display_name,
                 description=m.description,
+                family=m.family,
+                aliases=list(m.aliases),
             )
             for m in available_modes()
         ]
     )
+
+
+@router.get("/v1/legends", tags=["meta"])
+async def legend_roster() -> dict:
+    """Every mode × the three model tiers (Flash / Pro / Ultra)."""
+    from ..core.mode_style import legend_matrix
+
+    return legend_matrix()
 
 
 # --- Tools --------------------------------------------------------------------
@@ -3601,6 +3611,11 @@ class HermesRunRequest(BaseModel):
         default=None, description="Record this episode for meta-learning (default: follow config)."
     )
     session_id: str = Field(default="", max_length=128)
+    mode: str = Field(
+        default="",
+        max_length=32,
+        description="Inference mode (myth, legendary, pro, lite, flash, …). Empty = general.",
+    )
 
 
 class HermesFeedbackRequest(BaseModel):
@@ -3686,8 +3701,11 @@ async def hermes_run(body: HermesRunRequest) -> dict:
         learn=learn,
         max_tools=settings.hermes_max_tools_per_turn,
         session_id=body.session_id,
+        mode=body.mode,
     )
-    return result.to_dict()
+    payload = result.to_dict()
+    payload["mode"] = body.mode or "general"
+    return payload
 
 
 @router.post("/v1/hermes/cognition", tags=["hermes"])

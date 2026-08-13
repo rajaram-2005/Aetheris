@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ModelInfo(BaseModel):
@@ -35,6 +35,8 @@ class ModeInfo(BaseModel):
     id: str
     display_name: str
     description: str
+    family: str = "classic"
+    aliases: list[str] = Field(default_factory=list)
 
 
 class ModeList(BaseModel):

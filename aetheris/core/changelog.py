@@ -193,6 +193,17 @@ _DEFAULT_RELEASES: tuple[dict[str, str], ...] = (
     {
         "version": "0.13.0",
         "category": "feature",
+        "title": "Myth, Legendary, Pro, Lite, Flash modes",
+        "description": (
+            "Five new inference modes that run on all three model tiers "
+            "(Flash / Pro / Ultra). Aliases: little, mythic, legend, quick. "
+            "GET /v1/legends returns the full 3×N pairing matrix."
+        ),
+        "module": "core.modes",
+    },
+    {
+        "version": "0.13.0",
+        "category": "feature",
         "title": "God Mode meta-controller",
         "description": (
             "POST /v1/god/run classifies a task and fuses Tree-of-Thought MCTS, "

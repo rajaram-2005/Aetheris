@@ -28,6 +28,8 @@ class Mode:
     # Gated modes require an explicit operator opt-in before they resolve.
     gated: bool = False
     gate_setting: str | None = None
+    family: str = "classic"
+    aliases: tuple[str, ...] = ()
 
     @property
     def available(self) -> bool:
@@ -89,6 +91,61 @@ _MODES: Final[dict[str, Mode]] = {
         gated=True,
         gate_setting="sovereign_enabled",
     ),
+    "myth": Mode(
+        id="myth",
+        display_name="Myth (Oracle)",
+        description=(
+            "Mythic counselor. Frames the problem as an archetype, then answers "
+            "plainly. Works on Flash, Pro, and Ultra."
+        ),
+        system_prompt=get_system_prompt("myth"),
+        family="legend",
+        aliases=("mythic", "oracle", "saga"),
+    ),
+    "legendary": Mode(
+        id="legendary",
+        display_name="Legendary (Strategist)",
+        description=(
+            "Named-strategist voice: claim, campaign, stake. Density over volume. "
+            "Works on Flash, Pro, and Ultra."
+        ),
+        system_prompt=get_system_prompt("legendary"),
+        family="legend",
+        aliases=("legend", "heroic", "epic"),
+    ),
+    "pro": Mode(
+        id="pro",
+        display_name="Pro (Operator)",
+        description=(
+            "Senior-operator voice: decision first, then steps, risks, rollback. "
+            "Works on Flash, Pro, and Ultra. Distinct from the Pro *tier*."
+        ),
+        system_prompt=get_system_prompt("pro"),
+        family="tempo",
+        aliases=("professional", "operator"),
+    ),
+    "lite": Mode(
+        id="lite",
+        display_name="Lite (Little)",
+        description=(
+            "Simple, friendly, short. Answer → why → next step. Works on Flash, "
+            "Pro, and Ultra. Distinct from the Lite *tier*."
+        ),
+        system_prompt=get_system_prompt("lite"),
+        family="tempo",
+        aliases=("little", "simple", "eli5"),
+    ),
+    "flash": Mode(
+        id="flash",
+        display_name="Flash (Speed)",
+        description=(
+            "Fewest true words. First line is the answer. Works on Flash, Pro, "
+            "and Ultra. Distinct from the Flash *tier* alias."
+        ),
+        system_prompt=get_system_prompt("flash"),
+        family="tempo",
+        aliases=("quick", "speed", "turbo"),
+    ),
 }
 
 MODES: Final[tuple[Mode, ...]] = tuple(_MODES.values())
@@ -107,10 +164,15 @@ def get_mode(mode: str | None = None) -> Mode:
     operator has not enabled raises a ``KeyError`` explaining how to enable it,
     rather than silently downgrading to a different identity.
     """
-    resolved = mode or DEFAULT_MODE
+    resolved = (mode or DEFAULT_MODE).strip().lower()
+    if resolved not in _MODES:
+        for candidate in _MODES.values():
+            if resolved in candidate.aliases:
+                resolved = candidate.id
+                break
     if resolved not in _MODES:
         valid = ", ".join(m.id for m in available_modes())
-        raise KeyError(f"Unknown Aetheris mode '{resolved}'. Valid modes: {valid}")
+        raise KeyError(f"Unknown Aetheris mode '{mode}'. Valid modes: {valid}")
     selected = _MODES[resolved]
     if not selected.available:
         raise KeyError(

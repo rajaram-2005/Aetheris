@@ -18,6 +18,7 @@ interface CommandPaletteProps {
   onOpenApexLab?: () => void;
   onOpenGodDeck?: () => void;
   onOpenSettings?: () => void;
+  onSelectMode?: (mode: 'myth' | 'legendary' | 'pro' | 'lite' | 'flash' | 'general') => void;
 }
 
 interface Command {
@@ -43,6 +44,7 @@ export function CommandPalette({
   onOpenApexLab,
   onOpenGodDeck,
   onOpenSettings,
+  onSelectMode,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -64,6 +66,13 @@ export function CommandPalette({
     ...(onOpenSettings ? [{ id: 'action-settings', label: 'Settings & Model Selection', description: 'Switch sovereign neural models, themes, personas, and memory', icon: '⚙️', category: 'Actions', action: () => { onOpenSettings(); onClose(); } }] : []),
 
     // Actions & Prompt Templates
+    ...(onSelectMode ? [
+      { id: 'mode-myth', label: 'Mode: Myth', description: 'Oracle voice — works on Flash, Pro, Ultra', icon: '🜂', category: 'Modes', action: () => { onSelectMode('myth'); onClose(); } },
+      { id: 'mode-legendary', label: 'Mode: Legendary', description: 'Strategist campaign voice on any model', icon: '⚔', category: 'Modes', action: () => { onSelectMode('legendary'); onClose(); } },
+      { id: 'mode-pro', label: 'Mode: Pro', description: 'Operator voice — ship in the next hour', icon: '◆', category: 'Modes', action: () => { onSelectMode('pro'); onClose(); } },
+      { id: 'mode-lite', label: 'Mode: Lite / Little', description: 'Simple short answers on any model', icon: '○', category: 'Modes', action: () => { onSelectMode('lite'); onClose(); } },
+      { id: 'mode-flash', label: 'Mode: Flash', description: 'Fewest true words on any model', icon: '⚡', category: 'Modes', action: () => { onSelectMode('flash'); onClose(); } },
+    ] : []),
     { id: 'new', label: 'New Exploration', description: 'Start a fresh conversation thread', icon: '✨', category: 'Actions', action: () => { onNewThread(); onClose(); } },
     { id: 'deep-reasoning', label: 'Deep Reasoning Proof', description: 'Perform multi-pass chain-of-thought verification', icon: '🧠', category: 'Reasoning', action: () => onRun('Solve and prove formally: ') },
     { id: 'code-pipeline', label: 'Async Python Pipeline', description: 'Generate high-throughput concurrent architecture', icon: '💻', category: 'Code', action: () => onRun('Write an async Python pipeline with rate limiting and retry backoff') },
@@ -81,7 +90,7 @@ export function CommandPalette({
       category: 'Recent Conversations',
       action: () => { onSelectThread(t.id); onClose(); },
     })),
-  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenSettings]);
+  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenGodDeck, onOpenSettings, onSelectMode]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;

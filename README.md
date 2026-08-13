@@ -85,7 +85,7 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   `general`, `engineering`, `editorial`, or `structured`.
 - **Model-tier registry** — `aetheris-lite` (Flash), `aetheris-pro`, and
   `aetheris-ultra` (Reasoning Engine), addressable by id or alias.
-- **Production system-prompt suite** — the four official prompts, injected
+- **Production system-prompt suite** — official prompts for every mode, injected
   automatically so the Aetheris persona is always active.
 - **Provider abstraction** — runs out-of-the-box on the offline **Hermes** agent;
   switch to any OpenAI-compatible endpoint (OpenAI, Groq, Together, vLLM, Ollama,
@@ -143,6 +143,10 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - **Skills** — composable instruction packs matched per turn.
   - **Semantic cache** — near-duplicate prompt reuse via signature embeddings.
   - **Guardrails** — JSON Schema contracts with automatic repair.
+- **Legend modes (v0.13)** — `myth`, `legendary`, `pro`, `lite`, and `flash`
+  restyle answers on **every** model (Flash v2 · Prime v4 · Omni Reasoner).
+  Distinct from the Pro/Lite/Flash *tiers*. Aliases: `little`, `mythic`,
+  `legend`, `quick`. `GET /v1/legends` returns the full pairing matrix.
 - **God Mode (v0.13)** — a fused ultra-reasoning arsenal, all offline and deterministic:
   - **Tree-of-Thought MCTS** — UCB1 search over competing thoughts (formal, adversarial, causal, …).
   - **Causal world model** — signed DAG with `do(X)` interventions and counterfactuals.
@@ -247,7 +251,7 @@ Install it (creates the `aetheris` script):
 | `aetheris ask "<prompt>"` | One-shot prompt. Streams live by default; `--md` buffers and renders Markdown. |
 | `aetheris stream "<prompt>"` | One-shot, explicitly streamed. |
 | `aetheris models` | List the three tiers (table, or `--json`). |
-| `aetheris modes` | List the four modes (table, or `--json`). |
+| `aetheris modes` | List inference modes (table, or `--json`). |
 | `aetheris info` | Full brand identity (palette, taglines, personality, capabilities, audiences). |
 | `aetheris spec` | Architecture + training spec with `blueprint`/`scaffold`/`pending` evidence tags. |
 | `aetheris tools` | List the executable toolbelt and which tools are live. |
@@ -263,7 +267,7 @@ Install it (creates the `aetheris` script):
 
 ```
 -m, --model TIER   aetheris-lite|flash | aetheris-pro|pro | aetheris-ultra|ultra
--M, --mode  MODE   general | engineering | editorial | structured | sovereign
+-M, --mode  MODE   general | engineering | editorial | structured | myth | legendary | pro | lite | flash | sovereign
 -a, --agent        run the agent loop: call real tools and self-correct
     --tools SPEC   expose the toolbelt ('auto' or 'none')
     --doc PATH     mount a file into the retrieval index (repeatable)
@@ -332,8 +336,9 @@ List them with `GET /v1/models`. Any tier can run in any mode.
 
 ## Inference modes
 
-Each mode activates the Aetheris identity via one of the four production system
-prompts from the blueprint.
+Each mode activates the Aetheris identity via a production system prompt.
+Modes are orthogonal to the three model tiers — any mode runs on Flash v2,
+Prime v4, or Omni Reasoner.
 
 | Mode | Identity | Use it for |
 |------|----------|-----------|
@@ -341,7 +346,14 @@ prompts from the blueprint.
 | `engineering` | Engineering (Pair-Programming) | Production-grade code, architecture-first |
 | `editorial` | Editorial (Creative Writing) | Voice-preserving writing coaching |
 | `structured` | Structured Inference Node | Strict, schema-compliant JSON output |
+| `myth` | Myth (Oracle) | Archetype / omen framing — on Flash, Pro, *and* Ultra |
+| `legendary` | Legendary (Strategist) | Claim, campaign, stake — on every tier |
+| `pro` | Pro (Operator) | Ship-in-an-hour voice (distinct from the Pro *tier*) |
+| `lite` | Lite / Little | Simple, short, friendly (distinct from the Lite *tier*) |
+| `flash` | Flash (Speed) | Fewest true words (distinct from the Flash *tier* alias) |
 | `sovereign` | Sovereign (Unrestricted Expert) | Direct, unhedged expert output — *opt-in* |
+
+Modes are orthogonal to the three models. Pair any mode with Flash v2, Prime v4, or Omni Reasoner. `GET /v1/legends` returns the full matrix. Aliases: `little` → lite, `mythic` → myth, `legend` → legendary, `quick` → flash.
 
 List them with `GET /v1/modes`. `sovereign` appears only when
 `AETHERIS_SOVEREIGN_ENABLED=true`; see [Capabilities](#capabilities).
@@ -396,6 +408,7 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 |---------------|---------|
 | `GET /v1/models` | List Aetheris tiers (OpenAI `list` envelope). |
 | `GET /v1/modes` | List the inference modes available on this deployment. |
+| `GET /v1/legends` | Full mode × model matrix (Flash / Pro / Ultra × every mode). |
 | `GET /v1/capabilities` | Which capabilities, tools, and modes are live. |
 | `GET /v1/tools` | List the executable toolbelt (OpenAI tool schemas). |
 | `POST /v1/tools/{name}/invoke` | Run one tool directly, no model in the loop. |
@@ -758,7 +771,7 @@ Artifacts are managed at `GET /v1/artifacts`, `GET /v1/artifacts/{id}`
 
 ### Sovereign mode *(opt-in)*
 
-`AETHERIS_SOVEREIGN_ENABLED=true` adds a fifth inference mode. It removes
+`AETHERIS_SOVEREIGN_ENABLED=true` adds a gated inference mode. It removes
 *stylistic* restraint — reflexive hedging, boilerplate disclaimers, and
 topic-avoidance — for expert operators who want direct answers: it takes explicit
 positions, engages difficult and dual-use technical material at full depth, and
@@ -807,6 +820,7 @@ aetheris/
 │   ├── config.py           # Environment-driven settings (pydantic-settings)
 │   ├── tiers.py            # Model-tier registry + foundation spec
 │   ├── modes.py            # Inference modes → system-prompt binding
+│   ├── mode_style.py       # Myth/legendary/pro/lite/flash restyle + legend matrix
 │   └── spec.py             # Architecture + training spec (provenance-tagged, JSON-overridable)
 ├── prompts/
 │   └── system_prompts.py   # The production system prompts + capability directives
@@ -900,4 +914,11 @@ The server supports `--reload` for live editing during development.
 ## License
 
 MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
+
+
+## License
+
+MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
+
+JARAM K. See [LICENSE](LICENSE).
 

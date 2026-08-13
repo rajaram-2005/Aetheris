@@ -4,7 +4,7 @@ The wire format is OpenAI-compatible (``/v1/chat/completions``) so existing
 clients can target Aetheris unchanged. Aetheris adds these extensions:
 
 * ``mode``      — selects the active system-prompt identity (general, engineering,
-  editorial, structured, sovereign).
+  editorial, structured, myth, legendary, pro, lite, flash, sovereign).
 * ``tools`` / ``tool_choice`` — OpenAI-style function calling. Aetheris also
   accepts the string ``"auto"`` shorthand and the ``"aetheris:*"`` built-in tool
   references resolved by the tool registry.
@@ -162,7 +162,8 @@ class ChatCompletionRequest(BaseModel):
         default=None,
         description=(
             "Aetheris inference mode: general, engineering, editorial, structured, "
-            "sovereign. Omit for the default (general)."
+            "sovereign, myth, legendary, pro, lite, flash (aliases: little, mythic, "
+            "legend, quick). Omit for the default (general)."
         ),
     )
     stream: bool = Field(default=False, description="Whether to stream SSE chunks.")

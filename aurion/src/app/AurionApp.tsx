@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
-import { Message, Thread, Settings, HermesRun, Attachment, ModelId } from '@/types';
+import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId } from '@/types';
 import { runHermes, sendFeedback, getManifest, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
@@ -228,6 +228,7 @@ export default function AetherisApp() {
           sessionId: threadId,
           useMemory: settings.useMemory,
           learn: settings.learn,
+          mode: settings.mode || 'general',
         });
         setRun(result);
         addMessage(threadId, {
@@ -254,7 +255,7 @@ export default function AetherisApp() {
         setProcessing(false);
       }
     },
-    [currentThread, processing, settings.useMemory, settings.learn, refreshThread],
+    [currentThread, processing, settings.useMemory, settings.learn, settings.mode, refreshThread],
   );
 
   /** Rate an answer — this is the signal the meta-learner trains on. */
@@ -284,6 +285,15 @@ export default function AetherisApp() {
   const handleSelectModel = useCallback(
     (model: ModelId) => {
       const next = { ...settings, model };
+      setSettings(next);
+      saveSettings(next);
+    },
+    [settings],
+  );
+
+  const handleSelectMode = useCallback(
+    (mode: ModeId) => {
+      const next = { ...settings, mode };
       setSettings(next);
       saveSettings(next);
     },
@@ -356,6 +366,8 @@ export default function AetherisApp() {
         onOpenGodDeck={() => setShowGodDeck(true)}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
+        activeMode={settings.mode || 'general'}
+        onSelectMode={handleSelectMode}
         showInspector={showInspector}
         sidebarOpen={sidebarOpen}
         onRunPrompt={handleRunPrompt}
@@ -391,6 +403,7 @@ export default function AetherisApp() {
           onOpenApexLab={() => setShowApexLab(true)}
           onOpenGodDeck={() => setShowGodDeck(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onSelectMode={handleSelectMode}
         />
       )}
 
