@@ -137,6 +137,24 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 
 ---
 
+## Screenshots
+
+The web application and the branded landing page, both served by the single
+FastAPI process — no separate frontend server required.
+
+![Aetheris application — Sovereign Neural Platform chat home](screenshots/aetheris-home.png)
+
+*The application home at `/`: the chat interface with capability tiles
+(Visual Art, Code, Reason, Compute, Write, Study), the prompt library, and the
+live Sovereign Core status.*
+
+![Aetheris landing page](screenshots/aetheris-landing.png)
+
+*The branded landing page at `/landing`: streaming playground, architecture
+visualization, and copy-ready API examples.*
+
+---
+
 ## Quickstart
 
 Requires Python 3.11+.
