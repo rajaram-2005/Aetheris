@@ -97,7 +97,7 @@ interface ThemeDefinition {
   preview: string;
 }
 
-const THEMES: { value: Theme; label: string; category: string; desc: string; preview: string }[] = [
+const THEMES: ThemeDefinition[] = [
   // Professional
   { value: 'aurora', label: '🌌 Aurora', category: 'Professional', desc: 'Cosmic deep navy with electric mint', preview: 'linear-gradient(135deg, #0a0d14, #10141f, #34d399)' },
   { value: 'daylight', label: '☀️ Daylight', category: 'Professional', desc: 'High-legibility crisp light studio', preview: 'linear-gradient(135deg, #f7f8fa, #ffffff, #059669)' },

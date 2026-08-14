@@ -2,7 +2,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { EvolutionEraId, ResearchFeatureItem, ResearchRunOutput, ResearchTimelineItem } from '@/types';
+import {
+  ResearchBenchmarkResult, ResearchFeatureItem, ResearchRunOutput,
+  ResearchSynthesisContribution, ResearchSynthesisResult, ResearchTimelineItem,
+} from '@/types';
 
 interface ResearchEvolutionModalProps {
   isOpen: boolean;
@@ -24,18 +27,17 @@ export function ResearchEvolutionModal({ isOpen, onClose }: ResearchEvolutionMod
   const [timeline, setTimeline] = useState<ResearchTimelineItem[]>([]);
   const [activeEra, setActiveEra] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedFeature, setSelectedFeature] = useState<ResearchFeatureItem | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'timeline' | 'synthesis'>('grid');
   const [runningFeatureId, setRunningFeatureId] = useState<string | null>(null);
   const [runResults, setRunResults] = useState<Record<string, ResearchRunOutput>>({});
   
   // Synthesis state
   const [synthesisPrompt, setSynthesisPrompt] = useState<string>('How do we combine symbolic proofs with reinforcement reasoning in LLMs?');
-  const [synthesisResult, setSynthesisResult] = useState<any>(null);
+  const [synthesisResult, setSynthesisResult] = useState<ResearchSynthesisResult | null>(null);
   const [synthesisLoading, setSynthesisLoading] = useState<boolean>(false);
 
   // Benchmark state
-  const [benchmarkResult, setBenchmarkResult] = useState<any>(null);
+  const [benchmarkResult, setBenchmarkResult] = useState<ResearchBenchmarkResult | null>(null);
   const [benchmarkLoading, setBenchmarkLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export function ResearchEvolutionModal({ isOpen, onClose }: ResearchEvolutionMod
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: synthesisPrompt }),
       });
-      const data = await res.json();
+      const data: ResearchSynthesisResult = await res.json();
       setSynthesisResult(data);
     } catch (err) {
       console.error('Synthesis failed', err);
@@ -111,7 +113,7 @@ export function ResearchEvolutionModal({ isOpen, onClose }: ResearchEvolutionMod
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: 'reasoning_generalization_and_compression' }),
       });
-      const data = await res.json();
+      const data: ResearchBenchmarkResult = await res.json();
       setBenchmarkResult(data);
     } catch (err) {
       console.error('Benchmark failed', err);
@@ -373,7 +375,7 @@ export function ResearchEvolutionModal({ isOpen, onClose }: ResearchEvolutionMod
                     </div>
 
                     <div className="space-y-2">
-                      {synthesisResult.contributions?.map((c: any, i: number) => (
+                      {synthesisResult.contributions?.map((c: ResearchSynthesisContribution, i: number) => (
                         <div key={i} className="text-xs border-l-2 border-cyan-500/40 pl-3 py-1">
                           <span className="font-semibold text-cyan-300">[{c.era_title}] {c.key_feature_applied}:</span>
                           <span className="text-slate-300 ml-1.5">{c.deduction}</span>
@@ -411,7 +413,7 @@ export function ResearchEvolutionModal({ isOpen, onClose }: ResearchEvolutionMod
                 {benchmarkResult && (
                   <div className="mt-4 space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {Object.entries(benchmarkResult.paradigm_comparison || {}).map(([era, score]: any) => (
+                      {Object.entries(benchmarkResult.paradigm_comparison || {}).map(([era, score]: [string, number]) => (
                         <div key={era} className="p-2.5 bg-[#080d18] border border-[#1e2a44] rounded-lg">
                           <div className="text-[10px] text-slate-400 font-mono truncate">{era}</div>
                           <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">{score} / 100</div>

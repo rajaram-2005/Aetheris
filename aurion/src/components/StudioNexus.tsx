@@ -80,9 +80,13 @@ export function StudioNexus({
 }: StudioNexusProps) {
   const [active, setActive] = useState<StudioChamber>(chamber);
 
-  useEffect(() => {
+  // Follow the `chamber` prop while the studio is open — state adjusted during
+  // render instead of in an effect, so no cascading re-render occurs.
+  const [lastOpen, setLastOpen] = useState({ isOpen, chamber });
+  if (lastOpen.isOpen !== isOpen || lastOpen.chamber !== chamber) {
+    setLastOpen({ isOpen, chamber });
     if (isOpen) setActive(chamber);
-  }, [isOpen, chamber]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;

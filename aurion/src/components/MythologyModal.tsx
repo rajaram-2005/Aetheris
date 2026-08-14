@@ -13,11 +13,6 @@ const CATEGORY_ICONS: Record<string, string> = {
   villain: '🗡️', asura: '🔥', 'divine-tool': '✨',
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  god: 'God', goddess: 'Goddess', hero: 'Hero', sage: 'Sage', epic: 'King',
-  villain: 'Villain', asura: 'Asura', 'divine-tool': 'Symbol',
-};
-
 interface ChatTurn { role: 'you' | string; name: string; text: string; }
 interface CouncilMember { id: string; name: string; category: string; epithet: string; }
 
@@ -426,6 +421,8 @@ function ChatPane({ selected, connections, turns, busy, input, setInput, onSend,
       {portrait && (
         <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
           <div className="rounded-xl overflow-hidden max-h-48 mx-auto" style={{ border: '1px solid var(--border-color)' }}>
+            {/* Runtime-generated artifact (data/file URL) — a plain <img> is the right tool here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={portrait} alt={selected.name} className="w-full h-full object-contain max-h-48" />
           </div>
         </div>
