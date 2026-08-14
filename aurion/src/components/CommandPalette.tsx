@@ -17,6 +17,7 @@ interface CommandPaletteProps {
   onOpenDeepResearch?: () => void;
   onOpenApexLab?: () => void;
   onOpenGodDeck?: () => void;
+  onOpenStudio?: () => void;
   onOpenSettings?: () => void;
   onSelectMode?: (mode: 'myth' | 'legendary' | 'pro' | 'lite' | 'flash' | 'general') => void;
   onSelectTheme?: (theme: Theme) => void;
@@ -44,6 +45,7 @@ export function CommandPalette({
   onOpenDeepResearch,
   onOpenApexLab,
   onOpenGodDeck,
+  onOpenStudio,
   onOpenSettings,
   onSelectMode,
   onSelectTheme,
@@ -57,6 +59,8 @@ export function CommandPalette({
   }, []);
 
   const commands: Command[] = useMemo(() => [
+    // The single studio that holds every beautiful surface
+    ...(onOpenStudio ? [{ id: 'studio-nexus', label: 'Studio — one constellation', description: 'Mythos, visuals, research, God Mode, skills, and create in one chamber', icon: '✦', category: 'Studios & Hubs', action: () => { onOpenStudio(); onClose(); } }] : []),
     // Frontier Tycoon Studios & Hubs
     ...(onOpenCanvas ? [{ id: 'studio-canvas', label: 'Artifacts 2.0 Canvas Studio', description: 'Open side-by-side interactive code, SVG & HTML execution runner', icon: '📐', category: 'Studios & Hubs', action: () => { onOpenCanvas(); onClose(); } }] : []),
     ...(onOpenDeepResearch ? [{ id: 'studio-research', label: 'Autonomous Deep Research Engine', description: 'Run multi-hop document & web research with citations', icon: '🔬', category: 'Studios & Hubs', action: () => { onOpenDeepResearch(); onClose(); } }] : []),

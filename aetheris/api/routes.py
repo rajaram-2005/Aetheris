@@ -4313,6 +4313,16 @@ async def gallery_images() -> dict:
             "tags": ["Cosmic Indigo", "Electric Teal", "Wide Horizon", "Cyberpunk"],
             "dimensions": "1024x1024",
         },
+        {
+            "id": "studio-nexus",
+            "url": "/images/studio-nexus.png",
+            "title": "Studio Nexus — One Constellation",
+            "tagline": "Every beautiful surface, one chamber",
+            "prompt": "A single cosmic intelligence nexus: one luminous teal-gold core with seven orbiting orbs — temple flame, paintbrush of light, research helix, omega, skill crystal, aperture, lightning thought — synaptic filaments connecting every orb into one constellation.",
+            "category": "Brand & Atmosphere",
+            "tags": ["Studio", "Constellation", "Unified", "Nexus"],
+            "dimensions": "1024x1024",
+        },
     ]
     return {"total": len(gallery), "images": gallery}
 

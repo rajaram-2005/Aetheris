@@ -246,6 +246,13 @@ def _gallery_showcase() -> str:
             "badge": "Neural Horizon",
             "prompt": "Cinematic wide cyberpunk banner of Aetheris sovereign intelligence matrix, glowing neural networks spreading across a dark cosmic horizon, neon teal and deep violet light trails.",
         },
+        {
+            "url": "/images/studio-nexus.png",
+            "title": "Studio Nexus — One Constellation",
+            "tagline": "Every beautiful surface, one chamber",
+            "badge": "Unified Studio",
+            "prompt": "A single cosmic intelligence nexus: one luminous teal-gold core with seven orbiting orbs connected by synaptic filaments into one constellation.",
+        },
     ]
     cards = []
     for img in images:

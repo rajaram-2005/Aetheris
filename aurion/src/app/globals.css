@@ -466,3 +466,47 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 
 /* ── Subtle brand glow (used sparingly) ── */
 .brand-glow { box-shadow: 0 0 0 1px var(--border-hover), 0 8px 30px -8px var(--shadow-glow); }
+
+/* ── Studio Nexus / constellation ── */
+.nexus-shell { position: relative; }
+.aurora-veil {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 220px;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 80% at 20% 40%, color-mix(in srgb, var(--accent-mint) 22%, transparent), transparent 70%),
+    radial-gradient(40% 70% at 80% 20%, color-mix(in srgb, var(--accent-purple) 18%, transparent), transparent 70%),
+    radial-gradient(30% 50% at 50% 0%, color-mix(in srgb, var(--accent-blue) 16%, transparent), transparent 70%);
+  filter: blur(8px);
+  opacity: 0.85;
+}
+.nexus-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, color-mix(in srgb, var(--text-primary) 55%, transparent), transparent),
+    radial-gradient(1px 1px at 78% 18%, color-mix(in srgb, var(--accent-mint) 70%, transparent), transparent),
+    radial-gradient(1.5px 1.5px at 64% 62%, color-mix(in srgb, var(--accent-blue) 55%, transparent), transparent),
+    radial-gradient(1px 1px at 28% 74%, color-mix(in srgb, var(--text-primary) 40%, transparent), transparent),
+    radial-gradient(1px 1px at 88% 80%, color-mix(in srgb, var(--accent-purple) 50%, transparent), transparent);
+  opacity: 0.7;
+}
+.orbit-spin { animation: nexusSpin 22s linear infinite; }
+.orbit-spin-rev { animation: nexusSpin 16s linear infinite reverse; }
+.orbit-spin-slow { animation: nexusSpin 36s linear infinite; }
+.pulse-ring { position: relative; }
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent-mint) 45%, transparent);
+  animation: pulseGlow 2.4s ease-in-out infinite;
+}
+@keyframes nexusSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-spin, .orbit-spin-rev, .orbit-spin-slow, .pulse-ring::after { animation: none !important; }
+}

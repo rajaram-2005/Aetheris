@@ -185,8 +185,9 @@ def test_api_gallery_images_endpoint():
     resp = client.get("/v1/gallery/images")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total"] >= 6
+    assert data["total"] >= 7
     ids = [img["id"] for img in data["images"]]
     assert "hero-neural-core" in ids
     assert "multi-agent-nexus" in ids
     assert "neural-canvas-synthesis" in ids
+    assert "studio-nexus" in ids

@@ -30,14 +30,16 @@ import {
   getGalleryImages,
   getResearchEras,
 } from '@/lib/hermes';
+import { ConstellationHero } from '@/components/ConstellationHero';
+import type { StudioChamber } from '@/types';
 
 interface HomeViewProps {
   online: boolean;
   onLaunch: () => void;
   onTryModel: (model: ModelId) => void;
   onTryMode: (mode: ModeId) => void;
-  onOpenGallery: () => void;
   onOpenResearch: () => void;
+  onOpenStudio: (chamber?: StudioChamber) => void;
   onGenerateImage: (prompt: string) => void;
   onRunPrompt: (text: string) => void;
 }
@@ -160,8 +162,8 @@ export function HomeView({
   onLaunch,
   onTryModel,
   onTryMode,
-  onOpenGallery,
   onOpenResearch,
+  onOpenStudio,
   onGenerateImage,
   onRunPrompt,
 }: HomeViewProps) {
@@ -200,7 +202,12 @@ export function HomeView({
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-primary)' }}>
-      <Hero online={online} onLaunch={onLaunch} />
+      <ConstellationHero
+        online={online}
+        onLaunch={onLaunch}
+        onOpenStudio={onOpenStudio}
+        onRunPrompt={onRunPrompt}
+      />
 
       {/* Capabilities */}
       <Section id="capabilities" kicker="What it does" title={<>Engineered for <Gradient>clarity.</Gradient></>}>
@@ -344,9 +351,9 @@ export function HomeView({
                     Generate this
                   </button>
                   <button
-                    onClick={onOpenGallery}
+                    onClick={() => onOpenStudio('visuals')}
                     className="btn text-xs py-2"
-                    title="Open the full visual studio"
+                    title="Open visuals in the unified studio"
                   >
                     Studio
                   </button>
@@ -499,9 +506,14 @@ export function HomeView({
               </article>
             ))}
           </div>
-          <button onClick={onOpenResearch} className="btn btn-primary mt-5">
-            Open the full research hub ↗
-          </button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button onClick={() => onOpenStudio('research')} className="btn btn-primary">
+              Open in Studio ↗
+            </button>
+            <button onClick={onOpenResearch} className="btn">
+              Full research hub
+            </button>
+          </div>
         </Section>
       )}
 
@@ -539,70 +551,6 @@ export function HomeView({
 }
 
 /* ── Presentational helpers ── */
-
-function Hero({ online, onLaunch }: { online: boolean; onLaunch: () => void }) {
-  return (
-    <section
-      className="relative overflow-hidden border-b"
-      style={{ borderColor: 'var(--border-color)', background: 'var(--bg-primary)' }}
-    >
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(60% 60% at 50% 0%, rgba(52,211,153,0.12) 0%, rgba(56,189,248,0.06) 40%, transparent 70%)',
-        }}
-      />
-      <div className="relative max-w-4xl mx-auto px-6 py-20 md:py-28 text-center">
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6"
-          style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
-        >
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ background: online ? 'var(--accent-mint)' : 'var(--accent-pink)' }}
-          />
-          {online ? 'Hermes runtime online — no API key, no network' : 'Runtime offline — start the server to chat'}
-        </div>
-
-        <h1
-          className="text-4xl md:text-6xl font-extrabold leading-[1.05] tracking-tight"
-          style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}
-        >
-          Think beyond
-          <br />
-          <span
-            className="text-transparent bg-clip-text"
-            style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-mint), var(--accent-blue), var(--accent-purple))' }}
-          >
-            the obvious.
-          </span>
-        </h1>
-
-        <p className="mt-6 text-base md:text-lg max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          Aetheris is a next-generation AI thought partner for deep reasoning, creative synthesis, and technical
-          precision — a single offline cognitive runtime driven by the Hermes agent with meta-learning.
-        </p>
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <button onClick={onLaunch} className="btn btn-primary px-6 py-3 text-sm font-semibold">
-            Launch the workspace →
-          </button>
-          <a href="#architecture" className="btn px-6 py-3 text-sm">
-            See how it thinks
-          </a>
-        </div>
-
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          <span>⚡ 11-stage cascade</span>
-          <span>🧠 meta-learning</span>
-          <span>🔒 offline-first</span>
-          <span>🧰 real tools</span>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function Section({
   id,
