@@ -230,54 +230,170 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 One application served by the single FastAPI process — no separate frontend
 server required.
 
-![Aetheris application — Sovereign Neural Platform chat home](screenshots/aetheris-home.png)
+![Aetheris application — unified chat workspace](screenshots/aetheris-home.png)
 
-*The Workspace view: the chat interface with capability tiles
-(Visual Art, Code, Reason, Compute, Write, Study), the prompt library, and the
-live Sovereign Core status.*
+*The Workspace view: offline Hermes chat, model and mode controls, capability
+launchers, prompt cards, and the live Neural Inspector in one shell.*
 
-![Aetheris landing page](screenshots/aetheris-landing.png)
+![Aetheris unified Home view](screenshots/aetheris-landing.png)
 
-*The Home view (formerly the standalone `/landing` page): architecture
-visualization, model tiers, and copy-ready API examples — now reachable in-app
-from the shared top navigation.*
+*The Home view: “Every surface. One constellation.” brings Mythos, visuals,
+research, agents, models, skills, and Studio into the same application as the
+Workspace.*
 
 ---
 
-## Quickstart
+## Installation (step by step)
 
-Requires Python 3.11+.
+Aetheris runs as one Python process. Node.js is only used once to build the web
+interface; it is not needed while the finished application is running. The
+default Hermes provider works offline and does not require an API key.
 
-Requires Python 3.11+ (and Node 20+ once, to build the UI).
+### 1. Install the prerequisites
+
+Install these tools before continuing:
+
+| Tool | Required version | Used for |
+|------|------------------|----------|
+| [Git](https://git-scm.com/downloads) | Any current version | Downloading the repository |
+| [Python](https://www.python.org/downloads/) | 3.11 or newer | API, Hermes runtime, and CLI |
+| [Node.js](https://nodejs.org/) | 20.9 or newer (includes npm) | Building the web interface |
+
+Confirm that they are available:
 
 ```bash
-# 1. Create a virtual environment and install dependencies
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-
-# 2. Build the web UI once (static export served by Python)
-cd aurion && npm install && npm run build && cd ..
-
-# 3. Run the whole app — UI + API, one process, one port
-.venv/bin/uvicorn aetheris.main:app --host 0.0.0.0 --port 8000
+git --version
+python3 --version
+node --version
+npm --version
 ```
 
-That's it. No API key, no network, no Node at runtime.
+On Windows, use `py --version` if `python3` is not available.
 
-Then open:
+### 2. Clone the repository
 
-- `http://localhost:8000/` — **the application** (Home view; switch to the Workspace from the top nav)
-- `http://localhost:8000/docs` — interactive OpenAPI docs
-- `http://localhost:8000/v1/hermes` — the Hermes runtime manifest
+```bash
+git clone https://github.com/rajaram-2005/Aetheris.git
+cd Aetheris
+```
 
-`/landing` now redirects to `/` — the old landing content lives in the app as
-its **Home** view (`/#home`), with the chat as the **Workspace** (`/#workspace`).
+If you already downloaded or cloned Aetheris, open a terminal in its root
+folder—the folder containing `pyproject.toml`—and continue with step 3.
 
-### Optional configuration
+### 3. Create and activate a Python virtual environment
+
+**macOS or Linux:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows PowerShell:**
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Your terminal prompt will usually begin with `(.venv)`. Keep this environment
+activated for the remaining steps and whenever you run Aetheris later.
+
+### 4. Install Aetheris and its Python dependencies
+
+Run this from the repository root:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+The editable install downloads the dependencies declared in `pyproject.toml`
+and registers the `aetheris` command in the virtual environment.
+
+### 5. Build the web interface
+
+```bash
+cd aurion
+npm ci
+npm run build
+cd ..
+```
+
+The build creates `aurion/out`, which the Python server serves automatically.
+`npm ci` uses the committed lockfile, so every installation receives the same
+frontend dependency versions.
+
+### 6. Configure Aetheris (optional)
+
+No configuration is required for the offline Hermes provider. To customize the
+server or connect an upstream provider, first create a local `.env` file:
+
+**macOS or Linux:**
 
 ```bash
 cp .env.example .env
 ```
+
+**Windows PowerShell:**
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Then edit `.env` and restart Aetheris after any change. Do not commit API keys.
+The most commonly used settings are listed under
+[Optional configuration](#optional-configuration).
+
+### 7. Start the application
+
+```bash
+aetheris serve --host 0.0.0.0 --port 8000
+```
+
+If the `aetheris` command is not found, make sure the virtual environment is
+active, or run the equivalent command:
+
+```bash
+python -m aetheris serve --host 0.0.0.0 --port 8000
+```
+
+Keep this terminal open while using Aetheris. Press `Ctrl+C` to stop it.
+
+### 8. Verify the installation
+
+Open these URLs in a browser:
+
+- `http://localhost:8000/` — **the application** (Home and Workspace views)
+- `http://localhost:8000/docs` — interactive OpenAPI documentation
+- `http://localhost:8000/v1/hermes` — Hermes runtime manifest
+- `http://localhost:8000/v1/health` — health check
+
+You can also check the server from another terminal:
+
+```bash
+curl http://localhost:8000/v1/health
+```
+
+A JSON response means the installation is running correctly. With the default
+Hermes provider, Aetheris now runs without Node.js, an API key, or a network
+connection. `/landing` redirects to `/`; the old landing content is the Home
+view (`/#home`), and chat is the Workspace (`/#workspace`).
+
+### Troubleshooting installation
+
+| Problem | Fix |
+|---------|-----|
+| `python3` is not found on Windows | Use `py -3` to create the environment, then use `python` after activation. |
+| PowerShell blocks `Activate.ps1` | Run `Set-ExecutionPolicy -Scope Process Bypass`, then activate the environment again. |
+| `aetheris` is not found | Activate `.venv`, then rerun `python -m pip install -e .`. |
+| The home page says the UI is not built | Run step 5 again, restart Aetheris, and reload the page. |
+| Port 8000 is already in use | Start with `aetheris serve --port 8001` and open `http://localhost:8001/`. |
+| `npm ci` reports an engine/version error | Install Node.js 20.9 or newer, then repeat step 5. |
+
+### Optional configuration
+
+After creating `.env` in step 6, change only the settings you need:
 
 | Variable | Effect |
 |----------|--------|
@@ -296,29 +412,31 @@ cp .env.example .env
 
 ### Developing the UI
 
+Activate `.venv`, then run the backend and frontend in separate terminals:
+
 ```bash
-# Terminal 1 — the runtime
-.venv/bin/uvicorn aetheris.main:app --port 8000
-# Terminal 2 — UI with hot reload, proxying /v1 to the runtime
-cd aurion && npm run dev
+# Terminal 1 — backend with Python hot reload
+python -m aetheris serve --port 8000 --reload
+
+# Terminal 2 — UI with hot reload, proxying /v1 to the backend
+cd aurion
+npm run dev
 ```
+
+The development UI is available at `http://localhost:3000/`. Production uses the
+static build from step 5 and only needs port 8000.
 
 ---
 
 ## Command-line interface
 
 Aetheris ships a self-contained `aetheris` command for working with **every tier
-and every mode directly from the command prompt** — no browser, no server
-required. Inference runs in-process via the same provider layer, so it works
-offline with the brand-aware mock engine and transparently uses your
-OpenAI-compatible backend when configured.
+and every mode directly from the command prompt** — no browser or server
+required. Inference runs in-process through the same provider layer, so it works
+offline with Hermes and transparently uses an upstream provider when configured.
 
-Install it (creates the `aetheris` script):
-
-```bash
-.venv/bin/pip install -e .
-# also runnable as: .venv/bin/python -m aetheris <command>
-```
+Step 4 of the installation registers the command. With `.venv` activated, run
+`aetheris <command>` or the equivalent `python -m aetheris <command>`.
 
 ### Commands
 
@@ -1001,15 +1119,15 @@ a `.env` file. See [`.env.example`](.env.example).
 |----------|---------|-------------|
 | `AETHERIS_HOST` | `0.0.0.0` | Bind host. |
 | `AETHERIS_PORT` | `8000` | Bind port. |
-| `AETHERIS_LLM_PROVIDER` | `mock` | `mock` (offline) or `openai`. |
+| `AETHERIS_LLM_PROVIDER` | `hermes` | `hermes`, `openai`, `anthropic`, `gemini`, `mock`, or `neural`. |
 | `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL. |
-| `AETHERIS_LLM_API_KEY` | *(empty)* | API key for the upstream endpoint. |
-| `AETHERIS_LLM_MODEL` | `aetheris-prime-v4` | Sovereign foundation model. |
+| `AETHERIS_LLM_API_KEY` | *(empty)* | API key for an OpenAI-compatible upstream endpoint. |
+| `AETHERIS_LLM_MODEL` | `aetheris-prime-v4` | Upstream model used when a request does not specify a tier. |
 | `AETHERIS_LLM_TIMEOUT` | `120` | Per-request upstream timeout (seconds). |
 
-> If `AETHERIS_LLM_PROVIDER=openai` is set without an API key, Aetheris logs a
-> warning and falls back to the mock provider so the service stays live and
-> diagnosable rather than failing to start.
+> If a remote provider is selected without its matching API key, Aetheris logs
+> a warning and falls back to the offline Hermes provider so the service stays
+> live and diagnosable rather than failing to start.
 
 ---
 
@@ -1102,10 +1220,12 @@ audience positioning) is available machine-readably at `GET /v1/identity`.
 
 ## Development
 
+With `.venv` activated:
+
 ```bash
-.venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest        # 63 capability + media tests
-.venv/bin/python -m compileall aetheris
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m compileall aetheris
 ```
 
 The suite exercises the real implementations rather than fixtures: the sandbox
@@ -1120,11 +1240,4 @@ The server supports `--reload` for live editing during development.
 ## License
 
 MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
-
-
-## License
-
-MIT © 2026 RAJARAM K. See [LICENSE](LICENSE).
-
-JARAM K. See [LICENSE](LICENSE).
 
