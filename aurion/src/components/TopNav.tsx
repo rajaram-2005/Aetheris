@@ -18,6 +18,7 @@ interface TopNavProps {
   onNavigate: (view: AppView) => void;
   runtime?: RuntimeInfo | null;
   onOpenGodDeck: () => void;
+  onOpenStudio?: () => void;
   onOpenSettings: () => void;
   onCycleTheme: () => void;
 }
@@ -44,7 +45,7 @@ const VIEWS: { id: AppView; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-export function TopNav({ view, onNavigate, runtime, onOpenGodDeck, onOpenSettings, onCycleTheme }: TopNavProps) {
+export function TopNav({ view, onNavigate, runtime, onOpenGodDeck, onOpenStudio, onOpenSettings, onCycleTheme }: TopNavProps) {
   return (
     <header
       className="flex items-center justify-between px-3 sm:px-4 h-12 flex-shrink-0 border-b z-40"
@@ -124,6 +125,23 @@ export function TopNav({ view, onNavigate, runtime, onOpenGodDeck, onOpenSetting
           />
           {runtime?.online ? `v${runtime.version}` : 'offline'}
         </div>
+
+        {onOpenStudio && (
+          <button
+            onClick={onOpenStudio}
+            title="Studio — every surface, one constellation (⌘⇧S)"
+            aria-label="Open Studio"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-hover)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <span style={{ color: 'var(--accent-mint)' }}>✦</span>
+            Studio
+          </button>
+        )}
 
         <IconButton label="God Deck" title="God Deck orchestration" onClick={onOpenGodDeck}>
           <span style={{ fontSize: 14, lineHeight: 1, color: 'var(--accent-gold)' }}>Ω</span>

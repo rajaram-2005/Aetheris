@@ -22,18 +22,7 @@ import { SettingsPanel } from '@/components/SettingsPanel';
 import { CommandPalette } from '@/components/CommandPalette';
 import { SplashScreen } from '@/components/SplashScreen';
 import { PromptLibrary } from '@/components/PromptLibrary';
-import { GalleryModal } from '@/components/GalleryModal';
-import { BenchmarkModal } from '@/components/BenchmarkModal';
-import { CanvasWorkspace } from '@/components/CanvasWorkspace';
-import { AgentStoreModal } from '@/components/AgentStoreModal';
-import { DeepResearchModal } from '@/components/DeepResearchModal';
-import { ApexLab } from '@/components/ApexLab';
-import { GodDeck } from '@/components/GodDeck';
-import { SkillsModal } from '@/components/SkillsModal';
-import { IntegrationsModal } from '@/components/IntegrationsModal';
-import { ResourcesModal } from '@/components/ResourcesModal';
-import { MythologyModal } from '@/components/MythologyModal';
-import { ResearchEvolutionModal } from '@/components/ResearchEvolutionModal';
+import { StudioNexus, StudioChamber } from '@/components/StudioNexus';
 
 interface RuntimeInfo {
   foundation: string;
@@ -90,20 +79,10 @@ export default function AetherisApp() {
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [showInspector, setShowInspector] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [showGallery, setShowGallery] = useState(false);
-  const [showBenchmarks, setShowBenchmarks] = useState(false);
-  const [showCanvas, setShowCanvas] = useState(false);
-  const [showAgentStore, setShowAgentStore] = useState(false);
-  const [showDeepResearch, setShowDeepResearch] = useState(false);
-  const [showApexLab, setShowApexLab] = useState(false);
-  const [showGodDeck, setShowGodDeck] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
-  const [showSkills, setShowSkills] = useState(false);
-  const [showIntegrations, setShowIntegrations] = useState(false);
-  const [showResources, setShowResources] = useState(false);
-  const [showMythology, setShowMythology] = useState(false);
-  const [showResearchEvolution, setShowResearchEvolution] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
+  const [studioChamber, setStudioChamber] = useState<StudioChamber>('one');
   const [imageBusy, setImageBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [lastAssistantText, setLastAssistantText] = useState('');
@@ -167,9 +146,10 @@ export default function AetherisApp() {
         e.preventDefault();
         setSidebarOpen((v) => !v);
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'g' && !e.shiftKey) {
         e.preventDefault();
-        setShowGallery((v) => !v);
+        setStudioChamber('visuals');
+        setShowStudio((v) => !v);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
         e.preventDefault();
@@ -177,24 +157,19 @@ export default function AetherisApp() {
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
         e.preventDefault();
-        setShowGodDeck((v) => !v);
+        setStudioChamber('god');
+        setShowStudio((v) => !v);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+        e.preventDefault();
+        setStudioChamber('one');
+        setShowStudio((v) => !v);
       }
       if (e.key === 'Escape') {
         setShowCommandPalette(false);
         setShowPromptLibrary(false);
         setShowSettings(false);
-        setShowGallery(false);
-        setShowBenchmarks(false);
-        setShowCanvas(false);
-        setShowAgentStore(false);
-        setShowDeepResearch(false);
-        setShowApexLab(false);
-        setShowGodDeck(false);
-        setShowSkills(false);
-        setShowIntegrations(false);
-        setShowResources(false);
-        setShowMythology(false);
-        setShowResearchEvolution(false);
+        setShowStudio(false);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -372,8 +347,7 @@ export default function AetherisApp() {
     (text: string) => {
       setShowPromptLibrary(false);
       setShowCommandPalette(false);
-      setShowGallery(false);
-      setShowSkills(false);
+      setShowStudio(false);
       handleSendMessage(text);
     },
     [handleSendMessage],
@@ -481,10 +455,25 @@ export default function AetherisApp() {
 
   const handleHomeGenerate = useCallback(
     (prompt: string) => {
+      setShowStudio(false);
       navigate('workspace');
       handleGenerateImage(prompt);
     },
     [navigate, handleGenerateImage],
+  );
+
+  const handleOpenStudio = useCallback((chamber: StudioChamber = 'one') => {
+    setStudioChamber(chamber);
+    setShowStudio(true);
+  }, []);
+
+  const handleStudioRun = useCallback(
+    (text: string) => {
+      setShowStudio(false);
+      navigate('workspace');
+      handleRunPrompt(text);
+    },
+    [navigate, handleRunPrompt],
   );
 
   const handleHomeRunPrompt = useCallback(
@@ -506,7 +495,8 @@ export default function AetherisApp() {
         view={view}
         onNavigate={navigate}
         runtime={runtime}
-        onOpenGodDeck={() => setShowGodDeck(true)}
+        onOpenGodDeck={() => handleOpenStudio('god')}
+        onOpenStudio={() => handleOpenStudio('one')}
         onOpenSettings={() => setShowSettings(true)}
         onCycleTheme={handleCycleTheme}
       />
@@ -517,8 +507,8 @@ export default function AetherisApp() {
           onLaunch={handleLaunch}
           onTryModel={handleHomeTryModel}
           onTryMode={handleHomeTryMode}
-          onOpenGallery={() => setShowGallery(true)}
-          onOpenResearch={() => setShowResearchEvolution(true)}
+          onOpenResearch={() => handleOpenStudio('research')}
+          onOpenStudio={handleOpenStudio}
           onGenerateImage={handleHomeGenerate}
           onRunPrompt={handleHomeRunPrompt}
         />
@@ -535,18 +525,19 @@ export default function AetherisApp() {
         onDeleteThread={handleDeleteThread}
         onOpenSettings={() => setShowSettings(true)}
         onOpenPrompts={() => setShowPromptLibrary(true)}
-        onOpenGallery={() => setShowGallery(true)}
-        onOpenBenchmarks={() => setShowBenchmarks(true)}
-        onOpenCanvas={() => setShowCanvas(true)}
-        onOpenAgentStore={() => setShowAgentStore(true)}
-        onOpenDeepResearch={() => setShowDeepResearch(true)}
-        onOpenApexLab={() => setShowApexLab(true)}
-        onOpenGodDeck={() => setShowGodDeck(true)}
-        onOpenSkills={() => setShowSkills(true)}
-        onOpenIntegrations={() => setShowIntegrations(true)}
-        onOpenResources={() => setShowResources(true)}
-        onOpenMythology={() => setShowMythology(true)}
-        onOpenResearchEvolution={() => setShowResearchEvolution(true)}
+        onOpenGallery={() => handleOpenStudio('visuals')}
+        onOpenBenchmarks={() => handleOpenStudio('arena')}
+        onOpenCanvas={() => handleOpenStudio('canvas')}
+        onOpenAgentStore={() => handleOpenStudio('agents')}
+        onOpenDeepResearch={() => handleOpenStudio('research')}
+        onOpenApexLab={() => handleOpenStudio('apex')}
+        onOpenGodDeck={() => handleOpenStudio('god')}
+        onOpenSkills={() => handleOpenStudio('skills')}
+        onOpenIntegrations={() => handleOpenStudio('connect')}
+        onOpenResources={() => handleOpenStudio('models')}
+        onOpenMythology={() => handleOpenStudio('mythos')}
+        onOpenResearchEvolution={() => handleOpenStudio('research')}
+        onOpenStudio={() => handleOpenStudio('one')}
         onExport={handleExportThread}
       />
 
@@ -557,17 +548,17 @@ export default function AetherisApp() {
         onNewThread={handleNewThread}
         onToggleInspector={() => setShowInspector(!showInspector)}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        onOpenGallery={() => setShowGallery(true)}
-        onOpenBenchmarks={() => setShowBenchmarks(true)}
-        onOpenCanvas={() => setShowCanvas(true)}
-        onOpenAgentStore={() => setShowAgentStore(true)}
-        onOpenDeepResearch={() => setShowDeepResearch(true)}
-        onOpenApexLab={() => setShowApexLab(true)}
-        onOpenGodDeck={() => setShowGodDeck(true)}
-        onOpenSkills={() => setShowSkills(true)}
-        onOpenIntegrations={() => setShowIntegrations(true)}
-        onOpenResources={() => setShowResources(true)}
-        onOpenMythology={() => setShowMythology(true)}
+        onOpenGallery={() => handleOpenStudio('visuals')}
+        onOpenBenchmarks={() => handleOpenStudio('arena')}
+        onOpenCanvas={() => handleOpenStudio('canvas')}
+        onOpenAgentStore={() => handleOpenStudio('agents')}
+        onOpenDeepResearch={() => handleOpenStudio('research')}
+        onOpenApexLab={() => handleOpenStudio('apex')}
+        onOpenGodDeck={() => handleOpenStudio('god')}
+        onOpenSkills={() => handleOpenStudio('skills')}
+        onOpenIntegrations={() => handleOpenStudio('connect')}
+        onOpenResources={() => handleOpenStudio('models')}
+        onOpenMythology={() => handleOpenStudio('mythos')}
         activeModel={settings.model || 'aetheris-prime-v4'}
         onSelectModel={handleSelectModel}
         activeMode={settings.mode || 'general'}
@@ -595,7 +586,7 @@ export default function AetherisApp() {
           onClose={() => setShowSettings(false)}
           onOpenGallery={() => {
             setShowSettings(false);
-            setShowGallery(true);
+            handleOpenStudio('visuals');
           }}
         />
       )}
@@ -607,13 +598,14 @@ export default function AetherisApp() {
           threads={threads}
           onSelectThread={handleSelectThread}
           onNewThread={handleNewThread}
-          onOpenGallery={() => setShowGallery(true)}
-          onOpenBenchmarks={() => setShowBenchmarks(true)}
-          onOpenCanvas={() => setShowCanvas(true)}
-          onOpenAgentStore={() => setShowAgentStore(true)}
-          onOpenDeepResearch={() => setShowDeepResearch(true)}
-          onOpenApexLab={() => setShowApexLab(true)}
-          onOpenGodDeck={() => setShowGodDeck(true)}
+          onOpenGallery={() => handleOpenStudio('visuals')}
+          onOpenBenchmarks={() => handleOpenStudio('arena')}
+          onOpenCanvas={() => handleOpenStudio('canvas')}
+          onOpenAgentStore={() => handleOpenStudio('agents')}
+          onOpenDeepResearch={() => handleOpenStudio('research')}
+          onOpenApexLab={() => handleOpenStudio('apex')}
+          onOpenGodDeck={() => handleOpenStudio('god')}
+          onOpenStudio={() => handleOpenStudio('one')}
           onOpenSettings={() => setShowSettings(true)}
           onSelectMode={handleSelectMode}
           onSelectTheme={handleSelectTheme}
@@ -627,74 +619,12 @@ export default function AetherisApp() {
         />
       )}
 
-      {showGallery && (
-        <GalleryModal
-          isOpen={showGallery}
-          onClose={() => setShowGallery(false)}
-          onRunPrompt={handleRunPrompt}
-        />
-      )}
-
-      {showBenchmarks && (
-        <BenchmarkModal
-          isOpen={showBenchmarks}
-          onClose={() => setShowBenchmarks(false)}
-        />
-      )}
-
-      {showCanvas && (
-        <CanvasWorkspace
-          isOpen={showCanvas}
-          onClose={() => setShowCanvas(false)}
-          onRunInChat={handleRunPrompt}
-        />
-      )}
-
-      {showAgentStore && (
-        <AgentStoreModal
-          isOpen={showAgentStore}
-          onClose={() => setShowAgentStore(false)}
-          onSelectAgent={(agent) => {
-            handleRunPrompt(`[Activating Agent: ${agent.name}]\n${agent.system_prompt}\n\nHello! How can I assist you with ${agent.category}?`);
-          }}
-        />
-      )}
-
-      {showDeepResearch && (
-        <DeepResearchModal
-          isOpen={showDeepResearch}
-          onClose={() => setShowDeepResearch(false)}
-          onRunInChat={handleRunPrompt}
-        />
-      )}
-
-      {showApexLab && (
-        <ApexLab
-          isOpen={showApexLab}
-          onClose={() => setShowApexLab(false)}
-          onRunInChat={handleRunPrompt}
-        />
-      )}
-
-      {showGodDeck && (
-        <GodDeck
-          isOpen={showGodDeck}
-          onClose={() => setShowGodDeck(false)}
-          onRunInChat={handleRunPrompt}
-        />
-      )}
-
-      {showSkills && <SkillsModal onClose={() => setShowSkills(false)} onRun={handleRunPrompt} />}
-
-      {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
-
-      {showResources && <ResourcesModal onClose={() => setShowResources(false)} />}
-
-      {showMythology && <MythologyModal onClose={() => setShowMythology(false)} />}
-
-      <ResearchEvolutionModal
-        isOpen={showResearchEvolution}
-        onClose={() => setShowResearchEvolution(false)}
+      <StudioNexus
+        isOpen={showStudio}
+        chamber={studioChamber}
+        onClose={() => setShowStudio(false)}
+        onRunInChat={handleStudioRun}
+        onGenerateImage={handleHomeGenerate}
       />
     </div>
   );

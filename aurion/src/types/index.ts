@@ -7,6 +7,22 @@
 /** The two views of the single application shell. */
 export type AppView = 'home' | 'workspace';
 
+/** Chambers of the unified Studio Nexus — every surface lives here. */
+export type StudioChamber =
+  | 'one'
+  | 'mythos'
+  | 'visuals'
+  | 'research'
+  | 'god'
+  | 'apex'
+  | 'skills'
+  | 'agents'
+  | 'canvas'
+  | 'arena'
+  | 'create'
+  | 'connect'
+  | 'models';
+
 export type Theme =
   | 'aurora'
   | 'daylight'

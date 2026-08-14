@@ -35,6 +35,7 @@ interface SidebarProps {
   onOpenResources?: () => void;
   onOpenMythology?: () => void;
   onOpenResearchEvolution?: () => void;
+  onOpenStudio?: () => void;
   onExport: () => void;
 }
 
@@ -70,6 +71,7 @@ export function Sidebar({
   onOpenResources,
   onOpenMythology,
   onOpenResearchEvolution,
+  onOpenStudio,
   onExport,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
@@ -142,6 +144,13 @@ export function Sidebar({
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="3" x2="8" y2="13" /><line x1="3" y1="8" x2="13" y2="8" /></svg>
           New chat
         </button>
+
+        {onOpenStudio && (
+          <button onClick={onOpenStudio} className="btn w-full justify-center py-2.5" style={{ borderRadius: 10, borderColor: 'var(--border-hover)' }}>
+            <span style={{ color: 'var(--accent-mint)' }}>✦</span>
+            Studio — one constellation
+          </button>
+        )}
 
         <div className="grid grid-cols-2 gap-1.5 pt-1">
           <SideTool label="Visuals" onClick={onOpenGallery} show={!!onOpenGallery} icon={

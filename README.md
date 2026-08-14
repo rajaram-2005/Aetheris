@@ -93,12 +93,14 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 - **Typed everywhere** — Pydantic v2 schemas, Python 3.11+ idioms, defensive error
   handling.
 - **One integrated web application** at `/` — a single shell with a **Home**
-  view (hero, capabilities, model tiers, inference modes, visual studio,
-  architecture, training, research hub, and copy-ready API examples) and a
+  view (constellation hero, capabilities, model tiers, inference modes, visual studio,
+  architecture, training, research hub, and copy-ready API examples), a
   **Workspace** view (threaded chat, eleven-stage cascade Inspector, live
   meta-learning dashboard, 👍/👎 reinforcement, file attachment, command
-  palette, and prompt library). Served by the Python process itself — no second
-  surface, no separate frontend server.
+  palette, and prompt library), and one **Studio** that folds mythos, visuals,
+  create, research, God Mode, Apex, skills, agents, canvas, arena, integrations,
+  and model runtimes into a single chamber (`⌘⇧S`).
+  Served by the Python process itself — no second surface, no separate frontend server.
 - **God Mode orchestration** — activate an expert control deck with sampling
   controls, mission profiles, local context-file mounting, execution telemetry,
   a three-agent Council workflow, a Lite-vs-Pro-vs-Ultra Model Arena, sequential

@@ -45,7 +45,8 @@ Set `AETHERIS_BACKEND` to point the proxy somewhere other than
 | `src/lib/store.ts` | Threads and settings in `localStorage` |
 | `src/components/Inspector.tsx` | Live cascade trace + meta-learning dashboard |
 | `src/components/TopNav.tsx` | Shared navigation — Home ⇄ Workspace, theme, God Deck, settings |
-| `src/components/HomeView.tsx` | Home view: hero, capabilities, models, modes, gallery, architecture, training, research, API samples |
+| `src/components/HomeView.tsx` | Home view: constellation hero, capabilities, models, modes, gallery, architecture, training, research, API samples |
+| `src/components/StudioNexus.tsx` | One studio: mythos, visuals, create, research, God, Apex, skills, agents, canvas, arena, connect, models |
 | `src/app/AurionApp.tsx` | Application shell and orchestration |
 
 ## What you can see in the UI
