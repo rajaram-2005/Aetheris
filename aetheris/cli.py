@@ -411,47 +411,69 @@ def _save_artifact(console: Console, data: bytes, path: str, label: str) -> int:
 
 
 def cmd_image(args: argparse.Namespace) -> int:
-    """``aetheris image`` — render a PNG from a prompt."""
+    """``aetheris image`` — layered offline/NVIDIA image generation."""
     console = _make_console(args)
-    from .media.images import generate
+    from .media.image_providers import close_image_provider, generate_image_bytes
+
+    async def render(prompt: str):
+        try:
+            return (await generate_image_bytes(
+                prompt, width=args.width, height=args.height,
+                style=args.style, palette=args.palette, seed=args.seed,
+            ))[0]
+        finally:
+            await close_image_provider()
 
     prompt = " ".join(args.prompt).strip()
     try:
-        png, plan = generate(
-            prompt, width=args.width, height=args.height,
-            style=args.style, palette=args.palette, seed=args.seed,
-        )
-    except ValueError as exc:
+        result = asyncio.run(render(prompt))
+    except (ValueError, RuntimeError) as exc:
         console.print(f"[red]error:[/red] {exc}")
         return 2
 
+    extension = "jpg" if result.media_type == "image/jpeg" else "png"
     console.print(
-        f"[{MUTED}]style [bold]{plan.scene}[/bold] · palette [bold]{plan.palette_name}[/bold]"
-        f" · {args.width}x{args.height} · seed [bold]{plan.seed}[/bold][/{MUTED}]"
+        f"[{MUTED}]provider [bold]{result.provider}[/bold] · model [bold]{result.model}[/bold]"
+        f" · {result.meta.get('width', args.width)}x{result.meta.get('height', args.height)}"
+        f" · seed [bold]{result.seed}[/bold][/{MUTED}]"
     )
-    return _save_artifact(console, png, args.out or "aetheris-image.png", "Image")
+    return _save_artifact(
+        console, result.data, args.out or f"aetheris-image.{extension}", "Image"
+    )
 
 
 def cmd_video(args: argparse.Namespace) -> int:
-    """``aetheris video`` — render an animated GIF from a prompt."""
+    """``aetheris video`` — layered offline GIF/NVIDIA Cosmos generation."""
     console = _make_console(args)
-    from .media.video import generate
+    from .media.video_providers import close_video_provider, generate_video_bytes
+
+    async def render(prompt: str):
+        try:
+            return await generate_video_bytes(
+                prompt, width=args.width, height=args.height, seconds=args.seconds,
+                fps=args.fps, motion=args.motion, palette=args.palette, seed=args.seed,
+            )
+        finally:
+            await close_video_provider()
 
     prompt = " ".join(args.prompt).strip()
     try:
-        gif, plan = generate(
-            prompt, width=args.width, height=args.height, seconds=args.seconds,
-            fps=args.fps, motion=args.motion, palette=args.palette, seed=args.seed,
-        )
-    except ValueError as exc:
+        result = asyncio.run(render(prompt))
+    except (ValueError, RuntimeError) as exc:
         console.print(f"[red]error:[/red] {exc}")
         return 2
 
+    extension = "mp4" if result.media_type.startswith("video/") else "gif"
+    duration = float(result.meta.get("duration_seconds", args.seconds))
     console.print(
-        f"[{MUTED}]motion [bold]{plan.motion}[/bold] · {plan.frames} frames @ {plan.fps}fps"
-        f" · {plan.duration:.1f}s · {args.width}x{args.height}[/{MUTED}]"
+        f"[{MUTED}]provider [bold]{result.provider}[/bold] · model [bold]{result.model}[/bold]"
+        f" · {result.meta.get('frames')} frames @ {result.meta.get('fps', args.fps)}fps"
+        f" · {duration:.1f}s"
+        f" · {result.meta.get('width', args.width)}x{result.meta.get('height', args.height)}[/{MUTED}]"
     )
-    return _save_artifact(console, gif, args.out or "aetheris-video.gif", "Video")
+    return _save_artifact(
+        console, result.data, args.out or f"aetheris-video.{extension}", "Video"
+    )
 
 
 def cmd_audio(args: argparse.Namespace) -> int:
@@ -1241,9 +1263,9 @@ def _build_parser() -> argparse.ArgumentParser:
     tp.set_defaults(func=lambda a: (render_tools(_make_console(a), a.json), 0)[1], is_async=False)
 
     # --- creative generation ---
-    ip2 = sub.add_parser("image", help="generate a PNG image from a prompt")
+    ip2 = sub.add_parser("image", help="generate an image (offline or NVIDIA NIM)")
     ip2.add_argument("prompt", nargs="+", help="what to depict")
-    ip2.add_argument("-o", "--out", default=None, help="output path (default aetheris-image.png)")
+    ip2.add_argument("-o", "--out", default=None, help="output path (extension follows active provider)")
     ip2.add_argument("--style", default=None,
                      help="landscape|space|waves|particles|geometric|spiral|gradient|poster")
     ip2.add_argument("--palette", default=None, help="palette name or comma-separated hex colours")
@@ -1252,9 +1274,9 @@ def _build_parser() -> argparse.ArgumentParser:
     ip2.add_argument("--seed", type=int, default=None)
     ip2.set_defaults(func=cmd_image, is_async=False)
 
-    vp = sub.add_parser("video", help="generate an animated GIF from a prompt")
+    vp = sub.add_parser("video", help="generate video (offline GIF or NVIDIA Cosmos MP4)")
     vp.add_argument("prompt", nargs="+", help="what to animate")
-    vp.add_argument("-o", "--out", default=None, help="output path (default aetheris-video.gif)")
+    vp.add_argument("-o", "--out", default=None, help="output path (extension follows active provider)")
     vp.add_argument("--motion", default=None,
                     help="orbit|waveform|pulse|starfield|spiral|bars|gradient|typewriter")
     vp.add_argument("--palette", default=None, help="palette name or hex colours")

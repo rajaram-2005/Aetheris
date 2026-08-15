@@ -112,7 +112,15 @@ async def lifespan(app: FastAPI):
                 log.info("Meta-learned state saved to %s", path)
             except Exception:  # pragma: no cover - shutdown must not fail
                 log.warning("Could not persist meta-learned state", exc_info=True)
+        # Remote media/code providers own independent connection pools.
+        from .media.image_providers import close_image_provider
+        from .media.video_providers import close_video_provider
+        from .services.nvidia_code import close_nvidia_code_provider
+
         await close_provider()
+        await close_image_provider()
+        await close_video_provider()
+        await close_nvidia_code_provider()
 
 
 def create_app() -> FastAPI:

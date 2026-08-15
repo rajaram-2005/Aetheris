@@ -54,13 +54,14 @@ _INTENT_TOOLS: dict[str, tuple[str, ...]] = {
     "math": ("calculator",),
     "convert": ("calculator",),
     "datetime": ("current_time",),
-    "code_gen": ("code_interpreter",),
+    "code_gen": ("generate_code", "code_interpreter"),
     "code_debug": ("code_interpreter",),
     "file_qa": ("document_search",),
     "explain": ("document_search",),
     "summarize": ("document_search",),
     "analyze": ("document_search",),
     "image": ("generate_image",),
+    "video": ("generate_video",),
     "diagram": ("generate_image",),
     "palette": ("generate_image",),
 }
@@ -745,6 +746,15 @@ class HermesAgent:
             elif tool == "generate_image":
                 if any(w in lowered for w in ("image", "picture", "poster", "art", "draw", "diagram", "palette")):
                     selected.append(("generate_image", {"prompt": task}))
+            elif tool == "generate_video":
+                if any(w in lowered for w in ("video", "animation", "animate", "movie", "clip")):
+                    selected.append(("generate_video", {"prompt": task}))
+            elif tool == "generate_code":
+                # Custom source generation is NVIDIA-accelerated. Without a key,
+                # Hermes continues to answer locally and keeps the offline
+                # create_project/write_and_verify tools available.
+                if settings.code_generation_enabled and settings.has_nvidia_credentials:
+                    selected.append(("generate_code", {"prompt": task, "language": self._language(task)}))
             else:
                 selected.append((tool, {"query": task} if "search" in tool else {}))
 
@@ -780,6 +790,28 @@ class HermesAgent:
 
         match = re.search(r"```(?:python|py)?\s*\n(.*?)```", task, re.DOTALL)
         return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _language(task: str) -> str:
+        """Infer a requested code language without asking the remote model to guess."""
+        lowered = task.lower()
+        aliases = (
+            ("typescript", ("typescript", " ts ", ".ts")),
+            ("javascript", ("javascript", " node.js", " node ", ".js")),
+            ("rust", ("rust", ".rs")),
+            ("go", ("golang", " go ", ".go")),
+            ("java", ("java", ".java")),
+            ("c++", ("c++", "cpp", ".cc")),
+            ("sql", ("sql",)),
+            ("bash", ("bash", "shell script")),
+            ("html", ("html",)),
+            ("python", ("python", ".py", "django", "fastapi")),
+        )
+        padded = f" {lowered} "
+        for language, signals in aliases:
+            if any(signal in padded for signal in signals):
+                return language
+        return "python"
 
     @staticmethod
     def _attach_context(

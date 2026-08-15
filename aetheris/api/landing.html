@@ -549,7 +549,7 @@
     .media-card__actions { display: flex; gap: 5px; }
     .media-card__actions a { padding: 3px 8px; border: 1px solid var(--line); color: var(--text-3); background: transparent; border-radius: 6px; font: 600 9px ui-monospace, monospace; text-decoration: none; }
     .media-card__actions a:hover { border-color: rgba(0,180,216,.45); color: var(--teal-soft); }
-    .media-card img { display: block; width: 100%; height: auto; background: #05070f; }
+    .media-card img, .media-card video { display: block; width: 100%; height: auto; background: #05070f; }
     .media-card audio { display: block; width: 100%; padding: 11px; }
     .media-card pre { max-height: 220px; margin: 0; padding: 11px 13px; overflow: auto; color: var(--text-3); font: 500 9px/1.6 ui-monospace, monospace; }
 
@@ -1986,13 +1986,21 @@
         head.append(kind, meta, actions);
         card.append(head);
 
-        if (artifact.kind === "image" || artifact.kind === "video") {
-          // Animated GIFs play in an <img>; no video element required.
+        if (artifact.kind === "image" || artifact.media_type === "image/gif") {
+          // Images and offline animated GIFs render in an <img>.
           const img = document.createElement("img");
           img.src = artifact.url;
           img.alt = artifact.prompt || artifact.filename;
           img.loading = "lazy";
           card.append(img);
+        } else if (artifact.kind === "video") {
+          // NVIDIA Cosmos returns a real MP4 artifact.
+          const player = document.createElement("video");
+          player.controls = true;
+          player.loop = true;
+          player.playsInline = true;
+          player.src = artifact.url;
+          card.append(player);
         } else if (artifact.kind === "audio") {
           const player = document.createElement("audio");
           player.controls = true;

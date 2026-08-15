@@ -4,8 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Aetheris — Hermes Agent + Meta-Learning",
-  description: "A unified offline cognitive runtime: the Hermes agent with meta-learning. No vendor APIs, no API keys.",
-  keywords: ["Aetheris", "Hermes", "meta-learning", "agent", "offline", "private", "no API keys"],
+  description: "An offline-first Hermes agent with meta-learning and optional NVIDIA NIM acceleration for images, video, and code.",
+  keywords: ["Aetheris", "Hermes", "meta-learning", "agent", "offline-first", "NVIDIA NIM", "Cosmos", "FLUX"],
   authors: [{ name: "Aetheris" }],
   openGraph: {
     title: "Aetheris — Hermes Agent + Meta-Learning",

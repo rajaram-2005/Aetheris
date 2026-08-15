@@ -10,10 +10,11 @@ generative model the moment an upstream provider key is configured:
 * ``OpenAIImageProvider`` — DALL-E 3 / ``gpt-image-1`` via the OpenAI Images
   endpoint (photorealistic scenes, real objects and people).
 * ``GeminiImageProvider`` — Google Imagen 3 via the Generative Language API.
+* ``NvidiaImageProvider`` — NVIDIA Visual Generative AI NIM (FLUX/Cosmos).
 * ``StabilityImageProvider`` — Stability AI's ``stable-image`` core model.
 
 Which engine runs is decided by ``AETHERIS_IMAGE_PROVIDER`` (``offline``,
-``openai``, ``gemini``, ``stability``, or ``auto``). ``auto`` — the default —
+``openai``, ``gemini``, ``stability``, ``nvidia``, or ``auto``). ``auto`` — the default —
 picks the first provider that has a configured API key and otherwise uses the
 offline renderer. Every remote provider is an ``httpx`` client with an injectable
 transport, so the providers are unit-testable without touching the network.
@@ -323,6 +324,165 @@ class GeminiImageProvider(_RemoteImageProvider):
         return results
 
 
+class NvidiaImageProvider(ImageProvider):
+    """NVIDIA Visual Generative AI NIM (FLUX by default).
+
+    NVIDIA's visual NIM contract returns ``artifacts[].base64``.  The parser also
+    accepts the OpenAI-shaped ``data[].b64_json`` emitted by self-hosted Cosmos 3
+    and compatible diffusion servers, making the configured endpoint portable.
+    """
+
+    provider_name = "nvidia nim (visual genai)"
+    _SUPPORTED_DIMENSIONS = (768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344)
+
+    def __init__(
+        self,
+        endpoint: str,
+        api_key: str,
+        model: str,
+        timeout: float = 90.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+        *,
+        steps: int = 30,
+        cfg_scale: float = 5.0,
+    ) -> None:
+        self._endpoint = endpoint.rstrip("/")
+        self._model = model
+        self._steps = steps
+        self._cfg_scale = cfg_scale
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        self._client = httpx.AsyncClient(
+            headers=headers,
+            timeout=timeout,
+            transport=transport,
+        )
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    @classmethod
+    def _dimension(cls, value: int) -> int:
+        value = _clamp_dimension(value)
+        return min(cls._SUPPORTED_DIMENSIONS, key=lambda candidate: abs(candidate - value))
+
+    @staticmethod
+    def _decode_image(body: dict[str, Any]) -> tuple[bytes, str, dict[str, Any]]:
+        artifacts = body.get("artifacts") or []
+        if artifacts:
+            item = artifacts[0] or {}
+            encoded = item.get("base64") or item.get("b64_json")
+            meta = {k: v for k, v in item.items() if k not in ("base64", "b64_json")}
+        else:
+            data = body.get("data") or []
+            if isinstance(data, dict):
+                data = [data]
+            item = data[0] if data else {}
+            encoded = (
+                item.get("b64_json") or item.get("base64")
+                if isinstance(item, dict)
+                else None
+            )
+            meta = {}
+        if not encoded:
+            raise RuntimeError("NVIDIA image NIM returned no base64 image artifact.")
+        if isinstance(encoded, str) and encoded.startswith("data:"):
+            header, encoded = encoded.split(",", 1)
+            media_type = header[5:].split(";", 1)[0] or "image/jpeg"
+        else:
+            media_type = str(meta.get("mime_type") or meta.get("media_type") or "image/jpeg")
+        try:
+            raw = base64.b64decode(encoded)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("NVIDIA image NIM returned invalid base64 data.") from exc
+        if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+            media_type = "image/png"
+        elif raw.startswith(b"\xff\xd8"):
+            media_type = "image/jpeg"
+        return raw, media_type, meta
+
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        width: int = 1024,
+        height: int = 576,
+        n: int = 1,
+        seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
+    ) -> list[ImageGenerationResult]:
+        output_width = self._dimension(width)
+        output_height = self._dimension(height)
+        results: list[ImageGenerationResult] = []
+        for index in range(n):
+            actual_seed = 0 if seed is None else max(0, seed + index)
+            payload: dict[str, Any] = {
+                "prompt": _augment_prompt(prompt, style, palette),
+                "height": output_height,
+                "width": output_width,
+                "cfg_scale": self._cfg_scale,
+                "mode": "base",
+                "samples": 1,
+                "seed": actual_seed,
+                "steps": self._steps,
+            }
+            # OpenAI-compatible visual NIM servers (Cosmos 3 / SGLang) use the
+            # standard images payload rather than the FLUX /v1/infer contract.
+            if "/images/generations" in self._endpoint:
+                payload = {
+                    "model": self._model,
+                    "prompt": _augment_prompt(prompt, style, palette),
+                    "n": 1,
+                    "size": f"{output_width}x{output_height}",
+                    "response_format": "b64_json",
+                    "seed": actual_seed,
+                    "num_inference_steps": self._steps,
+                    "guidance_scale": self._cfg_scale,
+                }
+            try:
+                response = await self._client.post(self._endpoint, json=payload)
+            except httpx.HTTPError as exc:
+                raise RuntimeError(f"NVIDIA image request failed: {exc}") from exc
+            if response.status_code >= 400:
+                raise RuntimeError(
+                    f"NVIDIA image NIM returned {response.status_code}: {response.text[:300]}"
+                )
+            try:
+                response_body = response.json()
+            except ValueError as exc:
+                raise RuntimeError("NVIDIA image NIM returned non-JSON content.") from exc
+            raw, media_type, artifact_meta = self._decode_image(response_body)
+            reported_seed = artifact_meta.get("seed", actual_seed)
+            results.append(
+                ImageGenerationResult(
+                    data=raw,
+                    media_type=media_type,
+                    provider=self.provider_name,
+                    model=self._model,
+                    seed=int(reported_seed) if reported_seed is not None else None,
+                    meta={
+                        "renderer": self._model,
+                        "accelerator": "NVIDIA NIM",
+                        "width": output_width,
+                        "height": output_height,
+                        "requested_width": width,
+                        "requested_height": height,
+                        "steps": self._steps,
+                        "cfg_scale": self._cfg_scale,
+                        **artifact_meta,
+                    },
+                )
+            )
+        return results
+
+
 class StabilityImageProvider(_RemoteImageProvider):
     """Stability AI ``stable-image`` core model (multipart form upload)."""
 
@@ -391,6 +551,10 @@ _provider: ImageProvider | None = None
 
 def _first_configured() -> str:
     """Resolve 'auto' to the first provider with a configured key."""
+    # A single NVIDIA key powers chat, code, image and video, so prefer it when
+    # present to give the operator the unified NIM experience they configured.
+    if settings.has_nvidia_credentials:
+        return "nvidia"
     if settings.has_openai_image_credentials:
         return "openai"
     if settings.has_gemini_image_credentials:
@@ -406,6 +570,20 @@ def build_image_provider(provider: str | None = None) -> ImageProvider:
     if chosen == "auto":
         chosen = _first_configured()
 
+    if chosen == "nvidia":
+        if not settings.has_nvidia_credentials:
+            raise RuntimeError(
+                "Image provider 'nvidia' selected but no NVIDIA API key is configured. "
+                "Add AETHERIS_NVIDIA_API_KEY=nvapi-... to .env and restart Aetheris."
+            )
+        return NvidiaImageProvider(
+            endpoint=settings.nvidia_image_base_url,
+            api_key=settings.nvidia_api_key,
+            model=settings.nvidia_image_model,
+            timeout=settings.image_remote_timeout,
+            steps=settings.nvidia_image_steps,
+            cfg_scale=settings.nvidia_image_cfg_scale,
+        )
     if chosen == "openai":
         if not settings.has_openai_image_credentials:
             raise RuntimeError(
@@ -524,6 +702,7 @@ __all__ = [
     "OfflineImageProvider",
     "OpenAIImageProvider",
     "GeminiImageProvider",
+    "NvidiaImageProvider",
     "StabilityImageProvider",
     "build_image_provider",
     "get_image_provider",

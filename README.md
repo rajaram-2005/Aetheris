@@ -126,17 +126,21 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   in-process with the standard library alone (no Pillow, no ffmpeg, no GPU, no
   API key):
   - **Images** — *layered* generation: deterministic procedural PNG synthesis
-    (eight compositions) offline by default, upgraded to a real generative
-    model (**OpenAI DALL-E/gpt-image, Google Imagen 3, or Stability**) whenever
-    a matching API key is configured.
-  - **Video** — looping animated GIFs across eight motion styles.
+    offline by default, upgraded to a real generative model (**NVIDIA NIM/FLUX,
+    OpenAI DALL-E/gpt-image, Google Imagen 3, or Stability**) whenever a matching
+    API key is configured.
+  - **Video** — NVIDIA Cosmos NIM MP4 generation when configured, with looping
+    procedural GIFs as the no-key/offline fallback.
   - **Audio** — 16-bit WAV melodies, chord progressions, tones, **and offline
     text-to-speech** (a formant synthesizer) with provider voices on demand.
   - **Code** — projects scaffolded as runnable ZIPs, and snippets *executed*
     to prove they work before you are shown them.
 - **Multi-provider chat** — alongside the offline Hermes agent and the
-  OpenAI-compatible provider, Aetheris now ships first-class **Anthropic Claude**
-  and **Google Gemini** providers (non-streaming, streaming, tools, and vision).
+  OpenAI-compatible provider, Aetheris ships first-class **Anthropic Claude**,
+  **Google Gemini**, and **NVIDIA NIM** providers. NVIDIA NIM is fused with the
+  existing Hermes adapter: task strategy is adapted before inference, normal
+  tools execute through Hermes, and completed episodes update the shared
+  meta-learner afterward.
 - **Voice endpoints** — `POST /v1/audio/speech` (text-to-speech, offline by
   default) and `POST /v1/audio/transcriptions` (speech-to-text via Whisper or
   Gemini when a key is set; an honest "not available offline" otherwise).
@@ -344,6 +348,20 @@ Copy-Item .env.example .env
 Then edit `.env` and restart Aetheris after any change. Do not commit API keys.
 The most commonly used settings are listed under
 [Optional configuration](#optional-configuration).
+
+To enable NVIDIA NIM for accelerated chat, images, video, and code, create a key
+at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
+and add it only to your local `.env`:
+
+```dotenv
+AETHERIS_NVIDIA_API_KEY=nvapi-...
+# Optional: put NVIDIA NIM in front of chat; Hermes adaptation stays active.
+AETHERIS_LLM_PROVIDER=nvidia
+```
+
+With the key present, `auto` selects NVIDIA for image/video generation. If a
+remote media call fails, the default offline PNG/GIF fallbacks keep the request
+working. `GET /v1/providers/nvidia` reports readiness without exposing the key.
 
 ### 7. Start the application
 
@@ -733,10 +751,10 @@ a client can discover what a deployment can actually do before relying on it.
 | Vision | **on** | `AETHERIS_VISION_ENABLED` | OpenAI `image_url` content parts. |
 | Web access | *off* | `AETHERIS_WEB_ENABLED` | SSRF-guarded outbound HTTP. |
 | Sovereign mode | *off* | `AETHERIS_SOVEREIGN_ENABLED` | Unrestricted expert identity. |
-| Image generation | **on** | `AETHERIS_IMAGE_GENERATION_ENABLED` | Procedural PNG synthesis. |
-| Video generation | **on** | `AETHERIS_VIDEO_GENERATION_ENABLED` | Animated GIF synthesis. |
+| Image generation | **on** | `AETHERIS_IMAGE_GENERATION_ENABLED` | NVIDIA NIM/FLUX when configured; procedural PNG fallback. |
+| Video generation | **on** | `AETHERIS_VIDEO_GENERATION_ENABLED` | NVIDIA Cosmos MP4 when configured; animated GIF fallback. |
 | Audio generation | **on** | `AETHERIS_AUDIO_GENERATION_ENABLED` | WAV instrumental synthesis. |
-| Code generation | **on** | `AETHERIS_CODE_GENERATION_ENABLED` | Runnable project scaffolds. |
+| Code generation | **on** | `AETHERIS_CODE_GENERATION_ENABLED` | NVIDIA NIM source generation plus offline runnable scaffolds. |
 | God Mode | **on** | `AETHERIS_GOD_MODE_ENABLED` | Fused ToT / causal / proof / red-team controller. |
 | Tree-of-Thought | **on** | `AETHERIS_TOT_ENABLED` | UCB1 search over competing thoughts. |
 | World model | **on** | `AETHERIS_WORLD_MODEL_ENABLED` | Causal `do(X)` + counterfactuals. |
@@ -894,6 +912,8 @@ Image generation is **layered**:
   and people**:
 
   ```bash
+  # NVIDIA Visual Generative AI NIM / FLUX (set AETHERIS_NVIDIA_API_KEY)
+  AETHERIS_IMAGE_PROVIDER=nvidia
   # OpenAI DALL-E / gpt-image (set AETHERIS_OPENAI_IMAGE_API_KEY)
   AETHERIS_IMAGE_PROVIDER=openai
   # Google Imagen 3 (set AETHERIS_GEMINI_IMAGE_API_KEY)
@@ -930,9 +950,11 @@ curl -s -X POST localhost:8000/v1/videos/generations \
 aetheris video "pulsing radar sweep" --motion pulse -o radar.gif
 ```
 
-Delivered as animated GIF — deliberately, because it is the only broadly
-playable animated format producible without a video codec, so the result plays
-inline anywhere. Sixteen motion styles: `orbit` · `waveform` · `pulse` ·
+Video generation is layered. With `AETHERIS_NVIDIA_API_KEY` configured and
+`AETHERIS_VIDEO_PROVIDER=auto` (the default), Aetheris calls NVIDIA Cosmos and
+stores the returned MP4. Without a key—or when the remote endpoint fails and
+`AETHERIS_VIDEO_FALLBACK_OFFLINE=true`—it delivers an animated GIF produced
+without a video codec. The offline engine has sixteen motion styles: `orbit` · `waveform` · `pulse` ·
 `starfield` · `spiral` · `bars` · `gradient` · `typewriter` · `rain` ·
 `fireworks` · `kaleidoscope` · `matrix` · `snow` · `plasma` · `tunnel` ·
 `pendulum`. Every animation loops seamlessly, and `loop: "bounce"` renders a
@@ -984,9 +1006,13 @@ Like image generation, voice is **layered**:
 
 #### Code
 
-Two distinct capabilities. First, **verified snippets** — `write_and_verify_code`
-runs what it wrote in the sandbox and returns the output, or a specific
-diagnosis on failure:
+Three capabilities work together. **NVIDIA-assisted source generation** —
+`POST /v1/code/generations` and the `generate_code` tool call the configured NIM
+coding model. Hermes adapts the strategy before generation and records the final
+outcome in its shared meta-learner. The API key stays server-side.
+
+Second, **verified snippets** — `write_and_verify_code` runs Python in the sandbox
+and returns the output, or a specific diagnosis on failure:
 
 ```
 language: python
@@ -997,7 +1023,7 @@ diagnosis: NameError: name 'totl' is not defined — A name is used before
 assignment; check for typos or a missing import.
 ```
 
-Second, **whole projects** — `create_project` scaffolds a runnable tree as a ZIP:
+Third, **whole projects** — `create_project` scaffolds a runnable tree as a ZIP:
 
 ```bash
 aetheris project fastapi-service invoice-api -d "Invoice service"
@@ -1134,8 +1160,10 @@ a `.env` file. See [`.env.example`](.env.example).
 |----------|---------|-------------|
 | `AETHERIS_HOST` | `0.0.0.0` | Bind host. |
 | `AETHERIS_PORT` | `8000` | Bind port. |
-| `AETHERIS_LLM_PROVIDER` | `hermes` | `hermes`, `openai`, `anthropic`, `gemini`, `mock`, or `neural`. |
-| `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL. |
+| `AETHERIS_LLM_PROVIDER` | `hermes` | `hermes`, `nvidia`, `openai`, `anthropic`, `gemini`, `mock`, or `neural`. |
+| `AETHERIS_NVIDIA_API_KEY` | *(empty)* | One server-side NVIDIA Developer key for NIM chat, image, video, and code. |
+| `AETHERIS_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM OpenAI-compatible chat endpoint. |
+| `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | Generic OpenAI-compatible base URL. |
 | `AETHERIS_LLM_API_KEY` | *(empty)* | API key for an OpenAI-compatible upstream endpoint. |
 | `AETHERIS_LLM_MODEL` | `aetheris-prime-v4` | Upstream model used when a request does not specify a tier. |
 | `AETHERIS_LLM_TIMEOUT` | `120` | Per-request upstream timeout (seconds). |
