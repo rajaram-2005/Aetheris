@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import math
+import random
 import re
 import struct
 import wave
@@ -48,9 +49,20 @@ _TIMBRES: dict[str, tuple[float, ...]] = {
     "organ": (1.0, 0.0, 0.5, 0.0, 0.33, 0.0, 0.25),
     "bell": (1.0, 0.0, 0.0, 0.62, 0.0, 0.0, 0.31, 0.0, 0.19),
     "pluck": (1.0, 0.48, 0.30, 0.18, 0.10, 0.05),
+    # Sawtooth-ish bowed ensemble: strong odd and even partials.
+    "strings": (1.0, 0.50, 0.33, 0.25, 0.20, 0.14, 0.09, 0.05),
+    # Bright brass stack, slightly tamed above the fifth partial.
+    "brass": (1.0, 0.46, 0.32, 0.22, 0.12, 0.06),
+    # Near-pure sine with a breathy second partial.
+    "flute": (1.0, 0.08, 0.02),
+    # Square-wave chip lead: odd partials at 1/n amplitudes.
+    "chip": (1.0, 0.333, 0.200, 0.143, 0.111, 0.091),
 }
 
-TIMBRES: tuple[str, ...] = tuple(sorted(_TIMBRES))
+# Karplus-Strong plucked strings: brightness 0..1 (higher = brighter/longer ring).
+_KARPLUS: dict[str, float] = {"guitar": 0.5, "sitar": 0.88}
+
+TIMBRES: tuple[str, ...] = tuple(sorted(set(_TIMBRES) | set(_KARPLUS)))
 
 # Scale degrees (semitones) for melody generation.
 _SCALES: dict[str, tuple[int, ...]] = {
@@ -132,6 +144,8 @@ def synth_note(
     frequency: float, seconds: float, timbre: str = "warm", amplitude: float = 0.7
 ) -> list[float]:
     """Synthesise one note with additive harmonics and an ADSR envelope."""
+    if timbre in _KARPLUS:
+        return _karplus_note(frequency, seconds, _KARPLUS[timbre], amplitude)
     harmonics = _TIMBRES.get(timbre, _TIMBRES["warm"])
     total = max(1, int(seconds * SAMPLE_RATE))
     weight = sum(harmonics) or 1.0
@@ -267,6 +281,331 @@ def render_melody_from_scale(
     return render_melody(notation, tempo=tempo, timbre=timbre), notation
 
 
+def render_arp(
+    notation: str = "Cmaj7", *, tempo: int = 120, timbre: str = "pluck",
+    bars: int = 2, pattern: str = "updown",
+) -> Track:
+    """Arpeggiate chord tokens (``"Cmaj7 Amin7 Fmaj7 G"``) as a rolling figure.
+
+    Each chord's tones are spread over one bar in the requested pattern —
+    ``up``, ``down``, ``updown`` (default), or ``random`` — at eighth-note
+    resolution. A single token repeats for ``bars`` bars.
+    """
+    if pattern not in ("up", "down", "updown", "random"):
+        raise ValueError("Pattern must be one of: up, down, updown, random.")
+
+    tokens = [t for t in notation.replace(",", " ").split() if t] or ["Cmaj7"]
+    if len(tokens) > 1:
+        bars = max(bars, len(tokens))
+    chords: list[list[float]] = []
+    for token in tokens[:bars]:
+        match = re.fullmatch(r"([A-Ga-g][#b]?)(\d?)(.*)", token.strip())
+        if not match:
+            raise ValueError(f"'{token}' is not a chord like Cmaj7, Amin, or G.")
+        root, octave, quality = match.groups()
+        quality = (quality or "maj").lower()
+        aliases = {"": "maj", "m": "min", "7": "dom7", "m7": "min7", "M7": "maj7"}
+        quality = aliases.get(quality, quality)
+        if quality not in _CHORDS:
+            raise ValueError(
+                f"Unknown chord quality '{quality}' in '{token}'. "
+                f"Choose one of: {', '.join(sorted(_CHORDS))}."
+            )
+        base = note_frequency(f"{root}{octave or 3}")
+        chords.append([base * (2.0 ** (i / 12.0)) for i in _CHORDS[quality]])
+
+    rng = random.Random()
+    beat = 60.0 / max(30, min(240, tempo))
+    step = beat / 2.0  # eighth notes
+    samples: list[float] = []
+    for bar in range(bars):
+        tones = chords[bar % len(chords)]
+        order = list(range(len(tones)))
+        if pattern == "down":
+            sequence = order[::-1]
+        elif pattern == "updown":
+            sequence = order + order[-2:0:-1]
+        elif pattern == "random":
+            sequence = [rng.randrange(len(tones)) for _ in tones]
+        else:
+            sequence = order
+        # An updown bar fits 2n-2 notes; trim/pad others to one bar evenly.
+        slots = max(len(sequence), 1)
+        note_len = max(0.05, (beat * 4) / slots - 0.02)
+        for index in sequence:
+            samples.extend(synth_note(tones[index], min(step, note_len), timbre, 0.8))
+    return Track(samples)
+
+
+def _noise_burst(
+    seconds: float, *, decay: float = 60.0, rng: random.Random,
+    lowpass: float = 0.6,
+) -> list[float]:
+    """A decaying noise burst, roughly low-passed by a one-pole filter."""
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    state = 0.0
+    for i in range(total):
+        state += lowpass * ((rng.random() * 2.0 - 1.0) - state)
+        out.append(state * math.exp(-decay * i / SAMPLE_RATE))
+    return out
+
+
+def _kick(seconds: float = 0.24) -> list[float]:
+    """A pitch-swept sine drum: 150 Hz falling to 45 Hz with a fast decay."""
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    for i in range(total):
+        t = i / SAMPLE_RATE
+        sweep = 45.0 + 105.0 * math.exp(-t * 22.0)
+        out.append(math.sin(math.tau * (45.0 * t + (105.0 / 22.0) * (1.0 - math.exp(-t * 22.0)))) *
+                   math.exp(-t * 16.0))
+    return out
+
+
+def render_drums(bars: int = 4, *, tempo: int = 110, seed: int | None = None,
+                 fill: bool = True) -> Track:
+    """Render a percussion pattern: kick, snare, hats, and a closing fill.
+
+    The kit is synthesised, not sampled — kick as a pitch-swept sine, snare as
+    a noise burst over a 190 Hz body, hats as bright short noise — and arranged
+    four-on-the-floor with a seeded 16th-note fill in the final bar.
+    """
+    if not 1 <= bars <= 32:
+        raise ValueError("Bars must be between 1 and 32.")
+    rng = random.Random(seed)
+    beat = 60.0 / max(30, min(240, tempo))
+    sixteenth = beat / 4.0
+
+    def _place(buffer: list[float], samples: list[float], at: float, gain: float = 1.0) -> None:
+        start = int(at * SAMPLE_RATE)
+        for i, value in enumerate(samples):
+            index = start + i
+            if index >= len(buffer):
+                break
+            buffer[index] += value * gain
+
+    total_seconds = bars * 4 * beat + 0.4
+    buffer = [0.0] * int(total_seconds * SAMPLE_RATE)
+    kick, snare_body = _kick(), synth_note(190.0, 0.12, "sine", 0.5)
+    hat = _noise_burst(0.06, decay=90.0, rng=random.Random(7), lowpass=0.15)
+    snare = _noise_burst(0.18, decay=28.0, rng=random.Random(3), lowpass=0.5)
+
+    for bar in range(bars):
+        bar_start = bar * 4 * beat
+        is_fill_bar = fill and bar == bars - 1
+        for step in range(16):
+            at = bar_start + step * sixteenth
+            if step % 4 == 0:
+                _place(buffer, kick, at)                     # four on the floor
+            if step in (4, 12):
+                _place(buffer, snare + snare_body[: len(snare)], at, 0.9)
+            if is_fill_bar and step >= 8:
+                _place(buffer, snare, at, 0.4 + 0.05 * (step - 8))  # rising roll
+            elif step % 2 == 0:
+                _place(buffer, hat, at, 0.5 if step % 4 == 0 else 0.32)
+            elif rng.random() < 0.3:
+                _place(buffer, hat, at, 0.2)                 # swung ghost hat
+    return Track(buffer)
+
+
+def _karplus_note(frequency: float, seconds: float, brightness: float,
+                  amplitude: float = 0.7) -> list[float]:
+    """Karplus-Strong plucked-string synthesis.
+
+    A noise burst circulates through a delay line with a two-point averaging
+    filter; the decay rate follows the string brightness so ``guitar`` rings
+    warm and ``sitar`` rings long and bright.
+    """
+    period = max(2, int(round(SAMPLE_RATE / frequency)))
+    buffer = [random.Random(int(frequency * 1000) + period).uniform(-1, 1)
+              for _ in range(period)]
+    decay = 0.996 + (brightness - 0.5) * 0.002  # 0.995 .. 0.9968
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    position = 0
+    for _ in range(total):
+        current = buffer[position]
+        nxt = buffer[(position + 1) % period]
+        buffer[position] = decay * 0.5 * (current + nxt)
+        position = (position + 1) % period
+        out.append(current * amplitude)
+    return out
+
+
+def _place(buffer: list[float], samples: list[float], at: float,
+           gain: float = 1.0) -> None:
+    """Additively mix a sample buffer at an offset in seconds."""
+    start = max(0, int(at * SAMPLE_RATE))
+    for i, value in enumerate(samples):
+        index = start + i
+        if index >= len(buffer):
+            break
+        buffer[index] += value * gain
+
+
+def render_pad(
+    notation: str = "Cmaj7 Amin7", *, bars: int = 2, tempo: int = 110,
+    timbre: str = "strings", detune_cents: float = 3.0,
+) -> Track:
+    """Slow ambient pad: one sustained chord per bar with soft attack.
+
+    Each chord tone is doubled with a ±detune voice so the pad shimmers, and
+    chords overlap slightly between bars for a continuous wash of sound.
+    """
+    tokens = [t for t in notation.replace(",", " ").split() if t] or ["Cmaj7"]
+    beat = 60.0 / max(30, min(240, tempo))
+    bar_seconds = 4 * beat
+    total_seconds = bars * bar_seconds + 1.0
+    buffer = [0.0] * int(total_seconds * SAMPLE_RATE)
+    detune = 2.0 ** (detune_cents / 1200.0)
+
+    for bar in range(bars):
+        token = tokens[bar % len(tokens)]
+        match = re.fullmatch(r"([A-Ga-g][#b]?)(\d?)(.*)", token.strip())
+        if not match:
+            raise ValueError(f"'{token}' is not a chord like Cmaj7 or Amin.")
+        root, octave, quality = match.groups()
+        quality = (quality or "maj").lower()
+        aliases = {"": "maj", "m": "min", "7": "dom7", "m7": "min7", "M7": "maj7"}
+        quality = aliases.get(quality, quality)
+        if quality not in _CHORDS:
+            raise ValueError(
+                f"Unknown chord quality '{quality}' in '{token}'. "
+                f"Choose one of: {', '.join(sorted(_CHORDS))}."
+            )
+        base = note_frequency(f"{root}{octave or 3}")
+        freqs = [base * (2.0 ** (i / 12.0)) for i in _CHORDS[quality]]
+        at = bar * bar_seconds * 0.92  # slight overlap between bars
+        seconds = bar_seconds * 1.1
+        for freq in freqs:
+            for voice in (freq, freq * detune):
+                _place(buffer, _padded_note(voice, seconds, timbre, 0.42), at,
+                       1.0 / (len(freqs) * 2))
+    return Track(buffer)
+
+
+def _padded_note(frequency: float, seconds: float, timbre: str,
+                 amplitude: float) -> list[float]:
+    """One note with a slow ADSR suited to pads."""
+    harmonics = _TIMBRES.get(timbre, _TIMBRES["warm"])
+    weight = sum(harmonics) or 1.0
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    for i in range(total):
+        t = i / SAMPLE_RATE
+        value = sum(
+            level * math.sin(math.tau * frequency * (h + 1) * t)
+            for h, level in enumerate(harmonics)
+        ) / weight
+        out.append(value * _envelope(i, total, attack=0.35, decay=0.25,
+                                     sustain=0.8, release=0.4) * amplitude)
+    return out
+
+
+def render_bass(
+    notation: str = "Cmaj7 G", *, bars: int = 2, tempo: int = 110,
+    timbre: str = "chip",
+) -> Track:
+    """A walking bassline: eighth-note root-fifth patterns under each chord."""
+    tokens = [t for t in notation.replace(",", " ").split() if t] or ["Cmaj7"]
+    beat = 60.0 / max(30, min(240, tempo))
+    step = beat / 2.0
+    pattern = (0, 0, 7, 0, 5, 0, 12, 7)  # root/root/fifth/root/fourth-ish/fifth/octave
+    buffer: list[float] = []
+    for bar in range(bars):
+        token = tokens[bar % len(tokens)]
+        match = re.fullmatch(r"([A-Ga-g][#b]?)(\d?)", token.strip().split(":")[0])
+        root, octave = match.groups() if match else ("C", "2")
+        base = note_frequency(f"{root}{int(octave or 2) - 1}")
+        for k, semitones in enumerate(pattern):
+            freq = base * (2.0 ** (semitones / 12.0))
+            note_len = min(step, 0.16) if k % 2 == 0 else min(step * 0.8, 0.10)
+            buffer.extend(synth_note(freq, note_len, timbre, 0.55))
+            buffer.extend([0.0] * max(0, int((step - note_len) * SAMPLE_RATE)))
+    return Track(buffer)
+
+
+_FX: dict[str, tuple[str, str]] = {
+    "echo": ("feedback delay", "0.0–1.0 sets the wet mix"),
+    "tremolo": ("amplitude LFO", "0.0–1.0 sets the depth"),
+    "vibrato": ("pitch wobble via modulated delay", "0.0–1.0 sets the depth"),
+    "lowpass": ("one-pole low-pass filter", "0.0–1.0 sets the cutoff"),
+    "reverse": ("play the track backwards", "strength is ignored"),
+}
+
+FX: tuple[str, ...] = tuple(sorted(_FX))
+
+
+def apply_effects(track: Track, fx: list[str], amount: float = 0.5) -> Track:
+    """Apply an effect chain to a track; returns a new :class:`Track`."""
+    samples = list(track.samples)
+    amount = max(0.0, min(1.0, amount))
+    for name in (fx or []):
+        key = (name or "").strip().lower()
+        if key not in _FX:
+            raise ValueError(
+                f"Unknown effect '{name}'. Choose one of: {', '.join(sorted(_FX))}."
+            )
+        if key == "echo":
+            samples = _fx_echo(samples, amount)
+        elif key == "tremolo":
+            samples = _fx_tremolo(samples, amount)
+        elif key == "vibrato":
+            samples = _fx_vibrato(samples, amount)
+        elif key == "lowpass":
+            samples = _fx_lowpass(samples, amount)
+        else:
+            samples = samples[::-1]
+    return Track(samples)
+
+
+def _fx_echo(samples: list[float], amount: float) -> list[float]:
+    delay = int(0.3 * SAMPLE_RATE)
+    feedback = 0.55
+    wet = 0.15 + amount * 0.45
+    out = list(samples)
+    for i, value in enumerate(samples):
+        if i >= delay:
+            out[i] = value + out[i - delay] * feedback * wet
+    return out
+
+
+def _fx_tremolo(samples: list[float], amount: float) -> list[float]:
+    depth = 0.15 + amount * 0.75
+    rate = 5.0
+    return [
+        v * (1.0 - depth * (0.5 + 0.5 * math.sin(math.tau * rate * i / SAMPLE_RATE)))
+        for i, v in enumerate(samples)
+    ]
+
+
+def _fx_vibrato(samples: list[float], amount: float) -> list[float]:
+    base = int(0.012 * SAMPLE_RATE)
+    depth = int(0.004 * SAMPLE_RATE * (0.2 + amount))
+    rate = 5.5
+    out: list[float] = []
+    for i, _ in enumerate(samples):
+        delay = base + depth * math.sin(math.tau * rate * i / SAMPLE_RATE)
+        index = i - delay
+        lo, hi = int(index), int(index) + 1
+        frac = index - lo
+        left = samples[lo] if 0 <= lo < len(samples) else 0.0
+        right = samples[hi] if 0 <= hi < len(samples) else 0.0
+        out.append(left * (1.0 - frac) + right * frac)
+    return out
+
+
+def _fx_lowpass(samples: list[float], amount: float) -> list[float]:
+    alpha = 0.04 + amount * 0.55
+    out: list[float] = []
+    state = 0.0
+    for v in samples:
+        state += alpha * (v - state)
+        out.append(state)
+    return out
+
+
 def render_tone(
     frequency: float = 440.0, seconds: float = 1.0, timbre: str = "sine"
 ) -> Track:
@@ -290,5 +629,11 @@ __all__ = [
     "render_melody",
     "render_progression",
     "render_melody_from_scale",
+    "render_arp",
+    "render_drums",
+    "render_pad",
+    "render_bass",
     "render_tone",
+    "apply_effects",
+    "FX",
 ]

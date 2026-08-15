@@ -152,6 +152,7 @@ class ImageRequest(BaseModel):
     width: int = Field(default=1024, ge=64, le=4096)
     height: int = Field(default=576, ge=64, le=4096)
     seed: int | None = None
+    n: int = Field(default=1, ge=1, le=4, description="How many seeded variations to generate.")
     caption: bool = True
     response_format: Literal["url", "b64_json"] = "url"
 
@@ -167,13 +168,17 @@ class VideoRequest(BaseModel):
     width: int = Field(default=480, ge=64, le=1920)
     height: int = Field(default=270, ge=64, le=1920)
     seed: int | None = None
+    loop: Literal["loop", "bounce"] = Field(
+        default="loop",
+        description="'bounce' plays the animation forward then in reverse (palindrome).",
+    )
     response_format: Literal["url", "b64_json"] = "url"
 
 
 class AudioRequest(BaseModel):
     """Direct audio synthesis (``POST /v1/audio/generations``)."""
 
-    mode: Literal["melody", "chords", "compose", "tone"] = "compose"
+    mode: Literal["melody", "chords", "compose", "tone", "arp", "drums", "pad", "bass"] = "compose"
     notation: str = ""
     key: str = "C4"
     scale: str = "major"
@@ -182,6 +187,43 @@ class AudioRequest(BaseModel):
     seconds: float = Field(default=1.0, gt=0, le=300)
     tempo: int = Field(default=110, ge=30, le=240)
     timbre: str = "warm"
+    pattern: Literal["up", "down", "updown", "random"] = "updown"
+    fill: bool = True
+    fx: list[str] = Field(
+        default_factory=list,
+        description="Post-processing effects: echo, tremolo, vibrato, lowpass, reverse.",
+    )
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class ImageUpscaleRequest(BaseModel):
+    """Enlarge a stored image (``POST /v1/images/upscale``)."""
+
+    image: str = Field(..., min_length=1, description="Source artifact id or /v1/artifacts/{id} URL.")
+    scale: int = Field(default=2, ge=2, le=4)
+    method: Literal["nearest", "bilinear"] = "bilinear"
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class ImageEditRequest(BaseModel):
+    """Edit a stored image (``POST /v1/images/edits``).
+
+    The source is a stored artifact — its ``id`` (e.g. ``art_ab12…``) or its
+    ``/v1/artifacts/{id}`` URL. Every operation is rendered offline.
+    """
+
+    image: str = Field(..., min_length=1, description="Source artifact id or /v1/artifacts/{id} URL.")
+    operation: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "grayscale | sepia | invert | brightness | contrast | saturate | "
+            "blur | sharpen | pixelate | posterize | duotone | vignette | "
+            "flip_h | flip_v | rotate90 | emboss | grain"
+        ),
+    )
+    strength: float = Field(default=0.5, ge=0.0, le=1.0)
+    palette: str | None = Field(default=None, description="For 'duotone': 'aetheris', 'sunset', 'mono', … or two hex colours.")
     response_format: Literal["url", "b64_json"] = "url"
 
 
@@ -199,6 +241,7 @@ class GenerationResponse(BaseModel):
     object: Literal["generation"] = "generation"
     kind: str
     artifact: ArtifactInfo
+    artifacts: list[ArtifactInfo] = Field(default_factory=list)
     b64_json: str | None = None
     detail: dict[str, Any] = Field(default_factory=dict)
 
@@ -218,6 +261,8 @@ __all__ = [
     "ArtifactInfo",
     "ArtifactList",
     "ImageRequest",
+    "ImageEditRequest",
+    "ImageUpscaleRequest",
     "VideoRequest",
     "AudioRequest",
     "ProjectRequest",

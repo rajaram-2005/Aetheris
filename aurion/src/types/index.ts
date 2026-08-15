@@ -246,7 +246,7 @@ export interface ResearchFeatureItem {
   summary: string;
   description?: string;
   key_innovations?: string[];
-  default_parameters?: Record<string, any>;
+  default_parameters?: Record<string, unknown>;
 }
 
 export interface ResearchTimelineItem {
@@ -264,10 +264,48 @@ export interface ResearchRunOutput {
   era: EvolutionEraId;
   year: number;
   status: string;
-  metrics: Record<string, any>;
-  artifacts: Record<string, any>;
+  metrics: Record<string, unknown>;
+  artifacts: Record<string, unknown>;
   theoretical_insight: string;
   execution_time_ms: number;
+}
+
+/* ── Evolution synthesis + cross-era benchmark (mirrors
+      /v1/research/evolution/synthesize and /v1/research/benchmark) ── */
+
+export interface ResearchSynthesisContribution {
+  era: EvolutionEraId;
+  era_title: string;
+  core_paradigm: string;
+  key_feature_applied: string;
+  deduction: string;
+}
+
+export interface ResearchSynthesisResult {
+  prompt: string;
+  eras_utilized: EvolutionEraId[];
+  contributions: ResearchSynthesisContribution[];
+  integrated_synthesis: string;
+  confidence: number;
+  provenance_chain: string[];
+}
+
+export interface ResearchBenchmarkRanking {
+  feature_id: string;
+  name: string;
+  era: string;
+  year: number;
+  score: number;
+  metrics: Record<string, unknown>;
+  latency_ms: number;
+}
+
+export interface ResearchBenchmarkResult {
+  task: string;
+  tested_count: number;
+  rankings: ResearchBenchmarkRanking[];
+  paradigm_comparison: Record<string, number>;
+  conclusion: string;
 }
 
 /* ── Unified Home view data (mirrors /v1/models, /v1/modes, /v1/architecture,

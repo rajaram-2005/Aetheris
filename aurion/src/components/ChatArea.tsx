@@ -191,6 +191,9 @@ export function ChatArea({
           <ToolButton icon="apex" label="Apex" onClick={onOpenApexLab} show={!!onOpenApexLab} />
           <ToolButton icon="god" label="God" onClick={onOpenGodDeck} show={!!onOpenGodDeck} />
           <ToolButton icon="agents" label="Agents" onClick={onOpenAgentStore} show={!!onOpenAgentStore} />
+          <ToolButton icon="skills" label="Skills" onClick={onOpenSkills} show={!!onOpenSkills} />
+          <ToolButton icon="connect" label="Connect" onClick={onOpenIntegrations} show={!!onOpenIntegrations} />
+          <ToolButton icon="models" label="Models" onClick={onOpenResources} show={!!onOpenResources} />
           <ToolButton icon="arena" label="Arena" onClick={onOpenBenchmarks} show={!!onOpenBenchmarks} />
           <ToolButton icon="visuals" label="Visuals" onClick={onOpenGallery} show={!!onOpenGallery} />
           <ToolButton icon="mythos" label="Mythos" onClick={onOpenMythology} show={!!onOpenMythology} />
@@ -210,11 +213,7 @@ export function ChatArea({
       {/* Messages / Hero Empty State */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {isEmpty ? (
-          <EmptyState
-            onRunPrompt={onRunPrompt}
-            onOpenGallery={onOpenGallery}
-            onOpenBenchmarks={onOpenBenchmarks}
-          />
+          <EmptyState onRunPrompt={onRunPrompt} />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
             {messages.map((msg) => (
@@ -274,15 +273,7 @@ export function ChatArea({
   );
 }
 
-function EmptyState({
-  onRunPrompt,
-  onOpenGallery,
-  onOpenBenchmarks,
-}: {
-  onRunPrompt: (text: string) => void;
-  onOpenGallery?: () => void;
-  onOpenBenchmarks?: () => void;
-}) {
+function EmptyState({ onRunPrompt }: { onRunPrompt: (text: string) => void }) {
   const suggestions = [
     { icon: '🎨', title: 'Visual Art', text: 'Generate an image of a tranquil forest at golden hour' },
     { icon: '💻', title: 'Code', text: 'Write an optimized async Python pipeline with rate limiting' },
@@ -337,6 +328,9 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   arena: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2.5" y="3" width="4.5" height="10" rx="1" /><rect x="9" y="3" width="4.5" height="10" rx="1" /></svg>,
   visuals: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="2" width="12" height="12" rx="2" /><circle cx="5.5" cy="5.5" r="1.3" /><path d="M2 12l3.5-3.5 2.5 2.5 2.5-2.5 3.5 3.5" /></svg>,
   mythos: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 2c0 6-3 8-5 10h10C11 10 8 8 8 2z" /><path d="M8 2v10" /></svg>,
+  skills: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 1.5l5.7 3.3v6.4L8 14.5l-5.7-3.3V4.8z" /><path d="M8 5v6M5.2 6.6l5.6 3.2M10.8 6.6l-5.6 3.2" /></svg>,
+  connect: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="4" cy="8" r="2.2" /><circle cx="12" cy="8" r="2.2" /><path d="M6.2 8h3.6" /></svg>,
+  models: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M8 1.5l5.7 3.3L8 8 2.3 4.8z" /><path d="M2.3 8L8 11.2 13.7 8" /><path d="M2.3 11.2L8 14.5l5.7-3.3" /></svg>,
 };
 
 function ToolButton({ icon, label, onClick, show }: { icon: string; label: string; onClick?: () => void; show?: boolean }) {

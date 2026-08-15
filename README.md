@@ -611,9 +611,11 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/documents` | Index a document (JSON body). |
 | `POST /v1/documents/upload` | Index an uploaded file (multipart). |
 | `POST /v1/documents/search` | BM25 query against the corpus. |
-| `POST /v1/images/generations` | Generate a PNG from a prompt. |
-| `POST /v1/videos/generations` | Generate an animated GIF. |
-| `POST /v1/audio/generations` | Synthesise a WAV file. |
+| `POST /v1/images/generations` | Generate PNGs from a prompt (16 procedural scenes, `n` variations, or a real generative model). |
+| `POST /v1/images/edits` | Edit a stored image offline: 17 operations — grayscale, sepia, blur, duotone, emboss, grain, … |
+| `POST /v1/images/upscale` | Enlarge a stored image 2–4× (nearest or bilinear), fully offline. |
+| `POST /v1/videos/generations` | Generate an animated GIF (16 motions, loop or bounce palindrome). |
+| `POST /v1/audio/generations` | Synthesise a WAV file (melody, chords, compose, tone, arp, drums, pad, bass + fx chain). |
 | `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (offline by default). |
 | `POST /v1/audio/transcriptions` | Speech-to-text from an uploaded audio file (Whisper/Gemini when a key is set). |
 | `POST /v1/code/projects` | Scaffold a project as a ZIP. |
@@ -904,11 +906,19 @@ Image generation is **layered**:
   (default `true`) falls back to the offline renderer so a request still returns
   an image instead of erroring.
 
-The offline engine offers eight compositions: `landscape` · `space` · `waves` ·
-`particles` · `geometric` · `spiral` · `gradient` · `poster`, and ten palettes:
-`aetheris` · `sunset` · `ocean` · `forest` · `ember` · `arctic` · `neon` ·
-`mono` · `sakura` · `gold`. Renders are **deterministic**: the same prompt
-always returns the same image; pass `seed` to pin or vary it.
+The offline engine offers sixteen compositions: `landscape` · `space` · `waves` ·
+`particles` · `geometric` · `spiral` · `gradient` · `poster` · `cityscape` ·
+`mandala` · `circuit` · `terrain` · `aurora` · `underwater` · `isometric` ·
+`pixelart`, and ten palettes: `aetheris` · `sunset` · `ocean` · `forest` ·
+`ember` · `arctic` · `neon` · `mono` · `sakura` · `gold`. Renders are
+**deterministic**: the same prompt always returns the same image; pass `seed`
+to pin or vary it, and `n` to generate up to 4 seeded variations at once.
+
+Generated images can also be **edited offline** (`/v1/images/edits`) with 17
+pixel operations — grayscale, sepia, invert, brightness, contrast, saturate,
+blur, sharpen, pixelate, posterize, duotone, vignette, flips, 90° rotation,
+emboss, and film grain — or **upscaled 2–4×** (`/v1/images/upscale`) with
+nearest or bilinear interpolation, without Pillow or any native library.
 
 #### Video
 
@@ -922,9 +932,11 @@ aetheris video "pulsing radar sweep" --motion pulse -o radar.gif
 
 Delivered as animated GIF — deliberately, because it is the only broadly
 playable animated format producible without a video codec, so the result plays
-inline anywhere. Eight motion styles: `orbit` · `waveform` · `pulse` ·
-`starfield` · `spiral` · `bars` · `gradient` · `typewriter`. Every animation is
-a seamless loop.
+inline anywhere. Sixteen motion styles: `orbit` · `waveform` · `pulse` ·
+`starfield` · `spiral` · `bars` · `gradient` · `typewriter` · `rain` ·
+`fireworks` · `kaleidoscope` · `matrix` · `snow` · `plasma` · `tunnel` ·
+`pendulum`. Every animation loops seamlessly, and `loop: "bounce"` renders a
+palindrome (forward, then in reverse) for ping-pong playback.
 
 #### Audio
 
@@ -937,10 +949,13 @@ aetheris audio --mode chords --notation "Cmaj7 Amin7 Fmaj7 G" -o progression.wav
 aetheris audio --mode compose --key D4 --scale pentatonic --bars 8
 ```
 
-Four modes: `melody` (note notation, `R` for rests), `chords` (progressions),
-`compose` (auto-generate a melody by walking a scale), and `tone`. Synthesis is
-additive-harmonic with an ADSR envelope across six timbres, written as 16-bit
-44.1 kHz mono WAV.
+Eight modes: `melody` (note notation, `R` for rests), `chords` (progressions),
+`compose` (auto-generate a melody by walking a scale), `tone`, `arp` (rolling
+arpeggios over chords), `drums` (a synthesised percussion loop), `pad` (ambient
+sustained chords), and `bass` (a walking bassline). Synthesis is
+additive-harmonic with an ADSR envelope — plus Karplus-Strong plucked strings —
+across twelve timbres, written as 16-bit 44.1 kHz mono WAV. Any mode can take an
+`fx` chain of `echo`, `tremolo`, `vibrato`, `lowpass`, or `reverse`.
 
 #### Voice (text-to-speech & speech-to-text)
 

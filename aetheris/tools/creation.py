@@ -30,12 +30,14 @@ def _require(flag: str, label: str) -> None:
     "generate_image",
     (
         "Create an image from a text description and return a URL to the PNG. "
-        "By default Aetheris renders procedurally (gradients, landscapes, "
-        "starfields, geometric patterns, spirals, waveforms, and typographic "
-        "posters). When an upstream image provider (OpenAI DALL-E/gpt-image, "
-        "Google Imagen 3, or Stability) is configured with an API key, this uses "
-        "that real generative model instead, so it can also produce "
-        "photorealistic scenes, objects, and people."
+        "By default Aetheris renders procedurally: landscapes, space, waves, "
+        "particles, geometric art, spirals, gradients, typographic posters, "
+        "cityscapes, mandalas, circuit boards, and topographic terrain maps. "
+        "When an upstream image provider (OpenAI DALL-E/gpt-image, Google "
+        "Imagen 3, or Stability) is configured with an API key, this uses that "
+        "real generative model instead, so it can also produce photorealistic "
+        "scenes, objects, and people. Generated images can be edited with the "
+        "'edit_image' tool."
     ),
     {
         "type": "object",
@@ -47,8 +49,10 @@ def _require(flag: str, label: str) -> None:
             "style": {
                 "type": "string",
                 "enum": [
-                    "landscape", "space", "waves", "particles",
-                    "geometric", "spiral", "gradient", "poster",
+                    "landscape", "space", "waves", "particles", "geometric",
+                    "spiral", "gradient", "poster", "cityscape", "mandala",
+                    "circuit", "terrain", "aurora", "underwater", "isometric",
+                    "pixelart",
                 ],
                 "description": "Composition to use. Omit to infer it from the prompt.",
             },
@@ -63,6 +67,10 @@ def _require(flag: str, label: str) -> None:
             "width": {"type": "integer", "minimum": 64, "maximum": 2048, "description": "Pixels wide (default 1024)."},
             "height": {"type": "integer", "minimum": 64, "maximum": 2048, "description": "Pixels tall (default 576)."},
             "seed": {"type": "integer", "description": "Seed for reproducibility."},
+            "n": {
+                "type": "integer", "minimum": 1, "maximum": 4,
+                "description": "How many seeded variations to generate (default 1).",
+            },
         },
         "required": ["prompt"],
     },
@@ -77,37 +85,46 @@ async def generate_image(
     width: int = 1024,
     height: int = 576,
     seed: int | None = None,
+    n: int = 1,
 ) -> str:
-    """Render a PNG (via the layered image provider) and return its artifact URL."""
+    """Render PNG(s) (via the layered image provider) and return artifact URLs."""
     _require("image_generation_enabled", "Image generation")
     from ..media.image_providers import generate_image_bytes
 
     width = max(64, min(int(width or 1024), settings.media_max_image_dimension))
     height = max(64, min(int(height or 576), settings.media_max_image_dimension))
+    n = max(1, min(int(n or 1), 4))
     try:
         results = await generate_image_bytes(
-            prompt, width=width, height=height, n=1, seed=seed,
+            prompt, width=width, height=height, n=n, seed=seed,
+            style=style, palette=palette,
         )
     except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc)) from exc
 
+    artifacts = []
+    for index, result in enumerate(results):
+        ext = "jpg" if result.media_type == "image/jpeg" else "png"
+        kind_slug = str(result.meta.get("style") or result.model or "image")
+        artifacts.append(get_store().put(
+            kind="image", media_type=result.media_type,
+            filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}-{index + 1}.{ext}",
+            data=result.data, prompt=prompt,
+            metadata={
+                **result.meta,
+                "provider": result.provider,
+                "model": result.model,
+                "width": width, "height": height, "seed": result.seed,
+                "variation": index + 1,
+            },
+        ))
+
     result = results[0]
-    ext = "jpg" if result.media_type == "image/jpeg" else "png"
-    kind_slug = str(result.meta.get("style") or result.model or "image")
-    artifact = get_store().put(
-        kind="image", media_type=result.media_type,
-        filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}.{ext}",
-        data=result.data, prompt=prompt,
-        metadata={
-            **result.meta,
-            "provider": result.provider,
-            "model": result.model,
-            "width": width, "height": height, "seed": result.seed,
-        },
-    )
+    artifact = artifacts[0]
     return json.dumps({
         "created": "image",
         "url": artifact.url,
+        "urls": [a.url for a in artifacts],
         "markdown": f"![{prompt}]({artifact.url})",
         "provider": result.provider,
         "model": result.model,
@@ -115,8 +132,163 @@ async def generate_image(
         "palette": result.meta.get("palette"),
         "dimensions": f"{width}x{height}",
         "seed": result.seed,
+        "variations": len(artifacts),
         "bytes": artifact.size,
         "note": result.meta.get("note", f"Generated via {result.provider}."),
+    }, indent=2)
+
+
+@register(
+    "edit_image",
+    (
+        "Edit a previously generated image and return a URL to the edited PNG. "
+        "Pass the artifact id (or /v1/artifacts/{id} URL) from a generate_image "
+        "result. Operations: grayscale, sepia, invert, brightness, contrast, "
+        "saturate, blur, sharpen, pixelate, posterize, duotone (needs a palette), "
+        "vignette, horizontal/vertical flips, 90-degree rotation, emboss, and film "
+        "grain. Strength is 0.0-1.0 with 0.5 neutral where a neutral point exists "
+        "(brightness/contrast/saturate). The original image is untouched."
+    ),
+    {
+        "type": "object",
+        "properties": {
+            "artifact_id": {
+                "type": "string",
+                "description": "The stored image to edit: its artifact id or URL.",
+            },
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "grayscale", "sepia", "invert", "brightness", "contrast",
+                    "saturate", "blur", "sharpen", "pixelate", "posterize",
+                    "duotone", "vignette", "flip_h", "flip_v", "rotate90",
+                    "emboss", "grain",
+                ],
+                "description": "Which edit to apply.",
+            },
+            "strength": {
+                "type": "number", "minimum": 0.0, "maximum": 1.0,
+                "description": "Effect strength (default 0.5).",
+            },
+            "palette": {
+                "type": "string",
+                "description": "For 'duotone': aetheris, sunset, mono, … or two hex colours.",
+            },
+        },
+        "required": ["artifact_id", "operation"],
+    },
+    requires_optin=True,
+    optin_setting="image_generation_enabled",
+    tags=("creation", "image", "edit"),
+)
+async def edit_image(
+    artifact_id: str,
+    operation: str,
+    strength: float = 0.5,
+    palette: str | None = None,
+) -> str:
+    """Apply an offline edit to a stored image and return the new artifact URL."""
+    _require("image_generation_enabled", "Image editing")
+    from ..media.image_edit import apply
+
+    source = artifact_id.strip()
+    if "/" in source:
+        source = source.rstrip("/").rsplit("/", 1)[-1]
+    original = get_store().get(source)
+    if original is None:
+        raise ToolError(
+            f"No artifact '{artifact_id}'. Generate an image first, then edit its id."
+        )
+    if not original.media_type.startswith("image/"):
+        raise ToolError(f"Artifact '{original.id}' is {original.media_type}, not an image.")
+    try:
+        png, detail = apply(original.data, operation, strength=strength, palette=palette)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc)) from exc
+
+    edited = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-{detail['operation']}-{original.id}.png", data=png,
+        prompt=original.prompt or operation,
+        metadata={**detail, "edited_from": original.id},
+    )
+    return json.dumps({
+        "created": "image",
+        "url": edited.url,
+        "markdown": f"![{original.prompt or operation}]({edited.url})",
+        "operation": detail["operation"],
+        "strength": detail["strength"],
+        "palette": palette,
+        "dimensions": f"{detail['width']}x{detail['height']}",
+        "edited_from": original.id,
+        "bytes": edited.size,
+        "note": "Original artifact left untouched; this is a new image.",
+    }, indent=2)
+
+
+@register(
+    "upscale_image",
+    (
+        "Enlarge a previously generated image 2x, 3x, or 4x and return a URL to "
+        "the bigger PNG. Pass the artifact id (or URL) from generate_image or "
+        "edit_image. 'bilinear' smooths, 'nearest' stays crisp for pixel art. "
+        "Fully offline; the original artifact is untouched."
+    ),
+    {
+        "type": "object",
+        "properties": {
+            "artifact_id": {"type": "string", "description": "The stored image to enlarge."},
+            "scale": {"type": "integer", "minimum": 2, "maximum": 4,
+                      "description": "Magnification factor (default 2)."},
+            "method": {"type": "string", "enum": ["nearest", "bilinear"],
+                       "description": "Interpolation (default bilinear)."},
+        },
+        "required": ["artifact_id"],
+    },
+    requires_optin=True,
+    optin_setting="image_generation_enabled",
+    tags=("creation", "image", "edit"),
+)
+async def upscale_image(
+    artifact_id: str,
+    scale: int = 2,
+    method: str = "bilinear",
+) -> str:
+    """Enlarge a stored image and return the new artifact URL."""
+    _require("image_generation_enabled", "Image upscaling")
+    from ..media.image_edit import upscale
+
+    source = artifact_id.strip()
+    if "/" in source:
+        source = source.rstrip("/").rsplit("/", 1)[-1]
+    original = get_store().get(source)
+    if original is None:
+        raise ToolError(
+            f"No artifact '{artifact_id}'. Generate an image first, then upscale its id."
+        )
+    if not original.media_type.startswith("image/"):
+        raise ToolError(f"Artifact '{original.id}' is {original.media_type}, not an image.")
+    try:
+        png, detail = upscale(original.data, scale=scale, method=method)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc)) from exc
+
+    enlarged = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-upscaled-{detail['scale']}x-{original.id}.png", data=png,
+        prompt=original.prompt or "upscaled",
+        metadata={**detail, "upscaled_from": original.id},
+    )
+    return json.dumps({
+        "created": "image",
+        "url": enlarged.url,
+        "markdown": f"![{original.prompt or 'upscaled'}]({enlarged.url})",
+        "scale": detail["scale"],
+        "method": detail["method"],
+        "dimensions": f"{detail['width']}x{detail['height']}",
+        "upscaled_from": original.id,
+        "bytes": enlarged.size,
+        "note": "Original artifact left untouched; this is a new, larger image.",
     }, indent=2)
 
 
@@ -128,8 +300,9 @@ async def generate_image(
         "Create a short looping animation from a text description and return a URL "
         "to the GIF. Motion styles include orbiting bodies, travelling waveforms, "
         "emission pulses, star flight, rotating spirals, animated bar charts, "
-        "drifting gradients, and typewriter text reveals. Use it for loading loops, "
-        "hero animations, data motion, and animated title cards."
+        "drifting gradients, typewriter text reveals, falling rain, fireworks "
+        "bursts, hypnotic kaleidoscopes, and matrix digital rain. Use it for "
+        "loading loops, hero animations, data motion, and animated title cards."
     ),
     {
         "type": "object",
@@ -138,7 +311,9 @@ async def generate_image(
             "motion": {
                 "type": "string",
                 "enum": ["orbit", "waveform", "pulse", "starfield", "spiral",
-                         "bars", "gradient", "typewriter"],
+                         "bars", "gradient", "typewriter", "rain", "fireworks",
+                         "kaleidoscope", "matrix", "snow", "plasma", "tunnel",
+                         "pendulum"],
                 "description": "Motion style. Omit to infer from the prompt.",
             },
             "palette": {"type": "string", "description": "Colour scheme (see generate_image)."},
@@ -147,6 +322,11 @@ async def generate_image(
             "width": {"type": "integer", "minimum": 64, "maximum": 960, "description": "Pixels wide (default 480)."},
             "height": {"type": "integer", "minimum": 64, "maximum": 720, "description": "Pixels tall (default 270)."},
             "seed": {"type": "integer", "description": "Seed for reproducibility."},
+            "loop": {
+                "type": "string",
+                "enum": ["loop", "bounce"],
+                "description": "'bounce' plays forward then in reverse (default 'loop').",
+            },
         },
         "required": ["prompt"],
     },
@@ -163,6 +343,7 @@ async def generate_video(
     width: int = 480,
     height: int = 270,
     seed: int | None = None,
+    loop: str = "loop",
 ) -> str:
     """Render an animated GIF and return its artifact URL."""
     _require("video_generation_enabled", "Video generation")
@@ -173,15 +354,18 @@ async def generate_video(
     seconds = max(0.5, min(float(seconds or 3.0), settings.media_max_video_seconds))
     try:
         gif, p = generate(prompt, width=width, height=height, seconds=seconds,
-                          fps=fps, motion=motion, palette=palette, seed=seed)
+                          fps=fps, motion=motion, palette=palette, seed=seed,
+                          loop=loop)
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
+    total_frames = p.frames * 2 - 1 if p.loop == "bounce" else p.frames
     artifact = get_store().put(
         kind="video", media_type="image/gif",
         filename=f"aetheris-{p.motion}-{p.seed}.gif", data=gif, prompt=prompt,
         metadata={"motion": p.motion, "palette": p.palette_name, "frames": p.frames,
-                  "fps": p.fps, "duration": round(p.duration, 2), "seed": p.seed},
+                  "total_frames": total_frames, "fps": p.fps, "loop": p.loop,
+                  "duration": round(p.duration, 2), "seed": p.seed},
     )
     return json.dumps({
         "created": "video",
@@ -189,6 +373,7 @@ async def generate_video(
         "markdown": f"![{p.caption or prompt}]({artifact.url})",
         "motion": p.motion,
         "frames": p.frames,
+        "loop": p.loop,
         "fps": p.fps,
         "duration_seconds": round(p.duration, 2),
         "dimensions": f"{width}x{height}",
@@ -205,15 +390,20 @@ async def generate_video(
         "Synthesise real audio and return a URL to a WAV file. Modes: 'melody' "
         "(note notation like 'C4:0.5 E4 G4 C5:2'), 'chords' (progression like "
         "'Cmaj7 Amin7 Fmaj7 G'), 'compose' (auto-generate a melody in a key and "
-        "scale), or 'tone' (a single frequency). This is instrumental synthesis — "
-        "Aetheris has no text-to-speech and cannot produce spoken words or singing."
+        "scale), 'tone' (a single frequency), 'arp' (rolling arpeggios over "
+        "chords), 'drums' (a synthesised percussion loop), 'pad' (ambient "
+        "sustained chords), or 'bass' (a walking bassline). Any mode can take "
+        "an 'fx' chain (echo, tremolo, vibrato, lowpass, reverse). This is "
+        "instrumental synthesis — Aetheris has no text-to-speech and cannot "
+        "produce spoken words or singing."
     ),
     {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["melody", "chords", "compose", "tone"],
+                "enum": ["melody", "chords", "compose", "tone", "arp", "drums",
+                         "pad", "bass"],
                 "description": "What to synthesise.",
             },
             "notation": {
@@ -235,8 +425,26 @@ async def generate_video(
             "tempo": {"type": "integer", "minimum": 30, "maximum": 240, "description": "Beats per minute."},
             "timbre": {
                 "type": "string",
-                "enum": ["sine", "warm", "bright", "organ", "bell", "pluck"],
+                "enum": ["sine", "warm", "bright", "organ", "bell", "pluck",
+                         "strings", "brass", "flute", "chip", "guitar", "sitar"],
                 "description": "Instrument character.",
+            },
+            "pattern": {
+                "type": "string",
+                "enum": ["up", "down", "updown", "random"],
+                "description": "For 'arp': the arpeggio direction.",
+            },
+            "fill": {
+                "type": "boolean",
+                "description": "For 'drums': end with a 16th-note fill.",
+            },
+            "fx": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["echo", "tremolo", "vibrato", "lowpass", "reverse"],
+                },
+                "description": "Post-processing effect chain applied to any mode.",
             },
         },
         "required": ["mode"],
@@ -255,6 +463,9 @@ async def generate_audio(
     seconds: float = 1.0,
     tempo: int = 110,
     timbre: str = "warm",
+    pattern: str = "updown",
+    fill: bool = True,
+    fx: list[str] | None = None,
 ) -> str:
     """Synthesise a WAV and return its artifact URL."""
     _require("audio_generation_enabled", "Audio generation")
@@ -278,11 +489,36 @@ async def generate_audio(
                 key, scale, bars=bars, tempo=tempo, timbre=timbre
             )
             detail.update({"key": key, "scale": scale, "bars": bars, "notation": generated})
+        elif mode == "arp":
+            track = A.render_arp(
+                notation or "Cmaj7", tempo=tempo, timbre=timbre,
+                bars=bars, pattern=pattern,
+            )
+            detail.update({"notation": notation or "Cmaj7", "pattern": pattern})
+        elif mode == "drums":
+            track = A.render_drums(bars, tempo=tempo, fill=fill)
+            detail.update({"bars": bars, "fill": fill})
+        elif mode == "pad":
+            track = A.render_pad(
+                notation or "Cmaj7 Amin7", bars=bars, tempo=tempo, timbre=timbre
+            )
+            detail.update({"notation": notation or "Cmaj7 Amin7"})
+        elif mode == "bass":
+            track = A.render_bass(
+                notation or "Cmaj7 G", bars=bars, tempo=tempo, timbre=timbre
+            )
+            detail.update({"notation": notation or "Cmaj7 G"})
         elif mode == "tone":
             track = A.render_tone(float(frequency), float(seconds), timbre)
             detail.update({"frequency_hz": frequency, "seconds": seconds})
         else:
-            raise ToolError(f"Unknown mode '{mode}'. Use melody, chords, compose, or tone.")
+            raise ToolError(
+                f"Unknown mode '{mode}'. Use melody, chords, compose, tone, "
+                "arp, drums, pad, or bass."
+            )
+        if fx:
+            track = A.apply_effects(track, fx, amount=0.5)
+            detail["fx"] = fx
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -425,6 +661,8 @@ async def list_artifacts(kind: str | None = None) -> str:
 
 __all__ = [
     "generate_image",
+    "edit_image",
+    "upscale_image",
     "generate_video",
     "generate_audio",
     "write_and_verify_code",

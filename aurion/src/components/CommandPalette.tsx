@@ -115,7 +115,7 @@ export function CommandPalette({
       category: 'Recent Conversations',
       action: () => { onSelectThread(t.id); onClose(); },
     })),
-  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenGodDeck, onOpenSettings, onSelectMode]);
+  ], [threads, onRun, onNewThread, onSelectThread, onClose, onOpenGallery, onOpenBenchmarks, onOpenCanvas, onOpenAgentStore, onOpenDeepResearch, onOpenApexLab, onOpenGodDeck, onOpenStudio, onOpenSettings, onSelectMode, onSelectTheme]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;
