@@ -68,8 +68,16 @@ class ImageProvider(abc.ABC):
         height: int = 576,
         n: int = 1,
         seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
     ) -> list[ImageGenerationResult]:
-        """Generate ``n`` images from ``prompt`` at the given target size."""
+        """Generate ``n`` images from ``prompt`` at the given target size.
+
+        ``style`` and ``palette`` are honoured by the offline procedural engine;
+        remote models receive them as prompt directives when provided.
+        ``caption`` controls the offline renderer's footer strip only.
+        """
 
     async def aclose(self) -> None:  # pragma: no cover - default no-op
         """Release any provider-held resources."""
@@ -98,6 +106,9 @@ class OfflineImageProvider(ImageProvider):
         height: int = 576,
         n: int = 1,
         seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
     ) -> list[ImageGenerationResult]:
         from .images import generate
 
@@ -105,7 +116,10 @@ class OfflineImageProvider(ImageProvider):
         height = _clamp_dimension(height)
         results: list[ImageGenerationResult] = []
         for i in range(n):
-            png, plan = generate(prompt, width=width, height=height, seed=seed)
+            png, plan = generate(
+                prompt, width=width, height=height, seed=seed,
+                style=style, palette=palette, caption=caption,
+            )
             results.append(
                 ImageGenerationResult(
                     data=png,
@@ -137,6 +151,18 @@ def _json_client(base_url: str, api_key: str, timeout: float) -> httpx.AsyncClie
         },
         timeout=timeout,
     )
+
+
+def _augment_prompt(prompt: str, style: str | None, palette: str | None) -> str:
+    """Fold requested style/palette into a prompt for remote generative models."""
+    parts: list[str] = []
+    if style:
+        parts.append(f"in a {style} visual style")
+    if palette:
+        parts.append(f"using a {palette} colour palette")
+    if not parts:
+        return prompt
+    return f"{prompt.rstrip()} ({', '.join(parts)})."
 
 
 class _RemoteImageProvider(ImageProvider):
@@ -189,11 +215,14 @@ class OpenAIImageProvider(_RemoteImageProvider):
         height: int = 576,
         n: int = 1,
         seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
     ) -> list[ImageGenerationResult]:
         size = f"{_clamp_dimension(width)}x{_clamp_dimension(height)}"
         payload: dict[str, Any] = {
             "model": self._model,
-            "prompt": prompt,
+            "prompt": _augment_prompt(prompt, style, palette),
             "n": n,
             "size": size,
             "response_format": "b64_json",
@@ -250,10 +279,13 @@ class GeminiImageProvider(_RemoteImageProvider):
         height: int = 576,
         n: int = 1,
         seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
     ) -> list[ImageGenerationResult]:
         url = f"/v1beta/models/{self._model}:generateContent"
         payload: dict[str, Any] = {
-            "contents": [{"parts": [{"text": prompt}]}],
+            "contents": [{"parts": [{"text": _augment_prompt(prompt, style, palette)}]}],
             "generationConfig": {
                 "responseModalities": ["TEXT", "IMAGE"],
                 "imageConfig": {"aspectRatio": self._aspect_ratio(width, height)},
@@ -315,10 +347,13 @@ class StabilityImageProvider(_RemoteImageProvider):
         height: int = 576,
         n: int = 1,
         seed: int | None = None,
+        style: str | None = None,
+        palette: str | None = None,
+        caption: bool = True,
     ) -> list[ImageGenerationResult]:
         url = "/v2beta/stable-image/generate/core"
         files = {
-            "prompt": (None, prompt),
+            "prompt": (None, _augment_prompt(prompt, style, palette)),
             "output_format": (None, "png"),
             "aspect_ratio": (None, self._aspect_ratio(width, height)),
         }
@@ -452,13 +487,22 @@ async def generate_image_bytes(
     height: int = 576,
     n: int = 1,
     seed: int | None = None,
+    style: str | None = None,
+    palette: str | None = None,
+    caption: bool = True,
     provider: ImageProvider | None = None,
 ) -> list[ImageGenerationResult]:
-    """Generate ``n`` images through the active provider (default: process-wide)."""
+    """Generate ``n`` images through the active provider (default: process-wide).
+
+    ``style`` and ``palette`` select the offline procedural composition and
+    colour scheme; remote models receive them as prompt directives. ``caption``
+    toggles the offline renderer's footer strip.
+    """
     engine = provider or get_image_provider()
     try:
         results = await engine.generate(
-            prompt, width=width, height=height, n=n, seed=seed
+            prompt, width=width, height=height, n=n, seed=seed,
+            style=style, palette=palette, caption=caption,
         )
     except RuntimeError:
         if (
@@ -468,7 +512,8 @@ async def generate_image_bytes(
             raise
         logger.warning("Remote image generation failed; falling back to offline.")
         return await OfflineImageProvider().generate(
-            prompt, width=width, height=height, n=n, seed=seed
+            prompt, width=width, height=height, n=n, seed=seed,
+            style=style, palette=palette, caption=caption,
         )
     return results
 

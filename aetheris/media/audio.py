@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import math
+import random
 import re
 import struct
 import wave
@@ -48,6 +49,14 @@ _TIMBRES: dict[str, tuple[float, ...]] = {
     "organ": (1.0, 0.0, 0.5, 0.0, 0.33, 0.0, 0.25),
     "bell": (1.0, 0.0, 0.0, 0.62, 0.0, 0.0, 0.31, 0.0, 0.19),
     "pluck": (1.0, 0.48, 0.30, 0.18, 0.10, 0.05),
+    # Sawtooth-ish bowed ensemble: strong odd and even partials.
+    "strings": (1.0, 0.50, 0.33, 0.25, 0.20, 0.14, 0.09, 0.05),
+    # Bright brass stack, slightly tamed above the fifth partial.
+    "brass": (1.0, 0.46, 0.32, 0.22, 0.12, 0.06),
+    # Near-pure sine with a breathy second partial.
+    "flute": (1.0, 0.08, 0.02),
+    # Square-wave chip lead: odd partials at 1/n amplitudes.
+    "chip": (1.0, 0.333, 0.200, 0.143, 0.111, 0.091),
 }
 
 TIMBRES: tuple[str, ...] = tuple(sorted(_TIMBRES))
@@ -267,6 +276,134 @@ def render_melody_from_scale(
     return render_melody(notation, tempo=tempo, timbre=timbre), notation
 
 
+def render_arp(
+    notation: str = "Cmaj7", *, tempo: int = 120, timbre: str = "pluck",
+    bars: int = 2, pattern: str = "updown",
+) -> Track:
+    """Arpeggiate chord tokens (``"Cmaj7 Amin7 Fmaj7 G"``) as a rolling figure.
+
+    Each chord's tones are spread over one bar in the requested pattern —
+    ``up``, ``down``, ``updown`` (default), or ``random`` — at eighth-note
+    resolution. A single token repeats for ``bars`` bars.
+    """
+    if pattern not in ("up", "down", "updown", "random"):
+        raise ValueError("Pattern must be one of: up, down, updown, random.")
+
+    tokens = [t for t in notation.replace(",", " ").split() if t] or ["Cmaj7"]
+    if len(tokens) > 1:
+        bars = max(bars, len(tokens))
+    chords: list[list[float]] = []
+    for token in tokens[:bars]:
+        match = re.fullmatch(r"([A-Ga-g][#b]?)(\d?)(.*)", token.strip())
+        if not match:
+            raise ValueError(f"'{token}' is not a chord like Cmaj7, Amin, or G.")
+        root, octave, quality = match.groups()
+        quality = (quality or "maj").lower()
+        aliases = {"": "maj", "m": "min", "7": "dom7", "m7": "min7", "M7": "maj7"}
+        quality = aliases.get(quality, quality)
+        if quality not in _CHORDS:
+            raise ValueError(
+                f"Unknown chord quality '{quality}' in '{token}'. "
+                f"Choose one of: {', '.join(sorted(_CHORDS))}."
+            )
+        base = note_frequency(f"{root}{octave or 3}")
+        chords.append([base * (2.0 ** (i / 12.0)) for i in _CHORDS[quality]])
+
+    rng = random.Random()
+    beat = 60.0 / max(30, min(240, tempo))
+    step = beat / 2.0  # eighth notes
+    samples: list[float] = []
+    for bar in range(bars):
+        tones = chords[bar % len(chords)]
+        order = list(range(len(tones)))
+        if pattern == "down":
+            sequence = order[::-1]
+        elif pattern == "updown":
+            sequence = order + order[-2:0:-1]
+        elif pattern == "random":
+            sequence = [rng.randrange(len(tones)) for _ in tones]
+        else:
+            sequence = order
+        # An updown bar fits 2n-2 notes; trim/pad others to one bar evenly.
+        slots = max(len(sequence), 1)
+        note_len = max(0.05, (beat * 4) / slots - 0.02)
+        for index in sequence:
+            samples.extend(synth_note(tones[index], min(step, note_len), timbre, 0.8))
+    return Track(samples)
+
+
+def _noise_burst(
+    seconds: float, *, decay: float = 60.0, rng: random.Random,
+    lowpass: float = 0.6,
+) -> list[float]:
+    """A decaying noise burst, roughly low-passed by a one-pole filter."""
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    state = 0.0
+    for i in range(total):
+        state += lowpass * ((rng.random() * 2.0 - 1.0) - state)
+        out.append(state * math.exp(-decay * i / SAMPLE_RATE))
+    return out
+
+
+def _kick(seconds: float = 0.24) -> list[float]:
+    """A pitch-swept sine drum: 150 Hz falling to 45 Hz with a fast decay."""
+    total = max(1, int(seconds * SAMPLE_RATE))
+    out: list[float] = []
+    for i in range(total):
+        t = i / SAMPLE_RATE
+        sweep = 45.0 + 105.0 * math.exp(-t * 22.0)
+        out.append(math.sin(math.tau * (45.0 * t + (105.0 / 22.0) * (1.0 - math.exp(-t * 22.0)))) *
+                   math.exp(-t * 16.0))
+    return out
+
+
+def render_drums(bars: int = 4, *, tempo: int = 110, seed: int | None = None,
+                 fill: bool = True) -> Track:
+    """Render a percussion pattern: kick, snare, hats, and a closing fill.
+
+    The kit is synthesised, not sampled — kick as a pitch-swept sine, snare as
+    a noise burst over a 190 Hz body, hats as bright short noise — and arranged
+    four-on-the-floor with a seeded 16th-note fill in the final bar.
+    """
+    if not 1 <= bars <= 32:
+        raise ValueError("Bars must be between 1 and 32.")
+    rng = random.Random(seed)
+    beat = 60.0 / max(30, min(240, tempo))
+    sixteenth = beat / 4.0
+
+    def _place(buffer: list[float], samples: list[float], at: float, gain: float = 1.0) -> None:
+        start = int(at * SAMPLE_RATE)
+        for i, value in enumerate(samples):
+            index = start + i
+            if index >= len(buffer):
+                break
+            buffer[index] += value * gain
+
+    total_seconds = bars * 4 * beat + 0.4
+    buffer = [0.0] * int(total_seconds * SAMPLE_RATE)
+    kick, snare_body = _kick(), synth_note(190.0, 0.12, "sine", 0.5)
+    hat = _noise_burst(0.06, decay=90.0, rng=random.Random(7), lowpass=0.15)
+    snare = _noise_burst(0.18, decay=28.0, rng=random.Random(3), lowpass=0.5)
+
+    for bar in range(bars):
+        bar_start = bar * 4 * beat
+        is_fill_bar = fill and bar == bars - 1
+        for step in range(16):
+            at = bar_start + step * sixteenth
+            if step % 4 == 0:
+                _place(buffer, kick, at)                     # four on the floor
+            if step in (4, 12):
+                _place(buffer, snare + snare_body[: len(snare)], at, 0.9)
+            if is_fill_bar and step >= 8:
+                _place(buffer, snare, at, 0.4 + 0.05 * (step - 8))  # rising roll
+            elif step % 2 == 0:
+                _place(buffer, hat, at, 0.5 if step % 4 == 0 else 0.32)
+            elif rng.random() < 0.3:
+                _place(buffer, hat, at, 0.2)                 # swung ghost hat
+    return Track(buffer)
+
+
 def render_tone(
     frequency: float = 440.0, seconds: float = 1.0, timbre: str = "sine"
 ) -> Track:
@@ -290,5 +427,7 @@ __all__ = [
     "render_melody",
     "render_progression",
     "render_melody_from_scale",
+    "render_arp",
+    "render_drums",
     "render_tone",
 ]

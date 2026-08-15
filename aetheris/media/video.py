@@ -17,6 +17,10 @@ Available motion styles:
 * ``typewriter`` — text revealed character by character over a backdrop
 * ``bars``       — an animated bar chart / equaliser
 * ``gradient``   — a slowly drifting mesh gradient loop
+* ``rain``       — slanted rainfall in three depth layers
+* ``fireworks``  — shells rising and bursting over a starfield
+* ``kaleidoscope`` — M-fold symmetric mandala that rotates as it blooms
+* ``matrix``     — cascading glyph rain with glowing heads
 """
 
 from __future__ import annotations
@@ -39,6 +43,12 @@ _MOTION_HINTS: dict[str, tuple[str, ...]] = {
     "typewriter": ("text", "type", "title", "quote", "caption", "message", "says", "intro"),
     "bars": ("bar", "chart", "equalizer", "equaliser", "graph", "data", "statistics", "metric"),
     "gradient": ("gradient", "ambient", "background", "loop", "calm", "backdrop", "mesh"),
+    "rain": ("rain", "rainfall", "storm", "drizzle", "downpour", "shower", "rainy", "monsoon"),
+    "fireworks": ("firework", "fireworks", "celebration", "festival", "diwali", "new year",
+                  "explosion", "burst", "sparkler", "skyrocket"),
+    "kaleidoscope": ("kaleidoscope", "mandala", "symmetry", "symmetric", "hypnotic",
+                     "sacred geometry", "rangoli", "kolam", "yantra"),
+    "matrix": ("matrix", "digital rain", "code rain", "hacker", "terminal", "cyber rain"),
 }
 
 MOTIONS: tuple[str, ...] = tuple(sorted(_MOTION_HINTS))
@@ -294,6 +304,159 @@ def _frame_typewriter(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random
         cursor_x = canvas.width // 2 + text_width(shown, scale) // 2 + scale * 2
         canvas.rect(cursor_x, y, max(2, scale), 7 * scale, palette[2], 0.9)
 
+def _frame_rain(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    palette = p.palette
+    canvas.linear_gradient(palette[0], mix(palette[0], palette[1], 0.75), 90)
+    drops = random.Random(p.seed)
+    slant = canvas.width * 0.045  # constant wind so streaks stay parallel
+    layers = (
+        # (count, speed loops, streak length, alpha, color mix)
+        (70, 0.85, 0.045, 0.22, 0.0),
+        (46, 1.05, 0.085, 0.38, 0.35),
+        (26, 1.35, 0.14, 0.60, 0.7),
+    )
+    for count, speed, length, alpha, tone in layers:
+        color = mix(palette[2], palette[-1], tone)
+        for _ in range(count):
+            x = drops.uniform(-slant, canvas.width)
+            phase = drops.random()
+            span = canvas.height * 1.2
+            y = ((phase + t * speed) % 1.0) * span - canvas.height * 0.1
+            streak = canvas.height * length
+            canvas.line(
+                int(x), int(y), int(x + slant * (length * 8)), int(y + streak),
+                color, 1 if length < 0.1 else 2, alpha,
+            )
+    # A faint ground sheen where the rain lands.
+    canvas.hline(0, canvas.width, canvas.height - 2, palette[2], 0.25)
+    canvas.hline(0, canvas.width, canvas.height - 1, palette[-1], 0.15)
+
+
+def _frame_fireworks(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    palette = p.palette
+    canvas.radial_gradient(palette[0], mix(palette[0], palette[1], 0.5))
+    stars = random.Random(p.seed ^ 0x5157)
+    for _ in range(70):
+        canvas.blend_pixel(
+            stars.randrange(canvas.width), stars.randrange(canvas.height),
+            palette[-1], 0.12 + stars.random() * 0.3,
+        )
+
+    shells = random.Random(p.seed)
+    for index in range(6):
+        phase = shells.random()
+        x = shells.uniform(canvas.width * 0.15, canvas.width * 0.85)
+        apex_y = canvas.height * shells.uniform(0.16, 0.45)
+        color = palette[2 + (index + 1) % (len(palette) - 2)]
+        sparkle = palette[-1]
+        s = (t - phase) % 1.0  # every shell's timeline wraps, so the loop closes
+
+        if s < 0.22:  # launch: a rising head with a short fading trail
+            u = s / 0.22
+            y = canvas.height - (canvas.height - apex_y) * (u ** 0.8)
+            wx = x + math.sin(u * 9.0) * 2.0
+            canvas.line(int(wx), int(y + 14), int(wx), int(y), palette[-1], 1, 0.55 * (1 - u * 0.4))
+            canvas.disc(wx, y, 1.8, palette[-1], 0.95)
+        else:  # burst: particles fly out, sag under gravity, and fade
+            u = (s - 0.22) / 0.78
+            radius = min(canvas.width, canvas.height) * 0.34 * (1 - (1 - u) ** 2.4)
+            fade = max(0.0, (1 - u) ** 1.35)
+            arms = 22
+            arm_rng = random.Random(p.seed + index)
+            arm_angles = [arm_rng.random() * math.tau for _ in range(arms)]
+            sag = (u ** 2) * canvas.height * 0.08
+            for angle in arm_angles:
+                px = x + math.cos(angle) * radius
+                py = apex_y + math.sin(angle) * radius * 0.8 + sag
+                canvas.blend_pixel(int(px), int(py), color, fade)
+                canvas.blend_pixel(int(px), int(py - 1), mix(color, sparkle, 0.5), fade * 0.8)
+            if u < 0.16:  # muzzle flash at the moment of burst
+                canvas.disc(x, apex_y, 4 + (0.16 - u) * 30, sparkle, 0.85 * (1 - u / 0.16))
+            canvas.disc(x, apex_y, 1.5, sparkle, fade)
+
+
+def _frame_kaleidoscope(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    palette = p.palette
+    canvas.radial_gradient(mix(palette[1], palette[0], 0.35), palette[0])
+    cx, cy = canvas.width / 2, canvas.height / 2
+    max_radius = math.hypot(cx, cy) * 0.62
+    folds = 8
+    rotation = t * math.tau  # one turn per loop keeps the wrap seamless
+    bloom = 0.5 + 0.5 * math.sin(t * math.tau)  # elements swell and relax
+
+    element_rng = random.Random(p.seed)
+    elements = [
+        (
+            element_rng.uniform(0.2, 0.95) * max_radius,  # radius
+            element_rng.uniform(0, math.tau / folds),     # angle inside the wedge
+            element_rng.uniform(0.03, 0.075) * max_radius,  # size
+            palette[2 + element_rng.randrange(len(palette) - 2)],
+            element_rng.randrange(3),                     # kind: disc / ring / petal
+        )
+        for _ in range(9)
+    ]
+    for fold in range(folds):
+        base_angle = rotation + fold * math.tau / folds
+        for radius, wedge_angle, size, color, kind in elements:
+            for mirrored in (wedge_angle, -wedge_angle):  # mirror completes the mandala
+                angle = base_angle + mirrored
+                r = radius * (0.82 + 0.18 * bloom)
+                ex = cx + math.cos(angle) * r
+                ey = cy + math.sin(angle) * r * 0.78
+                if kind == 0:
+                    canvas.disc(ex, ey, size * (0.7 + 0.5 * bloom), color, 0.65)
+                elif kind == 1:
+                    canvas.ring(ex, ey, size * (1.0 + 0.6 * bloom), 1, color, 0.6)
+                else:  # petal: a spoke of shrinking discs pointing outward
+                    for step in range(3):
+                        st = step / 2
+                        canvas.disc(
+                            cx + math.cos(angle) * (r + size * 2.4 * st),
+                            cy + math.sin(angle) * (r + size * 2.4 * st) * 0.78,
+                            size * (1 - st * 0.6), mix(color, palette[-1], st), 0.6,
+                        )
+
+    centre = max_radius * 0.055 * (1 + 0.35 * bloom)
+    canvas.disc(cx, cy, centre * 2.4, palette[2], 0.16)
+    canvas.disc(cx, cy, centre, palette[-1], 0.95)
+    canvas.ring(cx, cy, centre * 1.9, 1, palette[2], 0.7)
+
+
+_MATRIX_GLYPHS = "01<>[]#$%&*+-=ABCDEFXYZ"
+
+
+def _frame_matrix(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    palette = p.palette
+    canvas.fill(mix(palette[0], (0, 0, 0), 0.5))
+    column_span = 13
+    glyph_h = 11
+    tail_len = 14
+    span = canvas.height + tail_len * glyph_h + glyph_h
+
+    columns = random.Random(p.seed)
+    for column in range(canvas.width // column_span):
+        x = column * column_span + 2
+        speed = columns.uniform(0.7, 1.4)  # loops per cycle
+        phase = columns.random()
+        column_rng = random.Random(p.seed + column * 7919)  # stable tail glyphs
+
+        offset = ((phase + t * speed) % 1.0) * span
+        head_y = offset - tail_len * glyph_h
+        for k in range(tail_len):
+            y = int(head_y) - k * glyph_h
+            if y < -glyph_h or y > canvas.height:
+                column_rng.random()  # keep the sequence aligned across frames
+                continue
+            fade = max(0.12, 1.0 - k / tail_len)
+            glyph = column_rng.choice(_MATRIX_GLYPHS)
+            if k == 0:  # the head glows and flickers between two glyphs
+                glyph = rng.choice(_MATRIX_GLYPHS)
+                canvas.text(x, y, glyph, palette[-1], 1, alpha=1.0)
+                canvas.blend_pixel(x + 2, y + 3, palette[-1], 0.35)
+            else:
+                color = mix(palette[2], palette[1], k / tail_len)
+                canvas.text(x, y, glyph, color, 1, alpha=fade)
+
 
 _FRAME_RENDERERS = {
     "orbit": _frame_orbit,
@@ -304,6 +467,10 @@ _FRAME_RENDERERS = {
     "bars": _frame_bars,
     "gradient": _frame_gradient,
     "typewriter": _frame_typewriter,
+    "rain": _frame_rain,
+    "fireworks": _frame_fireworks,
+    "kaleidoscope": _frame_kaleidoscope,
+    "matrix": _frame_matrix,
 }
 
 

@@ -76,8 +76,23 @@ _SCENE_HINTS: dict[str, tuple[str, ...]] = {
     ),
     "geometric": (
         "geometric", "abstract", "pattern", "tile", "mosaic", "triangle", "polygon",
-        "grid", "tessellation", "shape", "city", "skyline", "building", "architecture",
-        "urban", "cyberpunk", "block", "structure", "maze", "circuit",
+        "grid", "tessellation", "shape", "cyberpunk", "block", "structure", "maze",
+    ),
+    "cityscape": (
+        "city", "skyline", "cityscape", "building", "buildings", "urban", "metropolis",
+        "downtown", "tower", "skyscraper", "architecture", "night city", "street",
+    ),
+    "mandala": (
+        "mandala", "kaleidoscope", "symmetry", "symmetric", "sacred geometry",
+        "rosette", "radial", "flower of life", "rangoli", "kolam", "yantra",
+    ),
+    "circuit": (
+        "circuit", "circuitry", "pcb", "chip", "silicon", "motherboard", "processor",
+        "semiconductor", "trace", "microchip", "die shot",
+    ),
+    "terrain": (
+        "terrain", "contour", "topographic", "topo", "elevation", "cartography",
+        "cartographic", "island", "mountain map", "survey",
     ),
     "spiral": ("spiral", "vortex", "swirl", "helix", "galaxy arm", "whirl", "twist"),
     "poster": ("poster", "banner", "cover", "title", "headline", "card", "announcement", "quote"),
@@ -487,6 +502,186 @@ def _wrap_to_width(text: str, max_width: int, scale: int) -> list[str]:
     return lines
 
 
+def render_cityscape(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """A night skyline: gradient sky, moon, and depth-layered towers with
+    lit windows — one building silhouette ridge per depth layer."""
+    palette = p.palette
+    _sky(canvas, palette, rng)
+    _starfield(canvas, rng, int(90 * p.detail), palette[-1],
+               bottom=int(canvas.height * 0.72))
+
+    # Moon with a soft halo, placed off-centre so it reads as a scene.
+    moon_x = canvas.width * rng.uniform(0.68, 0.85)
+    moon_y = canvas.height * rng.uniform(0.12, 0.24)
+    moon_r = min(canvas.width, canvas.height) * 0.055
+    canvas.disc(moon_x, moon_y, moon_r * 2.4, palette[-1], 0.10)
+    canvas.disc(moon_x, moon_y, moon_r, palette[-1], 0.95)
+    canvas.disc(moon_x - moon_r * 0.3, moon_y - moon_r * 0.25, moon_r * 0.8, palette[0], 0.25)
+
+    ground = int(canvas.height * 0.92)
+    for layer in range(3):
+        # Farther layers are lighter (atmospheric depth) and shorter.
+        depth = layer / 2.0
+        body = mix(palette[1], palette[0], 0.35 - depth * 0.3)
+        window = mix(palette[-1], palette[3], depth)
+        max_h = int(canvas.height * (0.52 - depth * 0.16))
+        x = rng.randrange(-8, 8)
+        while x < canvas.width:
+            bw = rng.randint(int(canvas.width * 0.03), int(canvas.width * 0.09))
+            bh = rng.randint(int(max_h * 0.45), max_h)
+            top = ground - bh
+            canvas.rect(x, top, bw, bh, body, 0.95)
+            # Lit windows, sparser with distance.
+            cell = 5 if layer < 2 else 7
+            for wy in range(top + 4, ground - 3, cell):
+                for wx in range(x + 3, x + bw - 3, cell):
+                    if rng.random() < 0.38 - depth * 0.12:
+                        canvas.blend_pixel(wx, wy, window, rng.uniform(0.45, 0.95))
+            if rng.random() < 0.3:  # rooftop antenna
+                mid = x + bw // 2
+                canvas.vline(mid, top - rng.randint(6, 14), top, body, 0.9)
+            x += bw + rng.randint(2, 10)
+    canvas.hline(0, canvas.width, ground, mix(palette[2], palette[-1], 0.35), 0.35)
+
+
+def render_mandala(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """N-fold symmetric sacred geometry — rings of petals, dots, and arcs
+    mirrored around the centre, like a rangoli or rose window."""
+    palette = p.palette
+    canvas.radial_gradient(mix(palette[1], palette[0], 0.4), palette[0])
+    cx, cy = canvas.width / 2, canvas.height / 2
+    max_radius = min(canvas.width, canvas.height) * 0.46
+    folds = rng.choice((6, 8, 10, 12, 16))
+
+    rings = rng.randint(3, 5)
+    for ring in range(rings):
+        radius = max_radius * (0.28 + 0.72 * ring / rings)
+        color = palette[2 + (ring % (len(palette) - 2))]
+        petals = folds * (2 if ring % 2 == 1 else 1)
+        for petal in range(petals):
+            angle = math.tau * petal / petals + (math.pi / petals) * (ring % 2)
+            px = cx + math.cos(angle) * radius
+            py = cy + math.sin(angle) * radius
+            size = max_radius * rng.uniform(0.025, 0.055) * (1 - ring / (rings * 2))
+            if ring % 3 == 0:
+                canvas.disc(px, py, size, color, 0.8)
+                canvas.ring(px, py, size * 1.8, 1, palette[-1], 0.5)
+            elif ring % 3 == 1:
+                # Petal: a short spoke of shrinking discs pointing outward.
+                for step in range(4):
+                    t = step / 3
+                    canvas.disc(
+                        cx + math.cos(angle) * (radius + size * 2.2 * t),
+                        cy + math.sin(angle) * (radius + size * 2.2 * t),
+                        size * (1 - t * 0.7), mix(color, palette[-1], t), 0.75,
+                    )
+            else:
+                canvas.ring(px, py, size * 1.4, max(1, int(size * 0.4)), color, 0.7)
+        canvas.ring(cx, cy, radius, 1, palette[-1], 0.22)
+
+    # Centre rosette.
+    canvas.disc(cx, cy, max_radius * 0.06, palette[-1], 0.95)
+    canvas.ring(cx, cy, max_radius * 0.11, 2, palette[2], 0.8)
+    canvas.ring(cx, cy, max_radius * 0.16, 1, palette[-1], 0.4)
+
+    # Corner geometry so wide canvases are not empty.
+    for corner in ((0, 0), (canvas.width, 0), (0, canvas.height), (canvas.width, canvas.height)):
+        for step in range(3):
+            canvas.ring(corner[0], corner[1], max_radius * (0.3 + step * 0.28),
+                        1, palette[2], 0.16)
+
+
+def render_circuit(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """A PCB macro shot: orthogonal traces with rounded pads, vias, and a
+    central chip with pins, over a substrate gradient."""
+    palette = p.palette
+    canvas.linear_gradient(palette[0], mix(palette[0], palette[1], 0.55), rng.uniform(30, 150))
+    substrate = mix(palette[0], palette[1], 0.35)
+    trace = mix(palette[2], palette[-1], 0.55)
+
+    grid = max(14, int(min(canvas.width, canvas.height) / 22))
+    # Vias scattered on the grid.
+    for _ in range(int(26 * p.detail)):
+        vx = rng.randrange(2, canvas.width // grid - 2) * grid + grid // 2
+        vy = rng.randrange(2, canvas.height // grid - 2) * grid + grid // 2
+        canvas.disc(vx, vy, grid * 0.16, palette[3], 0.9)
+        canvas.ring(vx, vy, grid * 0.3, 1, substrate, 0.9)
+
+    # Traces: orthogonal random walks with 45-degree elbows, ending in pads.
+    for _ in range(int(18 * p.detail)):
+        x = rng.randrange(canvas.width // grid) * grid + grid // 2
+        y = rng.randrange(canvas.height // grid) * grid + grid // 2
+        length = rng.randint(3, 9)
+        heading = rng.choice(((1, 0), (-1, 0), (0, 1), (0, -1)))
+        canvas.disc(x, y, grid * 0.22, palette[-1], 0.9)
+        for _step in range(length):
+            nx, ny = x + heading[0] * grid, y + heading[1] * grid
+            canvas.line(x, y, nx, ny, trace, max(1, grid // 9), 0.85)
+            x, y = nx, ny
+            if rng.random() < 0.28:  # elbow: turn left or right
+                heading = (-heading[1], heading[0]) if rng.random() < 0.5 else (heading[1], -heading[0])
+        canvas.disc(x, y, grid * 0.34, substrate, 0.95)
+        canvas.disc(x, y, grid * 0.2, trace, 0.95)
+
+    # Central package: a rounded chip with pin rows and a silkscreen label.
+    chip_w = int(canvas.width * 0.34)
+    chip_h = int(canvas.height * 0.3)
+    chip_x, chip_y = canvas.width // 2 - chip_w // 2, canvas.height // 2 - chip_h // 2
+    canvas.rounded_rect(chip_x, chip_y, chip_w, chip_h, grid // 2, mix(palette[1], palette[0], 0.5), 0.98)
+    canvas.rect_outline(chip_x, chip_y, chip_w, chip_h, palette[-1], 1, 0.4)
+    pin = max(2, grid // 5)
+    for offset in range(grid, chip_w - grid, grid):
+        canvas.rect(chip_x + offset, chip_y - pin * 2, pin, pin * 2, trace, 0.9)
+        canvas.rect(chip_x + offset, chip_y + chip_h, pin, pin * 2, trace, 0.9)
+    canvas.disc(chip_x + grid, chip_y + grid, pin * 0.9, palette[3], 0.9)  # pin-1 dot
+    label = (p.caption or "AETHERIS")[:12]
+    canvas.text_centered(canvas.width // 2, canvas.height // 2 - 3, label, palette[-1], 1, alpha=0.75)
+
+
+def render_terrain(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """A topographic survey: concentric noisy contour rings climbing a
+    colour ramp, with spot heights and a marked summit."""
+    palette = p.palette
+    canvas.linear_gradient(palette[0], palette[1], 90)
+    cx = canvas.width * rng.uniform(0.35, 0.65)
+    cy = canvas.height * rng.uniform(0.4, 0.65)
+    base = min(canvas.width, canvas.height) * 0.46
+
+    # Per-level angular noise, shared so adjacent contours stay parallel.
+    harmonics = [
+        (rng.uniform(1.5, 3.0), rng.uniform(0, math.tau), rng.uniform(0.16, 0.3)),
+        (rng.uniform(4.0, 7.0), rng.uniform(0, math.tau), rng.uniform(0.05, 0.12)),
+        (rng.uniform(9.0, 13.0), rng.uniform(0, math.tau), rng.uniform(0.02, 0.05)),
+    ]
+    levels = 9
+    for level in range(levels, 0, -1):
+        t = level / levels
+        color = mix(palette[1], palette[-1], t)
+        previous: tuple[int, int] | None = None
+        for step in range(int(120 * p.detail) + 1):
+            angle = math.tau * step / int(120 * p.detail)
+            wobble = sum(
+                amp * math.sin(freq * angle + phase + t * 1.4)
+                for freq, phase, amp in harmonics
+            )
+            radius = base * (0.14 + 0.86 * t) * (1.0 + wobble)
+            x = cx + math.cos(angle) * radius
+            y = cy + math.sin(angle) * radius * 0.74
+            if previous:
+                canvas.line(previous[0], previous[1], int(x), int(y), color, 1, 0.85)
+            previous = (int(x), int(y))
+        if level % 3 == 0:  # index contour: heavier line + spot height
+            spot_a = rng.uniform(0, math.tau)
+            sx = cx + math.cos(spot_a) * base * (0.14 + 0.86 * t) * 1.02
+            sy = cy + math.sin(spot_a) * base * (0.14 + 0.86 * t) * 0.76
+            canvas.disc(sx, sy, 1.6, palette[-1], 0.95)
+            canvas.text(int(sx) + 5, int(sy) - 3, f"{level * 240}m", palette[-1], 1, alpha=0.8)
+
+    canvas.disc(cx, cy, 3.2, palette[-1], 1.0)  # summit
+    canvas.ring(cx, cy, 7, 1, palette[-1], 0.6)
+    canvas.text(int(cx) + 10, int(cy) - 3, "SUMMIT", palette[-1], 1, alpha=0.85)
+
+
 _RENDERERS = {
     "landscape": render_landscape,
     "space": render_space,
@@ -496,6 +691,10 @@ _RENDERERS = {
     "spiral": render_spiral,
     "gradient": render_gradient,
     "poster": render_poster,
+    "cityscape": render_cityscape,
+    "mandala": render_mandala,
+    "circuit": render_circuit,
+    "terrain": render_terrain,
 }
 
 STYLES: tuple[str, ...] = tuple(sorted(_RENDERERS))

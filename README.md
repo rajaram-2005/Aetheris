@@ -611,9 +611,10 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/documents` | Index a document (JSON body). |
 | `POST /v1/documents/upload` | Index an uploaded file (multipart). |
 | `POST /v1/documents/search` | BM25 query against the corpus. |
-| `POST /v1/images/generations` | Generate a PNG from a prompt. |
-| `POST /v1/videos/generations` | Generate an animated GIF. |
-| `POST /v1/audio/generations` | Synthesise a WAV file. |
+| `POST /v1/images/generations` | Generate a PNG from a prompt (12 procedural scenes or a real generative model). |
+| `POST /v1/images/edits` | Edit a stored image offline: grayscale, sepia, blur, sharpen, duotone, vignette, … |
+| `POST /v1/videos/generations` | Generate an animated GIF (12 motion styles incl. rain, fireworks, kaleidoscope, matrix). |
+| `POST /v1/audio/generations` | Synthesise a WAV file (melody, chords, compose, tone, arp, drums). |
 | `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (offline by default). |
 | `POST /v1/audio/transcriptions` | Speech-to-text from an uploaded audio file (Whisper/Gemini when a key is set). |
 | `POST /v1/code/projects` | Scaffold a project as a ZIP. |

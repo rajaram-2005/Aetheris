@@ -173,7 +173,7 @@ class VideoRequest(BaseModel):
 class AudioRequest(BaseModel):
     """Direct audio synthesis (``POST /v1/audio/generations``)."""
 
-    mode: Literal["melody", "chords", "compose", "tone"] = "compose"
+    mode: Literal["melody", "chords", "compose", "tone", "arp", "drums"] = "compose"
     notation: str = ""
     key: str = "C4"
     scale: str = "major"
@@ -182,6 +182,29 @@ class AudioRequest(BaseModel):
     seconds: float = Field(default=1.0, gt=0, le=300)
     tempo: int = Field(default=110, ge=30, le=240)
     timbre: str = "warm"
+    pattern: Literal["up", "down", "updown", "random"] = "updown"
+    fill: bool = True
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class ImageEditRequest(BaseModel):
+    """Edit a stored image (``POST /v1/images/edits``).
+
+    The source is a stored artifact — its ``id`` (e.g. ``art_ab12…``) or its
+    ``/v1/artifacts/{id}`` URL. Every operation is rendered offline.
+    """
+
+    image: str = Field(..., min_length=1, description="Source artifact id or /v1/artifacts/{id} URL.")
+    operation: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "grayscale | sepia | invert | brightness | contrast | saturate | "
+            "blur | sharpen | pixelate | posterize | duotone | vignette"
+        ),
+    )
+    strength: float = Field(default=0.5, ge=0.0, le=1.0)
+    palette: str | None = Field(default=None, description="For 'duotone': 'aetheris', 'sunset', 'mono', … or two hex colours.")
     response_format: Literal["url", "b64_json"] = "url"
 
 
@@ -218,6 +241,7 @@ __all__ = [
     "ArtifactInfo",
     "ArtifactList",
     "ImageRequest",
+    "ImageEditRequest",
     "VideoRequest",
     "AudioRequest",
     "ProjectRequest",

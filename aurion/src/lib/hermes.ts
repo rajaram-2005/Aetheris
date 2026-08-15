@@ -237,13 +237,63 @@ export function getResources(): Promise<{
 }
 
 /** Generate an image (layered: offline procedural or real model). */
-export function generateImage(prompt: string): Promise<{
-  artifact: { url: string; media_type: string };
-  detail: { provider: string; model: string };
+export function generateImage(
+  prompt: string,
+  options: { style?: string; palette?: string; width?: number; height?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { provider: string; model: string; style?: string; palette?: string };
 }> {
   return request('/v1/images/generations', {
     method: 'POST',
-    body: JSON.stringify({ prompt, width: 1024, height: 576 }),
+    body: JSON.stringify({
+      prompt,
+      width: options.width ?? 1024,
+      height: options.height ?? 576,
+      style: options.style ?? undefined,
+      palette: options.palette ?? undefined,
+    }),
+  });
+}
+
+/** Generate a looping animation (delivered as a GIF artifact). */
+export function generateVideo(
+  prompt: string,
+  options: { motion?: string; seconds?: number; fps?: number; width?: number; height?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { motion: string; frames: number; fps: number; duration_seconds: number };
+}> {
+  return request('/v1/videos/generations', {
+    method: 'POST',
+    body: JSON.stringify({
+      prompt,
+      motion: options.motion ?? undefined,
+      seconds: options.seconds ?? 3,
+      fps: options.fps ?? 12,
+      width: options.width ?? 480,
+      height: options.height ?? 270,
+    }),
+  });
+}
+
+/** Apply an offline edit (grayscale, sepia, blur, duotone, …) to a stored image. */
+export function editImage(
+  imageId: string,
+  operation: string,
+  options: { strength?: number; palette?: string } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { operation: string; strength: number; palette?: string; edited_from: string };
+}> {
+  return request('/v1/images/edits', {
+    method: 'POST',
+    body: JSON.stringify({
+      image: imageId,
+      operation,
+      strength: options.strength ?? 0.5,
+      palette: options.palette ?? undefined,
+    }),
   });
 }
 

@@ -22,6 +22,8 @@ import {
   mythologyChat,
   mythologyPortrait,
   generateImage,
+  generateVideo,
+  editImage,
   synthesizeSpeech,
   MythCharacter,
 } from '@/lib/hermes';
@@ -528,6 +530,24 @@ function MythosChamber({ onRunInChat }: { onRunInChat: (text: string) => void })
 
 /* ── Visuals ── */
 
+const VIDEO_MOTIONS = [
+  'orbit', 'waveform', 'pulse', 'starfield', 'spiral',
+  'bars', 'gradient', 'typewriter',
+  'rain', 'fireworks', 'kaleidoscope', 'matrix',
+] as const;
+
+const EDIT_OPS = [
+  'grayscale', 'sepia', 'invert', 'brightness', 'contrast', 'saturate',
+  'blur', 'sharpen', 'pixelate', 'posterize', 'duotone', 'vignette',
+] as const;
+
+interface MadeVisual {
+  id: string;
+  url: string;
+  label: string;
+  kind: 'image' | 'video';
+}
+
 function VisualsChamber({
   onGenerateImage,
 }: {
@@ -535,6 +555,15 @@ function VisualsChamber({
 }) {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [prompt, setPrompt] = useState('');
+  const [mode, setMode] = useState<'image' | 'video'>('image');
+  const [motion, setMotion] = useState<string>('spiral');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [made, setMade] = useState<MadeVisual | null>(null);
+  const [editOp, setEditOp] = useState<string>('duotone');
+  const [editStrength, setEditStrength] = useState(0.5);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editedUrl, setEditedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     getGalleryImages()
@@ -542,24 +571,177 @@ function VisualsChamber({
       .catch(() => undefined);
   }, []);
 
+  const generate = async () => {
+    const text = prompt.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setError('');
+    setEditedUrl(null);
+    try {
+      if (mode === 'image') {
+        const res = await generateImage(text, { width: 1024, height: 576 });
+        setMade({ id: res.artifact.id, url: res.artifact.url, label: text, kind: 'image' });
+        onGenerateImage(text);
+      } else {
+        const res = await generateVideo(text, { motion, seconds: 3, fps: 12, width: 480, height: 270 });
+        setMade({ id: res.artifact.id, url: res.artifact.url, label: `${text} · ${res.detail.motion}`, kind: 'video' });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyEdit = async () => {
+    if (!made || made.kind !== 'image' || editBusy) return;
+    setEditBusy(true);
+    setError('');
+    try {
+      const res = await editImage(made.id, editOp, {
+        strength: editStrength,
+        palette: editOp === 'duotone' ? 'aetheris' : undefined,
+      });
+      setEditedUrl(res.artifact.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Edit failed.');
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-xl p-1 border" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+          {(['image', 'video'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setMade(null); setEditedUrl(null); }}
+              className={`btn text-xs px-4 ${mode === m ? 'btn-primary' : ''}`}
+            >
+              {m === 'image' ? '🎨 Image' : '🎞️ Video'}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {mode === 'image'
+            ? 'Procedural scenes + editable offline filters'
+            : 'Looping GIF motions, rendered in-process'}
+        </p>
+      </div>
+
       <form
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (prompt.trim()) onGenerateImage(prompt.trim());
+          void generate();
         }}
       >
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe a visual — generated in the workspace…"
+          placeholder={mode === 'image'
+            ? 'Describe a visual — e.g. rainy night city skyline…'
+            : 'Describe an animation — e.g. diwali fireworks over the gopuram…'}
           className="input surface flex-1 px-4 py-3"
           style={{ background: 'var(--bg-tertiary)' }}
         />
-        <button type="submit" className="btn btn-primary" disabled={!prompt.trim()}>Generate</button>
+        <button type="submit" className="btn btn-primary" disabled={busy || !prompt.trim()}>
+          {busy ? 'Rendering…' : mode === 'image' ? 'Generate' : 'Animate'}
+        </button>
       </form>
+
+      {mode === 'video' && (
+        <div className="flex flex-wrap gap-1.5">
+          {VIDEO_MOTIONS.map((m) => (
+            <button
+              key={m}
+              onClick={() => setMotion(m)}
+              className={`btn text-[11px] py-1 ${motion === m ? 'btn-primary' : ''}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs rounded-xl border px-3 py-2" style={{ borderColor: 'var(--danger, #f87171)', color: 'var(--danger, #f87171)' }}>
+          {error}
+        </p>
+      )}
+
+      {made && (
+        <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={made.url} alt={made.label} className="w-full h-full object-cover" />
+            </div>
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
+                {made.kind === 'image' ? 'Fresh render' : 'Fresh animation'}
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{made.label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                <a className="btn text-xs" href={made.url} target="_blank" rel="noreferrer">Open full size ↗</a>
+                <button className="btn text-xs" onClick={() => onGenerateImage(`Create ${made.kind === 'image' ? 'an image' : 'a video'} of ${made.label}`)}>
+                  Send to chat
+                </button>
+              </div>
+              {made.kind === 'image' && (
+                <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-color)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
+                    Edit it
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {EDIT_OPS.map((op) => (
+                      <button
+                        key={op}
+                        onClick={() => setEditOp(op)}
+                        className={`btn text-[11px] py-1 ${editOp === op ? 'btn-primary' : ''}`}
+                      >
+                        {op}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={editStrength}
+                      onChange={(e) => setEditStrength(Number(e.target.value))}
+                      className="flex-1"
+                      aria-label="Edit strength"
+                    />
+                    <span className="text-[11px] w-10 text-right" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      {editStrength.toFixed(2)}
+                    </span>
+                  </div>
+                  <button className="btn btn-primary text-xs" onClick={() => void applyEdit()} disabled={editBusy}>
+                    {editBusy ? 'Applying…' : `Apply ${editOp}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {editedUrl && (
+            <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--border-color)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
+                Edited
+              </p>
+              <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center max-w-md">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={editedUrl} alt={`${editOp} edit`} className="w-full h-full object-cover" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {images.map((img) => (
           <article key={img.id} className="rounded-2xl overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
