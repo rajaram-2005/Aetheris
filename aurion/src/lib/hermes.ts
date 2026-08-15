@@ -239,10 +239,11 @@ export function getResources(): Promise<{
 /** Generate an image (layered: offline procedural or real model). */
 export function generateImage(
   prompt: string,
-  options: { style?: string; palette?: string; width?: number; height?: number } = {},
+  options: { style?: string; palette?: string; width?: number; height?: number; n?: number } = {},
 ): Promise<{
   artifact: { id: string; url: string; media_type: string };
-  detail: { provider: string; model: string; style?: string; palette?: string };
+  artifacts: { id: string; url: string; media_type: string }[];
+  detail: { provider: string; model: string; style?: string; palette?: string; variations?: number };
 }> {
   return request('/v1/images/generations', {
     method: 'POST',
@@ -252,6 +253,7 @@ export function generateImage(
       height: options.height ?? 576,
       style: options.style ?? undefined,
       palette: options.palette ?? undefined,
+      n: options.n ?? 1,
     }),
   });
 }
@@ -259,10 +261,17 @@ export function generateImage(
 /** Generate a looping animation (delivered as a GIF artifact). */
 export function generateVideo(
   prompt: string,
-  options: { motion?: string; seconds?: number; fps?: number; width?: number; height?: number } = {},
+  options: {
+    motion?: string;
+    seconds?: number;
+    fps?: number;
+    width?: number;
+    height?: number;
+    loop?: 'loop' | 'bounce';
+  } = {},
 ): Promise<{
   artifact: { id: string; url: string; media_type: string };
-  detail: { motion: string; frames: number; fps: number; duration_seconds: number };
+  detail: { motion: string; frames: number; fps: number; duration_seconds: number; loop: string };
 }> {
   return request('/v1/videos/generations', {
     method: 'POST',
@@ -273,6 +282,53 @@ export function generateVideo(
       fps: options.fps ?? 12,
       width: options.width ?? 480,
       height: options.height ?? 270,
+      loop: options.loop ?? 'loop',
+    }),
+  });
+}
+
+/** Enlarge a stored image 2–4× (offline, nearest or bilinear). */
+export function upscaleImage(
+  imageId: string,
+  scale: number,
+  method: 'nearest' | 'bilinear' = 'bilinear',
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { operation: string; method: string; scale: number; width: number; height: number };
+}> {
+  return request('/v1/images/upscale', {
+    method: 'POST',
+    body: JSON.stringify({ image: imageId, scale, method }),
+  });
+}
+
+/** Synthesise instrumental music (melody, chords, arp, drums, pad, bass). */
+export function generateMusic(
+  mode: string,
+  options: {
+    notation?: string;
+    tempo?: number;
+    timbre?: string;
+    bars?: number;
+    pattern?: string;
+    fill?: boolean;
+    fx?: string[];
+  } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { mode: string; duration_seconds: number; fx?: string[] };
+}> {
+  return request('/v1/audio/generations', {
+    method: 'POST',
+    body: JSON.stringify({
+      mode,
+      notation: options.notation ?? '',
+      tempo: options.tempo ?? 110,
+      timbre: options.timbre ?? 'warm',
+      bars: options.bars ?? 4,
+      pattern: options.pattern ?? undefined,
+      fill: options.fill ?? undefined,
+      fx: options.fx ?? [],
     }),
   });
 }

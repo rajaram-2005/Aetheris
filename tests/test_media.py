@@ -636,3 +636,168 @@ def test_edit_image_tool_invokable_via_api(client):
     payload = json.loads(body["output"])
     assert payload["operation"] == "vignette"
     assert "/v1/artifacts/" in payload["url"]
+
+
+# --- Advanced media features: scenes, motions, variations, upscale, fx ---------
+
+
+def test_new_scene_hints_select_expected_styles():
+    from aetheris.media.images import plan
+
+    assert plan("aurora borealis over a frozen lake").scene == "aurora"
+    assert plan("a coral reef underwater with fish").scene == "underwater"
+    assert plan("an isometric low poly city").scene == "isometric"
+    assert plan("a retro 8-bit pixel art landscape").scene == "pixelart"
+
+
+def test_new_video_motion_hints_are_inferred():
+    from aetheris.media.video import plan
+
+    assert plan("a blizzard with heavy snowfall").motion == "snow"
+    assert plan("a trippy psychedelic lava lamp").motion == "plasma"
+    assert plan("a hyperspace warp tunnel portal").motion == "tunnel"
+    assert plan("a swinging pendulum metronome").motion == "pendulum"
+
+
+def test_image_endpoint_generates_seeded_variations(client):
+    body = client.post(
+        "/v1/images/generations",
+        json={"prompt": "aurora over the tundra", "style": "aurora",
+              "width": 96, "height": 64, "n": 3},
+    ).json()
+    assert len(body["artifacts"]) == 3
+    assert body["detail"]["variations"] == 3
+    ids = {a["id"] for a in body["artifacts"]}
+    assert len(ids) == 3, "each variation is its own stored artifact"
+    for artifact in body["artifacts"]:
+        fetched = client.get(artifact["url"])
+        assert fetched.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_image_upscale_endpoint_doubles_dimensions(client):
+    created = client.post(
+        "/v1/images/generations", json={"prompt": "x", "width": 64, "height": 64}
+    ).json()
+    response = client.post(
+        "/v1/images/upscale",
+        json={"image": created["artifact"]["id"], "scale": 2, "method": "bilinear"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["detail"]["width"] == 128
+    assert body["detail"]["height"] == 128
+    assert body["detail"]["upscaled_from"] == created["artifact"]["id"]
+    fetched = client.get(body["artifact"]["url"])
+    assert fetched.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+    missing = client.post(
+        "/v1/images/upscale", json={"image": "art_nope", "scale": 2}
+    )
+    assert missing.status_code == 404
+
+
+def test_upscale_function_resizes_all_methods():
+    from aetheris.media.canvas import Canvas
+    from aetheris.media.image_edit import upscale, decode_png
+
+    canvas = Canvas(12, 8, (30, 40, 50))
+    canvas.rect(2, 2, 5, 3, (200, 100, 40))
+    for method in ("nearest", "bilinear"):
+        for scale in (2, 3, 4):
+            png, detail = upscale(canvas.to_png(), scale=scale, method=method)
+            width, height, _ = decode_png(png)
+            assert (width, height) == (12 * scale, 8 * scale)
+            assert detail["method"] == method
+
+
+def test_new_editor_ops_flip_rotate_and_emboss():
+    from aetheris.media.canvas import Canvas
+    from aetheris.media.image_edit import apply, decode_png
+
+    canvas = Canvas(16, 8, (10, 20, 30))
+    canvas.rect(0, 0, 3, 3, (255, 0, 0))
+    source = canvas.to_png()
+
+    flipped, _ = apply(source, "flip_h", strength=0)
+    _, _, pixels = decode_png(flipped)
+    assert list(pixels[0:3]) == [10, 20, 30]
+    assert list(pixels[(16 - 1) * 3:(16 - 1) * 3 + 3]) == [255, 0, 0]
+
+    rotated, detail = apply(source, "rotate90", strength=0)
+    assert (detail["width"], detail["height"]) == (8, 16)
+
+    embossed, _ = apply(source, "emboss", strength=0.6)
+    assert embossed[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_video_endpoint_bounce_loop_is_palindromic(client):
+    body = client.post(
+        "/v1/videos/generations",
+        json={"prompt": "swinging pendulum", "motion": "pendulum",
+              "width": 96, "height": 64, "seconds": 1, "fps": 8, "loop": "bounce"},
+    ).json()
+    assert body["detail"]["loop"] == "bounce"
+    assert body["detail"]["total_frames"] == 15  # 8 forward + 7 back
+    fetched = client.get(body["artifact"]["url"])
+    assert fetched.content.count(b"\x21\xf9\x04") == 15
+
+
+def test_karplus_strong_timbres_render():
+    from aetheris.media import audio as A
+
+    for timbre in ("guitar", "sitar"):
+        track = A.render_tone(220.0, 0.8, timbre)
+        assert max(track.samples) > 0.05
+
+
+def test_audio_endpoint_supports_pad_bass_and_fx(client):
+    for mode, extra in (
+        ("pad", {"notation": "Cmaj7 Amin7", "bars": 1}),
+        ("bass", {"notation": "Cmaj7 G", "bars": 1, "tempo": 120}),
+    ):
+        response = client.post(
+            "/v1/audio/generations", json={"mode": mode, **extra}
+        )
+        assert response.status_code == 200, response.text
+        fetched = client.get(response.json()["artifact"]["url"])
+        with wave.open(io.BytesIO(fetched.content)) as handle:
+            assert handle.getframerate() == 44_100
+            assert handle.getnframes() > 0
+
+    fx = client.post(
+        "/v1/audio/generations",
+        json={"mode": "arp", "notation": "Cmaj7 Amin7", "fx": ["echo", "lowpass"]},
+    )
+    assert fx.status_code == 200, fx.text
+    assert fx.json()["detail"]["fx"] == ["echo", "lowpass"]
+
+    bad_fx = client.post(
+        "/v1/audio/generations", json={"mode": "tone", "fx": ["phaser"]}
+    )
+    assert bad_fx.status_code == 400
+
+
+def test_audio_effects_chain_preserves_duration():
+    from aetheris.media import audio as A
+
+    base = A.render_melody("C4 E4 G4", tempo=120)
+    for fx in A.FX:
+        track = A.apply_effects(base, [fx], 0.5)
+        assert track.duration == base.duration
+    chained = A.apply_effects(base, ["echo", "tremolo", "lowpass"])
+    assert chained.duration == base.duration
+    reversed_track = A.apply_effects(base, ["reverse"])
+    assert reversed_track.samples[0] == base.samples[-1]
+
+
+def test_advanced_creative_tools_are_listed(client):
+    tools = {t["name"]: t for t in client.get("/v1/tools").json()["data"]}
+    assert "upscale_image" in tools
+    image_styles = tools["generate_image"]["parameters"]["properties"]["style"]["enum"]
+    assert {"aurora", "underwater", "isometric", "pixelart"} <= set(image_styles)
+    motions = tools["generate_video"]["parameters"]["properties"]["motion"]["enum"]
+    assert {"snow", "plasma", "tunnel", "pendulum"} <= set(motions)
+    audio = tools["generate_audio"]["parameters"]["properties"]
+    assert {"pad", "bass"} <= set(audio["mode"]["enum"])
+    assert {"guitar", "sitar"} <= set(audio["timbre"]["enum"])
+    assert audio["fx"]["items"]["enum"] == ["echo", "tremolo", "vibrato", "lowpass", "reverse"]

@@ -24,6 +24,8 @@ import {
   generateImage,
   generateVideo,
   editImage,
+  upscaleImage,
+  generateMusic,
   synthesizeSpeech,
   MythCharacter,
 } from '@/lib/hermes';
@@ -534,12 +536,18 @@ const VIDEO_MOTIONS = [
   'orbit', 'waveform', 'pulse', 'starfield', 'spiral',
   'bars', 'gradient', 'typewriter',
   'rain', 'fireworks', 'kaleidoscope', 'matrix',
+  'snow', 'plasma', 'tunnel', 'pendulum',
 ] as const;
 
 const EDIT_OPS = [
   'grayscale', 'sepia', 'invert', 'brightness', 'contrast', 'saturate',
   'blur', 'sharpen', 'pixelate', 'posterize', 'duotone', 'vignette',
+  'flip_h', 'flip_v', 'rotate90', 'emboss', 'grain',
 ] as const;
+
+const MUSIC_MODES = ['melody', 'chords', 'arp', 'drums', 'pad', 'bass'] as const;
+
+const MUSIC_FX = ['echo', 'tremolo', 'vibrato', 'lowpass', 'reverse'] as const;
 
 interface MadeVisual {
   id: string;
@@ -557,6 +565,7 @@ function VisualsChamber({
   const [prompt, setPrompt] = useState('');
   const [mode, setMode] = useState<'image' | 'video'>('image');
   const [motion, setMotion] = useState<string>('spiral');
+  const [loop, setLoop] = useState<'loop' | 'bounce'>('loop');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [made, setMade] = useState<MadeVisual | null>(null);
@@ -564,6 +573,8 @@ function VisualsChamber({
   const [editStrength, setEditStrength] = useState(0.5);
   const [editBusy, setEditBusy] = useState(false);
   const [editedUrl, setEditedUrl] = useState<string | null>(null);
+  const [upscaledUrl, setUpscaledUrl] = useState<string | null>(null);
+  const [upscaleBusy, setUpscaleBusy] = useState(false);
 
   useEffect(() => {
     getGalleryImages()
@@ -577,14 +588,15 @@ function VisualsChamber({
     setBusy(true);
     setError('');
     setEditedUrl(null);
+    setUpscaledUrl(null);
     try {
       if (mode === 'image') {
-        const res = await generateImage(text, { width: 1024, height: 576 });
+        const res = await generateImage(text, { width: 1024, height: 576, n: 2 });
         setMade({ id: res.artifact.id, url: res.artifact.url, label: text, kind: 'image' });
         onGenerateImage(text);
       } else {
-        const res = await generateVideo(text, { motion, seconds: 3, fps: 12, width: 480, height: 270 });
-        setMade({ id: res.artifact.id, url: res.artifact.url, label: `${text} · ${res.detail.motion}`, kind: 'video' });
+        const res = await generateVideo(text, { motion, seconds: 3, fps: 12, width: 480, height: 270, loop });
+        setMade({ id: res.artifact.id, url: res.artifact.url, label: `${text} · ${res.detail.motion}${loop === 'bounce' ? ' · bounce' : ''}`, kind: 'video' });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed.');
@@ -607,6 +619,20 @@ function VisualsChamber({
       setError(e instanceof Error ? e.message : 'Edit failed.');
     } finally {
       setEditBusy(false);
+    }
+  };
+
+  const applyUpscale = async () => {
+    if (!made || made.kind !== 'image' || upscaleBusy) return;
+    setUpscaleBusy(true);
+    setError('');
+    try {
+      const res = await upscaleImage(made.id, 2, 'bilinear');
+      setUpscaledUrl(res.artifact.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upscale failed.');
+    } finally {
+      setUpscaleBusy(false);
     }
   };
 
@@ -653,7 +679,18 @@ function VisualsChamber({
       </form>
 
       {mode === 'video' && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="inline-flex rounded-xl p-1 border" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+            {(['loop', 'bounce'] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLoop(l)}
+                className={`btn text-[11px] px-3 py-1 ${loop === l ? 'btn-primary' : ''}`}
+              >
+                {l === 'loop' ? '⟳ Loop' : '⇄ Bounce'}
+              </button>
+            ))}
+          </div>
           {VIDEO_MOTIONS.map((m) => (
             <button
               key={m}
@@ -689,6 +726,11 @@ function VisualsChamber({
                 <button className="btn text-xs" onClick={() => onGenerateImage(`Create ${made.kind === 'image' ? 'an image' : 'a video'} of ${made.label}`)}>
                   Send to chat
                 </button>
+                {made.kind === 'image' && (
+                  <button className="btn text-xs" onClick={() => void applyUpscale()} disabled={upscaleBusy}>
+                    {upscaleBusy ? 'Upscaling…' : 'Upscale ×2'}
+                  </button>
+                )}
               </div>
               {made.kind === 'image' && (
                 <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-color)' }}>
@@ -728,15 +770,30 @@ function VisualsChamber({
               )}
             </div>
           </div>
-          {editedUrl && (
-            <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--border-color)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
-                Edited
-              </p>
-              <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center max-w-md">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={editedUrl} alt={`${editOp} edit`} className="w-full h-full object-cover" />
-              </div>
+          {(editedUrl || upscaledUrl) && (
+            <div className="mt-4 border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-4" style={{ borderColor: 'var(--border-color)' }}>
+              {editedUrl && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>
+                    Edited — {editOp}
+                  </p>
+                  <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={editedUrl} alt={`${editOp} edit`} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              )}
+              {upscaledUrl && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>
+                    Upscaled ×2
+                  </p>
+                  <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={upscaledUrl} alt="Upscaled render" className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -921,6 +978,12 @@ function CreateChamber({
   const [voice, setVoice] = useState('Welcome to Aetheris. Every surface is one constellation.');
   const [speaking, setSpeaking] = useState(false);
   const [localBusy, setLocalBusy] = useState(false);
+  const [musicMode, setMusicMode] = useState<string>('pad');
+  const [musicNotation, setMusicNotation] = useState('Cmaj7 Amin7 Fmaj7 G');
+  const [musicFx, setMusicFx] = useState<string[]>([]);
+  const [musicBusy, setMusicBusy] = useState(false);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [musicError, setMusicError] = useState('');
   const presets = useMemo(
     () => [
       'orbiting teal nebula, cosmic indigo void',
@@ -952,6 +1015,28 @@ function CreateChamber({
       onGenerateImage(imagePrompt.trim());
     } finally {
       setLocalBusy(false);
+    }
+  };
+
+  const compose = async () => {
+    if (musicBusy) return;
+    setMusicBusy(true);
+    setMusicError('');
+    try {
+      const res = await generateMusic(musicMode, {
+        notation: musicNotation,
+        bars: 4,
+        tempo: 110,
+        timbre: musicMode === 'pad' ? 'strings' : musicMode === 'bass' ? 'chip' : 'warm',
+        fx: musicFx,
+      });
+      setMusicUrl(res.artifact.url);
+      const audio = new Audio(res.artifact.url);
+      audio.play().catch(() => undefined);
+    } catch (e) {
+      setMusicError(e instanceof Error ? e.message : 'Synthesis failed.');
+    } finally {
+      setMusicBusy(false);
     }
   };
 
@@ -992,6 +1077,56 @@ function CreateChamber({
         </button>
         <p className="text-[11px] mt-3" style={{ color: 'var(--text-muted)' }}>
           Offline formant synthesis by default — no key, no network.
+        </p>
+      </div>
+      <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>Sound</p>
+        <h3 className="mt-1 text-lg font-bold" style={{ fontFamily: 'var(--font-display)' }}>Compose from a mode</h3>
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {MUSIC_MODES.map((m) => (
+            <button key={m} className={`btn text-[11px] py-1 ${musicMode === m ? 'btn-primary' : ''}`} onClick={() => setMusicMode(m)}>
+              {m}
+            </button>
+          ))}
+        </div>
+        <input
+          value={musicNotation}
+          onChange={(e) => setMusicNotation(e.target.value)}
+          placeholder="Chord notation, e.g. Cmaj7 Amin7 Fmaj7 G"
+          className="input surface w-full mt-3 px-3 py-2"
+          style={{ background: 'var(--bg-secondary)' }}
+        />
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {MUSIC_FX.map((fx) => (
+            <button
+              key={fx}
+              onClick={() => setMusicFx((prev) => (prev.includes(fx) ? prev.filter((f) => f !== fx) : [...prev, fx]))}
+              className={`btn text-[10px] py-1 ${musicFx.includes(fx) ? 'btn-primary' : ''}`}
+            >
+              {fx}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-4 items-center">
+          <button className="btn btn-primary" onClick={() => void compose()} disabled={musicBusy}>
+            {musicBusy ? 'Synthesising…' : 'Compose & play'}
+          </button>
+          {musicUrl && (
+            <a className="btn text-xs" href={musicUrl} target="_blank" rel="noreferrer">Open WAV ↗</a>
+          )}
+        </div>
+        {musicError && (
+          <p className="text-[11px] mt-3" style={{ color: 'var(--danger, #f87171)' }}>{musicError}</p>
+        )}
+        <p className="text-[11px] mt-3" style={{ color: 'var(--text-muted)' }}>
+          Melody, chords, arps, drums, pads, and basslines — synthesised offline, with an optional fx chain.
+        </p>
+      </div>
+      <div className="rounded-2xl border p-5 md:col-span-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>Gallery</p>
+        <h3 className="mt-1 text-lg font-bold" style={{ fontFamily: 'var(--font-display)' }}>More in the Visuals chamber</h3>
+        <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
+          16 procedural scenes, 16 looping motions, 17 offline edits, and upscaling — switch to the Visuals chamber for the full palette.
         </p>
       </div>
     </div>

@@ -31,6 +31,7 @@ raises a clear error instead of silently failing.
 from __future__ import annotations
 
 import math
+import random
 import struct
 import zlib
 
@@ -40,6 +41,7 @@ from .images import PALETTES, choose_palette
 OPERATIONS: tuple[str, ...] = (
     "grayscale", "sepia", "invert", "brightness", "contrast", "saturate",
     "blur", "sharpen", "pixelate", "posterize", "duotone", "vignette",
+    "flip_h", "flip_v", "rotate90", "emboss", "grain",
 )
 
 # Rec. 601 luma weights, as integers over 1000 for exact LUT math.
@@ -343,8 +345,133 @@ def _op_vignette(rgb, width, height, strength):
     return out
 
 
-# --- Entry point ----------------------------------------------------------------
 
+
+def _op_flip_h(rgb, width, height, strength):
+    """Mirror left-to-right (``strength`` is ignored)."""
+    out = bytearray(len(rgb))
+    for y in range(height):
+        src_row = y * width * 3
+        dst_row = src_row
+        for x in range(width):
+            src = src_row + x * 3
+            dst = dst_row + (width - 1 - x) * 3
+            out[dst : dst + 3] = rgb[src : src + 3]
+    return out
+
+
+def _op_flip_v(rgb, width, height, strength):
+    """Mirror top-to-bottom (``strength`` is ignored)."""
+    out = bytearray(len(rgb))
+    stride = width * 3
+    for y in range(height):
+        src = y * stride
+        dst = (height - 1 - y) * stride
+        out[dst : dst + stride] = rgb[src : src + stride]
+    return out
+
+
+def _op_rotate90(rgb, width, height, strength):
+    """Rotate 90° clockwise; the canvas becomes ``height``×``width``."""
+    out = bytearray(len(rgb))
+    for y in range(height):
+        src_row = y * width * 3
+        for x in range(width):
+            src = src_row + x * 3
+            dst = ((x * height) + (height - 1 - y)) * 3
+            out[dst : dst + 3] = rgb[src : src + 3]
+    return out
+
+
+def _op_emboss(rgb, width, height, strength):
+    """3×3 emboss convolution; strength scales the relief factor."""
+    factor = 0.5 + strength * 3.5
+    out = bytearray(len(rgb))
+    row_next = width * 3
+    for y in range(1, height - 1):
+        row = y * width * 3
+        for x in range(1, width - 1):
+            o = row + x * 3
+            for c in range(3):
+                # Bottom-left minus top-right emboss kernel.
+                v = rgb[o + row_next - 3 + c] - rgb[o - row_next + 3 + c]
+                v = int((v * factor) + 128)
+                out[o + c] = max(0, min(255, v))
+    return out
+
+
+def _op_grain(rgb, width, height, strength):
+    """Deterministic film grain: seeded per-pixel luminance noise."""
+    rng = random.Random(width * 7919 + height)
+    amount = strength * 90.0
+    if amount <= 0:
+        return bytes(rgb)
+    out = bytearray(rgb)
+    for i in range(0, len(out), 3):
+        n = (rng.random() * 2.0 - 1.0) * amount
+        for c in range(3):
+            out[i + c] = max(0, min(255, int(out[i + c] + n)))
+    return out
+
+
+def upscale(data: bytes, *, scale: int = 2, method: str = "bilinear") -> tuple[bytes, dict]:
+    """Enlarge a PNG by an integer factor (2–4), nearest or bilinear.
+
+    Returns ``(png_bytes, detail)`` with the new dimensions.
+    """
+    if scale not in (2, 3, 4):
+        raise ValueError("Scale must be 2, 3, or 4.")
+    method = (method or "bilinear").strip().lower()
+    if method not in ("nearest", "bilinear"):
+        raise ValueError("Method must be 'nearest' or 'bilinear'.")
+    width, height, rgb = decode_png(data)
+    new_w, new_h = width * scale, height * scale
+    out = bytearray(new_w * new_h * 3)
+    if method == "nearest":
+        for y in range(new_h):
+            src_y = y // scale
+            src_row = src_y * width * 3
+            dst_row = y * new_w * 3
+            for x in range(new_w):
+                src = src_row + (x // scale) * 3
+                dst = dst_row + x * 3
+                out[dst : dst + 3] = rgb[src : src + 3]
+    else:
+        inv = 1.0 / scale
+        for y in range(new_h):
+            fy = y * inv
+            y0, y1 = min(height - 1, int(fy)), min(height - 1, int(fy) + 1)
+            wy = fy - int(fy)
+            row0, row1 = y0 * width * 3, y1 * width * 3
+            dst_row = y * new_w * 3
+            for x in range(new_w):
+                fx = x * inv
+                x0, x1 = min(width - 1, int(fx)), min(width - 1, int(fx) + 1)
+                wx = fx - int(fx)
+                o00, o01 = row0 + x0 * 3, row0 + x1 * 3
+                o10, o11 = row1 + x0 * 3, row1 + x1 * 3
+                dst = dst_row + x * 3
+                for c in range(3):
+                    v = (
+                        rgb[o00 + c] * (1 - wx) * (1 - wy)
+                        + rgb[o01 + c] * wx * (1 - wy)
+                        + rgb[o10 + c] * (1 - wx) * wy
+                        + rgb[o11 + c] * wx * wy
+                    )
+                    out[dst + c] = int(round(v))
+    detail = {
+        "operation": "upscale",
+        "method": method,
+        "scale": scale,
+        "width": new_w,
+        "height": new_h,
+        "source_width": width,
+        "source_height": height,
+    }
+    return encode_png(new_w, new_h, out, compression=6), detail
+
+
+# --- Entry point ----------------------------------------------------------------
 def apply(
     data: bytes,
     operation: str,
@@ -388,17 +515,28 @@ def apply(
         result = _op_posterize(rgb, width, height, strength)
     elif key == "duotone":
         result = _op_duotone(rgb, width, height, strength, palette)
+    elif key == "flip_h":
+        result = _op_flip_h(rgb, width, height, strength)
+    elif key == "flip_v":
+        result = _op_flip_v(rgb, width, height, strength)
+    elif key == "rotate90":
+        result = _op_rotate90(rgb, width, height, strength)
+    elif key == "emboss":
+        result = _op_emboss(rgb, width, height, strength)
+    elif key == "grain":
+        result = _op_grain(rgb, width, height, strength)
     else:
         result = _op_vignette(rgb, width, height, strength)
 
+    out_width, out_height = (height, width) if key == "rotate90" else (width, height)
     detail = {
         "operation": key,
         "strength": round(strength, 3),
-        "width": width,
-        "height": height,
+        "width": out_width,
+        "height": out_height,
         **({"palette": palette} if palette else {}),
     }
-    return encode_png(width, height, result, compression=6), detail
+    return encode_png(out_width, out_height, result, compression=6), detail
 
 
-__all__ = ["OPERATIONS", "apply", "decode_png"]
+__all__ = ["OPERATIONS", "apply", "upscale", "decode_png"]

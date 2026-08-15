@@ -94,6 +94,22 @@ _SCENE_HINTS: dict[str, tuple[str, ...]] = {
         "terrain", "contour", "topographic", "topo", "elevation", "cartography",
         "cartographic", "island", "mountain map", "survey",
     ),
+    "aurora": (
+        "aurora", "borealis", "northern lights", "polar", "sky glow",
+        "green sky", "night sky glow", "magnetosphere",
+    ),
+    "underwater": (
+        "underwater", "submarine", "reef", "coral", "aquarium", "kelp",
+        "jellyfish", "scuba", "diving", "deep sea", "ocean floor", "marine life",
+    ),
+    "isometric": (
+        "isometric", "voxel", "low poly", "low-poly", "3d cubes", "block city",
+        "monument valley", "diagonal grid", "poly art",
+    ),
+    "pixelart": (
+        "pixel art", "pixelart", "pixel-art", "8-bit", "8bit", "16-bit", "16bit",
+        "retro game", "sprite", "nes", "arcade sprite", "voxel scene",
+    ),
     "spiral": ("spiral", "vortex", "swirl", "helix", "galaxy arm", "whirl", "twist"),
     "poster": ("poster", "banner", "cover", "title", "headline", "card", "announcement", "quote"),
     "gradient": ("gradient", "backdrop", "background", "wallpaper", "mesh", "blur", "smooth"),
@@ -157,8 +173,7 @@ def choose_scene(prompt: str, override: str | None = None) -> str:
     """Pick the compositional style from an explicit style or the prompt."""
     if override:
         key = override.strip().lower()
-        if key in _SCENE_HINTS or key in ("landscape", "space", "waves", "particles",
-                                          "geometric", "spiral", "poster", "gradient"):
+        if key in _SCENE_HINTS:
             return key
         raise ValueError(
             f"Unknown style '{override}'. Choose one of: "
@@ -682,6 +697,221 @@ def render_terrain(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
     canvas.text(int(cx) + 10, int(cy) - 3, "SUMMIT", palette[-1], 1, alpha=0.85)
 
 
+
+
+def render_aurora(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """Polar night with ribbon curtains of aurora light over a snow field."""
+    palette = p.palette
+    canvas.linear_gradient(mix(palette[0], (4, 8, 18), 0.4), palette[1], 90)
+    _starfield(canvas, rng, int(110 * p.detail), palette[-1],
+               bottom=int(canvas.height * 0.6))
+
+    ground = int(canvas.height * 0.86)
+    # Snow field with a soft sheen.
+    canvas.rect(0, ground, canvas.width, canvas.height - ground, palette[3], 0.55)
+    canvas.rect(0, ground, canvas.width, 3, palette[-1], 0.7)
+
+    for curtain in range(int(3 + 2 * p.detail)):
+        x0 = rng.uniform(-canvas.width * 0.15, canvas.width * 0.75)
+        phase_a = rng.random() * math.tau
+        phase_b = rng.random() * math.tau
+        band_w = canvas.width * rng.uniform(0.28, 0.5)
+        height = canvas.height * rng.uniform(0.14, 0.26)
+        base_y = int(canvas.height * rng.uniform(0.10, 0.3))
+        wavelen_a = rng.uniform(0.008, 0.016)
+        wavelen_b = rng.uniform(0.02, 0.05)
+        color = palette[2 + curtain % max(1, len(palette) - 2)]
+        for x in range(canvas.width):
+            local = (x - x0) / band_w
+            if abs(local) > 0.5:
+                continue
+            envelope = max(0.0, 1.0 - abs(local) * 2.0) ** 1.6
+            ripple = 0.55 + 0.45 * math.sin(x * wavelen_a + phase_a)                 * math.sin(x * wavelen_b + phase_b)
+            ribbon_h = int(height * ripple * envelope)
+            top = base_y + int(math.sin(x * 0.02 + phase_b) * height * 0.4)
+            if ribbon_h <= 0 or top >= ground - 4:
+                continue
+            # Vertical fade: bright edge, tapering tail.
+            for dy in range(ribbon_h):
+                falloff = (1.0 - dy / ribbon_h) ** 1.3
+                alpha = 0.16 + 0.5 * falloff * envelope
+                canvas.blend_pixel(x, top + dy, color, alpha)
+
+
+def render_underwater(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """Sunbeams, rising bubbles, kelp fronds, and fish silhouettes."""
+    palette = p.palette
+    canvas.linear_gradient(palette[0], mix(palette[2], palette[4], 0.35), 90)
+
+    # Light shafts angling down from the surface.
+    for _ in range(int(6 + 4 * p.detail)):
+        x0 = rng.randrange(-20, canvas.width)
+        slant = rng.randint(12, 46)
+        depth = int(canvas.height * rng.uniform(0.5, 0.95))
+        width = rng.randint(8, 26)
+        glow = palette[3] if len(palette) > 3 else palette[-1]
+        for dx in range(width):
+            canvas.line(x0 + dx, 0, x0 + dx + slant, depth, glow, 1,
+                        rng.uniform(0.03, 0.09))
+
+    # Bubbles rising.
+    for _ in range(int(70 * p.detail)):
+        x = rng.randrange(canvas.width)
+        y = rng.randrange(canvas.height)
+        r = rng.uniform(1.0, 5.0)
+        canvas.ring(x, y, r, 0.8, palette[-1], rng.uniform(0.25, 0.6))
+        canvas.blend_pixel(x - int(r * 0.35), y - int(r * 0.35),
+                           palette[-1], 0.5)
+
+    # Kelp fronds swaying from the sea floor.
+    for _ in range(int(9 * p.detail)):
+        base_x = rng.randrange(canvas.width)
+        frond_h = int(canvas.height * rng.uniform(0.25, 0.5))
+        sway = rng.uniform(0.02, 0.05)
+        phase = rng.random() * math.tau
+        color = mix(palette[1], palette[3], rng.uniform(0.2, 0.6))
+        for dy in range(frond_h):
+            y = canvas.height - dy - 4
+            x = base_x + int(math.sin(dy * sway + phase) * dy * 0.16)
+            canvas.blend_pixel(x, y, color, 0.75)
+            canvas.blend_pixel(x - 1, y, mix(color, palette[0], 0.4), 0.4)
+
+    # Fish silhouettes: body, tail, and an eye glint.
+    for _ in range(int(4 * p.detail)):
+        fx = rng.randrange(20, canvas.width - 20)
+        fy = rng.randrange(int(canvas.height * 0.15), int(canvas.height * 0.8))
+        size = rng.randint(5, 11)
+        direction = 1 if rng.random() < 0.5 else -1
+        body = mix(palette[0], palette[3], 0.55)
+        canvas.disc(fx, fy, size, body, 0.9)
+        canvas.disc(fx - direction * size * 0.35, fy - size * 0.3, size * 0.28,
+                    palette[-1], 0.5)  # eye
+        # Tail as two quick strokes.
+        tx = fx - direction * (size + 2)
+        canvas.line(fx - direction * size, fy, tx - 3, fy - size // 2,
+                    body, 1, 0.9)
+        canvas.line(fx - direction * size, fy, tx - 3, fy + size // 2,
+                    body, 1, 0.9)
+
+
+def _iso_tile(canvas: Canvas, cx: int, cy: int, s: int, palette: tuple[RGB, ...],
+              rng: random.Random, shade: float = 1.0) -> None:
+    """One isometric cube with lit top, mid left, and dark right faces."""
+    half = s // 2
+    top = mix(palette[3], palette[4], 0.4) if len(palette) > 4 else palette[-1]
+    left = mix(palette[2], palette[3], 0.4)
+    right = mix(palette[1], palette[2], 0.35)
+
+    def face_color(c: RGB) -> RGB:
+        return tuple(int(ch * shade) for ch in c)  # type: ignore[return-value]
+
+    # Top rhombus.
+    for dy in range(half):
+        row_w = half - dy
+        for dx in range(-row_w, row_w + 1):
+            canvas.blend_pixel(cx + dx, cy + dy, face_color(top), 0.98)
+    # Left face.
+    for dy in range(half, half + s):
+        offset = dy - half
+        for dx in range(-half + offset, offset + 1):
+            canvas.blend_pixel(cx + dx, cy + dy, face_color(left), 0.96)
+    # Right face.
+    for dy in range(half, half + s):
+        offset = dy - half
+        for dx in range(-offset, half - offset):
+            canvas.blend_pixel(cx + dx, cy + dy, face_color(right), 0.96)
+
+
+def render_isometric(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """A floating isometric city of shaded cubes over a diagonal grid."""
+    palette = p.palette
+    canvas.linear_gradient(mix(palette[0], palette[1], 0.25), palette[1], 90)
+
+    # Diagonal grid floor.
+    spacing = max(18, canvas.width // 26)
+    for offset in range(-canvas.height, canvas.width, spacing):
+        canvas.line(offset, 0, offset + canvas.height, canvas.height,
+                    palette[2], 1, 0.14)
+        canvas.line(offset, canvas.height, offset + canvas.height, 0,
+                    palette[2], 1, 0.10)
+
+    # Floating cubes, some stacked into little towers.
+    for _ in range(int(16 * p.detail)):
+        cx = rng.randrange(int(canvas.width * 0.08), int(canvas.width * 0.92))
+        cy = rng.randrange(int(canvas.height * 0.10), int(canvas.height * 0.72))
+        s = rng.randint(max(8, canvas.width // 40), max(12, canvas.width // 20))
+        _iso_tile(canvas, cx, cy, s, palette, rng, rng.uniform(0.75, 1.0))
+        if rng.random() < 0.45:  # stacked block
+            _iso_tile(canvas, cx, cy - s - 2, s * 2 // 3, palette, rng,
+                      rng.uniform(0.85, 1.0))
+
+
+def render_pixelart(canvas: Canvas, p: RenderPlan, rng: random.Random) -> None:
+    """A retro 8-bit scene drawn on a chunky pixel grid."""
+    palette = p.palette
+    cell = max(3, min(canvas.width, canvas.height) // 48)
+    cols, rows = canvas.width // cell, canvas.height // cell
+
+    def block(x: int, y: int, color: RGB, alpha: float = 1.0) -> None:
+        canvas.rect(x * cell, y * cell, cell, cell, color, alpha)
+
+    # Sky: three posterised bands + dither rows at the joins.
+    sky_top, sky_mid, sky_low = palette[0], mix(palette[0], palette[1], 0.5), palette[1]
+    horizon = int(rows * 0.55)
+    for y in range(horizon):
+        color = sky_top if y < horizon * 0.45 else sky_mid
+        for x in range(cols):
+            block(x, y, color)
+    for x in range(cols):  # dither band
+        for y in range(int(horizon * 0.45), int(horizon * 0.55)):
+            block(x, y, sky_mid if (x + y) % 2 == 0 else sky_top)
+
+    # Blocky sun with a dithered corona.
+    sun_x = rng.randrange(int(cols * 0.55), cols - 4)
+    sun_y = rng.randrange(2, max(3, horizon // 3))
+    sun = palette[-1] if len(palette) > 3 else (255, 220, 120)
+    for y in range(sun_y - 1, sun_y + 3):
+        for x in range(sun_x - 1, sun_x + 3):
+            if 2 <= x - (sun_x - 2) <= 3 and 2 <= y - (sun_y - 2) <= 3:
+                block(x, y, sun)
+            elif (x + y) % 2 == 0:
+                block(x, y, sun, 0.35)
+
+    # Stepped mountains with snow caps.
+    for ridge in range(2):
+        base_y = horizon - ridge * int(rows * 0.06)
+        body = mix(palette[2], palette[0], 0.3 + ridge * 0.25)
+        cap = mix(palette[4], (255, 255, 255), 0.4)
+        step = 0
+        for x in range(cols):
+            rise = int((math.sin(x * 0.35 + ridge * 2.1) + 1) * rows * 0.045)
+            target = base_y - rise
+            step = max(step - 1, target) if step else target
+            for y in range(step, horizon):
+                block(x, y, body)
+            block(x, step, cap)
+            step += 1 if rng.random() < 0.4 else 0
+
+    # Ground with checker dithering.
+    for y in range(horizon, rows):
+        for x in range(cols):
+            block(x, y, palette[2] if (x + y) % 2 == 0 else mix(palette[2], palette[1], 0.6))
+
+    # Chunky pine trees.
+    for _ in range(int(4 * p.detail)):
+        tx = rng.randrange(1, cols - 3)
+        base = horizon + rng.randrange(1, max(2, rows - horizon - 3))
+        trunk = mix(palette[2], palette[0], 0.6)
+        for ty in range(base, min(rows - 1, base + 2)):
+            block(tx + 1, ty, trunk)
+        for layer in range(2):
+            ly = base - 2 - layer * 2
+            width = 3 - layer
+            for ty in range(ly, ly + 2):
+                for txx in range(tx + 1 - width // 2, tx + 1 + width - width // 2):
+                    block(txx, ty, mix(palette[3], palette[2], 0.35 + layer * 0.2))
+
+
 _RENDERERS = {
     "landscape": render_landscape,
     "space": render_space,
@@ -695,6 +925,10 @@ _RENDERERS = {
     "mandala": render_mandala,
     "circuit": render_circuit,
     "terrain": render_terrain,
+    "aurora": render_aurora,
+    "underwater": render_underwater,
+    "isometric": render_isometric,
+    "pixelart": render_pixelart,
 }
 
 STYLES: tuple[str, ...] = tuple(sorted(_RENDERERS))

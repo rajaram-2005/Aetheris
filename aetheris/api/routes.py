@@ -8,8 +8,9 @@ Endpoints:
 * ``GET  /v1/modes``        — list available inference modes.
 * ``GET  /v1/tools``        — list the executable toolbelt.
 * ``POST /v1/tools/{name}/invoke`` — run a single tool directly.
-* ``POST /v1/images/generations`` — generate an image.
+* ``POST /v1/images/generations`` — generate an image (or N variations).
 * ``POST /v1/images/edits`` — edit a stored image (offline filters).
+* ``POST /v1/images/upscale`` — enlarge a stored image 2–4×.
 * ``POST /v1/videos/generations`` — generate a looping GIF animation.
 * ``POST /v1/audio/generations`` — synthesise a WAV.
 * ``GET/POST/DELETE /v1/documents`` — manage the RAG corpus.
@@ -57,6 +58,7 @@ from ..schemas.tools import (
     GenerationResponse,
     ImageEditRequest,
     ImageRequest,
+    ImageUpscaleRequest,
     ProjectRequest,
     VideoRequest,
     DocumentIn,
@@ -659,28 +661,33 @@ async def create_image(body: ImageRequest) -> GenerationResponse:
     height = min(body.height, settings.media_max_image_dimension)
     try:
         results = await generate_image_bytes(
-            body.prompt, width=width, height=height, n=1, seed=body.seed,
+            body.prompt, width=width, height=height, n=body.n, seed=body.seed,
             style=body.style, palette=body.palette, caption=body.caption,
         )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    artifacts: list[Any] = []
+    for index, result in enumerate(results):
+        ext = "jpg" if result.media_type == "image/jpeg" else "png"
+        kind_slug = str(result.meta.get("style") or result.model or "image")
+        artifacts.append(get_store().put(
+            kind="image", media_type=result.media_type,
+            filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}-{index + 1}.{ext}",
+            data=result.data, prompt=body.prompt,
+            metadata={
+                **result.meta,
+                "provider": result.provider,
+                "model": result.model,
+                "width": width, "height": height,
+                "seed": result.seed,
+                "variation": index + 1,
+            },
+        ))
+
     result = results[0]
-    ext = "jpg" if result.media_type == "image/jpeg" else "png"
-    kind_slug = str(result.meta.get("style") or result.model or "image")
-    artifact = get_store().put(
-        kind="image", media_type=result.media_type,
-        filename=f"aetheris-{kind_slug}-{result.seed or 'gen'}.{ext}",
-        data=result.data, prompt=body.prompt,
-        metadata={
-            **result.meta,
-            "provider": result.provider,
-            "model": result.model,
-            "width": width, "height": height,
-            "seed": result.seed,
-        },
-    )
-    return _generation_response(
+    artifact = artifacts[0]
+    response = _generation_response(
         "image", artifact, body.response_format,
         {
             **result.meta,
@@ -688,8 +695,11 @@ async def create_image(body: ImageRequest) -> GenerationResponse:
             "model": result.model,
             "seed": result.seed,
             "dimensions": f"{width}x{height}",
+            "variations": len(artifacts),
         },
     )
+    response.artifacts = [_artifact_info(a) for a in artifacts]
+    return response
 
 
 @router.post(
@@ -747,6 +757,47 @@ async def edit_image(body: ImageEditRequest) -> GenerationResponse:
 
 
 @router.post(
+    "/v1/images/upscale",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def upscale_image(body: ImageUpscaleRequest) -> GenerationResponse:
+    """Enlarge a stored image 2–4× (nearest or bilinear), fully offline."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.image_edit import upscale
+
+    source = body.image.strip()
+    if "/" in source:
+        source = source.rstrip("/").rsplit("/", 1)[-1]
+    original = get_store().get(source)
+    if original is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No artifact '{body.image}'. Generate an image first, then upscale its id.",
+        )
+    if not original.media_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Artifact '{original.id}' is {original.media_type}, not an image.",
+        )
+    try:
+        png, detail = upscale(original.data, scale=body.scale, method=body.method)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-upscaled-{body.scale}x-{original.id}.png", data=png,
+        prompt=original.prompt or "upscaled",
+        metadata={**detail, "upscaled_from": original.id},
+    )
+    detail["upscaled_from"] = original.id
+    return _generation_response("image", artifact, body.response_format, detail)
+
+
+@router.post(
     "/v1/videos/generations",
     response_model=GenerationResponse,
     response_model_exclude_none=False,
@@ -765,20 +816,24 @@ async def create_video(body: VideoRequest) -> GenerationResponse:
         gif, plan = generate(
             body.prompt, width=width, height=height, seconds=seconds, fps=body.fps,
             motion=body.motion, palette=body.palette, seed=body.seed,
+            loop=body.loop,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    total_frames = plan.frames * 2 - 1 if body.loop == "bounce" else plan.frames
     artifact = get_store().put(
         kind="video", media_type="image/gif",
         filename=f"aetheris-{plan.motion}-{plan.seed}.gif", data=gif, prompt=body.prompt,
         metadata={"motion": plan.motion, "palette": plan.palette_name,
-                  "frames": plan.frames, "fps": plan.fps,
+                  "frames": plan.frames, "total_frames": total_frames,
+                  "fps": plan.fps, "loop": plan.loop,
                   "duration": round(plan.duration, 2), "seed": plan.seed},
     )
     return _generation_response(
         "video", artifact, body.response_format,
         {"motion": plan.motion, "frames": plan.frames, "fps": plan.fps,
+         "loop": plan.loop, "total_frames": total_frames,
          "duration_seconds": round(plan.duration, 2)},
     )
 
@@ -820,9 +875,24 @@ async def create_audio(body: AudioRequest) -> GenerationResponse:
         elif body.mode == "drums":
             track = A.render_drums(body.bars, tempo=body.tempo, fill=body.fill)
             detail.update({"bars": body.bars, "fill": body.fill})
+        elif body.mode == "pad":
+            track = A.render_pad(
+                body.notation or "Cmaj7 Amin7", bars=body.bars,
+                tempo=body.tempo, timbre=body.timbre,
+            )
+            detail.update({"notation": body.notation or "Cmaj7 Amin7"})
+        elif body.mode == "bass":
+            track = A.render_bass(
+                body.notation or "Cmaj7 G", bars=body.bars,
+                tempo=body.tempo, timbre=body.timbre,
+            )
+            detail.update({"notation": body.notation or "Cmaj7 G"})
         else:
             track = A.render_tone(body.frequency, body.seconds, body.timbre)
             detail.update({"frequency_hz": body.frequency, "seconds": body.seconds})
+        if body.fx:
+            track = A.apply_effects(track, body.fx, amount=0.5)
+            detail["fx"] = body.fx
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

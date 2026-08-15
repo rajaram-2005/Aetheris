@@ -21,6 +21,13 @@ Available motion styles:
 * ``fireworks``  — shells rising and bursting over a starfield
 * ``kaleidoscope`` — M-fold symmetric mandala that rotates as it blooms
 * ``matrix``     — cascading glyph rain with glowing heads
+* ``snow``       — parallax snowflakes drifting over a winter scene
+* ``plasma``     — psychedelic flowing colour field (LUT-accelerated)
+* ``tunnel``     — converging rings and rotating spokes (warp tunnel)
+* ``pendulum``   — a swinging metronome arm with a trailing arc
+
+Loops can be ``loop`` (default, seamless) or ``bounce`` (palindrome: the
+animation plays forward then in reverse for a ping-pong loop).
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ _MOTION_HINTS: dict[str, tuple[str, ...]] = {
     "orbit": ("orbit", "planet", "solar", "revolve", "moon", "space", "circular", "rotate"),
     "waveform": ("wave", "audio", "sound", "ocean", "music", "signal", "frequency", "pulse wave"),
     "pulse": ("pulse", "radar", "sonar", "ripple", "beat", "heartbeat", "emit", "scan"),
-    "starfield": ("star", "warp", "hyperspace", "fly", "travel", "space flight", "tunnel"),
+    "starfield": ("star", "warp", "hyperspace", "fly", "travel", "space flight"),
     "spiral": ("spiral", "vortex", "galaxy", "swirl", "whirl", "helix"),
     "typewriter": ("text", "type", "title", "quote", "caption", "message", "says", "intro"),
     "bars": ("bar", "chart", "equalizer", "equaliser", "graph", "data", "statistics", "metric"),
@@ -49,6 +56,13 @@ _MOTION_HINTS: dict[str, tuple[str, ...]] = {
     "kaleidoscope": ("kaleidoscope", "mandala", "symmetry", "symmetric", "hypnotic",
                      "sacred geometry", "rangoli", "kolam", "yantra"),
     "matrix": ("matrix", "digital rain", "code rain", "hacker", "terminal", "cyber rain"),
+    "snow": ("snow", "snowfall", "snowflake", "snowflakes", "blizzard", "winter", "flurry"),
+    "plasma": ("plasma", "lava lamp", "psychedelic", "psych", "flow field",
+               "marble", "trippy", "morphing colour"),
+    "tunnel": ("tunnel", "wormhole", "portal", "warp tunnel", "corridor",
+               "vortex tunnel", "hyperspace tunnel"),
+    "pendulum": ("pendulum", "swing", "metronome", "tick tock", "oscillat",
+                 "wrecking ball", "cradle"),
 }
 
 MOTIONS: tuple[str, ...] = tuple(sorted(_MOTION_HINTS))
@@ -68,6 +82,7 @@ class VideoPlan:
     fps: int
     seed: int
     caption: str = ""
+    loop: str = "loop"
 
     @property
     def duration(self) -> float:
@@ -105,8 +120,11 @@ def plan(
     motion: str | None = None,
     palette: str | None = None,
     seed: int | None = None,
+    loop: str = "loop",
 ) -> VideoPlan:
     """Interpret a prompt into a concrete video plan."""
+    if loop not in ("loop", "bounce"):
+        raise ValueError("Loop must be 'loop' or 'bounce'.")
     from .images import _seed_for
 
     prompt = (prompt or "").strip()
@@ -127,6 +145,7 @@ def plan(
         fps=fps,
         seed=_seed_for(prompt, seed),
         caption=_caption_for(prompt),
+        loop=loop,
     )
 
 
@@ -458,6 +477,151 @@ def _frame_matrix(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) ->
                 canvas.text(x, y, glyph, color, 1, alpha=fade)
 
 
+
+
+# Plasma LUT: indexed by arg*K mod LEN, so all trig becomes one list lookup.
+_PLASMA_SIN = [math.sin(i / 512 * math.tau) for i in range(512)]
+
+
+def _frame_snow(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    """Parallax snowflakes drifting down over a dark winter ground."""
+    palette = p.palette
+    canvas.linear_gradient(mix(palette[0], (4, 8, 18), 0.5), palette[1], 90)
+    ground = int(canvas.height * 0.9)
+    canvas.rect(0, ground, canvas.width, canvas.height - ground, palette[3], 0.6)
+    canvas.rect(0, ground, canvas.width, 3, palette[4], 0.75)
+
+    # Three depth layers: nearer = larger, faster, brighter.
+    for layer in range(3):
+        speed = (1.2 + layer * 0.9) * canvas.height / 220
+        drift = 0.5 + layer * 0.5
+        size = 1 + layer
+        alpha = 0.35 + layer * 0.2
+        count = int(canvas.width * canvas.height / (900 - layer * 200))
+        layer_rng = random.Random(p.seed + layer * 7919)
+        for i in range(count):
+            fx = layer_rng.uniform(0, canvas.width)
+            fy = layer_rng.uniform(0, canvas.height)
+            phase = layer_rng.random() * math.tau
+            x = (fx + t * speed * canvas.width * 0.12 + phase * 4) % canvas.width
+            y = (fy + t * speed * canvas.height) % canvas.height
+            sway = math.sin(t * math.tau * 2 + phase) * drift * 2.5
+            canvas.blend_pixel(int(x + sway), int(y), palette[-1], alpha)
+            if size > 1:
+                canvas.blend_pixel(int(x + sway) - size, int(y), palette[-1], alpha * 0.6)
+                canvas.blend_pixel(int(x + sway) + size, int(y), palette[-1], alpha * 0.6)
+                canvas.blend_pixel(int(x + sway), int(y) - size, palette[-1], alpha * 0.6)
+            canvas.blend_pixel(int(x + sway), int(y) + size, palette[-1], alpha * 0.6)
+
+
+def _frame_plasma(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    """A flowing psychedelic colour field, evaluated 2x2 with a sine LUT.
+
+    Four phase-shifted sine rings (two spatial, two spatio-temporal) are summed
+    per pixel and mapped onto the palette ramp, writing four pixels per inner
+    iteration so a full-frame plasma stays cheap even in pure Python.
+    """
+    palette = p.palette
+    width, height = canvas.width, canvas.height
+    pixels = canvas.pixels
+    sin = _PLASMA_SIN
+    scale = 512 / math.tau
+    t1, t2 = t * math.tau * 1.3, t * math.tau * 0.9
+    cx, cy = width / 2, height / 2
+    ramp = palette if len(palette) >= 3 else (palette[0], palette[-1], palette[-1])
+    band = len(ramp) - 1
+
+    for y in range(0, height - 1, 2):
+        row = y * width * 3
+        row_next = row + width * 3
+        ay = (y - cy) * 0.055
+        for x in range(0, width - 1, 2):
+            ax = (x - cx) * 0.055
+            value = (
+                sin[int((x * 0.13 + t1 * 7) * scale) % 512]
+                + sin[int((y * 0.11 + t2 * 5) * scale) % 512]
+                + sin[int(((x + y) * 0.09 + t1 * 4) * scale) % 512]
+                + sin[int(((ax * ax + ay * ay) ** 0.5 * 0.9 + t2 * 6) * scale) % 512]
+            )
+            frac = max(0.0, min(1.0, (value + 4.0) / 8.0))
+            pos = frac * band
+            low = int(pos)
+            high = min(band, low + 1)
+            mix_t = pos - low
+            r0 = int(ramp[low][0] * (1 - mix_t) + ramp[high][0] * mix_t)
+            g0 = int(ramp[low][1] * (1 - mix_t) + ramp[high][1] * mix_t)
+            b0 = int(ramp[low][2] * (1 - mix_t) + ramp[high][2] * mix_t)
+            for oy, dy in ((row, x), (row + 3, x), (row_next, x), (row_next + 3, x)):
+                offset = oy + dy * 3
+                pixels[offset] = r0
+                pixels[offset + 1] = g0
+                pixels[offset + 2] = b0
+
+
+def _frame_tunnel(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    """Converging rings and rotating spokes — a warp tunnel."""
+    palette = p.palette
+    canvas.radial_gradient(mix(palette[1], palette[0], 0.4), palette[0])
+    cx, cy = canvas.width / 2, canvas.height / 2
+    max_r = math.hypot(cx, cy)
+
+    # Spokes rotating.
+    spokes = 14
+    for k in range(spokes):
+        angle = k * math.tau / spokes + t * math.tau * 0.25
+        canvas.line(int(cx), int(cy),
+                    int(cx + math.cos(angle) * max_r),
+                    int(cy + math.sin(angle) * max_r), palette[2], 1, 0.16)
+
+    # Rings expanding outward, drawn as parametric point circles so the cost
+    # scales with circumference instead of a full bounding-box scan.
+    for k in range(26):
+        radius = ((t + k / 26) % 1.0) * max_r
+        if radius < 1.5:
+            continue
+        fade = 1.0 - (radius / max_r) ** 1.5
+        alpha = 0.14 + fade * 0.55
+        color = mix(palette[3], palette[2], radius / max_r)
+        steps = max(24, int(math.tau * radius / 1.6))
+        for s in range(steps):
+            a = s * math.tau / steps
+            canvas.blend_pixel(int(cx + math.cos(a) * radius),
+                               int(cy + math.sin(a) * radius), color, alpha)
+    canvas.disc(cx, cy, 3, palette[-1], 0.9)
+
+
+def _frame_pendulum(canvas: Canvas, p: VideoPlan, t: float, rng: random.Random) -> None:
+    """A swinging pendulum with a fading arc trail and a soft shadow."""
+    palette = p.palette
+    canvas.linear_gradient(mix(palette[0], palette[1], 0.3), palette[1], 90)
+    px, py = canvas.width / 2, canvas.height * 0.08
+    max_angle = math.radians(58)
+    angle = math.sin(t * math.tau - math.pi / 2) * max_angle  # starts at peak
+    length = canvas.height * 0.62
+    bob_x = px + math.sin(angle) * length
+    bob_y = py + math.cos(angle) * length
+
+    # Trail: the last few angular positions, fading with age.
+    for k in range(1, 7):
+        past = math.sin((t - k / 60.0) * math.tau - math.pi / 2) * max_angle
+        tx = px + math.sin(past) * length
+        ty = py + math.cos(past) * length
+        canvas.blend_pixel(int(tx), int(ty), palette[3], 0.05 + 0.03 * (7 - k))
+
+    # Arm, bob, and pivot.
+    canvas.line(int(px), int(py), int(bob_x), int(bob_y), palette[3], 2, 0.9)
+    bob_r = max(4, int(canvas.height * 0.028))
+    canvas.disc(bob_x, bob_y, bob_r, palette[-1], 0.95)
+    canvas.disc(bob_x - bob_r * 0.3, bob_y - bob_r * 0.3, bob_r * 0.35, palette[1], 0.5)
+    canvas.disc(px, py, max(3, canvas.height // 60), palette[2], 0.95)
+
+    # Floor shadow that tracks the bob.
+    floor_y = int(canvas.height * 0.88)
+    canvas.hline(0, canvas.width, floor_y, palette[1], 0.5)
+    shadow_x = int(bob_x)
+    canvas.disc(shadow_x, floor_y + 4, bob_r * 0.9, palette[0], 0.30)
+
+
 _FRAME_RENDERERS = {
     "orbit": _frame_orbit,
     "waveform": _frame_waveform,
@@ -471,6 +635,10 @@ _FRAME_RENDERERS = {
     "fireworks": _frame_fireworks,
     "kaleidoscope": _frame_kaleidoscope,
     "matrix": _frame_matrix,
+    "snow": _frame_snow,
+    "plasma": _frame_plasma,
+    "tunnel": _frame_tunnel,
+    "pendulum": _frame_pendulum,
 }
 
 
@@ -503,13 +671,20 @@ def generate(
     palette: str | None = None,
     seed: int | None = None,
     caption: bool = True,
+    loop: str = "loop",
 ) -> tuple[bytes, VideoPlan]:
-    """Generate an animated GIF from a prompt. Returns ``(gif_bytes, plan)``."""
+    """Generate an animated GIF from a prompt. Returns ``(gif_bytes, plan)``.
+
+    ``loop="bounce"`` appends the frames in reverse (palindrome) so the
+    animation plays forward and back — the GIF still loops forever.
+    """
     p = plan(
         prompt, width=width, height=height, seconds=seconds, fps=fps,
-        motion=motion, palette=palette, seed=seed,
+        motion=motion, palette=palette, seed=seed, loop=loop,
     )
     frames = render_frames(p, caption=caption)
+    if loop == "bounce":
+        frames = frames + frames[-2::-1]
     delay_cs = max(2, round(100 / p.fps))
     return encode_gif(frames, delay_cs=delay_cs, loop=True), p
 
