@@ -158,7 +158,7 @@ class ImageRequest(BaseModel):
 
 
 class VideoRequest(BaseModel):
-    """Direct video generation (``POST /v1/videos/generations``)."""
+    """Direct video generation (NVIDIA Cosmos MP4 or offline GIF fallback)."""
 
     prompt: str = Field(..., min_length=1)
     motion: str | None = None
@@ -227,6 +227,16 @@ class ImageEditRequest(BaseModel):
     response_format: Literal["url", "b64_json"] = "url"
 
 
+class CodeRequest(BaseModel):
+    """NVIDIA-assisted source generation (``POST /v1/code/generations``)."""
+
+    prompt: str = Field(..., min_length=1, max_length=50_000)
+    language: str = Field(default="python", min_length=1, max_length=32)
+    filename: str = Field(default="", max_length=240)
+    requirements: str = Field(default="", max_length=20_000)
+    response_format: Literal["url", "b64_json"] = "url"
+
+
 class ProjectRequest(BaseModel):
     """Project scaffolding (``POST /v1/code/projects``)."""
 
@@ -265,6 +275,7 @@ __all__ = [
     "ImageUpscaleRequest",
     "VideoRequest",
     "AudioRequest",
+    "CodeRequest",
     "ProjectRequest",
     "GenerationResponse",
 ]

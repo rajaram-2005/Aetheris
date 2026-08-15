@@ -554,6 +554,8 @@ interface MadeVisual {
   url: string;
   label: string;
   kind: 'image' | 'video';
+  mediaType: string;
+  provider?: string;
 }
 
 function VisualsChamber({
@@ -592,11 +594,11 @@ function VisualsChamber({
     try {
       if (mode === 'image') {
         const res = await generateImage(text, { width: 1024, height: 576, n: 2 });
-        setMade({ id: res.artifact.id, url: res.artifact.url, label: text, kind: 'image' });
+        setMade({ id: res.artifact.id, url: res.artifact.url, label: text, kind: 'image', mediaType: res.artifact.media_type, provider: res.detail.provider });
         onGenerateImage(text);
       } else {
         const res = await generateVideo(text, { motion, seconds: 3, fps: 12, width: 480, height: 270, loop });
-        setMade({ id: res.artifact.id, url: res.artifact.url, label: `${text} · ${res.detail.motion}${loop === 'bounce' ? ' · bounce' : ''}`, kind: 'video' });
+        setMade({ id: res.artifact.id, url: res.artifact.url, label: `${text} · ${res.detail.motion}${loop === 'bounce' && res.artifact.media_type === 'image/gif' ? ' · bounce' : ''}`, kind: 'video', mediaType: res.artifact.media_type, provider: res.detail.provider });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed.');
@@ -653,7 +655,7 @@ function VisualsChamber({
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {mode === 'image'
             ? 'Procedural scenes + editable offline filters'
-            : 'Looping GIF motions, rendered in-process'}
+            : 'NVIDIA Cosmos MP4 when configured · offline looping GIF fallback'}
         </p>
       </div>
 
@@ -713,14 +715,19 @@ function VisualsChamber({
         <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={made.url} alt={made.label} className="w-full h-full object-cover" />
+              {made.mediaType.startsWith('video/') ? (
+                <video src={made.url} controls autoPlay muted loop className="w-full h-full object-cover" aria-label={made.label} />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={made.url} alt={made.label} className="w-full h-full object-cover" />
+              )}
             </div>
             <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
                 {made.kind === 'image' ? 'Fresh render' : 'Fresh animation'}
               </p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{made.label}</p>
+              {made.provider && <p className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{made.provider} · {made.mediaType}</p>}
               <div className="flex flex-wrap gap-1.5">
                 <a className="btn text-xs" href={made.url} target="_blank" rel="noreferrer">Open full size ↗</a>
                 <button className="btn text-xs" onClick={() => onGenerateImage(`Create ${made.kind === 'image' ? 'an image' : 'a video'} of ${made.label}`)}>

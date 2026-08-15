@@ -7,8 +7,10 @@ text, which is what drives the agent loop in ``services/agent.py``. The API laye
 wraps deltas into the OpenAI-compatible SSE shape; providers stay focused on
 generation only.
 
-Two providers ship with Aetheris:
+Providers include:
 
+* ``HermesProvider`` — the default offline cognition + tool + learning runtime.
+* ``NvidiaProvider`` — NVIDIA NIM generation fused with Hermes meta-learning.
 * ``MockProvider`` — a brand-aware, offline responder that demonstrates the
   Aetheris persona per mode and genuinely exercises the toolbelt. Active by
   default so the service runs anywhere.
@@ -142,6 +144,7 @@ def get_provider() -> LLMProvider:
     from .hermes_provider import HermesProvider
     from .mock_provider import MockProvider
     from .neural_provider import AetherisNeuralProvider
+    from .nvidia_provider import NvidiaProvider
     from .openai_provider import OpenAIProvider
 
     if settings.llm_provider in ("aetheris_neural", "neural"):
@@ -167,20 +170,40 @@ def get_provider() -> LLMProvider:
             default_model=settings.llm_model,
             timeout=settings.llm_timeout,
         )
+    elif settings.llm_provider == "nvidia" and settings.has_nvidia_credentials:
+        _provider = NvidiaProvider(
+            base_url=settings.nvidia_base_url,
+            api_key=settings.nvidia_api_key,
+            model=settings.nvidia_model,
+            timeout=settings.llm_timeout,
+            meta_learning=(
+                settings.hermes_enabled
+                and settings.hermes_learning_enabled
+                and settings.nvidia_meta_learning_enabled
+            ),
+        )
     elif settings.llm_provider == "mock":
         # Explicitly requested legacy persona responder.
         _provider = MockProvider()
     else:
-        if settings.llm_provider in ("openai", "anthropic", "gemini") and not (
-            settings.has_credentials
-            or settings.has_anthropic_credentials
-            or settings.has_gemini_credentials
-        ):
+        missing_remote_key = {
+            "openai": not settings.has_credentials,
+            "anthropic": not settings.has_anthropic_credentials,
+            "gemini": not settings.has_gemini_credentials,
+            "nvidia": not settings.has_nvidia_credentials,
+        }.get(settings.llm_provider, False)
+        if missing_remote_key:
             # Graceful degradation: keep the API live and diagnosable.
+            key_hint = (
+                "AETHERIS_NVIDIA_API_KEY"
+                if settings.llm_provider == "nvidia"
+                else f"the {settings.llm_provider} API key setting"
+            )
             logger.warning(
-                "AETHERIS_LLM_PROVIDER=%s but no matching API key is set; "
-                "falling back to the offline Hermes agent.",
+                "AETHERIS_LLM_PROVIDER=%s but %s is not set; falling back to "
+                "the offline Hermes agent.",
                 settings.llm_provider,
+                key_hint,
             )
         # Default: the local Hermes agent — real computation, retrieval, tools,
         # and meta-learning, with no API key and no network.

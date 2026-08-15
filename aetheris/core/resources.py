@@ -87,6 +87,18 @@ RUNTIMES: list[dict[str, Any]] = [
 
 HOSTED: list[dict[str, Any]] = [
     {
+        "id": "nvidia-nim",
+        "name": "NVIDIA NIM",
+        "kind": "hosted",
+        "category": "Accelerated multimodal API",
+        "url": "https://build.nvidia.com",
+        "license": "NVIDIA API Trial / model-specific",
+        "description": "GPU-accelerated chat, coding, FLUX image, and Cosmos video endpoints fused with Hermes meta-learning.",
+        "setup": "Create a key at build.nvidia.com/settings/api-keys; set AETHERIS_NVIDIA_API_KEY. Optionally set AETHERIS_LLM_PROVIDER=nvidia.",
+        "models": ["Nemotron", "DeepSeek", "FLUX", "Cosmos 3"],
+        "offline": False,
+    },
+    {
         "id": "groq",
         "name": "Groq",
         "kind": "hosted",

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Settings, Persona, Theme, ModelId, ModeId, MetaStats } from '@/types';
-import { getMetaStats, getNeuralModels } from '@/lib/hermes';
+import { getMetaStats, getNeuralModels, getNvidiaStatus } from '@/lib/hermes';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -129,6 +129,7 @@ const THEMES: ThemeDefinition[] = [
 export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: SettingsPanelProps) {
   const [meta, setMeta] = useState<MetaStats | null>(null);
   const [neuralEngineInfo, setNeuralEngineInfo] = useState<string>('Aetheris Neural Core v4.2');
+  const [nvidia, setNvidia] = useState<Awaited<ReturnType<typeof getNvidiaStatus>> | null>(null);
   const [selectedThemeCategory, setSelectedThemeCategory] = useState<string>('All');
 
   useEffect(() => {
@@ -138,6 +139,9 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
       .catch(() => undefined);
     getNeuralModels()
       .then((res) => !cancelled && setNeuralEngineInfo(res.sovereign_engine))
+      .catch(() => undefined);
+    getNvidiaStatus()
+      .then((status) => !cancelled && setNvidia(status))
       .catch(() => undefined);
     return () => {
       cancelled = true;
@@ -163,7 +167,7 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
                 Aetheris Settings &amp; Neural Engine
               </h2>
               <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                {neuralEngineInfo} · Zero External Cloud Dependencies
+                {neuralEngineInfo} · Offline-first · NVIDIA NIM optional
               </p>
             </div>
           </div>
@@ -223,6 +227,59 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
               })}
             </div>
           </section>
+
+          {/* Optional NVIDIA NIM acceleration — keys stay server-side. */}
+          {nvidia && (
+            <section>
+              <div
+                className="rounded-xl p-4"
+                style={{
+                  background: nvidia.configured ? 'rgba(118,185,0,0.08)' : 'var(--bg-tertiary)',
+                  border: `1px solid ${nvidia.configured ? 'rgba(118,185,0,0.45)' : 'var(--border-color)'}`,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg grid place-items-center font-black text-xs" style={{ background: '#76b900', color: '#071000' }}>
+                    NV
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-xs uppercase tracking-wider font-semibold" style={{ color: nvidia.configured ? '#76b900' : 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                        NVIDIA NIM + Hermes
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: nvidia.configured ? 'rgba(118,185,0,0.15)' : 'rgba(251,191,36,0.1)', color: nvidia.configured ? '#76b900' : 'var(--accent-gold)' }}>
+                        {nvidia.configured ? 'READY' : 'API KEY NEEDED'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      {nvidia.setup}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {[
+                        ['Chat', nvidia.chat.enabled],
+                        ['Images', nvidia.image.enabled],
+                        ['Video', nvidia.video.enabled],
+                        ['Code', nvidia.code.enabled],
+                        ['Meta-learn', nvidia.chat.hermes_meta_learning],
+                      ].map(([label, enabled]) => (
+                        <span key={String(label)} className="text-[10px] px-2 py-1 rounded-md font-mono" style={{ background: enabled ? 'rgba(118,185,0,0.12)' : 'rgba(255,255,255,0.04)', color: enabled ? '#76b900' : 'var(--text-muted)' }}>
+                          {enabled ? '✓' : '○'} {label}
+                        </span>
+                      ))}
+                    </div>
+                    {!nvidia.configured && (
+                      <code className="block mt-2 text-[10px] rounded-lg px-2.5 py-2 select-all" style={{ background: 'rgba(0,0,0,0.25)', color: 'var(--accent-mint)' }}>
+                        AETHERIS_NVIDIA_API_KEY=nvapi-...
+                      </code>
+                    )}
+                    <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                      The key is read only by the Python server and is never returned to this browser.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Inference modes — work on Flash, Pro, and Ultra */}
           <section>
@@ -439,9 +496,9 @@ export function SettingsPanel({ settings, onUpdate, onClose, onOpenGallery }: Se
               <div>
                 <p className="text-xs font-bold" style={{ color: 'var(--accent-mint)' }}>Sovereign AI Guarantee</p>
                 <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                  Aetheris runs 100% on-device with custom sovereign neural architectures.
-                  No vendor APIs (no OpenAI, no Gemini, no external mini 4.0) are contacted.
-                  Your data and prompts never leave this local runtime.
+                  Aetheris is offline-first: without an enabled remote provider, prompts stay inside this runtime.
+                  If you opt into NVIDIA NIM, only generation requests are sent to your configured NVIDIA endpoint;
+                  credentials remain server-side and offline fallbacks stay available.
                 </p>
               </div>
             </div>

@@ -180,6 +180,20 @@ export function getResearchEras(): Promise<ResearchErasResponse> {
   return request<ResearchErasResponse>('/v1/research/eras');
 }
 
+/** NVIDIA NIM readiness. The backend never returns the configured secret. */
+export function getNvidiaStatus(): Promise<{
+  configured: boolean;
+  setup_required: boolean;
+  api_key_env: string;
+  setup: string;
+  chat: { enabled: boolean; model: string; hermes_meta_learning: boolean };
+  image: { enabled: boolean; provider: string; model: string };
+  video: { enabled: boolean; provider: string; model: string };
+  code: { enabled: boolean; model: string; endpoint: string };
+}> {
+  return request('/v1/providers/nvidia');
+}
+
 /** Liveness + which provider is actually serving inference. */
 export function getHealth(): Promise<{
   status: string;
@@ -271,7 +285,7 @@ export function generateVideo(
   } = {},
 ): Promise<{
   artifact: { id: string; url: string; media_type: string };
-  detail: { motion: string; frames: number; fps: number; duration_seconds: number; loop: string };
+  detail: { provider: string; model: string; motion: string; frames: number; fps: number; duration_seconds: number; loop: string | boolean };
 }> {
   return request('/v1/videos/generations', {
     method: 'POST',

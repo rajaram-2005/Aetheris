@@ -12,6 +12,7 @@ when it reaches outside it (web access, unrestricted mode).
 
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from pydantic import Field
@@ -35,7 +36,7 @@ class Settings(BaseSettings):
 
     # --- LLM provider ---------------------------------------------------------
     llm_provider: Literal[
-        "hermes", "mock", "openai", "aetheris_neural", "neural", "anthropic", "gemini"
+        "hermes", "mock", "openai", "aetheris_neural", "neural", "anthropic", "gemini", "nvidia"
     ] = Field(
         default="hermes",
         description=(
@@ -44,7 +45,8 @@ class Settings(BaseSettings):
             "API key. 'aetheris_neural' runs the custom sovereign neural model engine. "
             "'mock' is the legacy persona responder. 'openai' forwards to any "
             "OpenAI-compatible endpoint. 'anthropic' uses the Claude Messages API. "
-            "'gemini' uses the Google Gemini generateContent API."
+            "'gemini' uses the Google Gemini generateContent API. 'nvidia' uses "
+            "NVIDIA NIM while retaining Hermes task adaptation and meta-learning."
         ),
     )
 
@@ -93,6 +95,42 @@ class Settings(BaseSettings):
     gemini_base_url: str = Field(
         default="https://generativelanguage.googleapis.com",
         description="Gemini API base URL.",
+    )
+
+    # --- NVIDIA NIM -----------------------------------------------------------
+    # One NVIDIA Developer API key can power NIM chat/code, FLUX image
+    # generation, and a hosted Cosmos video endpoint. Self-hosted NIM deployments
+    # can override any URL below; the Authorization header is omitted when the key
+    # is blank, which is useful for trusted local NIMs.
+    nvidia_api_key: str = Field(
+        default_factory=lambda: os.getenv("NVIDIA_API_KEY", ""),
+        description=(
+            "NVIDIA Developer API key (usually starts with 'nvapi-'). Obtain it "
+            "from build.nvidia.com; never commit the key to source control."
+        ),
+    )
+    nvidia_base_url: str = Field(
+        default="https://integrate.api.nvidia.com/v1",
+        description="OpenAI-compatible NVIDIA NIM chat API base URL.",
+    )
+    nvidia_model: str = Field(
+        default="nvidia/nemotron-3-nano-30b-a3b",
+        description="NVIDIA NIM model used for chat and agent tool calling.",
+    )
+    nvidia_code_model: str = Field(
+        default="deepseek-ai/deepseek-v4-flash",
+        description="NVIDIA-hosted coding model used by direct code generation.",
+    )
+    nvidia_code_max_tokens: int = Field(
+        default=8_192, ge=256, le=32_768,
+        description="Maximum output tokens for direct NVIDIA code generation.",
+    )
+    nvidia_meta_learning_enabled: bool = Field(
+        default=True,
+        description=(
+            "Inject Hermes task adaptations into NVIDIA NIM requests and record "
+            "completed NVIDIA episodes in the shared meta-learner."
+        ),
     )
 
     # --- Agentic tool use -----------------------------------------------------
@@ -232,14 +270,15 @@ class Settings(BaseSettings):
     # procedural renderer), upgraded to a real generative model whenever an
     # upstream provider API key is configured. 'auto' picks the first provider
     # with a key; otherwise it falls back to 'offline'.
-    image_provider: Literal["offline", "openai", "gemini", "stability", "auto"] = Field(
+    image_provider: Literal["offline", "openai", "gemini", "stability", "nvidia", "auto"] = Field(
         default="auto",
         description=(
             "Which engine renders images. 'offline' (default, no key) uses the "
             "deterministic procedural renderer. 'openai' uses DALL-E 3 / gpt-image "
             "from OpenAI. 'gemini' uses Google Imagen 3. 'stability' uses Stability "
-            "AI. 'auto' uses the first provider with a configured API key, else "
-            "falls back to offline."
+            "AI. 'nvidia' uses a Visual Generative AI NIM (FLUX by default). "
+            "'auto' uses the first provider with a configured API key, else falls "
+            "back to offline."
         ),
     )
     openai_image_api_key: str = Field(
@@ -274,6 +313,25 @@ class Settings(BaseSettings):
         default="https://api.stability.ai",
         description="Stability AI API base URL.",
     )
+    nvidia_image_base_url: str = Field(
+        default="https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev",
+        description=(
+            "Full NVIDIA Visual Generative AI NIM inference URL. Point this at "
+            "a self-hosted NIM /v1/infer endpoint when desired."
+        ),
+    )
+    nvidia_image_model: str = Field(
+        default="black-forest-labs/flux.1-dev",
+        description="NVIDIA NIM image model identifier recorded in artifact metadata.",
+    )
+    nvidia_image_steps: int = Field(
+        default=30, ge=5, le=100,
+        description="Diffusion steps sent to the NVIDIA image NIM.",
+    )
+    nvidia_image_cfg_scale: float = Field(
+        default=5.0, gt=0, le=9,
+        description="Classifier-free guidance scale sent to the NVIDIA image NIM.",
+    )
     image_remote_timeout: float = Field(
         default=90.0, gt=1, le=600,
         description="Timeout for remote image generation, in seconds.",
@@ -284,6 +342,56 @@ class Settings(BaseSettings):
             "When a remote image provider is configured but fails (network, quota, "
             "rate limit), fall back to the offline procedural renderer so a request "
             "still returns an image instead of failing."
+        ),
+    )
+
+    # --- Video generation provider -------------------------------------------
+    video_provider: Literal["offline", "nvidia", "auto"] = Field(
+        default="auto",
+        description=(
+            "Video engine. 'offline' renders a procedural looping GIF. 'nvidia' "
+            "calls a Cosmos/Visual GenAI NIM and returns MP4. 'auto' selects NVIDIA "
+            "when AETHERIS_NVIDIA_API_KEY is set, otherwise offline."
+        ),
+    )
+    nvidia_video_base_url: str = Field(
+        default="https://ai.api.nvidia.com/v1/cosmos/nvidia/cosmos3-nano",
+        description=(
+            "Full NVIDIA Cosmos video inference URL. NVIDIA Preview API URLs can "
+            "change; copy the current endpoint from build.nvidia.com, or point this "
+            "at a self-hosted Cosmos NIM /v1/infer, /v1/videos/sync, or "
+            "/v1/videos/generations URL."
+        ),
+    )
+    nvidia_video_model: str = Field(
+        default="nvidia/cosmos3-nano",
+        description="NVIDIA Cosmos video model identifier.",
+    )
+    nvidia_video_status_base_url: str = Field(
+        default="https://api.nvcf.nvidia.com/v2/nvcf/pexec/status",
+        description="NVCF polling URL used when a hosted video request is asynchronous.",
+    )
+    nvidia_video_steps: int = Field(
+        default=30, ge=1, le=100,
+        description="Inference steps sent to NVIDIA Cosmos.",
+    )
+    nvidia_video_guidance_scale: float = Field(
+        default=6.0, gt=0, le=20,
+        description="Guidance scale sent to NVIDIA Cosmos.",
+    )
+    nvidia_video_timeout: float = Field(
+        default=600.0, gt=1, le=1800,
+        description="Total request/poll timeout for NVIDIA video generation.",
+    )
+    nvidia_video_poll_interval: float = Field(
+        default=2.0, ge=0.05, le=30,
+        description="Seconds between NVCF asynchronous status polls.",
+    )
+    video_fallback_offline: bool = Field(
+        default=True,
+        description=(
+            "Fall back to the offline GIF renderer when NVIDIA video generation "
+            "is unavailable, rejected, or times out."
         ),
     )
 
@@ -789,6 +897,11 @@ class Settings(BaseSettings):
         default=True, description="Enable the 50-feature AI Research Evolution Engine (1950-2026).",
     )
 
+    def model_post_init(self, __context: object) -> None:
+        """Honor NVIDIA's standard env name when the Aetheris-prefixed key is blank."""
+        if not self.nvidia_api_key.strip():
+            self.nvidia_api_key = os.getenv("NVIDIA_API_KEY", "").strip()
+
     @property
     def has_credentials(self) -> bool:
         """Whether a usable API key is configured for the OpenAI provider."""
@@ -806,6 +919,11 @@ class Settings(BaseSettings):
         return self._key(self.gemini_api_key)
 
     @property
+    def has_nvidia_credentials(self) -> bool:
+        """Whether an NVIDIA Developer API key is configured."""
+        return self._key(self.nvidia_api_key)
+
+    @property
     def has_openai_image_credentials(self) -> bool:
         return self._key(self.openai_image_api_key or self.llm_api_key)
 
@@ -821,7 +939,8 @@ class Settings(BaseSettings):
     def has_image_credentials(self) -> bool:
         """Whether any upstream image-generation provider has a key configured."""
         return bool(
-            self.has_openai_image_credentials
+            self.has_nvidia_credentials
+            or self.has_openai_image_credentials
             or self.has_gemini_image_credentials
             or self.has_stability_credentials
         )
@@ -864,11 +983,17 @@ class Settings(BaseSettings):
             "image_provider": self.image_provider,
             "image_provider_configured": self.has_image_credentials,
             "video_generation": self.video_generation_enabled,
+            "video_provider": self.video_provider,
+            "video_provider_configured": self.has_nvidia_credentials,
             "audio_generation": self.audio_generation_enabled,
             "code_generation": self.code_generation_enabled,
-            # Provider mix (chat)
+            # Provider mix (chat + accelerated generation)
             "anthropic_provider": self.has_anthropic_credentials,
             "gemini_provider": self.has_gemini_credentials,
+            "nvidia_nim": self.has_nvidia_credentials,
+            "nvidia_hermes_meta_learning": (
+                self.has_nvidia_credentials and self.nvidia_meta_learning_enabled
+            ),
             # Voice
             "speech_tts": self.speech_enabled,
             "speech_provider": self.speech_provider,

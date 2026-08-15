@@ -33,8 +33,8 @@ def _require(flag: str, label: str) -> None:
         "By default Aetheris renders procedurally: landscapes, space, waves, "
         "particles, geometric art, spirals, gradients, typographic posters, "
         "cityscapes, mandalas, circuit boards, and topographic terrain maps. "
-        "When an upstream image provider (OpenAI DALL-E/gpt-image, Google "
-        "Imagen 3, or Stability) is configured with an API key, this uses that "
+        "When an upstream image provider (NVIDIA NIM/FLUX, OpenAI DALL-E/gpt-image, "
+        "Google Imagen 3, or Stability) is configured with an API key, this uses that "
         "real generative model instead, so it can also produce photorealistic "
         "scenes, objects, and people. Generated images can be edited with the "
         "'edit_image' tool."
@@ -297,12 +297,11 @@ async def upscale_image(
 @register(
     "generate_video",
     (
-        "Create a short looping animation from a text description and return a URL "
-        "to the GIF. Motion styles include orbiting bodies, travelling waveforms, "
-        "emission pulses, star flight, rotating spirals, animated bar charts, "
-        "drifting gradients, typewriter text reveals, falling rain, fireworks "
-        "bursts, hypnotic kaleidoscopes, and matrix digital rain. Use it for "
-        "loading loops, hero animations, data motion, and animated title cards."
+        "Create a short video from a text description and return an artifact URL. "
+        "With NVIDIA configured this uses Cosmos NIM for a generated MP4; otherwise "
+        "it creates a dependency-free looping GIF. Offline motion styles include "
+        "orbits, waveforms, pulses, star flight, spirals, bars, gradients, typewriter "
+        "reveals, rain, fireworks, kaleidoscopes, and matrix rain."
     ),
     {
         "type": "object",
@@ -345,40 +344,53 @@ async def generate_video(
     seed: int | None = None,
     loop: str = "loop",
 ) -> str:
-    """Render an animated GIF and return its artifact URL."""
+    """Generate a layered video (offline GIF or NVIDIA Cosmos MP4)."""
     _require("video_generation_enabled", "Video generation")
-    from ..media.video import generate
+    from ..media.video_providers import generate_video_bytes
 
     width = max(64, min(int(width or 480), settings.media_max_video_dimension))
     height = max(64, min(int(height or 270), settings.media_max_video_dimension))
     seconds = max(0.5, min(float(seconds or 3.0), settings.media_max_video_seconds))
     try:
-        gif, p = generate(prompt, width=width, height=height, seconds=seconds,
-                          fps=fps, motion=motion, palette=palette, seed=seed,
-                          loop=loop)
-    except ValueError as exc:
+        result = await generate_video_bytes(
+            prompt, width=width, height=height, seconds=seconds,
+            fps=fps, motion=motion, palette=palette, seed=seed, loop=loop,
+        )
+    except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc)) from exc
 
-    total_frames = p.frames * 2 - 1 if p.loop == "bounce" else p.frames
+    extension = "mp4" if result.media_type.startswith("video/") else "gif"
+    label = str(result.meta.get("motion") or result.model).replace(" ", "-").lower()
     artifact = get_store().put(
-        kind="video", media_type="image/gif",
-        filename=f"aetheris-{p.motion}-{p.seed}.gif", data=gif, prompt=prompt,
-        metadata={"motion": p.motion, "palette": p.palette_name, "frames": p.frames,
-                  "total_frames": total_frames, "fps": p.fps, "loop": p.loop,
-                  "duration": round(p.duration, 2), "seed": p.seed},
+        kind="video", media_type=result.media_type,
+        filename=f"aetheris-{label}-{result.seed or 'gen'}.{extension}",
+        data=result.data, prompt=prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "seed": result.seed,
+        },
+    )
+    embed = (
+        f'<video controls src="{artifact.url}"></video>'
+        if result.media_type.startswith("video/")
+        else f"![{prompt}]({artifact.url})"
     )
     return json.dumps({
         "created": "video",
         "url": artifact.url,
-        "markdown": f"![{p.caption or prompt}]({artifact.url})",
-        "motion": p.motion,
-        "frames": p.frames,
-        "loop": p.loop,
-        "fps": p.fps,
-        "duration_seconds": round(p.duration, 2),
-        "dimensions": f"{width}x{height}",
+        "markdown": embed,
+        "provider": result.provider,
+        "model": result.model,
+        "motion": result.meta.get("motion"),
+        "frames": result.meta.get("frames"),
+        "loop": result.meta.get("loop"),
+        "fps": result.meta.get("fps", fps),
+        "duration_seconds": result.meta.get("duration_seconds", seconds),
+        "dimensions": f"{result.meta.get('width', width)}x{result.meta.get('height', height)}",
         "bytes": artifact.size,
-        "format": "animated GIF (loops forever, plays inline anywhere)",
+        "format": result.meta.get("format", result.media_type),
     }, indent=2)
 
 
@@ -548,6 +560,88 @@ async def generate_audio(
 # --- Code ---------------------------------------------------------------------
 
 @register(
+    "generate_code",
+    (
+        "Generate a complete source file with an NVIDIA NIM coding model. Hermes "
+        "meta-learning adapts the request before generation and learns from the "
+        "result. Requires AETHERIS_NVIDIA_API_KEY; offline scaffolding remains "
+        "available through create_project."
+    ),
+    {
+        "type": "object",
+        "properties": {
+            "prompt": {"type": "string", "description": "What the code must implement."},
+            "language": {"type": "string", "description": "Programming language (default python)."},
+            "filename": {"type": "string", "description": "Optional output filename."},
+            "requirements": {"type": "string", "description": "Additional libraries, interfaces, or constraints."},
+        },
+        "required": ["prompt"],
+    },
+    requires_optin=True,
+    optin_setting="code_generation_enabled",
+    tags=("creation", "code", "nvidia", "meta-learning"),
+)
+async def generate_code(
+    prompt: str,
+    language: str = "python",
+    filename: str = "",
+    requirements: str = "",
+) -> str:
+    """Generate a source artifact through NVIDIA NIM + Hermes adaptation."""
+    from pathlib import Path
+    import re
+
+    from ..services.nvidia_code import get_nvidia_code_provider
+
+    _require("code_generation_enabled", "Code generation")
+    try:
+        result = await get_nvidia_code_provider().generate(
+            prompt,
+            language=language,
+            filename=filename,
+            requirements=requirements,
+        )
+    except RuntimeError as exc:
+        raise ToolError(str(exc)) from exc
+
+    extensions = {
+        "python": "py", "py": "py", "javascript": "js", "js": "js",
+        "typescript": "ts", "ts": "ts", "rust": "rs", "go": "go",
+        "java": "java", "c": "c", "c++": "cpp", "cpp": "cpp",
+        "html": "html", "css": "css", "sql": "sql", "bash": "sh",
+    }
+    language_key = language.strip().lower()
+    default_name = f"aetheris-generated.{extensions.get(language_key, 'txt')}"
+    raw_name = Path(filename).name if filename.strip() else default_name
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name).strip(".-") or default_name
+    artifact = get_store().put(
+        kind="code",
+        media_type="text/plain; charset=utf-8",
+        filename=safe_name,
+        data=result.code.encode("utf-8"),
+        prompt=prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "language": language_key,
+        },
+    )
+    return json.dumps({
+        "created": "code",
+        "url": artifact.url,
+        "download_url": f"{artifact.url}?download=true",
+        "filename": safe_name,
+        "language": language_key,
+        "provider": result.provider,
+        "model": result.model,
+        "chars": len(result.code),
+        "bytes": artifact.size,
+        "hermes_adapted": result.meta.get("hermes_adapted", False),
+    }, indent=2)
+
+
+@register(
     "write_and_verify_code",
     (
         "Write Python to a file and RUN it in the sandbox to prove it works, "
@@ -665,6 +759,7 @@ __all__ = [
     "upscale_image",
     "generate_video",
     "generate_audio",
+    "generate_code",
     "write_and_verify_code",
     "create_project",
     "list_artifacts",

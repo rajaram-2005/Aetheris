@@ -11,8 +11,9 @@ Endpoints:
 * ``POST /v1/images/generations`` — generate an image (or N variations).
 * ``POST /v1/images/edits`` — edit a stored image (offline filters).
 * ``POST /v1/images/upscale`` — enlarge a stored image 2–4×.
-* ``POST /v1/videos/generations`` — generate a looping GIF animation.
+* ``POST /v1/videos/generations`` — generate NVIDIA Cosmos MP4 or offline GIF.
 * ``POST /v1/audio/generations`` — synthesise a WAV.
+* ``POST /v1/code/generations`` — NVIDIA NIM source generation + Hermes learning.
 * ``GET/POST/DELETE /v1/documents`` — manage the RAG corpus.
 * ``POST /v1/documents/search``    — query the corpus directly.
 * ``GET  /v1/capabilities`` — which capabilities are live on this deployment.
@@ -55,6 +56,7 @@ from ..schemas.tools import (
     ArtifactList,
     AudioRequest,
     CapabilityReport,
+    CodeRequest,
     GenerationResponse,
     ImageEditRequest,
     ImageRequest,
@@ -804,37 +806,44 @@ async def upscale_image(body: ImageUpscaleRequest) -> GenerationResponse:
     tags=["media"],
 )
 async def create_video(body: VideoRequest) -> GenerationResponse:
-    """Generate a looping animation (delivered as GIF)."""
+    """Generate video through the layered provider (offline GIF or NVIDIA MP4)."""
     if not settings.video_generation_enabled:
         raise HTTPException(status_code=403, detail="Video generation is disabled.")
-    from ..media.video import generate
+    from ..media.video_providers import generate_video_bytes
 
     width = min(body.width, settings.media_max_video_dimension)
     height = min(body.height, settings.media_max_video_dimension)
     seconds = min(body.seconds, settings.media_max_video_seconds)
     try:
-        gif, plan = generate(
+        result = await generate_video_bytes(
             body.prompt, width=width, height=height, seconds=seconds, fps=body.fps,
             motion=body.motion, palette=body.palette, seed=body.seed,
             loop=body.loop,
         )
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    total_frames = plan.frames * 2 - 1 if body.loop == "bounce" else plan.frames
+    extension = "mp4" if result.media_type.startswith("video/") else "gif"
+    label = str(result.meta.get("motion") or result.model).replace(" ", "-").lower()
     artifact = get_store().put(
-        kind="video", media_type="image/gif",
-        filename=f"aetheris-{plan.motion}-{plan.seed}.gif", data=gif, prompt=body.prompt,
-        metadata={"motion": plan.motion, "palette": plan.palette_name,
-                  "frames": plan.frames, "total_frames": total_frames,
-                  "fps": plan.fps, "loop": plan.loop,
-                  "duration": round(plan.duration, 2), "seed": plan.seed},
+        kind="video", media_type=result.media_type,
+        filename=f"aetheris-{label}-{result.seed or 'gen'}.{extension}",
+        data=result.data, prompt=body.prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "seed": result.seed,
+        },
     )
     return _generation_response(
         "video", artifact, body.response_format,
-        {"motion": plan.motion, "frames": plan.frames, "fps": plan.fps,
-         "loop": plan.loop, "total_frames": total_frames,
-         "duration_seconds": round(plan.duration, 2)},
+        {
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "seed": result.seed,
+        },
     )
 
 
@@ -997,6 +1006,73 @@ async def transcribe_audio(
     return payload
 
 
+@router.post(
+    "/v1/code/generations",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_code(body: CodeRequest) -> GenerationResponse:
+    """Generate source with NVIDIA NIM, adapted and learned from by Hermes."""
+    if not settings.code_generation_enabled:
+        raise HTTPException(status_code=403, detail="Code generation is disabled.")
+    from pathlib import Path
+    import re
+
+    from ..services.nvidia_code import get_nvidia_code_provider
+
+    try:
+        provider = get_nvidia_code_provider()
+        result = await provider.generate(
+            body.prompt,
+            language=body.language,
+            filename=body.filename,
+            requirements=body.requirements,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    extensions = {
+        "python": "py", "py": "py", "javascript": "js", "js": "js",
+        "typescript": "ts", "ts": "ts", "tsx": "tsx", "jsx": "jsx",
+        "rust": "rs", "go": "go", "golang": "go", "java": "java",
+        "c": "c", "c++": "cpp", "cpp": "cpp", "csharp": "cs", "c#": "cs",
+        "html": "html", "css": "css", "sql": "sql", "bash": "sh", "shell": "sh",
+    }
+    language = body.language.strip().lower()
+    extension = extensions.get(language, "txt")
+    raw_name = Path(body.filename).name if body.filename.strip() else f"aetheris-generated.{extension}"
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name).strip(".-") or f"aetheris-generated.{extension}"
+    artifact = get_store().put(
+        kind="code",
+        media_type="text/plain; charset=utf-8",
+        filename=safe_name,
+        data=result.code.encode("utf-8"),
+        prompt=body.prompt,
+        metadata={
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "language": language,
+            "hermes_meta_learning": settings.nvidia_meta_learning_enabled,
+        },
+    )
+    return _generation_response(
+        "code",
+        artifact,
+        body.response_format,
+        {
+            **result.meta,
+            "provider": result.provider,
+            "model": result.model,
+            "language": language,
+            "filename": safe_name,
+            "chars": len(result.code),
+            "hermes_meta_learning": settings.nvidia_meta_learning_enabled,
+        },
+    )
+
+
 @router.post("/v1/code/projects", response_model=GenerationResponse, tags=["media"])
 async def create_code_project(body: ProjectRequest) -> GenerationResponse:
     """Scaffold a runnable multi-file project and return it as a ZIP."""
@@ -1046,6 +1122,58 @@ async def capabilities() -> CapabilityReport:
             "artifacts_stored": get_store().stats()["count"],
         },
     )
+
+
+@router.get("/v1/providers/nvidia", tags=["meta"])
+async def nvidia_provider_status() -> dict:
+    """Report NVIDIA NIM readiness without ever returning the configured secret."""
+    configured = settings.has_nvidia_credentials
+    return {
+        "provider": "nvidia-nim",
+        "configured": configured,
+        "setup_required": not configured,
+        "api_key_env": "AETHERIS_NVIDIA_API_KEY",
+        "setup": (
+            "NVIDIA NIM is ready."
+            if configured
+            else (
+                "Create an NVIDIA Developer API key at https://build.nvidia.com/settings/api-keys, "
+                "add AETHERIS_NVIDIA_API_KEY=nvapi-... to your .env file, and restart Aetheris."
+            )
+        ),
+        "never_send_key_to_browser": True,
+        "chat": {
+            "enabled": configured and settings.llm_provider == "nvidia",
+            "base_url": settings.nvidia_base_url,
+            "model": settings.nvidia_model,
+            "hermes_meta_learning": (
+                configured
+                and settings.hermes_enabled
+                and settings.hermes_learning_enabled
+                and settings.nvidia_meta_learning_enabled
+            ),
+        },
+        "image": {
+            "enabled": configured and settings.image_provider in ("nvidia", "auto"),
+            "provider": settings.image_provider,
+            "model": settings.nvidia_image_model,
+        },
+        "video": {
+            "enabled": configured and settings.video_provider in ("nvidia", "auto"),
+            "provider": settings.video_provider,
+            "model": settings.nvidia_video_model,
+        },
+        "code": {
+            "enabled": configured and settings.code_generation_enabled,
+            "model": settings.nvidia_code_model,
+            "endpoint": "/v1/code/generations",
+        },
+        "fallbacks": {
+            "image_offline": settings.image_fallback_offline,
+            "video_offline": settings.video_fallback_offline,
+            "chat_offline_hermes": True,
+        },
+    }
 
 
 @router.get("/v1/identity")

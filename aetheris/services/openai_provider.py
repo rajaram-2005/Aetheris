@@ -38,6 +38,7 @@ class OpenAIProvider(LLMProvider):
         api_key: str,
         default_model: str,
         timeout: float = 120.0,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._default_model = default_model
@@ -49,6 +50,7 @@ class OpenAIProvider(LLMProvider):
                 "Content-Type": "application/json",
             },
             timeout=timeout,
+            transport=transport,
         )
 
     @property
