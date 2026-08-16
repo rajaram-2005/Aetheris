@@ -236,7 +236,7 @@ def _probe_checks(slot: str) -> dict[str, Any]:
         ),
     }
     if slot not in checks:
-        return {"slot": slot, "probe": "no-live-probe",
+        return {"slot": slot, "probe": "no-live-probe", "ok": None,
                 "detail": "NVIDIA and GitHub keys are verified by their own services on first use."}
     url, header, feeds = checks[slot]
     slot_meta = next(s for s in _KEY_SLOTS if s["slot"] == slot)

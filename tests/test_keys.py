@@ -21,10 +21,18 @@ def _masked(value: str) -> str:
 
 
 def test_key_status_lists_slots_and_masks(monkeypatch):
+    from aetheris.core.config import settings
     from aetheris.services.keys import key_status
 
     monkeypatch.setenv("AETHERIS_GEMINI_IMAGE_API_KEY", "super-secret-gemini-key")
     monkeypatch.delenv("AETHERIS_LLM_API_KEY", raising=False)
+    # Neutralise every settings-backed key so an ambient .env can't leak in.
+    for field in ("gemini_image_api_key", "openai_image_api_key", "openai_video_api_key",
+                  "gemini_video_api_key", "nvidia_api_key", "stability_api_key",
+                  "llm_api_key", "gemini_api_key", "github_token"):
+        monkeypatch.setattr(settings, field, "")
+    # The settings snapshot was created at import; refresh the env-only view.
+    monkeypatch.setattr("aetheris.services.keys.settings", settings)
     rows = key_status()
     by_slot = {row["slot"]: row for row in rows}
     assert by_slot["gemini-image"]["configured"] is True

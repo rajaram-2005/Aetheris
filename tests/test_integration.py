@@ -379,3 +379,36 @@ def test_cli_code_and_github_parsers():
     assert parsed.action == "push" and parsed.repo == "owner/repo"
     parsed = parser.parse_args(["github", "status"])
     assert parsed.action == "status"
+
+
+# --- OpenAI chat model guard ------------------------------------------------------
+
+def test_openai_provider_never_sends_internal_tier_names():
+    """Aetheris tier names must never reach the upstream API as model ids."""
+    from aetheris.services.openai_provider import OpenAIProvider
+
+    provider = OpenAIProvider(
+        base_url="https://api.openai.com/v1", api_key="k",
+        default_model="aetheris-prime-v4",  # internal tier name
+    )
+    assert provider._default_model == "gpt-4o-mini"
+
+    class _Tier:
+        upstream_model = "aetheris-omni-reasoner"
+
+    class _Prepared:
+        tier = _Tier()
+
+    assert provider._model_for(_Prepared()) == "gpt-4o-mini"
+
+    _Tier.upstream_model = "gpt-4o"
+    assert provider._model_for(_Prepared()) == "gpt-4o"
+
+
+def test_openai_provider_real_default_is_kept():
+    from aetheris.services.openai_provider import OpenAIProvider
+
+    provider = OpenAIProvider(
+        base_url="https://api.openai.com/v1", api_key="k", default_model="gpt-4o"
+    )
+    assert provider._default_model == "gpt-4o"

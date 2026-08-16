@@ -41,6 +41,9 @@ class OpenAIProvider(LLMProvider):
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        # Internal Aetheris tier names must never reach the upstream API.
+        if default_model.startswith("aetheris-"):
+            default_model = "gpt-4o-mini"
         self._default_model = default_model
         # A shared async client benefits from connection pooling across requests.
         self._client = httpx.AsyncClient(
@@ -63,7 +66,13 @@ class OpenAIProvider(LLMProvider):
     # --- Payload building -----------------------------------------------------
 
     def _model_for(self, prepared: PreparedConversation) -> str:
-        return prepared.tier.upstream_model or self._default_model
+        resolved = prepared.tier.upstream_model or self._default_model
+        # Aetheris tier names (aetheris-prime-v4, aetheris-flash-v2, …) are
+        # internal routing labels, not upstream model ids — sending one to
+        # OpenAI would 404. Fall back to the configured real model.
+        if resolved.startswith("aetheris-"):
+            return self._default_model
+        return resolved
 
     @staticmethod
     def _wire_messages(prepared: PreparedConversation) -> list[dict[str, Any]]:

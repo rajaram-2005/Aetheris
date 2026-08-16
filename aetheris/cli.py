@@ -951,13 +951,17 @@ def cmd_keys(args: argparse.Namespace) -> int:
         with console.status("[teal]Probing configured keys…[/teal]"):
             results = asyncio.run(K.probe_all())
         for row in results:
-            if row["ok"] is True:
+            ok = row.get("ok")
+            if ok is True:
                 style, note = TEAL, "· " + row.get("feeds", "")
-            elif row["ok"] is False:
+            elif ok is False:
                 style, note = "red", "· " + row.get("detail", "")
+            elif row.get("probe") == "no-live-probe":
+                style, note = "yellow", "· verified on first use (no cheap probe endpoint)"
             else:
                 style, note = MUTED, ""
-            console.print(f"  [bold]{row['slot']:14s}[/bold] [{style}]{'ok' if row['ok'] else 'not configured' if row['ok'] is None else 'failed'}[/{style}]{note}")
+            state = "ok" if ok is True else "failed" if ok is False else "unprobed"
+            console.print(f"  [bold]{row['slot']:14s}[/bold] [{style}]{state}[/{style}]{note}")
         return 0
 
     # status
