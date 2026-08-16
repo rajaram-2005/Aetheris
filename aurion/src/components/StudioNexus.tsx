@@ -975,6 +975,11 @@ function VisualsChamber({
               </p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{made.label}</p>
               {made.provider && <p className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>{made.provider} · {made.mediaType}</p>}
+              {(made.provider || '').toLowerCase().startsWith('offline') && (
+                <p className="text-[11px] rounded-lg border px-2.5 py-1.5" style={{ borderColor: 'rgba(245,193,108,0.35)', background: 'rgba(245,193,108,0.08)', color: 'var(--accent-gold)' }}>
+                  💡 Offline engine — no provider key configured. Run <span className="font-mono">aetheris keys set gemini-image &lt;key&gt;</span> (or add <span className="font-mono">AETHERIS_GEMINI_IMAGE_API_KEY</span> to .env) for real models like nano banana, then restart.
+                </p>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 <a className="btn text-xs" href={made.url} target="_blank" rel="noreferrer">Open full size ↗</a>
                 <button className="btn text-xs" onClick={() => onGenerateImage(`Create ${made.kind === 'image' ? 'an image' : 'a video'} of ${made.label}`)}>

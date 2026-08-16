@@ -1432,6 +1432,54 @@ async def create_code_project(body: ProjectRequest) -> GenerationResponse:
     )
 
 
+# --- Provider keys ------------------------------------------------------------
+
+@router.get("/v1/providers/generation", tags=["meta"])
+async def generation_providers() -> dict:
+    """Which generation providers are live, and exactly what unlocks each one.
+
+    The web UI uses this to show honest status: offline engines active, and
+    the one-line change (or ``aetheris keys set …``) that upgrades each
+    capability to a real generative model.
+    """
+    from ..services.keys import key_status
+
+    rows = key_status()
+    return {
+        "image": {
+            "active": settings.image_provider,
+            "using_real_model": (
+                settings.has_nvidia_credentials
+                or settings.has_openai_image_credentials
+                or settings.has_gemini_image_credentials
+                or settings.has_stability_credentials
+            ),
+            "offline": "procedural renderer (deterministic)",
+            "slots": [r for r in rows if "images" in " ".join(r["feeds"])],
+        },
+        "video": {
+            "active": settings.video_provider,
+            "using_real_model": (
+                settings.has_nvidia_credentials
+                or settings.has_openai_video_credentials
+                or settings.has_gemini_video_credentials
+            ),
+            "offline": "animated GIF renderer",
+            "slots": [r for r in rows if "video" in " ".join(r["feeds"])],
+        },
+        "chat": {
+            "using_real_model": settings.has_credentials,
+            "offline": "Aetheris Hermes (in-process)",
+            "slots": [r for r in rows if "chat" in " ".join(r["feeds"])],
+        },
+        "github": {
+            "connected": settings.has_github_credentials,
+            "offline": "gh CLI fallback",
+            "slots": [r for r in rows if "github" in " ".join(r["feeds"])],
+        },
+    }
+
+
 # --- GitHub integration -------------------------------------------------------
 
 class GitHubRepoRequest(BaseModel):

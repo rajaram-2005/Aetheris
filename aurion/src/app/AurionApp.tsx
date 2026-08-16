@@ -437,7 +437,13 @@ export default function AetherisApp() {
       appendAssistantMessage(`🎨 Generating an image for: *${prompt.trim()}*…`);
       try {
         const result = await generateImage(prompt.trim());
-        const md = `![generated image](${result.artifact.url})\n\n**${result.detail?.provider || 'Aetheris'}** · ${result.detail?.model || ''}`;
+        const provider = result.detail?.provider || 'Aetheris';
+        const offline = provider.toLowerCase().startsWith('offline');
+        const md =
+          `![generated image](${result.artifact.url})\n\n**${provider}** · ${result.detail?.model || ''}` +
+          (offline
+            ? `\n\n> 💡 *Offline renderer — no provider key is configured, so Aetheris drew this procedurally.*\n> *Add a key for photoreal models:* \`aetheris keys set gemini-image <key>\` *or put* \`AETHERIS_GEMINI_IMAGE_API_KEY\` *in* \`.env\` *— free keys at aistudio.google.com/apikey.*`
+            : '');
         appendAssistantMessage(md);
       } catch (e) {
         appendAssistantMessage(

@@ -920,6 +920,70 @@ def cmd_github(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_keys(args: argparse.Namespace) -> int:
+    """``aetheris keys`` — configure and verify provider API keys."""
+    console = _make_console(args)
+    from .services import keys as K
+
+    if args.action == "set":
+        try:
+            result = K.set_key(args.slot, args.value)
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+        console.print(
+            f"[{TEAL}]Key saved[/{TEAL}] [bold]{result['env']}[/bold] = {result['masked']} "
+            f"→ {result['file']}"
+        )
+        console.print(f"[yellow]{result['note']}[/yellow]")
+        return 0
+
+    if args.action == "unset":
+        try:
+            result = K.unset_key(args.slot)
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+        console.print(f"[{TEAL}]Removed[/{TEAL}] {result['env']} from {result['file']}")
+        return 0
+
+    if args.action == "test":
+        with console.status("[teal]Probing configured keys…[/teal]"):
+            results = asyncio.run(K.probe_all())
+        for row in results:
+            if row["ok"] is True:
+                style, note = TEAL, "· " + row.get("feeds", "")
+            elif row["ok"] is False:
+                style, note = "red", "· " + row.get("detail", "")
+            else:
+                style, note = MUTED, ""
+            console.print(f"  [bold]{row['slot']:14s}[/bold] [{style}]{'ok' if row['ok'] else 'not configured' if row['ok'] is None else 'failed'}[/{style}]{note}")
+        return 0
+
+    # status
+    rows = K.key_status()
+    configured = sum(1 for r in rows if r["configured"])
+    console.print(f"[{MUTED}]{configured}/{len(rows)} provider keys configured. "
+                  f"Without keys Aetheris uses its offline engines; add a key to "
+                  f"upgrade to real generative models.[/{MUTED}]\n")
+    for row in rows:
+        state = f"[{TEAL}]{row['masked']}[/{TEAL}]" if row["configured"] else "[red]—[/red]"
+        fallback = " [yellow](via fallback env)[/yellow]" if row.get("uses_fallback_env") else ""
+        console.print(
+            f"  [bold]{row['slot']:14s}[/bold] {state}{fallback}  "
+            f"[{MUTED}]{row['label']}[/{MUTED}]"
+        )
+        console.print(f"  {'':14s}  [{MUTED}]env {row['env']} · feeds: {', '.join(row['feeds'])}[/{MUTED}]")
+    if args.json:
+        import json as _json
+        console.print(_json.dumps(rows, indent=2))
+    console.print(
+        f"\n[{MUTED}]Set one with:[/{MUTED}] [bold]aetheris keys set gemini-image <key>[/bold]"
+        f"\n[{MUTED}]Free keys:[/{MUTED}] aistudio.google.com/apikey · platform.openai.com · build.nvidia.com"
+    )
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Inference helpers
 # ---------------------------------------------------------------------------
@@ -1796,6 +1860,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ghp.add_argument("--no-pr", action="store_true", help="do not open a pull request")
     ghp.add_argument("--private", action="store_true", help="create the repository private")
     ghp.set_defaults(func=cmd_github, is_async=False)
+
+    kp = sub.add_parser("keys", help="configure and verify provider API keys")
+    kp.add_argument("action", nargs="?", default="status",
+                    choices=("status", "set", "unset", "test"))
+    kp.add_argument("slot", nargs="?", default="",
+                    help="gemini-image | openai-image | openai-video | gemini-video | nvidia | stability | openai-chat | github")
+    kp.add_argument("value", nargs="?", default="", help="the key value (for 'set')")
+    kp.add_argument("--json", action="store_true", help="emit the status table as JSON")
+    kp.set_defaults(func=cmd_keys, is_async=False)
 
     pp = sub.add_parser("project", help="scaffold a runnable project")
     pp.add_argument("kind", choices=("fastapi-service", "python-package", "cli-tool", "static-site"))

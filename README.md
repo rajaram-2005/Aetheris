@@ -409,6 +409,28 @@ view (`/#home`), and chat is the Workspace (`/#workspace`).
 | Port 8000 is already in use | Start with `aetheris serve --port 8001` and open `http://localhost:8001/`. |
 | `npm ci` reports an engine/version error | Install Node.js 20.9 or newer, then repeat step 5. |
 
+### Turning on real models (optional)
+
+Everything runs offline with no key. To upgrade to real generative models,
+add keys with one command — keys are written to `.env` (chmod 600), never
+echoed, and verifiable without spending quota:
+
+```bash
+aetheris keys                        # which providers are configured
+aetheris keys set gemini-image <KEY> # Gemini 2.5 Flash Image ("nano banana")
+aetheris keys set openai-image <KEY> # gpt-image / DALL-E
+aetheris keys set openai-video <KEY> # OpenAI Sora
+aetheris keys set gemini-video <KEY> # Google Veo
+aetheris keys set nvidia <KEY>       # NVIDIA NIM (chat/code/FLUX/Cosmos)
+aetheris keys test                   # probe every configured key
+aetheris keys unset stability        # remove one
+```
+
+Restart the server after changing keys. Free keys: aistudio.google.com/apikey
+(Gemini/Veo), platform.openai.com (Sora/gpt-image), build.nvidia.com (NIMs).
+`GET /v1/providers/generation` reports which capabilities are on real models,
+and the chat/studio UI says so inline when it falls back to the offline engine.
+
 ### Optional configuration
 
 After creating `.env` in step 6, change only the settings you need:
@@ -486,6 +508,7 @@ Step 4 of the installation registers the command. With `.venv` activated, run
 | `aetheris github push owner/repo` | Push code straight to GitHub (token or `gh` CLI). `--dir --files --no-pr` |
 | `aetheris github status` | GitHub connectivity + transport. |
 | `aetheris github repo-create owner/repo` | Create a repository on demand. |
+| `aetheris keys` | Provider key status. `set <slot> <key>` · `unset` · `test` |
 | `aetheris project KIND NAME` | Scaffold a runnable project (`--zip` for an archive). |
 | `aetheris health` | In-process provider/status. `--base-url URL` probes a running server instead. |
 | `aetheris serve` | Launch the HTTP API (`--host` / `--port` / `--reload`). |
@@ -660,6 +683,7 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (six offline voices, `rate` and `pitch`). |
 | `POST /v1/code/agent` | Claude Code-style build agent: plan → write → verify → fix → ship (optionally push to GitHub). |
 | `GET /v1/github/status` | GitHub connectivity and active transport (token or `gh` CLI). |
+| `GET /v1/providers/generation` | Which generation providers are on real models — and what unlocks each. |
 | `POST /v1/github/repos` | Create a GitHub repository on demand. |
 | `POST /v1/github/push` | Push files or a ZIP artifact to GitHub, optionally opening a pull request. |
 | `POST /v1/audio/transcriptions` | Speech-to-text from an uploaded audio file (Whisper/Gemini when a key is set). |
