@@ -472,6 +472,16 @@ Step 4 of the installation registers the command. With `.venv` activated, run
 | `aetheris image "<prompt>"` | Render a PNG. `--style --palette --width --height --seed` |
 | `aetheris video "<prompt>"` | Render an animated GIF. `--motion --seconds --fps` |
 | `aetheris audio` | Synthesise a WAV. `--mode --notation --key --scale --timbre` |
+| `aetheris speech "<text>"` | Offline TTS. `--voice --rate --pitch` (six voices) |
+| `aetheris qr "<data>"` | Styled QR code PNG. `--ecl --foreground --background --letter` |
+| `aetheris remix <image.png> "<prompt>"` | Reimagine/restyle from the image's palette. |
+| `aetheris collage <images…>` | Grid/polaroid/filmstrip sheet. `--layout` |
+| `aetheris chart '<json>'` | Line/bar/pie/donut/radar chart from JSON data. |
+| `aetheris slideshow <images…>` | Ken Burns GIF. `--transition --seconds-per-slide` |
+| `aetheris visualize <audio.wav>` | Audio-synced visualizer GIF. `--mode bars\|radial\|…` |
+| `aetheris song` | Structured stereo song. `--mood --key --tempo` |
+| `aetheris ambient <kind>` | Soundscapes + SFX (rain, wind, laser, coin, …). |
+| `aetheris podcast "<text>"` | Narration over a ducked music bed. `--music --voice` |
 | `aetheris project KIND NAME` | Scaffold a runnable project (`--zip` for an archive). |
 | `aetheris health` | In-process provider/status. `--base-url URL` probes a running server instead. |
 | `aetheris serve` | Launch the HTTP API (`--host` / `--port` / `--reload`). |
@@ -632,9 +642,18 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/images/generations` | Generate PNGs from a prompt (16 procedural scenes, `n` variations, or a real generative model). |
 | `POST /v1/images/edits` | Edit a stored image offline: 17 operations — grayscale, sepia, blur, duotone, emboss, grain, … |
 | `POST /v1/images/upscale` | Enlarge a stored image 2–4× (nearest or bilinear), fully offline. |
+| `POST /v1/images/qr` | Encode text as a styled, scannable QR code (Reed–Solomon ECC L/M/Q/H). |
+| `POST /v1/images/remix` | Reimagine a stored image from its palette, or restyle it with dithered palette transfer. |
+| `POST /v1/images/collage` | Compose stored images into a grid, polaroid, or filmstrip sheet. |
+| `POST /v1/images/charts` | Render line / bar / pie / donut / radar charts from JSON numbers. |
 | `POST /v1/videos/generations` | Generate an animated GIF (16 motions, loop or bounce palindrome). |
+| `POST /v1/videos/slideshow` | Ken Burns slideshow from stored images (crossfade / pan / zoom / wipe). |
+| `POST /v1/videos/visualizer` | Audio-driven animation from a stored WAV (bars / oscilloscope / radial / wave). |
 | `POST /v1/audio/generations` | Synthesise a WAV file (melody, chords, compose, tone, arp, drums, pad, bass + fx chain). |
-| `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (offline by default). |
+| `POST /v1/audio/song` | Compose a structured song (intro → verse → chorus → bridge → outro), stereo mixdown. |
+| `POST /v1/audio/ambient` | Synthesise soundscapes (rain, wind, ocean, fire, …) and one-shot SFX (laser, coin, …). |
+| `POST /v1/audio/podcast` | Podcast intro: narration over a ducked music bed with a jingle. |
+| `POST /v1/audio/speech` | Text-to-speech: synthesize spoken audio (six offline voices, `rate` and `pitch`). |
 | `POST /v1/audio/transcriptions` | Speech-to-text from an uploaded audio file (Whisper/Gemini when a key is set). |
 | `POST /v1/code/projects` | Scaffold a project as a ZIP. |
 | `GET /v1/artifacts` | List generated artifacts. |
@@ -940,6 +959,98 @@ blur, sharpen, pixelate, posterize, duotone, vignette, flips, 90° rotation,
 emboss, and film grain — or **upscaled 2–4×** (`/v1/images/upscale`) with
 nearest or bilinear interpolation, without Pillow or any native library.
 
+#### Studio Pro — advanced creation
+
+Beyond single-shot generation, the studio composes across media. Every one of
+these is offline, deterministic, and dependency-free:
+
+**QR codes** (`/v1/images/qr`) — a complete encoder (byte mode, Reed–Solomon
+ECC L/M/Q/H, ISO mask selection) rendered in your palette, with optional
+rounded modules and a centre letter:
+
+```bash
+curl -s -X POST localhost:8000/v1/images/qr \
+  -H "Content-Type: application/json" \
+  -d '{"data": "https://github.com/rajaram-2005/Aetheris", "ecl": "Q", "letter": "Æ"}'
+
+aetheris qr "wifi:s:office;p:letmein;;" --foreground "#0b132b" --background "#00e0d6"
+```
+
+**Remix** (`/v1/images/remix`) — re-voice an existing image. `reimagine`
+extracts the source's dominant palette (deterministic k-means) and redraws a
+new scene from your prompt in those colours; `restyle` re-maps every pixel
+onto a target palette with Floyd–Steinberg dithering — poster/retro art
+without a model:
+
+```bash
+curl -s -X POST localhost:8000/v1/images/remix \
+  -H "Content-Type: application/json" \
+  -d '{"image": "art_9f2c…", "prompt": "a spiral galaxy in deep space"}'
+
+aetheris remix photo.png "neon city at night" --operation restyle --palette neon
+```
+
+**Collages** (`/v1/images/collage`) — grid, polaroid (rotated white frames
+with shadows), or filmstrip sheets from up to 16 stored images, each with a
+caption.
+
+**Charts** (`/v1/images/charts`) — line, bar, pie, donut, and radar charts
+from JSON numbers, with axes, gridlines, legends, and callouts — ready for a
+slide or a report:
+
+```bash
+curl -s -X POST localhost:8000/v1/images/charts \
+  -H "Content-Type: application/json" \
+  -d '{"kind": "line", "title": "Quarterly revenue", "labels": ["Q1","Q2","Q3","Q4"],
+       "series": [{"name": "Revenue", "values": [42, 58, 51, 74]}]}'
+```
+
+**Slideshows** (`/v1/videos/slideshow`) — a Ken Burns deck from your stored
+images: each slide drifts and zooms while the camera moves, joined by
+`crossfade`, `pan`, `zoom`, or `wipe` transitions, captioned, looping as GIF.
+
+**Audio visualizers** (`/v1/videos/visualizer`) — the bridge between the audio
+and video engines. Any WAV (generated music, ambient, speech) is decoded and
+measured band-by-band with the Goertzel algorithm, and that real energy drives
+`bars` (spectrum analyser), `oscilloscope`, `radial`, or `wave` animations
+locked to the audio's duration:
+
+```bash
+aetheris audio --mode compose --key D4 --scale pentatonic -o tune.wav
+aetheris visualize tune.wav --mode radial -o tune-viz.gif
+```
+
+**Songs** (`/v1/audio/song`) — full arrangements, not loops:
+intro → verse → chorus → verse → bridge → chorus → outro over a real chord
+progression in your key, in five moods (`uplifting`, `mellow`, `epic`,
+`noir`, `sparkle`), mixed to stereo with panning, a soft limiter, and fades:
+
+```bash
+curl -s -X POST localhost:8000/v1/audio/song \
+  -H "Content-Type: application/json" \
+  -d '{"mood": "epic", "key": "Dm", "tempo": 96}'
+
+aetheris song --mood noir --key Am --tempo 76 -o noir.wav
+```
+
+**Ambient audio** (`/v1/audio/ambient`) — eight stereo soundscapes (`rain`,
+`wind`, `ocean`, `fire`, `forest`, `night`, `cafe`, `spaceship`) and eleven
+sound effects (`laser`, `coin`, `powerup`, `whoosh`, `explosion`,
+`heartbeat`, `alarm`, `click`, `sonar`, `zap`, `thunder`), synthesised from
+noise, filters, and oscillators with decorrelated left/right channels.
+
+**Podcast intros** (`/v1/audio/podcast`) — cross-modal production: narration
+(offline formant TTS) over a synthesized music bed (`pad`, `arp`, `drone`)
+with sidechain-style ducking, a signature jingle, and a fade-out:
+
+```bash
+curl -s -X POST localhost:8000/v1/audio/podcast \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Welcome back to the Neural Frontier podcast.", "music": "arp"}'
+
+aetheris podcast "Welcome back to the Neural Frontier podcast." --music pad
+```
+
 #### Video
 
 ```bash
@@ -988,10 +1099,17 @@ text, and `POST /v1/audio/transcriptions` turns an uploaded audio file into text
 # Speak text aloud (offline by default — a formant synthesizer, no key needed)
 curl -s -X POST localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
-  -d '{"text": "Welcome to Aetheris. You can now generate images and voice offline."}'
+  -d '{"text": "Welcome to Aetheris. You can now generate images and voice offline.",
+       "voice": "bright", "rate": 1.2, "pitch": 0.9}'
 
-aetheris speech "Welcome to Aetheris" -o welcome.wav --voice high
+aetheris speech "Welcome to Aetheris" -o welcome.wav --voice robot --rate 1.3
 ```
+
+The offline engine has six voices — `default`, `high`, `low`, `deep`,
+`bright`, and `robot` (flat, constant pitch) — plus `rate` (0.5–2.0× speaking
+speed) and `pitch` (0.5–2.0× fundamental) controls. Remote providers map
+`rate` to their native speed controls where supported (OpenAI `speed`, Gemini
+`speakingRate`).
 
 Like image generation, voice is **layered**:
 

@@ -11,8 +11,17 @@ Endpoints:
 * ``POST /v1/images/generations`` — generate an image (or N variations).
 * ``POST /v1/images/edits`` — edit a stored image (offline filters).
 * ``POST /v1/images/upscale`` — enlarge a stored image 2–4×.
+* ``POST /v1/images/qr`` — styled, scannable QR codes.
+* ``POST /v1/images/remix`` — reimagine/restyle a stored image from its palette.
+* ``POST /v1/images/collage`` — compose stored images into one sheet.
+* ``POST /v1/images/charts`` — line/bar/pie/donut/radar charts from JSON data.
 * ``POST /v1/videos/generations`` — generate NVIDIA Cosmos MP4 or offline GIF.
+* ``POST /v1/videos/slideshow`` — Ken Burns slideshow from stored images.
+* ``POST /v1/videos/visualizer`` — audio-driven animation from a stored WAV.
 * ``POST /v1/audio/generations`` — synthesise a WAV.
+* ``POST /v1/audio/song`` — structured song with a stereo mixdown.
+* ``POST /v1/audio/ambient`` — ambient soundscapes and sound effects.
+* ``POST /v1/audio/podcast`` — narration over a ducked music bed.
 * ``POST /v1/code/generations`` — NVIDIA NIM source generation + Hermes learning.
 * ``GET/POST/DELETE /v1/documents`` — manage the RAG corpus.
 * ``POST /v1/documents/search``    — query the corpus directly.
@@ -55,14 +64,23 @@ from ..schemas.tools import (
     ArtifactInfo,
     ArtifactList,
     AudioRequest,
+    AmbientRequest,
     CapabilityReport,
+    ChartRequest,
     CodeRequest,
+    CollageRequest,
     GenerationResponse,
     ImageEditRequest,
     ImageRequest,
     ImageUpscaleRequest,
+    PodcastRequest,
     ProjectRequest,
+    QrRequest,
+    RemixRequest,
+    SlideshowRequest,
+    SongRequest,
     VideoRequest,
+    VisualizerRequest,
     DocumentIn,
     DocumentInfo,
     DocumentList,
@@ -799,6 +817,218 @@ async def upscale_image(body: ImageUpscaleRequest) -> GenerationResponse:
     return _generation_response("image", artifact, body.response_format, detail)
 
 
+def _resolve_source(reference: str, media_prefix: str = "image") -> Any:
+    """Resolve an artifact reference (id or /v1/artifacts/{id} URL)."""
+    source = reference.strip()
+    if "/" in source:
+        source = source.rstrip("/").rsplit("/", 1)[-1]
+    original = get_store().get(source)
+    if original is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No artifact '{reference}'. Generate or upload one first, then reference its id.",
+        )
+    if not original.media_type.startswith(f"{media_prefix}/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Artifact '{original.id}' is {original.media_type}, not {media_prefix}.",
+        )
+    return original
+
+
+@router.post(
+    "/v1/images/qr",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_qr(body: QrRequest) -> GenerationResponse:
+    """Encode text as a styled, scannable QR code (offline, deterministic)."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.qr import generate as generate_qr
+
+    try:
+        png, meta = generate_qr(
+            body.data, ecl=body.ecl, width=body.width,
+            foreground=body.foreground, background=body.background,
+            rounded=body.rounded, letter=body.letter,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-qr-{meta['version']}-{meta['ecc'].lower()}.png", data=png,
+        prompt=body.data, metadata=meta,
+    )
+    return _generation_response("image", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/images/remix",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def remix_image(body: RemixRequest) -> GenerationResponse:
+    """Reimagine a stored image (its palette, your prompt) or restyle it."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.remix import remix
+
+    original = _resolve_source(body.image, "image")
+    try:
+        png, meta = remix(
+            original.data, body.prompt,
+            operation=body.operation, palette=body.palette,
+            width=body.width, height=body.height, style=body.style,
+            dither=body.dither, seed=body.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-remix-{meta['operation']}-{original.id}.png", data=png,
+        prompt=body.prompt or f"{body.operation} of {original.prompt}",
+        metadata={**meta, "source": original.id, "source_prompt": original.prompt},
+    )
+    meta["source"] = original.id
+    return _generation_response("image", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/images/collage",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_collage(body: CollageRequest) -> GenerationResponse:
+    """Compose stored images into a grid, polaroid, or filmstrip sheet."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.collage import CollageItem, build
+
+    items: list[Any] = []
+    for entry in body.items:
+        original = _resolve_source(entry.image, "image")
+        items.append(CollageItem(data=original.data, caption=entry.caption or original.prompt))
+    try:
+        png, meta = build(
+            items, layout=body.layout, width=body.width, height=body.height,
+            background=body.background, seed=body.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-collage-{meta['layout']}-{len(items)}.png", data=png,
+        prompt=f"{meta['layout']} collage of {len(items)} images",
+        metadata={**meta, "sources": [i.image for i in body.items]},
+    )
+    return _generation_response("image", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/images/charts",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_chart(body: ChartRequest) -> GenerationResponse:
+    """Render a line/bar/pie/donut/radar chart from JSON numbers."""
+    if not settings.image_generation_enabled:
+        raise HTTPException(status_code=403, detail="Image generation is disabled.")
+    from ..media.charts import ChartSeries, ChartSpec, build
+
+    spec = ChartSpec(
+        title=body.title,
+        labels=body.labels,
+        series=[ChartSeries(name=s.name, values=s.values) for s in body.series],
+    )
+    try:
+        png, meta = build(spec, kind=body.kind, width=body.width, height=body.height)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="image", media_type="image/png",
+        filename=f"aetheris-chart-{meta['kind']}.png", data=png,
+        prompt=body.title or f"{body.kind} chart",
+        metadata={**meta, "title": body.title},
+    )
+    return _generation_response("image", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/videos/slideshow",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_slideshow(body: SlideshowRequest) -> GenerationResponse:
+    """Animate stored images into a Ken Burns slideshow (looping GIF)."""
+    if not settings.video_generation_enabled:
+        raise HTTPException(status_code=403, detail="Video generation is disabled.")
+    from ..media.slideshow import Slide, build
+
+    slides: list[Any] = []
+    for entry in body.items:
+        original = _resolve_source(entry.image, "image")
+        slides.append(Slide(data=original.data, caption=entry.caption or original.prompt))
+    try:
+        gif, meta = build(
+            slides, width=body.width, height=body.height,
+            seconds_per_slide=body.seconds_per_slide,
+            transition_seconds=body.transition_seconds,
+            fps=body.fps, transition=body.transition, seed=body.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="video", media_type="image/gif",
+        filename=f"aetheris-slideshow-{len(slides)}-slides.gif", data=gif,
+        prompt=f"slideshow of {len(slides)} images",
+        metadata={**meta, "sources": [i.image for i in body.items]},
+    )
+    return _generation_response("video", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/videos/visualizer",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_visualizer(body: VisualizerRequest) -> GenerationResponse:
+    """Animate a stored WAV artifact into an audio-synced visualizer GIF."""
+    if not settings.video_generation_enabled:
+        raise HTTPException(status_code=403, detail="Video generation is disabled.")
+    from ..media.visualizer import build
+
+    original = _resolve_source(body.audio, "audio")
+    try:
+        gif, meta = build(
+            original.data, mode=body.mode, width=body.width, height=body.height,
+            bins=body.bins, label=original.prompt or "audio",
+            max_seconds=body.max_seconds,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="video", media_type="image/gif",
+        filename=f"aetheris-visualizer-{meta['mode']}-{original.id}.gif", data=gif,
+        prompt=f"{meta['mode']} visualizer of {original.prompt or original.filename}",
+        metadata={**meta, "audio_source": original.id},
+    )
+    meta["audio_source"] = original.id
+    return _generation_response("video", artifact, body.response_format, meta)
+
+
 @router.post(
     "/v1/videos/generations",
     response_model=GenerationResponse,
@@ -920,6 +1150,103 @@ async def create_audio(body: AudioRequest) -> GenerationResponse:
     return _generation_response("audio", artifact, body.response_format, detail)
 
 
+@router.post(
+    "/v1/audio/song",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_song(body: SongRequest) -> GenerationResponse:
+    """Compose a structured song (intro/verse/chorus/bridge/outro) as stereo WAV."""
+    if not settings.audio_generation_enabled:
+        raise HTTPException(status_code=403, detail="Audio generation is disabled.")
+    from ..media.song import compose
+
+    try:
+        wav, meta = compose(
+            body.mood, key=body.key, tempo=body.tempo,
+            verse_bars=body.verse_bars, chorus_bars=body.chorus_bars,
+            seed=body.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="audio", media_type="audio/wav",
+        filename=f"aetheris-song-{meta['mood']}-{meta['key']}.wav", data=wav,
+        prompt=f"{meta['mood']} song in {meta['key']}",
+        metadata=meta,
+    )
+    return _generation_response("audio", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/audio/ambient",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_ambient(body: AmbientRequest) -> GenerationResponse:
+    """Synthesise an ambient soundscape or one-shot sound effect (stereo WAV)."""
+    if not settings.audio_generation_enabled:
+        raise HTTPException(status_code=403, detail="Audio generation is disabled.")
+    from ..media.ambient import render
+
+    try:
+        wav, meta = render(body.kind, seconds=body.seconds, seed=body.seed)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="audio", media_type="audio/wav",
+        filename=f"aetheris-{meta['kind']}.wav", data=wav,
+        prompt=f"{meta['kind']} ambient audio",
+        metadata=meta,
+    )
+    return _generation_response("audio", artifact, body.response_format, meta)
+
+
+@router.post(
+    "/v1/audio/podcast",
+    response_model=GenerationResponse,
+    response_model_exclude_none=False,
+    tags=["media"],
+)
+async def create_podcast(body: PodcastRequest) -> GenerationResponse:
+    """Produce a podcast-style intro: narration over a ducked music bed."""
+    if not settings.speech_enabled:
+        raise HTTPException(status_code=403, detail="Text-to-speech is disabled.")
+
+    from ..services.voice import get_tts_provider
+
+    provider = get_tts_provider()
+    if not provider.provider_name.startswith("offline"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Podcast mixing uses the offline voice engine so narration and "
+                "music can be mixed in-process. Use AETHERIS_SPEECH_PROVIDER=offline."
+            ),
+        )
+    from ..media.podcast import build_intro
+
+    try:
+        wav, meta = build_intro(
+            body.text, voice=body.voice, rate=body.rate, pitch=body.pitch,
+            music=body.music, key=body.key, tempo=body.tempo,
+            duck_depth=body.duck_depth, jingle=body.jingle, seed=body.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    artifact = get_store().put(
+        kind="audio", media_type="audio/wav",
+        filename="aetheris-podcast-intro.wav", data=wav,
+        prompt=body.text[:200], metadata=meta,
+    )
+    return _generation_response("audio", artifact, body.response_format, meta)
+
+
 class SpeechRequest(BaseModel):
     """Text-to-speech synthesis (``POST /v1/audio/speech``)."""
 
@@ -927,10 +1254,15 @@ class SpeechRequest(BaseModel):
     voice: str = Field(
         default="default",
         description=(
-            "Voice. Offline: default | high | low. OpenAI: alloy | echo | fable | "
-            "onyx | nova | shimmer. Gemini: 'languageCode' or 'lang|voice-name'."
+            "Voice. Offline: default | high | low | deep | bright | robot. "
+            "OpenAI: alloy | echo | fable | onyx | nova | shimmer. "
+            "Gemini: 'languageCode' or 'lang|voice-name'."
         ),
     )
+    rate: float = Field(default=1.0, ge=0.5, le=2.0,
+                        description="Speaking speed (offline and OpenAI/Gemini where supported).")
+    pitch: float = Field(default=1.0, ge=0.5, le=2.0,
+                         description="Voice pitch (offline only; remote providers use their own controls).")
     response_format: Literal["url", "b64_json"] = "url"
 
 
@@ -948,7 +1280,9 @@ async def create_speech(body: SpeechRequest) -> GenerationResponse:
 
     provider = get_tts_provider()
     try:
-        result = await provider.synthesize(body.text, voice=body.voice)
+        result = await provider.synthesize(
+            body.text, voice=body.voice, rate=body.rate, pitch=body.pitch
+        )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -958,12 +1292,13 @@ async def create_speech(body: SpeechRequest) -> GenerationResponse:
         filename=f"aetheris-speech.{ext}", data=result.data,
         prompt=body.text[:200], metadata={
             **result.meta, "provider": result.provider, "model": result.model,
-            "voice": body.voice,
+            "voice": body.voice, "rate": body.rate, "pitch": body.pitch,
         },
     )
     detail = {
         **result.meta, "provider": result.provider, "model": result.model,
-        "voice": body.voice, "chars": len(body.text),
+        "voice": body.voice, "rate": body.rate, "pitch": body.pitch,
+        "chars": len(body.text),
         "estimated_seconds": len(body.text) * 0.18,
     }
     return _generation_response("audio", artifact, body.response_format, detail)

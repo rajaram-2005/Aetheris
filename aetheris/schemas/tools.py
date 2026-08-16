@@ -227,6 +227,146 @@ class ImageEditRequest(BaseModel):
     response_format: Literal["url", "b64_json"] = "url"
 
 
+class QrRequest(BaseModel):
+    """Styled QR code generation (``POST /v1/images/qr``)."""
+
+    data: str = Field(..., min_length=1, max_length=400, description="Text to encode (URL, Wi-Fi, contact, …).")
+    ecl: Literal["L", "M", "Q", "H"] = "M"
+    width: int = Field(default=420, ge=128, le=2048)
+    foreground: str = Field(default="#0b132b", description="Hex colour for dark modules.")
+    background: str = Field(default="#f8f9fa", description="Hex colour for light modules.")
+    rounded: bool = False
+    letter: str = Field(default="", max_length=1, description="Optional centre letter (e.g. 'A').")
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class RemixRequest(BaseModel):
+    """Remix a stored image (``POST /v1/images/remix``)."""
+
+    image: str = Field(..., min_length=1, description="Source artifact id or /v1/artifacts/{id} URL.")
+    prompt: str = Field(default="", description="What to reimagine (used by the 'reimagine' operation).")
+    operation: Literal["reimagine", "restyle"] = "reimagine"
+    palette: str | None = Field(default=None, description="For 'restyle': palette name or hex list. Defaults to the source's own dominant palette.")
+    style: str | None = Field(default=None, description="For 'reimagine': explicit procedural style.")
+    width: int = Field(default=1024, ge=64, le=2048)
+    height: int = Field(default=576, ge=64, le=2048)
+    dither: bool = Field(default=True, description="Floyd–Steinberg dithering for 'restyle'.")
+    seed: int | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class CollageItemModel(BaseModel):
+    """One image in a collage: an artifact id/URL plus an optional caption."""
+
+    image: str = Field(..., min_length=1, description="Artifact id or /v1/artifacts/{id} URL.")
+    caption: str = ""
+
+
+class CollageRequest(BaseModel):
+    """Compose stored images into one sheet (``POST /v1/images/collage``)."""
+
+    items: list[CollageItemModel] = Field(..., min_length=1, max_length=16)
+    layout: Literal["grid", "polaroid", "filmstrip"] = "grid"
+    width: int = Field(default=1280, ge=160, le=2048)
+    height: int = Field(default=720, ge=160, le=2048)
+    background: str = Field(default="#0b132b")
+    seed: int = 11
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class ChartSeriesModel(BaseModel):
+    """One chart series."""
+
+    name: str = Field(default="", max_length=64)
+    values: list[float] = Field(default_factory=list)
+
+
+class ChartRequest(BaseModel):
+    """Data chart generation (``POST /v1/images/charts``)."""
+
+    kind: Literal["line", "bar", "pie", "donut", "radar"] = "line"
+    title: str = Field(default="", max_length=120)
+    labels: list[str] = Field(default_factory=list, max_length=32)
+    series: list[ChartSeriesModel] = Field(..., min_length=1, max_length=8)
+    width: int = Field(default=960, ge=240, le=2048)
+    height: int = Field(default=560, ge=240, le=2048)
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class SlideshowItemModel(BaseModel):
+    """One slide: an artifact id/URL plus an optional caption."""
+
+    image: str = Field(..., min_length=1, description="Artifact id or /v1/artifacts/{id} URL.")
+    caption: str = ""
+
+
+class SlideshowRequest(BaseModel):
+    """Ken Burns slideshow video (``POST /v1/videos/slideshow``)."""
+
+    items: list[SlideshowItemModel] = Field(..., min_length=1, max_length=16)
+    width: int = Field(default=640, ge=160, le=1024)
+    height: int = Field(default=360, ge=90, le=768)
+    seconds_per_slide: float = Field(default=2.5, ge=0.5, le=10)
+    transition_seconds: float = Field(default=0.8, ge=0.1, le=3)
+    fps: int = Field(default=12, ge=4, le=30)
+    transition: Literal["crossfade", "pan", "zoom", "wipe"] = "crossfade"
+    seed: int = 5
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class VisualizerRequest(BaseModel):
+    """Audio-driven visualizer video (``POST /v1/videos/visualizer``).
+
+    The source is a stored WAV artifact (generated audio, ambient, or an
+    uploaded file). The animation is locked to the audio's real energy.
+    """
+
+    audio: str = Field(..., min_length=1, description="WAV artifact id or /v1/artifacts/{id} URL.")
+    mode: Literal["bars", "oscilloscope", "radial", "wave"] = "bars"
+    width: int = Field(default=480, ge=160, le=1024)
+    height: int = Field(default=270, ge=90, le=768)
+    bins: int = Field(default=20, ge=4, le=48, description="Spectrum bands for bars/radial.")
+    max_seconds: float = Field(default=30.0, ge=1, le=120)
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class SongRequest(BaseModel):
+    """Structured song composition (``POST /v1/audio/song``)."""
+
+    mood: Literal["uplifting", "mellow", "epic", "noir", "sparkle"] = "uplifting"
+    key: str = Field(default="C", description="Key like 'C', 'Am', or 'F#m'.")
+    tempo: int | None = Field(default=None, ge=40, le=200)
+    verse_bars: int = Field(default=4, ge=2, le=8)
+    chorus_bars: int = Field(default=4, ge=2, le=8)
+    seed: int | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class AmbientRequest(BaseModel):
+    """Ambient soundscape or sound effect (``POST /v1/audio/ambient``)."""
+
+    kind: str = Field(..., min_length=1, description="rain | wind | ocean | fire | forest | night | cafe | spaceship | laser | coin | powerup | whoosh | explosion | heartbeat | alarm | click | sonar | zap | thunder")
+    seconds: float = Field(default=12.0, ge=2, le=120, description="Duration (soundscapes only).")
+    seed: int | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+
+
+class PodcastRequest(BaseModel):
+    """Podcast intro: narration over a ducked music bed (``POST /v1/audio/podcast``)."""
+
+    text: str = Field(..., min_length=1, max_length=2_000)
+    voice: str = Field(default="default", description="Offline voices: default | high | low | deep | bright | robot.")
+    rate: float = Field(default=1.0, ge=0.5, le=2.0, description="Speaking speed multiplier.")
+    pitch: float = Field(default=1.0, ge=0.5, le=2.0, description="Voice pitch multiplier.")
+    music: Literal["pad", "arp", "drone", "none"] = "pad"
+    key: str = Field(default="Cmaj7", description="Music bed chord(s), e.g. 'Cmaj7' or 'Cmaj7 Amin7 Fmaj7 G'.")
+    tempo: int = Field(default=96, ge=40, le=200)
+    duck_depth: float = Field(default=0.35, ge=0.0, le=0.9, description="How far the music dips under the voice.")
+    jingle: bool = True
+    seed: int | None = None
+    response_format: Literal["url", "b64_json"] = "url"
+
+
 class CodeRequest(BaseModel):
     """NVIDIA-assisted source generation (``POST /v1/code/generations``)."""
 
@@ -275,6 +415,18 @@ __all__ = [
     "ImageUpscaleRequest",
     "VideoRequest",
     "AudioRequest",
+    "QrRequest",
+    "RemixRequest",
+    "CollageItemModel",
+    "CollageRequest",
+    "ChartSeriesModel",
+    "ChartRequest",
+    "SlideshowItemModel",
+    "SlideshowRequest",
+    "VisualizerRequest",
+    "SongRequest",
+    "AmbientRequest",
+    "PodcastRequest",
     "CodeRequest",
     "ProjectRequest",
     "GenerationResponse",

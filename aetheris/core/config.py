@@ -987,6 +987,16 @@ class Settings(BaseSettings):
             "video_provider_configured": self.has_nvidia_credentials,
             "audio_generation": self.audio_generation_enabled,
             "code_generation": self.code_generation_enabled,
+            # Studio Pro — advanced offline creation
+            "studio_qr": self.image_generation_enabled,
+            "studio_remix": self.image_generation_enabled,
+            "studio_collage": self.image_generation_enabled,
+            "studio_charts": self.image_generation_enabled,
+            "studio_slideshow": self.video_generation_enabled,
+            "studio_visualizer": self.video_generation_enabled,
+            "studio_song": self.audio_generation_enabled,
+            "studio_ambient": self.audio_generation_enabled,
+            "studio_podcast": self.speech_enabled,
             # Provider mix (chat + accelerated generation)
             "anthropic_provider": self.has_anthropic_credentials,
             "gemini_provider": self.has_gemini_credentials,

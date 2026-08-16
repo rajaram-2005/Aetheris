@@ -27,6 +27,14 @@ import {
   upscaleImage,
   generateMusic,
   synthesizeSpeech,
+  generateQr,
+  remixImage,
+  makeCollage,
+  makeSlideshow,
+  visualizeAudio,
+  composeSong,
+  generateAmbient,
+  makePodcastIntro,
   MythCharacter,
 } from '@/lib/hermes';
 import {
@@ -565,7 +573,7 @@ function VisualsChamber({
 }) {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [prompt, setPrompt] = useState('');
-  const [mode, setMode] = useState<'image' | 'video'>('image');
+  const [mode, setMode] = useState<'image' | 'video' | 'pro'>('image');
   const [motion, setMotion] = useState<string>('spiral');
   const [loop, setLoop] = useState<'loop' | 'bounce'>('loop');
   const [busy, setBusy] = useState(false);
@@ -577,6 +585,17 @@ function VisualsChamber({
   const [editedUrl, setEditedUrl] = useState<string | null>(null);
   const [upscaledUrl, setUpscaledUrl] = useState<string | null>(null);
   const [upscaleBusy, setUpscaleBusy] = useState(false);
+  // Studio Pro state.
+  const [library, setLibrary] = useState<{ id: string; label: string }[]>([]);
+  const [lastAudioId, setLastAudioId] = useState<string | null>(null);
+  const [proBusy, setProBusy] = useState('');
+  const [proResult, setProResult] = useState<{ kind: 'image' | 'video' | 'audio'; url: string; label: string } | null>(null);
+  const [qrData, setQrData] = useState('https://github.com/rajaram-2005/Aetheris');
+  const [remixPrompt, setRemixPrompt] = useState('reimagined as a neon cyberpunk poster');
+  const [songMood, setSongMood] = useState<'uplifting' | 'mellow' | 'epic' | 'noir' | 'sparkle'>('epic');
+  const [ambientKind, setAmbientKind] = useState('rain');
+  const [podcastText, setPodcastText] = useState('Welcome back to the Neural Frontier. Today we explore procedural media.');
+  const [podcastMusic, setPodcastMusic] = useState<'pad' | 'arp' | 'drone' | 'none'>('arp');
 
   useEffect(() => {
     getGalleryImages()
@@ -595,6 +614,12 @@ function VisualsChamber({
       if (mode === 'image') {
         const res = await generateImage(text, { width: 1024, height: 576, n: 2 });
         setMade({ id: res.artifact.id, url: res.artifact.url, label: text, kind: 'image', mediaType: res.artifact.media_type, provider: res.detail.provider });
+        setLibrary((prev) => [
+          ...prev,
+          ...(res.artifacts && res.artifacts.length > 0
+            ? res.artifacts.map((a, i) => ({ id: a.id, label: `${text} #${i + 1}` }))
+            : [{ id: res.artifact.id, label: text }]),
+        ]);
         onGenerateImage(text);
       } else {
         const res = await generateVideo(text, { motion, seconds: 3, fps: 12, width: 480, height: 270, loop });
@@ -606,6 +631,69 @@ function VisualsChamber({
       setBusy(false);
     }
   };
+
+  // ── Studio Pro actions ──
+  const runPro = async (key: string, fn: () => Promise<{ kind: 'image' | 'video' | 'audio'; url: string; label: string }>) => {
+    if (proBusy) return;
+    setProBusy(key);
+    setError('');
+    try {
+      const result = await fn();
+      setProResult(result);
+      if (result.kind === 'audio') setLastAudioId(result.url.split('/').pop() ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Studio action failed.');
+    } finally {
+      setProBusy('');
+    }
+  };
+
+  const studioQr = () => runPro('qr', async () => {
+    const res = await generateQr(qrData.trim(), { ecl: 'Q', letter: 'Æ' });
+    return { kind: 'image', url: res.artifact.url, label: `QR · ${qrData.trim().slice(0, 40)}` };
+  });
+
+  const studioRemix = (restyle: boolean) => runPro(restyle ? 'restyle' : 'remix', async () => {
+    if (library.length === 0) throw new Error('Generate an image first — the remix reuses your latest render.');
+    const source = library[library.length - 1];
+    const res = restyle
+      ? await remixImage(source.id, '', { operation: 'restyle', palette: 'neon' })
+      : await remixImage(source.id, remixPrompt.trim() || 'a new scene', { width: 1024, height: 576 });
+    return { kind: 'image', url: res.artifact.url, label: restyle ? `Restyle · ${source.label}` : `Remix · ${remixPrompt.trim().slice(0, 40)}` };
+  });
+
+  const studioCollage = () => runPro('collage', async () => {
+    if (library.length < 2) throw new Error('Generate at least two images first (the image tab creates two variations per prompt).');
+    const res = await makeCollage(library.slice(0, 8).map((item) => ({ image: item.id, caption: item.label })), { layout: 'polaroid', width: 960, height: 600 });
+    return { kind: 'image', url: res.artifact.url, label: `Collage · ${res.detail.images} images` };
+  });
+
+  const studioSlideshow = () => runPro('slideshow', async () => {
+    if (library.length < 2) throw new Error('Generate at least two images first.');
+    const res = await makeSlideshow(library.slice(0, 6).map((item) => ({ image: item.id, caption: item.label })), { transition: 'crossfade', width: 480, height: 270 });
+    return { kind: 'video', url: res.artifact.url, label: `Slideshow · ${res.detail.slides} slides · ${res.detail.duration_seconds}s` };
+  });
+
+  const studioVisualizer = () => runPro('visualizer', async () => {
+    if (!lastAudioId) throw new Error('Compose a song or an ambient soundscape below first — the visualizer animates your audio.');
+    const res = await visualizeAudio(lastAudioId, { mode: 'bars', width: 480, height: 270 });
+    return { kind: 'video', url: res.artifact.url, label: `Visualizer · ${res.detail.audio_seconds}s of audio` };
+  });
+
+  const studioSong = () => runPro('song', async () => {
+    const res = await composeSong(songMood, { key: 'Dm' });
+    return { kind: 'audio', url: res.artifact.url, label: `Song · ${res.detail.mood} in ${res.detail.key} · ${res.detail.seconds}s` };
+  });
+
+  const studioAmbient = () => runPro('ambient', async () => {
+    const res = await generateAmbient(ambientKind, { seconds: 6 });
+    return { kind: 'audio', url: res.artifact.url, label: `Ambient · ${ambientKind} · ${res.detail.seconds}s` };
+  });
+
+  const studioPodcast = () => runPro('podcast', async () => {
+    const res = await makePodcastIntro(podcastText.trim() || 'Welcome to the show.', { music: podcastMusic, voice: 'default' });
+    return { kind: 'audio', url: res.artifact.url, label: `Podcast intro · ${res.detail.seconds}s` };
+  });
 
   const applyEdit = async () => {
     if (!made || made.kind !== 'image' || editBusy) return;
@@ -642,23 +730,181 @@ function VisualsChamber({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-xl p-1 border" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
-          {(['image', 'video'] as const).map((m) => (
+          {(['image', 'video', 'pro'] as const).map((m) => (
             <button
               key={m}
               onClick={() => { setMode(m); setMade(null); setEditedUrl(null); }}
               className={`btn text-xs px-4 ${mode === m ? 'btn-primary' : ''}`}
             >
-              {m === 'image' ? '🎨 Image' : '🎞️ Video'}
+              {m === 'image' ? '🎨 Image' : m === 'video' ? '🎞️ Video' : '✨ Studio Pro'}
             </button>
           ))}
         </div>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {mode === 'image'
             ? 'Procedural scenes + editable offline filters'
-            : 'NVIDIA Cosmos MP4 when configured · offline looping GIF fallback'}
+            : mode === 'video'
+              ? 'NVIDIA Cosmos MP4 when configured · offline looping GIF fallback'
+              : 'QR · remix · collage · slideshow · visualizer · song · ambient · podcast'}
         </p>
       </div>
 
+      {mode === 'pro' && (
+        <div className="rounded-2xl border p-4 space-y-4" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
+                Cross-media production, fully offline
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                {library.length} image{library.length === 1 ? '' : 's'} in the library · {lastAudioId ? 'audio ready for the visualizer' : 'compose audio to unlock the visualizer'}
+              </p>
+            </div>
+            <button className="btn text-xs" onClick={() => { setLibrary([]); setLastAudioId(null); setProResult(null); }}>
+              Clear library
+            </button>
+          </div>
+
+          {mode !== 'pro' && error && (
+            <p className="text-xs rounded-xl border px-3 py-2" style={{ borderColor: 'var(--danger, #f87171)', color: 'var(--danger, #f87171)' }}>
+              {error}
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>QR code</p>
+              <input
+                value={qrData}
+                onChange={(e) => setQrData(e.target.value)}
+                className="input surface w-full px-3 py-2 text-xs"
+                style={{ background: 'var(--bg-tertiary)' }}
+                placeholder="https://…"
+              />
+              <button className="btn btn-primary text-xs w-full" onClick={studioQr} disabled={proBusy !== ''}>
+                {proBusy === 'qr' ? 'Encoding…' : 'Encode QR'}
+              </button>
+            </div>
+
+            <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>Remix the latest render</p>
+              <input
+                value={remixPrompt}
+                onChange={(e) => setRemixPrompt(e.target.value)}
+                className="input surface w-full px-3 py-2 text-xs"
+                style={{ background: 'var(--bg-tertiary)' }}
+                placeholder="What should its palette become?"
+              />
+              <div className="flex gap-2">
+                <button className="btn btn-primary text-xs flex-1" onClick={() => void studioRemix(false)} disabled={proBusy !== ''}>
+                  {proBusy === 'remix' ? 'Reimagining…' : 'Reimagine'}
+                </button>
+                <button className="btn text-xs flex-1" onClick={() => void studioRemix(true)} disabled={proBusy !== ''}>
+                  {proBusy === 'restyle' ? 'Restyling…' : 'Restyle · neon'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>Compose the library</p>
+              <div className="flex gap-2">
+                <button className="btn text-xs flex-1" onClick={studioCollage} disabled={proBusy !== ''}>
+                  {proBusy === 'collage' ? 'Composing…' : 'Polaroid collage'}
+                </button>
+                <button className="btn text-xs flex-1" onClick={studioSlideshow} disabled={proBusy !== ''}>
+                  {proBusy === 'slideshow' ? 'Rendering…' : 'Slideshow GIF'}
+                </button>
+                <button className="btn text-xs flex-1" onClick={studioVisualizer} disabled={proBusy !== '' || !lastAudioId}>
+                  {proBusy === 'visualizer' ? 'Animating…' : 'Visualize audio'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>Songs & sound</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(['uplifting', 'mellow', 'epic', 'noir', 'sparkle'] as const).map((mood) => (
+                  <button
+                    key={mood}
+                    onClick={() => setSongMood(mood)}
+                    className={`btn text-[11px] py-1 ${songMood === mood ? 'btn-primary' : ''}`}
+                  >
+                    {mood}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button className="btn btn-primary text-xs flex-1" onClick={studioSong} disabled={proBusy !== ''}>
+                  {proBusy === 'song' ? 'Composing…' : `Compose ${songMood} song`}
+                </button>
+                <select
+                  value={ambientKind}
+                  onChange={(e) => setAmbientKind(e.target.value)}
+                  className="input surface text-xs px-2"
+                  style={{ background: 'var(--bg-tertiary)' }}
+                  aria-label="Ambient sound"
+                >
+                  {['rain', 'wind', 'ocean', 'fire', 'forest', 'night', 'cafe', 'spaceship', 'laser', 'coin', 'sonar', 'thunder'].map((k) => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+                <button className="btn text-xs" onClick={studioAmbient} disabled={proBusy !== ''}>
+                  {proBusy === 'ambient' ? 'Synthesising…' : 'Play'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-3 space-y-2 md:col-span-2" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent-gold)', fontFamily: 'var(--font-mono)' }}>Podcast intro — your voice over a ducked music bed</p>
+              <textarea
+                value={podcastText}
+                onChange={(e) => setPodcastText(e.target.value)}
+                rows={2}
+                className="input surface w-full px-3 py-2 text-xs"
+                style={{ background: 'var(--bg-tertiary)', resize: 'none' }}
+              />
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="inline-flex rounded-lg p-0.5 border" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
+                  {(['pad', 'arp', 'drone', 'none'] as const).map((m) => (
+                    <button key={m} onClick={() => setPodcastMusic(m)} className={`btn text-[11px] px-3 py-1 ${podcastMusic === m ? 'btn-primary' : ''}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn-primary text-xs" onClick={studioPodcast} disabled={proBusy !== ''}>
+                  {proBusy === 'podcast' ? 'Mixing…' : 'Mix intro'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {proResult && (
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent-mint)', fontFamily: 'var(--font-mono)' }}>
+                Studio output
+              </p>
+              <div className="flex flex-col md:flex-row gap-4 items-start">
+                <div className="w-full md:w-2/3 aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
+                  {proResult.kind === 'video' ? (
+                    <video src={proResult.url} controls autoPlay muted loop className="w-full h-full object-cover" aria-label={proResult.label} />
+                  ) : proResult.kind === 'image' ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={proResult.url} alt={proResult.label} className="w-full h-full object-contain" />
+                  ) : (
+                    <audio src={proResult.url} controls className="w-full px-4" aria-label={proResult.label} />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{proResult.label}</p>
+                  <a className="btn text-xs" href={proResult.url} target="_blank" rel="noreferrer">Open ↗</a>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode !== 'pro' && (
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -679,6 +925,7 @@ function VisualsChamber({
           {busy ? 'Rendering…' : mode === 'image' ? 'Generate' : 'Animate'}
         </button>
       </form>
+      )}
 
       {mode === 'video' && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -705,13 +952,13 @@ function VisualsChamber({
         </div>
       )}
 
-      {error && (
+      {mode !== 'pro' && error && (
         <p className="text-xs rounded-xl border px-3 py-2" style={{ borderColor: 'var(--danger, #f87171)', color: 'var(--danger, #f87171)' }}>
           {error}
         </p>
       )}
 
-      {made && (
+      {mode !== 'pro' && made && (
         <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="aspect-video bg-black/40 rounded-xl overflow-hidden grid place-items-center">
@@ -806,7 +1053,8 @@ function VisualsChamber({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {mode !== 'pro' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {images.map((img) => (
           <article key={img.id} className="rounded-2xl overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
             <div className="aspect-[16/10] bg-black/40">
@@ -822,7 +1070,8 @@ function VisualsChamber({
             </div>
           </article>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
