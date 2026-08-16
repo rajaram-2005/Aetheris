@@ -99,11 +99,42 @@ def _mask(value: str) -> str:
     return f"{value[:3]}…{value[-4:]}"
 
 
+def _settings_field(env_var: str) -> str:
+    """Map an env var (e.g. AETHERIS_GEMINI_IMAGE_API_KEY) to its settings
+    field name (gemini_image_api_key)."""
+    field = env_var.lower()
+    if field.startswith("aetheris_"):
+        field = field[len("aetheris_"):]
+    return field
+
+
 def _slot_value(slot: dict[str, Any]) -> str:
+    """Resolve a slot's key from environ, then the settings layer (.env).
+
+    pydantic-settings merges ``.env`` and the process environment when the
+    settings object is created, so a fresh CLI process sees keys that were
+    written to ``.env`` by ``aetheris keys set`` — even before a server
+    restart. The running server needs its restart to pick them up, which the
+    setter says explicitly.
+    """
     value = os.environ.get(slot["env"], "")
+    if not value:
+        value = str(getattr(settings, _settings_field(slot["env"]), "") or "")
     if not value and slot.get("fallback_env"):
         value = os.environ.get(slot["fallback_env"], "")
+        if not value:
+            value = str(getattr(settings, _settings_field(slot["fallback_env"]), "") or "")
     return value
+
+
+def _uses_fallback(slot: dict[str, Any]) -> bool:
+    """True when the slot is filled by its fallback environment variable."""
+    if not slot.get("fallback_env"):
+        return False
+    direct = os.environ.get(slot["env"], "") or str(
+        getattr(settings, _settings_field(slot["env"]), "") or ""
+    )
+    return not direct and bool(_slot_value(slot))
 
 
 def key_status() -> list[dict[str, Any]]:
@@ -118,11 +149,7 @@ def key_status() -> list[dict[str, Any]]:
             "feeds": slot["feeds"],
             "configured": bool(value),
             "masked": _mask(value) if value else "",
-            "uses_fallback_env": bool(
-                slot.get("fallback_env")
-                and not os.environ.get(slot["env"])
-                and os.environ.get(slot["fallback_env"])
-            ),
+            "uses_fallback_env": _uses_fallback(slot),
         })
     return rows
 

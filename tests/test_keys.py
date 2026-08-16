@@ -80,13 +80,29 @@ async def test_probe_rejects_bad_key(monkeypatch):
     assert "unauthorized" in result["detail"]
 
 
-def test_generation_providers_endpoint(client: TestClient):
+def _pin_credentials(monkeypatch, *, image: bool, video: bool, github: bool):
+    """Patch the credential properties on the Settings class (pydantic
+    models reject instance-level attributes that are not fields)."""
+    from aetheris.core.config import Settings
+
+    for name in ("has_nvidia_credentials", "has_openai_image_credentials",
+                 "has_gemini_image_credentials", "has_stability_credentials"):
+        monkeypatch.setattr(Settings, name, property(lambda self: image))
+    for name in ("has_openai_video_credentials", "has_gemini_video_credentials"):
+        monkeypatch.setattr(Settings, name, property(lambda self: video))
+    monkeypatch.setattr(Settings, "has_github_credentials", property(lambda self: github))
+
+
+def test_generation_providers_endpoint(client: TestClient, monkeypatch):
+    _pin_credentials(monkeypatch, image=False, video=False, github=False)
+
     response = client.get("/v1/providers/generation")
     assert response.status_code == 200
     body = response.json()
     assert body["image"]["using_real_model"] is False
     assert any(slot["slot"] == "gemini-image" for slot in body["image"]["slots"])
     assert body["video"]["using_real_model"] is False
+    assert body["github"]["connected"] is False
     assert "github" in body
 
 
@@ -100,3 +116,18 @@ def test_keys_cli_parser_registered():
     assert parsed.slot == "gemini-image" and parsed.value == "sk-abc"
     parsed = parser.parse_args(["keys", "test"])
     assert parsed.action == "test"
+
+
+def test_generation_providers_flips_on_real_model(client: TestClient, monkeypatch):
+    """With a key present, the endpoint reports the real-model upgrade."""
+    from aetheris.core.config import settings
+
+    settings.gemini_image_api_key = "real-key-123"
+    _pin_credentials(monkeypatch, image=True, video=False, github=False)
+    response = client.get("/v1/providers/generation")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["image"]["using_real_model"] is True
+    row = next(s for s in body["image"]["slots"] if s["slot"] == "gemini-image")
+    assert row["configured"] is True
+    assert "real-key" not in str(body)  # keys never leak, even masked
