@@ -81,8 +81,9 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
 
 - **OpenAI-compatible API** — `POST /v1/chat/completions` with streaming (SSE) and
   non-streaming responses. Point any existing OpenAI client at Aetheris.
-- **Aetheris `mode` extension** — a single extra field selects the active identity:
-  `general`, `engineering`, `editorial`, or `structured`.
+- **Aetheris `mode` extension** — one field selects a classic, legend, tempo, or
+  gated identity: `general`, `engineering`, `editorial`, `structured`, `myth`,
+  `legendary`, `thamizh`, `pro`, `lite`, `flash`, or opt-in `sovereign`.
 - **Model-tier registry** — `aetheris-lite` (Flash), `aetheris-pro`, and
   `aetheris-ultra` (Reasoning Engine), addressable by id or alias.
 - **Production system-prompt suite** — official prompts for every mode, injected
@@ -163,7 +164,7 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   form: text, voice (speech-to-text), speech (text-to-speech read-aloud),
   image generation, and attachments, plus one-click Skills / Connect / Models
   panels.
-- **Living Tamil Mythology** — a full pantheon of 26 legendary figures
+- **Living Tamil Mythology** — a connected pantheon of 31 legendary figures
   (gods, goddesses, heroes, sages, kings, villains, asuras, and divine
   symbols) that you can summon and speak with, from Murugan to Ravana:
   - `GET /v1/mythology` — browse the pantheon by category.
@@ -228,6 +229,199 @@ Hermes runtime stays available at `/v1/hermes/*` either way.
   - **God Deck UI** — Ω in the sidebar / header, or `⌘K` → God Deck (`⌘⇧G` to toggle).
 
 ---
+
+## Advanced feature atlas
+
+Aetheris is larger than its chat endpoint. The current API exposes roughly
+**400 operations across more than 80 `/v1` route families**. This atlas groups
+the implementation by capability so the less-visible platform features are as
+discoverable as chat, Hermes, and Studio. For the exact request/response schemas
+on a running instance, open [`/docs`](http://localhost:8000/docs) or
+[`/openapi.json`](http://localhost:8000/openapi.json).
+
+### Read the status labels first
+
+The repository deliberately mixes executable local engines, optional provider
+adapters, and architecture experiments. These labels keep the distinction clear:
+
+| Label | Meaning |
+|-------|---------|
+| **Local / live** | Executes in this Python process with no external model or API key. |
+| **Layered** | Has a local fallback and upgrades to a configured remote provider. |
+| **Opt-in** | Reaches an external system or relaxes a default boundary, so an operator must enable/configure it. |
+| **Simulation / scaffold** | A deterministic architecture experiment, typed protocol, or emulated action surface—not bundled model weights or control of a real desktop. |
+
+Most registries, histories, canvases, memories, and generated artifacts are
+**bounded process-local stores** unless an endpoint explicitly exports them.
+They survive requests in the running process, but not a server restart. Hermes
+meta-learning is the exception when `AETHERIS_HERMES_META_STATE_PATH` is set;
+portable workspace bundles are available through `/v1/export` and `/v1/import`.
+
+### Complete capability map
+
+| Area | Advanced features implemented in the repository | Primary API surface |
+|------|-------------------------------------------------|---------------------|
+| **OpenAI-compatible inference** | Streaming SSE, non-streaming completions, model tiers, mode aliases, multimodal `image_url` parts, caller-supplied tools, automatic toolbelt exposure, parallel batch completions, smart tier recommendation | `/v1/chat/*`, `/v1/models*`, `/v1/modes`, `/v1/legends`, `/v1/batch/completions` |
+| **Hermes cognition + learning** | Eleven traced stages, symbolic deliberation, BM25 grounding, sparse routing, memory recall, bounded tool use, self-correction, few-shot exemplars, intent/tool priors, explicit reinforcement, optional learned-state persistence | `/v1/hermes/*`, `/v1/training` |
+| **NOVA cognition** | Effort-controlled deliberation, eight-expert routing, council/debate/pipeline/swarm orchestration, three-tier memory, deep research, versioned canvases, executable DAG plans, confirmation-gated computer-use sessions | `/v1/nova/*` |
+| **Apex cognition** | Entity-relation Graph RAG, constitutional critique/revision, deterministic eval suites and A/B runs, sentence-level provenance graphs, circuit breakers, composable skills, semantic cache, JSON contract repair | `/v1/apex`, `/v1/graph/*`, `/v1/constitution/*`, `/v1/evals/*`, `/v1/provenance/*`, `/v1/breakers/*`, `/v1/skills/*`, `/v1/semantic-cache/*`, `/v1/guardrails/*` |
+| **God Mode** | Tree-of-Thought UCB1 search, causal interventions and counterfactuals, Bayesian hypothesis ranking, natural-deduction proof checking, constitution red-team probes, probability forecasts and Brier calibration | `/v1/god/*` |
+| **Research engines** | Offline executable catalog of 50 AI milestones, era timeline, parameterized algorithm runs, cross-era benchmarks and synthesis; separate NOVA corpus research and a report-oriented research simulation | `/v1/research/*`, `/v1/nova/research` |
+| **Neural architecture lab** | Five model specifications, deterministic synthesis, LoRA adapter state, Paged-KV/prefix-cache telemetry, speculative-decoding telemetry, MLA, fine-grained MoE, MTP and virtual NIAH experiments, Ollama/Hugging Face exports | `/v1/neural/*` |
+| **Knowledge and retrieval** | Chunked BM25 RAG, automatic chat grounding, deterministic signature embeddings and vector search, three-tier associative memory, graph ingestion/path/inference, semantic response matching | `/v1/documents/*`, `/v1/embeddings/*`, `/v1/nova/memory/*`, `/v1/graph/*`, `/v1/semantic-cache/*` |
+| **Agents and tool execution** | OpenAI tool schemas, direct invocation, autonomous tool loop, sandboxed Python, reusable skills, six built-in specialist agents, custom private agents, plan-then-execute DAGs, audited action staging | `/v1/tools/*`, `/v1/agents/*`, `/v1/nova/plan`, `/v1/computer-use/*` |
+| **Code engineering** | Verified Python snippets, four project scaffold types, plan → write → test → repair coder, NVIDIA-assisted source generation, ZIP artifacts, GitHub repository creation/push/PR flow | `/v1/code/*`, `/v1/github/*` |
+| **Multimedia Studio** | Layered image/video/voice providers; procedural image and GIF engines; image edits/upscale/QR/remix/collage/charts; songs, ambient audio, podcasts, speech; slideshows and audio visualizers | `/v1/images/*`, `/v1/videos/*`, `/v1/audio/*`, `/v1/artifacts/*` |
+| **Mythos** | Connected Tamil pantheon, character personas and memory, daily wisdom, multi-character councils, custom legends, layered roleplay, generated portraits, Thamizh inference mode | `/v1/mythology/*`, `mode=thamizh` |
+| **Automation** | Credential-safe connections, authenticated proxy requests, typed workflows, conditions/loops/parallel branches/retries, manual/event/cron/webhook triggers, scheduler, event bus, 21 integration templates | `/v1/connections/*`, `/v1/workflows/*`, `/v1/schedules/*`, `/v1/scheduler/*`, `/v1/events/*`, `/v1/integrations/*` |
+| **Workspace and content** | Searchable conversation threads, structured summaries, prompt templates, response cache, file storage with text auto-indexing, presets, bookmarks, notifications, global search, snapshots/diffs/rollback, export/import | `/v1/conversations/*`, `/v1/prompts/*`, `/v1/cache`, `/v1/files/*`, `/v1/presets/*`, `/v1/bookmarks/*`, `/v1/notifications/*`, `/v1/search`, `/v1/snapshots/*`, `/v1/export`, `/v1/import` |
+| **Collaboration and governance** | Autosaved revisioned drafts with conflict detection, inline comment threads/reactions, recurring tasks, tags, custom metadata fields, sharing permissions, command registry, feature flags, activity timeline, changelog | `/v1/drafts/*`, `/v1/comments/*`, `/v1/recurring/*`, `/v1/tags/*`, `/v1/fields/*`, `/v1/shares/*`, `/v1/commands/*`, `/v1/flags/*`, `/v1/activity/*`, `/v1/changelog/*` |
+| **Security and operations** | Optional API-key auth, scoped managed keys, sliding-window rate limiting, request-size limits, security headers, configurable CORS, PII/injection scanning, SSRF defense, audit trail, request IDs, metrics, quotas, cost budgets/alerts, sessions, feedback and signed webhooks | `/v1/security/*`, `/v1/keys/*`, `/v1/rate-limits`, `/v1/audit/*`, `/v1/metrics*`, `/v1/quotas/*`, `/v1/costs/*`, `/v1/sessions/*`, `/v1/feedback/*`, `/v1/webhooks/*` |
+| **Extensibility and discovery** | Plugin registration/entry-point discovery, generic operation batches with rollback, provider readiness, open-source runtime recipes, capability/identity/spec manifests, detailed health probes | `/v1/plugins/*`, `/v1/batch`, `/v1/providers/*`, `/v1/resources`, `/v1/capabilities`, `/v1/identity`, `/v1/spec`, `/v1/health/detailed` |
+| **Integrated web UI** | Home, threaded Workspace, cascade Inspector, learning telemetry, Studio chambers, Apex Lab, God Deck, Research Evolution browser, Deep Research, Canvas, Agent Store, resources, skills and integrations | `/` |
+
+### NOVA: advanced cognition and orchestration
+
+NOVA sits beside the Hermes cascade and exposes lower-level reasoning controls.
+`GET /v1/nova` returns the machine-readable manifest, evidence labels, expert
+registry, memory tiers, and reasoning presets.
+
+| NOVA subsystem | What it does | Status / endpoint |
+|----------------|--------------|-------------------|
+| **Extended reasoning** | `low` / `medium` / `high` / `max` effort presets control thinking budget, reflection passes, verification, and the returned structured trace. | **Local / live** · `POST /v1/nova/reason` |
+| **Sparse MoE router** | Selects the top 1–4 of eight specialists—code, math, writing, research, analysis, creative, multilingual, and vision—and reports weights/signals. | **Local / live** · `POST /v1/nova/route` |
+| **Multi-agent orchestrator** | Runs planner, researcher, critic, coder, writer, and QA roles in `council`, `debate`, `pipeline`, or `swarm` mode. | **Local / live** · `POST /v1/nova/orchestrate` |
+| **Hierarchical memory** | Stores `core`, `recall`, and `archival` entries; searches with trigram signatures + BM25; promotes important memories into core. | **Local / live, process-local** · `/v1/nova/memory/*` |
+| **Deep research loop** | Expands a question, searches the mounted corpus, synthesizes grounded findings, and archives the result for recall. | **Local / live** · `POST /v1/nova/research` |
+| **Artifact canvas** | Creates documents, SVG, React-like content, charts, Mermaid diagrams and dashboards with versions, unified diffs, and revert. | **Local / live** · `/v1/nova/canvas/*` |
+| **Tool Composition v2** | Builds a dependency-aware plan for a goal and optionally executes registered search, calculation, code, writing, and synthesis steps. | **Local / live** · `POST /v1/nova/plan?execute=true` |
+| **Computer-use sessions** | Provides a typed simulated viewport and requires confirmation before mutating click/type/key/drag/navigation actions. | **Simulation / scaffold** · `/v1/nova/computer-use/*` |
+| **Speculative draft-and-verify** | Declares draft width and verification-window architecture parameters. | **Scaffold** · manifest only, no generation endpoint |
+
+A separate `/v1/computer-use/*` protocol stages coordinate-grounded actions,
+clamps them to a virtual 1920×1080 viewport, requires explicit confirmation,
+and records action history. Its results are emulated; it does **not** silently
+control the host desktop or execute arbitrary shell commands.
+
+```bash
+# Inspect expert routing
+curl -s -X POST localhost:8000/v1/nova/route \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Prove the invariant, then implement and test it in Python","top_k":3}'
+
+# Run a council of specialist roles
+curl -s -X POST localhost:8000/v1/nova/orchestrate \
+  -H 'Content-Type: application/json' \
+  -d '{"goal":"Review a zero-downtime database migration plan","mode":"council","rounds":3}'
+```
+
+### Sovereign neural architecture lab
+
+The `/v1/neural/*` routes make the repository's architecture experiments
+inspectable. They expose five named specifications—Prime v4, Omni Reasoner,
+Flash v2, Vision-Gen v3, and Hermes Cognition 4X—plus:
+
+- dynamic LoRA-style domain adapter state and toggles;
+- PagedAttention / prefix KV-cache and continuous-batching telemetry;
+- speculative draft/target decoding telemetry;
+- Multi-Head Latent Attention compression reports;
+- a DeepSeek-style shared + routed expert simulation;
+- two-head Multi-Token Prediction lookahead;
+- a virtual 2M-token Needle-in-a-Haystack evaluation;
+- generated Ollama `Modelfile` and Hugging Face `config.json` metadata.
+
+> **Important:** this checkout intentionally ships **no trained neural weights**.
+> These endpoints are deterministic local synthesis, specification, telemetry,
+> export, and architecture-simulation surfaces. Use `/v1/resources` to discover
+> Ollama, LM Studio, vLLM, LiteLLM, hosted open-weight APIs, and compatible model
+> families when you want to attach real weights.
+
+### Production security and control plane
+
+The FastAPI process installs a complete middleware stack around every API call:
+
+| Control | Behavior | Configuration / introspection |
+|---------|----------|-------------------------------|
+| Authentication | Optional bearer or `X-API-Key` validation; health/UI/docs remain public. | `AETHERIS_AUTH_*` |
+| Managed keys | Create, scope, list, rotate, revoke, and delete application keys without returning stored secrets. | `/v1/keys/*` |
+| Rate limiting | Per-client sliding window with burst allowance, `429`, `Retry-After`, and limit headers. | `AETHERIS_RATE_LIMIT_*`, `/v1/rate-limits` |
+| Request limits | Rejects oversized non-read requests before route handling. | `AETHERIS_MAX_REQUEST_SIZE_BYTES` |
+| Browser hardening | `nosniff`, clickjacking defense, referrer/permissions policies, optional CSP and HSTS, configurable CORS. | `AETHERIS_SECURITY_*`, `/v1/security/headers` |
+| Content filtering | Scans chat/document inputs for PII and prompt-injection patterns; PII redaction reporting is on by default, injection blocking is opt-in. | `AETHERIS_CONTENT_FILTER_*` |
+| Network isolation | Sandboxed code has sockets disabled by default; `web_fetch` rejects private, loopback, link-local, reserved, multicast, metadata, and unsafe redirect targets. | `AETHERIS_SANDBOX_ALLOW_NETWORK`, `AETHERIS_WEB_*` |
+| Audit and tracing | Bounded structured audit log, per-request `X-Request-Id`, actor/outcome filters, latency and status metadata. | `/v1/audit/*` |
+| Metrics and analytics | Active requests, latency/error counts, token/tool/security counters, time series, top queries/tools and cost breakdowns. | `/v1/metrics*`, `/v1/analytics/*` |
+| Quotas and cost governance | Custom quota tiers, usage recording, provider rates, per-client daily/monthly budgets, threshold alerts. | `/v1/quotas/*`, `/v1/costs/*` |
+| Reliability | Configurable closed/open/half-open circuit breakers isolate failing tools or providers. | `/v1/breakers/*` |
+
+### Automation, integrations, and event-driven work
+
+The workflow engine is more than a list of webhooks. A workflow can call a
+registered connection, execute an Aetheris tool, transform data, branch on a
+condition, fan out in parallel, loop over values, or invoke another workflow.
+Every step supports timeout/output mapping, and executable steps support bounded
+retries. Runs are traced and queryable.
+
+Triggers can be manual, event-based, cron-based, or webhook-based. The internal
+event bus keeps a queryable history, while the scheduler can be controlled at
+runtime. The 21 connection templates cover:
+
+`Slack` · `Slack Webhook` · `GitHub` · `Discord` · `Notion` · `Jira` ·
+`PagerDuty` · `Stripe` · `SendGrid` · `Twilio` · `Gmail` · `Google Meet` ·
+`Google Calendar` · `Google Drive` · `Google Sheets` · `Telegram` · `WhatsApp` ·
+`LinkedIn` · `Instagram` · `YouTube` · any custom REST API.
+
+Connection credentials remain server-side and are omitted from public
+connection objects. External requests happen only after an operator creates and
+uses a connection.
+
+### Workspace, collaboration, and lifecycle features
+
+The repository also contains the application services expected around an AI
+runtime:
+
+- **Conversations** — threaded messages, filters, content search, JSON/Markdown/
+  text export, and Hermes-backed structured summaries with a deterministic
+  fallback.
+- **Prompts and presets** — reusable variable templates, built-in starter packs,
+  category/tag search, and model/mode/tool parameter presets.
+- **Files and retrieval** — bounded upload store with checksums; uploaded text is
+  automatically added to RAG when retrieval is enabled.
+- **Drafts** — optimistic revision numbers, autosave, conflict responses, complete
+  revision history, revert, publish, and per-client ownership metadata.
+- **Comments** — entity-scoped threads, replies, mentions, reaction toggles,
+  resolve/reopen, search, and statistics.
+- **Snapshots** — capture conversation/prompt state, compare snapshots with a
+  diff, and roll an entity back.
+- **Organization** — universal tags/autocomplete, typed custom fields and
+  validation, bookmark collections, notifications, global cross-entity search,
+  and a unified activity timeline.
+- **Governance** — targeting-aware feature flags, scoped shares and permission
+  checks, quota assignments, searchable release notes, and recurring tasks with
+  interval/daily/weekly/monthly/business-day/cron scheduling.
+- **Portability and extensions** — export/import bundles; register Python plugins
+  for tools, providers, middleware, or prompt extensions; discover the
+  `aetheris.plugin` entry-point group.
+- **Batching** — run up to 20 chat requests concurrently, or submit generic
+  dependency-aware operation batches with `${operation.field}` references,
+  stop-on-error behavior, and optional rollback.
+
+### Canvas, custom agents, and structured output
+
+- **Custom agent store** — six specialist starters (research, full-stack,
+  mathematics, red-team, design, and quantitative risk) plus user-created agents
+  with a model id, private system prompt, and explicit tool allowlist.
+- **Two canvas APIs** — `/v1/nova/canvas/*` handles rendered/versioned documents,
+  SVGs, charts, Mermaid, React-like artifacts, and dashboards with diff/revert;
+  `/v1/canvas/artifacts*` provides a simpler code/HTML/React/SVG/Markdown/
+  Mermaid/JSON version stream used by the web UI.
+- **Guardrails** — named JSON Schema-like contracts validate structured outputs,
+  extract fenced JSON, repair common syntax defects, and report every change.
+- **Provenance** — maps answer sentences to overlapping sources and emits a
+  citation graph that clients can visualize.
+- **Evaluation** — built-in exact, contains, regex, numeric, token-F1, and rubric
+  graders; custom suites, stored runs, and A/B scorecards are available through
+  `/v1/evals/*`.
 
 ## Screenshots
 
@@ -437,7 +631,7 @@ After creating `.env` in step 6, change only the settings you need:
 
 | Variable | Effect |
 |----------|--------|
-| `AETHERIS_LLM_PROVIDER` | `hermes` (default, offline), `openai`, `anthropic`, `gemini`, `mock`, or `neural` |
+| `AETHERIS_LLM_PROVIDER` | `hermes` (default, offline), `nvidia`, `openai`, `anthropic`, `gemini`, `mock`, or `neural` |
 | `AETHERIS_ANTHROPIC_API_KEY` | Enables the Claude provider (`llm_provider=anthropic`) |
 | `AETHERIS_GEMINI_API_KEY` | Enables the Gemini chat + Imagen + TTS/STT providers |
 | `AETHERIS_IMAGE_PROVIDER` | `auto` (default) · `offline` · `openai` · `gemini` · `stability` |
@@ -517,7 +711,7 @@ Step 4 of the installation registers the command. With `.venv` activated, run
 
 ```
 -m, --model TIER   aetheris-lite|flash | aetheris-pro|pro | aetheris-ultra|ultra
--M, --mode  MODE   general | engineering | editorial | structured | myth | legendary | pro | lite | flash | sovereign
+-M, --mode  MODE   general | engineering | editorial | structured | myth | legendary | thamizh | pro | lite | flash | sovereign
 -a, --agent        run the agent loop: call real tools and self-correct
     --tools SPEC   expose the toolbelt ('auto' or 'none')
     --doc PATH     mount a file into the retrieval index (repeatable)
@@ -598,12 +792,13 @@ Prime v4, or Omni Reasoner.
 | `structured` | Structured Inference Node | Strict, schema-compliant JSON output |
 | `myth` | Myth (Oracle) | Archetype / omen framing — on Flash, Pro, *and* Ultra |
 | `legendary` | Legendary (Strategist) | Claim, campaign, stake — on every tier |
+| `thamizh` | Thamizh (Tamil Mythos) | Sangam cadence and kuṟaḷ brevity with facts and numbers preserved |
 | `pro` | Pro (Operator) | Ship-in-an-hour voice (distinct from the Pro *tier*) |
 | `lite` | Lite / Little | Simple, short, friendly (distinct from the Lite *tier*) |
 | `flash` | Flash (Speed) | Fewest true words (distinct from the Flash *tier* alias) |
 | `sovereign` | Sovereign (Unrestricted Expert) | Direct, unhedged expert output — *opt-in* |
 
-Modes are orthogonal to the three models. Pair any mode with Flash v2, Prime v4, or Omni Reasoner. `GET /v1/legends` returns the full matrix. Aliases: `little` → lite, `mythic` → myth, `legend` → legendary, `quick` → flash.
+Modes are orthogonal to the three models. Pair any mode with Flash v2, Prime v4, or Omni Reasoner. `GET /v1/legends` returns the full matrix. Aliases include `little` → lite, `mythic` → myth, `legend` → legendary, `tamil` / `sangam` / `kural` → thamizh, and `quick` → flash.
 
 List them with `GET /v1/modes`. `sovereign` appears only when
 `AETHERIS_SOVEREIGN_ENABLED=true`; see [Capabilities](#capabilities).
@@ -624,7 +819,6 @@ curl -N http://localhost:8000/v1/chat/completions \
     "mode": "engineering",
     "stream": true,
     "messages": [
-         "messages": [
       { "role": "user", "content": "Design a rate limiter for a public API." }
     ]
   }'
@@ -636,7 +830,7 @@ Request fields:
 |-------|------|---------|-------|
 | `model` | `string?` | `aetheris-pro` | Tier id or alias (`flash`/`pro`/`ultra`). |
 | `messages` | `ChatMessage[]` | — | At least one `user` message required. |
-| `mode` | `string?` | `general` | One of the four inference modes. |
+| `mode` | `string?` | `general` | Any mode returned by `GET /v1/modes` (including aliases); gated modes must be enabled. |
 | `stream` | `boolean` | `false` | Stream SSE chunks when `true`. |
 | `temperature` / `max_tokens` / `top_p` / `stop` | various | — | Forwarded to the upstream provider when set. |
 | `tools` | `ToolDef[] \| "auto" \| "none"` | — | `"auto"` exposes the built-in toolbelt; a list forwards your own definitions. |
@@ -652,7 +846,11 @@ with an added `mode` field for traceability. When `mode=structured`, the assista
 content is strict JSON only. Agent runs add a `tool_trace` array to the response,
 and streamed agent runs emit `tool_event` chunks as each tool executes.
 
-### Other endpoints
+### Endpoint catalog
+
+The table below lists the primary calls and advanced entry points. CRUD variants,
+filters, and exact typed payloads for every route are generated at runtime in
+`GET /openapi.json` and rendered interactively at `GET /docs`.
 
 | Method & path | Purpose |
 |---------------|---------|
@@ -703,6 +901,29 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/hermes/meta/adapt` | Preview the adaptation for a task without running it. |
 | `POST /v1/hermes/feedback` | Reinforce or penalise an episode (this is what teaches it). |
 | `DELETE /v1/hermes/meta` | Forget all meta-learned state. |
+| `POST /v1/hermes/meta/save` | Persist learned state to `AETHERIS_HERMES_META_STATE_PATH`. |
+| `GET /v1/nova` | NOVA manifest: evidence labels, experts, memory tiers, roles and reasoning presets. |
+| `POST /v1/nova/reason` | Run effort-controlled decomposition, reflection, verification and synthesis. |
+| `POST /v1/nova/route` | Inspect top-k sparse expert routing and its composed specialist prompt. |
+| `POST /v1/nova/orchestrate` | Run a council, debate, pipeline or swarm of specialist roles. |
+| `POST /v1/nova/research` | Iterative research over mounted documents and NOVA memory. |
+| `GET/POST /v1/nova/memory` | Inspect/write three-tier memory; search and promotion have dedicated subroutes. |
+| `GET/POST /v1/nova/canvas` | List or create live canvas artifacts. |
+| `GET/PATCH /v1/nova/canvas/{id}` | Render or version an artifact; diff/revert/delete have dedicated subroutes. |
+| `POST /v1/nova/plan` | Build a tool DAG and optionally execute it with `?execute=true`. |
+| `POST /v1/nova/computer-use/sessions` | Open a simulated, confirmation-gated computer-use session. |
+| `GET /v1/neural/models` | List five sovereign architecture specifications and model aliases. |
+| `POST /v1/neural/synthesize` | Run the local deterministic neural synthesis surface. |
+| `GET /v1/neural/telemetry` | Inspect Paged-KV, speculative-decoding and batching telemetry. |
+| `GET /v1/neural/mla` | Run the Multi-Head Latent Attention compression experiment. |
+| `GET /v1/neural/deepseek-moe` | Inspect shared + fine-grained routed-expert selection. |
+| `GET /v1/neural/mtp` | Inspect t+1/t+2 Multi-Token Prediction lookahead heads. |
+| `GET /v1/neural/niah` | Run the virtual 2M-token Needle-in-a-Haystack evaluation. |
+| `GET /v1/neural/export/ollama/{model}` | Generate an Ollama `Modelfile`. |
+| `GET /v1/neural/export/huggingface/{model}` | Generate Hugging Face `config.json` metadata. |
+| `GET /v1/agents/store` | Browse six built-in specialists and user-created custom agents. |
+| `POST /v1/agents/custom` | Create a private agent with its own prompt, model and tool allowlist. |
+| `POST /v1/computer-use/plan` | Stage and validate a simulated GUI/system action before confirmation. |
 | `GET /v1/apex` | Apex cognition manifest (graph, constitution, evals, skills, …). |
 | `GET /v1/god` | God Mode arsenal manifest + live engine stats. |
 | `POST /v1/god/run` | Classify a task and fuse ToT / causal / hypothesis / proof / red-team / forecast. |
@@ -719,6 +940,30 @@ and streamed agent runs emit `tool_event` chunks as each tool executes.
 | `POST /v1/skills/compose` | Match composable skills to a task and return a prompt pack. |
 | `POST /v1/semantic-cache/lookup` | Near-duplicate cache lookup by signature embedding. |
 | `POST /v1/guardrails/validate` | Validate / repair JSON against a named contract. |
+| `POST /v1/connections` | Register a credential-safe API connection; test and proxy calls through subroutes. |
+| `POST /v1/workflows` | Create a traced multi-step automation with tool/API/branch/loop/parallel steps. |
+| `POST /v1/workflows/{id}/run` | Execute a workflow with supplied input variables. |
+| `POST /v1/schedules` | Schedule workflow execution; the scheduler can be started/stopped at runtime. |
+| `POST /v1/events/publish` | Publish to the internal event bus; `GET /v1/events` queries history. |
+| `GET /v1/integrations` | List 21 ready-to-configure service connection templates. |
+| `POST /v1/conversations` | Create a searchable thread; append, export and summarize through subroutes. |
+| `POST /v1/prompts` | Create a reusable variable prompt; render and load defaults through subroutes. |
+| `POST /v1/files` | Upload a checksummed file; text files can auto-mount into RAG. |
+| `POST /v1/search` | Search conversations, prompts, files, workflows and connections together. |
+| `POST /v1/snapshots` | Snapshot an entity; compare, rollback and delete versions through subroutes. |
+| `POST /v1/drafts` | Create a revisioned draft with autosave, conflict detection, revert and publish. |
+| `POST /v1/comments` | Create entity-scoped comment threads with replies, reactions and resolution. |
+| `POST /v1/embeddings` | Return deterministic signature embeddings in an OpenAI-style envelope. |
+| `POST /v1/embeddings/search` | Search the local signature-vector document index. |
+| `POST /v1/batch` | Run dependency-aware operations with references and optional rollback. |
+| `POST /v1/export` | Export a portable application-data bundle; `/v1/import` restores one. |
+| `POST /v1/flags` | Manage targeting-aware feature flags and evaluate them by context. |
+| `POST /v1/quotas/tiers` | Define and assign usage tiers; record/check usage through subroutes. |
+| `GET /v1/metrics` | Operational request, token, tool, latency and security counters. |
+| `GET /v1/analytics/overview` | Windowed usage, error, token, request, cost and top-query analytics. |
+| `GET /v1/costs` | Aggregated spend with model rates, entries, budgets and alerts. |
+| `GET /v1/audit` | Filterable bounded audit history with request IDs and outcomes. |
+| `GET /v1/health/detailed` | Deep subsystem health report beyond the liveness probe. |
 | `GET /v1/research/catalog` | List all 50 research features across 6 evolutionary eras (1950–2026). |
 | `GET /v1/research/timeline` | Full chronological milestone timeline of AI breakthroughs. |
 | `GET /v1/research/eras` | Summary breakdown of all 6 AI evolutionary eras. |
@@ -1356,7 +1601,7 @@ a `.env` file. See [`.env.example`](.env.example).
 |----------|---------|-------------|
 | `AETHERIS_HOST` | `0.0.0.0` | Bind host. |
 | `AETHERIS_PORT` | `8000` | Bind port. |
-| `AETHERIS_LLM_PROVIDER` | `hermes` | `hermes`, `nvidia`, `openai`, `anthropic`, `gemini`, `mock`, or `neural`. |
+| `AETHERIS_LLM_PROVIDER` | `hermes` | `hermes`, `nvidia`, `openai`, `anthropic`, `gemini`, `mock`, `neural`, or `aetheris_neural`. |
 | `AETHERIS_NVIDIA_API_KEY` | *(empty)* | One server-side NVIDIA Developer key for NIM chat, image, video, and code. |
 | `AETHERIS_NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM OpenAI-compatible chat endpoint. |
 | `AETHERIS_LLM_BASE_URL` | `https://api.openai.com/v1` | Generic OpenAI-compatible base URL. |
@@ -1374,47 +1619,54 @@ a `.env` file. See [`.env.example`](.env.example).
 
 ```
 aetheris/
-├── __init__.py
-├── __main__.py             # `python -m aetheris` → CLI
-├── cli.py                  # the `aetheris` command (chat/ask/stream/models/modes/info/spec/health/serve)
-├── main.py                 # FastAPI app, lifespan, CORS, server entrypoint
+├── __main__.py, cli.py       # CLI: inference, media, coder, keys, GitHub, server
+├── main.py                   # FastAPI lifecycle and integrated static UI serving
+├── api/
+│   ├── routes.py             # The complete /v1 surface (chat + platform APIs)
+│   ├── middleware.py         # Auth, limits, headers, filtering, audit, metrics, CORS
+│   └── ui.py                 # Serves the production Aurion build at /
+├── hermes/
+│   ├── agent.py              # Eleven-stage traced agent cascade
+│   ├── cognition.py          # Perception, intent, symbolic math, grounding
+│   ├── meta_learning.py      # Priors, exemplars, strategy updates, persistence
+│   ├── experience_memory.py  # Episode memory and recall
+│   └── synthesis.py          # Offline answer synthesis and polishing
 ├── core/
-│   ├── branding.py         # Canonical brand identity (name, palette, copy)
-│   ├── config.py           # Environment-driven settings (pydantic-settings)
-│   ├── tiers.py            # Model-tier registry + foundation spec
-│   ├── modes.py            # Inference modes → system-prompt binding
-│   ├── mode_style.py       # Myth/legendary/pro/lite/flash restyle + legend matrix
-│   └── spec.py             # Architecture + training spec (provenance-tagged, JSON-overridable)
-├── prompts/
-│   └── system_prompts.py   # The production system prompts + capability directives
-├── schemas/
-│   ├── chat.py             # OpenAI-compatible chat, tool calls, multimodal parts
-│   ├── models.py           # Model/mode introspection schemas
-│   ├── tools.py            # Tool, document, and capability schemas
-│   └── spec.py             # Architecture/training spec response schemas
-├── media/                  # Dependency-free generation (stdlib only)
-│   ├── canvas.py           # RGB raster + PNG and animated-GIF encoders
-│   ├── font.py             # 5x7 bitmap font for text in images
-│   ├── images.py           # Procedural image synthesis (8 compositions)
-│   ├── video.py            # Frame-by-frame animation (8 motion styles)
-│   ├── audio.py            # Additive synthesis -> 16-bit WAV
-│   ├── code.py             # Verified snippets + project scaffolds
-│   └── store.py            # Bounded in-memory artifact store
-├── tools/                  # The executable toolbelt
-│   ├── registry.py         # Tool registration, schema export, safe execution
-│   ├── sandbox.py          # Isolated subprocess Python execution
-│   ├── retrieval.py        # BM25 chunked document index (RAG)
-│   ├── builtins.py         # calculator / current_time / validate_json / think
-│   ├── creation.py         # image / video / audio / project generation tools
-│   └── web.py              # SSRF-guarded HTTP fetch (opt-in)
+│   ├── nova.py               # NOVA manifest, experts, reasoning presets
+│   ├── god_mode.py           # Fused ultra-reasoning controller
+│   ├── tot.py, world_model.py, hypothesis.py, proof.py, redteam.py, forecast.py
+│   ├── knowledge_graph.py, constitution.py, evals.py, provenance.py
+│   ├── skills.py, semantic_cache.py, guardrails.py, circuit_breakers.py
+│   ├── neural_engine.py      # Sovereign architecture lab and export metadata
+│   ├── research_hub.py       # 50 executable AI-evolution simulations
+│   ├── security.py, audit.py, rate_limiter.py, metrics.py, api_keys.py
+│   ├── connections.py, workflows.py, scheduler.py, events.py, integrations.py
+│   ├── conversations.py, prompts_library.py, files.py, export_import.py
+│   ├── drafts.py, comments.py, snapshots.py, tags.py, sharing.py, quotas.py
+│   ├── analytics.py, cost_tracking.py, feature_flags.py, recurrence.py
+│   ├── tamil_mythology.py, custom_gpts.py, resources.py
+│   └── branding.py, config.py, tiers.py, modes.py, mode_style.py, spec.py
 ├── services/
-│   ├── llm.py              # Provider interface, prepare_conversation, factory
-│   ├── agent.py            # The autonomous plan→act→observe→correct loop
-│   ├── mock_provider.py    # Brand-aware offline provider + real tool selection
-│   └── openai_provider.py  # OpenAI-compatible forwarding (tools + vision)
-└── api/
-    ├── routes.py           # /v1/chat/completions, /v1/tools, /v1/documents, …
-    └── landing.py          # Legacy landing template + /landing → / redirect
+│   ├── llm.py                # Provider factory and conversation preparation
+│   ├── *_provider.py         # Hermes, OpenAI, Anthropic, Gemini, NVIDIA, neural
+│   ├── reasoning.py, moe.py, orchestrator.py, planner.py, memory.py
+│   ├── research.py, deep_research.py, conversation_summary.py
+│   ├── canvas.py, canvas_workspace.py, computer.py, computer_use.py
+│   └── coder.py, github_client.py, keys.py, voice.py
+├── media/
+│   ├── canvas.py, images.py, image_edit.py, image_providers.py
+│   ├── video.py, video_providers.py, slideshow.py, visualizer.py
+│   ├── audio.py, speech.py, song.py, ambient.py, podcast.py
+│   ├── qr.py, remix.py, collage.py, charts.py
+│   └── code.py, store.py      # Verified scaffolds + bounded artifact storage
+├── tools/
+│   ├── registry.py, builtins.py, creation.py, integration.py
+│   ├── sandbox.py             # Isolated subprocess Python execution
+│   ├── retrieval.py           # Chunked BM25 document index
+│   └── web.py                 # SSRF-guarded outbound fetch (opt-in)
+├── prompts/, schemas/         # Prompt registry and typed wire contracts
+aurion/                        # Next.js 16 / React 19 integrated web application
+tests/                         # Unit, API, security, media, cognition, and research tests
 ```
 
 **Request flow:** a chat request is resolved into a `PreparedConversation` — tier
