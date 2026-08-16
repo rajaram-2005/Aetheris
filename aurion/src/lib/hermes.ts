@@ -63,7 +63,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** Run one task through the full Hermes cascade. */
 export function runHermes(
   task: string,
-  options: { sessionId?: string; useMemory?: boolean; learn?: boolean; mode?: string } = {},
+  options: {
+    sessionId?: string;
+    useMemory?: boolean;
+    learn?: boolean;
+    mode?: string;
+    /** Abort the in-flight request (Stop generation). */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<HermesRun> {
   return request<HermesRun>('/v1/hermes/run', {
     method: 'POST',
@@ -74,6 +81,7 @@ export function runHermes(
       learn: options.learn ?? true,
       mode: options.mode ?? '',
     }),
+    signal: options.signal,
   });
 }
 
@@ -368,13 +376,227 @@ export function editImage(
 }
 
 /** Text-to-speech: returns an artifact URL to spoken audio. */
-export function synthesizeSpeech(text: string, voice = 'default'): Promise<{
+export function synthesizeSpeech(
+  text: string,
+  options: { voice?: string; rate?: number; pitch?: number } = {},
+): Promise<{
   artifact: { url: string };
-  detail: { provider: string; model: string };
+  detail: { provider: string; model: string; voice: string };
 }> {
   return request('/v1/audio/speech', {
     method: 'POST',
-    body: JSON.stringify({ text, voice }),
+    body: JSON.stringify({
+      text,
+      voice: options.voice ?? 'default',
+      rate: options.rate ?? 1.0,
+      pitch: options.pitch ?? 1.0,
+    }),
+  });
+}
+
+/* ─── Studio Pro: advanced image / video / audio generation ─── */
+
+/** Encode text as a styled, scannable QR code PNG. */
+export function generateQr(
+  data: string,
+  options: {
+    ecl?: 'L' | 'M' | 'Q' | 'H';
+    width?: number;
+    foreground?: string;
+    background?: string;
+    rounded?: boolean;
+    letter?: string;
+  } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { version: number; ecc: string; mask: number; modules: number };
+}> {
+  return request('/v1/images/qr', {
+    method: 'POST',
+    body: JSON.stringify({
+      data,
+      ecl: options.ecl ?? 'M',
+      width: options.width ?? 420,
+      foreground: options.foreground ?? undefined,
+      background: options.background ?? undefined,
+      rounded: options.rounded ?? false,
+      letter: options.letter ?? '',
+    }),
+  });
+}
+
+/** Reimagine a stored image (its palette, your prompt) or restyle it. */
+export function remixImage(
+  imageId: string,
+  prompt: string,
+  options: {
+    operation?: 'reimagine' | 'restyle';
+    palette?: string;
+    style?: string;
+    width?: number;
+    height?: number;
+    dither?: boolean;
+  } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { operation: string; scene?: string; inherited_palette?: string[] };
+}> {
+  return request('/v1/images/remix', {
+    method: 'POST',
+    body: JSON.stringify({
+      image: imageId,
+      prompt,
+      operation: options.operation ?? 'reimagine',
+      palette: options.palette ?? undefined,
+      style: options.style ?? undefined,
+      width: options.width ?? 1024,
+      height: options.height ?? 576,
+      dither: options.dither ?? true,
+    }),
+  });
+}
+
+/** Compose stored images into a grid, polaroid, or filmstrip sheet. */
+export function makeCollage(
+  items: { image: string; caption?: string }[],
+  options: { layout?: 'grid' | 'polaroid' | 'filmstrip'; width?: number; height?: number; background?: string } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { layout: string; images: number };
+}> {
+  return request('/v1/images/collage', {
+    method: 'POST',
+    body: JSON.stringify({
+      items,
+      layout: options.layout ?? 'grid',
+      width: options.width ?? 1280,
+      height: options.height ?? 720,
+      background: options.background ?? undefined,
+    }),
+  });
+}
+
+/** Render a line/bar/pie/donut/radar chart from JSON numbers. */
+export function makeChart(
+  spec: { kind?: 'line' | 'bar' | 'pie' | 'donut' | 'radar'; title?: string; labels?: string[]; series: { name?: string; values: number[] }[] },
+  options: { width?: number; height?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { kind: string; series: string[]; points: number[] };
+}> {
+  return request('/v1/images/charts', {
+    method: 'POST',
+    body: JSON.stringify({
+      kind: spec.kind ?? 'line',
+      title: spec.title ?? '',
+      labels: spec.labels ?? [],
+      series: spec.series,
+      width: options.width ?? 960,
+      height: options.height ?? 560,
+    }),
+  });
+}
+
+/** Animate stored images into a Ken Burns slideshow GIF. */
+export function makeSlideshow(
+  items: { image: string; caption?: string }[],
+  options: {
+    transition?: 'crossfade' | 'pan' | 'zoom' | 'wipe';
+    secondsPerSlide?: number;
+    width?: number;
+    height?: number;
+  } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { transition: string; slides: number; duration_seconds: number };
+}> {
+  return request('/v1/videos/slideshow', {
+    method: 'POST',
+    body: JSON.stringify({
+      items,
+      transition: options.transition ?? 'crossfade',
+      seconds_per_slide: options.secondsPerSlide ?? 2.5,
+      width: options.width ?? 640,
+      height: options.height ?? 360,
+    }),
+  });
+}
+
+/** Animate a stored WAV artifact into an audio-synced visualizer GIF. */
+export function visualizeAudio(
+  audioId: string,
+  options: { mode?: 'bars' | 'oscilloscope' | 'radial' | 'wave'; width?: number; height?: number; bins?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { mode: string; frames: number; audio_seconds: number };
+}> {
+  return request('/v1/videos/visualizer', {
+    method: 'POST',
+    body: JSON.stringify({
+      audio: audioId,
+      mode: options.mode ?? 'bars',
+      width: options.width ?? 480,
+      height: options.height ?? 270,
+      bins: options.bins ?? 20,
+    }),
+  });
+}
+
+/** Compose a structured song (intro/verse/chorus/bridge/outro) as stereo WAV. */
+export function composeSong(
+  mood: 'uplifting' | 'mellow' | 'epic' | 'noir' | 'sparkle',
+  options: { key?: string; tempo?: number; seed?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { mood: string; key: string; chords: string; seconds: number };
+}> {
+  return request('/v1/audio/song', {
+    method: 'POST',
+    body: JSON.stringify({
+      mood,
+      key: options.key ?? 'C',
+      tempo: options.tempo ?? undefined,
+      seed: options.seed ?? undefined,
+    }),
+  });
+}
+
+/** Synthesise an ambient soundscape or one-shot sound effect (stereo WAV). */
+export function generateAmbient(
+  kind: string,
+  options: { seconds?: number; seed?: number } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { kind: string; seconds: number; channels: number };
+}> {
+  return request('/v1/audio/ambient', {
+    method: 'POST',
+    body: JSON.stringify({
+      kind,
+      seconds: options.seconds ?? 12,
+      seed: options.seed ?? undefined,
+    }),
+  });
+}
+
+/** Produce a podcast-style intro: narration over a ducked music bed. */
+export function makePodcastIntro(
+  text: string,
+  options: { voice?: string; music?: 'pad' | 'arp' | 'drone' | 'none'; key?: string; tempo?: number; jingle?: boolean } = {},
+): Promise<{
+  artifact: { id: string; url: string; media_type: string };
+  detail: { kind: string; voice: string; music: string; seconds: number };
+}> {
+  return request('/v1/audio/podcast', {
+    method: 'POST',
+    body: JSON.stringify({
+      text,
+      voice: options.voice ?? 'default',
+      music: options.music ?? 'pad',
+      key: options.key ?? 'Cmaj7',
+      tempo: options.tempo ?? 96,
+      jingle: options.jingle ?? true,
+    }),
   });
 }
 

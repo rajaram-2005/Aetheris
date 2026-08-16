@@ -260,9 +260,16 @@ class OpenAIImageProvider(_RemoteImageProvider):
 
 
 class GeminiImageProvider(_RemoteImageProvider):
-    """Google Imagen 3 via the Generative Language ``generateContent`` API."""
+    """Google Imagen 3 / Gemini 2.5 Flash Image ("nano banana").
 
-    provider_name = "gemini (imagen 3)"
+    Both models share the Generative Language ``generateContent`` contract with
+    ``responseModalities: ["TEXT", "IMAGE"]``; the default model is
+    ``gemini-2.5-flash-image``. Because nano banana returns one image per call,
+    ``n`` loops the request for variations instead of passing a batch size the
+    model rejects.
+    """
+
+    provider_name = "gemini (imagen / nano banana)"
 
     @staticmethod
     def _aspect_ratio(width: int, height: int) -> str:
@@ -270,6 +277,10 @@ class GeminiImageProvider(_RemoteImageProvider):
             return "16:9"
         if height >= width * 1.7:
             return "9:16"
+        if width >= height * 1.33:
+            return "4:3"
+        if height >= width * 1.33:
+            return "3:4"
         return "1:1"
 
     async def generate(
@@ -285,42 +296,60 @@ class GeminiImageProvider(_RemoteImageProvider):
         caption: bool = True,
     ) -> list[ImageGenerationResult]:
         url = f"/v1beta/models/{self._model}:generateContent"
-        payload: dict[str, Any] = {
-            "contents": [{"parts": [{"text": _augment_prompt(prompt, style, palette)}]}],
-            "generationConfig": {
-                "responseModalities": ["TEXT", "IMAGE"],
-                "imageConfig": {"aspectRatio": self._aspect_ratio(width, height)},
-            },
-        }
-        try:
-            resp = await self._client.post(url, json=payload)
-        except httpx.HTTPError as exc:
-            raise RuntimeError(f"Gemini image request failed: {exc}") from exc
-        if resp.status_code >= 400:
-            self._raise_remote("Gemini Imagen endpoint", resp)
-        body = resp.json()
-        candidates = body.get("candidates") or []
-        if not candidates:
-            raise RuntimeError("Gemini returned no image candidates.")
+        augmented = _augment_prompt(prompt, style, palette)
         results: list[ImageGenerationResult] = []
-        for candidate in candidates:
-            for part in (candidate.get("content") or {}).get("parts") or []:
-                inline = part.get("inlineData")
-                if not inline:
-                    continue
-                mime = inline.get("mimeType", "image/png")
-                results.append(
-                    ImageGenerationResult(
-                        data=base64.b64decode(inline.get("data", "")),
-                        media_type=mime,
-                        provider=self.provider_name,
-                        model=self._model,
-                        meta={"renderer": self._model},
-                        seed=seed,
+        # Nano banana produces one image per response; loop for variations.
+        for _ in range(max(1, n)):
+            payload: dict[str, Any] = {
+                "contents": [{"parts": [{"text": augmented}]}],
+                "generationConfig": {
+                    "responseModalities": ["TEXT", "IMAGE"],
+                    "imageConfig": {"aspectRatio": self._aspect_ratio(width, height)},
+                },
+            }
+            if seed is not None:
+                payload["generationConfig"]["seed"] = seed
+            try:
+                resp = await self._client.post(url, json=payload)
+            except httpx.HTTPError as exc:
+                raise RuntimeError(f"Gemini image request failed: {exc}") from exc
+            if resp.status_code >= 400:
+                self._raise_remote("Gemini image endpoint", resp)
+            body = resp.json()
+            candidates = body.get("candidates") or []
+            found = False
+            for candidate in candidates:
+                for part in (candidate.get("content") or {}).get("parts") or []:
+                    inline = part.get("inlineData")
+                    if not inline or not inline.get("data"):
+                        continue
+                    mime = inline.get("mimeType", "image/png")
+                    results.append(
+                        ImageGenerationResult(
+                            data=base64.b64decode(inline.get("data", "")),
+                            media_type=mime,
+                            provider=self.provider_name,
+                            model=self._model,
+                            meta={"renderer": self._model},
+                            seed=seed,
+                        )
                     )
+                    found = True
+            if not found:
+                # Report the first candidate's text if present (nano banana
+                # explains refusals in text) so the error is actionable.
+                note = ""
+                try:
+                    note = (candidates[0].get("content") or {}).get("parts") or []
+                    note = " ".join(p.get("text", "") for p in note if isinstance(p, dict))[:200]
+                except (IndexError, AttributeError):
+                    note = ""
+                raise RuntimeError(
+                    f"Gemini returned no inline image data"
+                    f"{f': {note}' if note else ''}."
                 )
         if not results:
-            raise RuntimeError("Gemini returned no inline image data.")
+            raise RuntimeError("Gemini returned no images.")
         return results
 
 

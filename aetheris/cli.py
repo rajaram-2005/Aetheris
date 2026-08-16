@@ -517,10 +517,10 @@ def cmd_speech(args: argparse.Namespace) -> int:
     if not text:
         console.print("[red]error:[/red] provide some text to speak.")
         return 2
-    wav = synthesize(text, voice=args.voice)
+    wav = synthesize(text, voice=args.voice, rate=args.rate, pitch=args.pitch)
     console.print(
-        f"[{MUTED}]voice [bold]{args.voice}[/bold] · {len(text)} chars · "
-        f"offline formant synthesis[/{MUTED}]"
+        f"[{MUTED}]voice [bold]{args.voice}[/bold] · rate {args.rate}× · pitch {args.pitch}× · "
+        f"{len(text)} chars · offline formant synthesis[/{MUTED}]"
     )
     return _save_artifact(console, wav, args.out or "aetheris-speech.wav", "Speech")
 
@@ -557,6 +557,433 @@ def cmd_project(args: argparse.Namespace) -> int:
     console.print(
         f"[{TEAL}]Project created[/{TEAL}] [bold]{root}[/bold] "
         f"[{MUTED}]({len(project.files)} files)[/{MUTED}]"
+    )
+    return 0
+
+
+# --- Studio Pro commands -----------------------------------------------------
+
+def _read_source(path: str) -> bytes:
+    """Read a local PNG/WAV source for the Studio Pro commands."""
+    from pathlib import Path
+
+    target = Path(path).expanduser()
+    if not target.is_file():
+        raise ValueError(f"no such file: {path}")
+    return target.read_bytes()
+
+
+def cmd_qr(args: argparse.Namespace) -> int:
+    """``aetheris qr`` — encode text as a styled QR code PNG."""
+    console = _make_console(args)
+    from .media.qr import generate
+
+    try:
+        png, meta = generate(
+            args.data, ecl=args.ecl, width=args.width,
+            foreground=args.foreground, background=args.background,
+            rounded=args.rounded, letter=args.letter,
+        )
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(
+        f"[{MUTED}]version {meta['version']} · {meta['modules']}×{meta['modules']} modules · "
+        f"ECC {meta['ecc']} · mask {meta['mask']} · {meta['payload_bytes']}/{meta['capacity_bytes']} bytes[/{MUTED}]"
+    )
+    return _save_artifact(console, png, args.out or "aetheris-qr.png", "QR code")
+
+
+def cmd_remix(args: argparse.Namespace) -> int:
+    """``aetheris remix`` — reimagine/restyle a local image from its palette."""
+    console = _make_console(args)
+    from .media.remix import remix
+
+    try:
+        data = _read_source(args.image)
+        png, meta = remix(
+            data, " ".join(args.prompt), operation=args.operation,
+            palette=args.palette, width=args.width, height=args.height,
+            style=args.style, dither=not args.no_dither, seed=args.seed,
+        )
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    if meta["operation"] == "reimagine":
+        console.print(
+            f"[{MUTED}]scene [bold]{meta['scene']}[/bold] · inherited palette "
+            f"{', '.join(meta['inherited_palette'])}[/{MUTED}]"
+        )
+    else:
+        console.print(f"[{MUTED}]palette [bold]{meta['palette']}[/bold] · "
+                      f"{'dithered' if meta['dither'] else 'flat'}[/{MUTED}]")
+    return _save_artifact(console, png, args.out or "aetheris-remix.png", "Remix")
+
+
+def cmd_collage(args: argparse.Namespace) -> int:
+    """``aetheris collage`` — compose local images into one sheet."""
+    console = _make_console(args)
+    from .media.collage import CollageItem, build
+
+    items = []
+    for path in args.images:
+        try:
+            items.append(CollageItem(data=_read_source(path)))
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+    try:
+        png, meta = build(
+            items, layout=args.layout, width=args.width, height=args.height,
+            background=args.background, seed=args.seed,
+        )
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(f"[{MUTED}]{meta['images']} images · layout {meta['layout']} · "
+                  f"{meta['width']}×{meta['height']}[/{MUTED}]")
+    return _save_artifact(console, png, args.out or "aetheris-collage.png", "Collage")
+
+
+def cmd_chart(args: argparse.Namespace) -> int:
+    """``aetheris chart`` — render a chart from JSON or a CSV file."""
+    console = _make_console(args)
+    import json as _json
+    from pathlib import Path
+
+    from .media.charts import ChartSeries, ChartSpec, build
+
+    try:
+        raw = Path(args.data).expanduser().read_text() if Path(args.data).is_file() else args.data
+        spec_json = _json.loads(raw)
+        if not isinstance(spec_json, dict):
+            raise ValueError("Chart data must be a JSON object.")
+        series = [
+            ChartSeries(name=s.get("name", ""), values=s.get("values", []))
+            for s in spec_json.get("series", [])
+        ]
+        spec = ChartSpec(
+            title=spec_json.get("title", ""),
+            labels=spec_json.get("labels", []),
+            series=series,
+        )
+        png, meta = build(spec, kind=args.kind, width=args.width, height=args.height)
+    except (ValueError, _json.JSONDecodeError, OSError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(f"[{MUTED}]{meta['kind']} · {sum(meta['points'])} points · "
+                  f"{meta['width']}×{meta['height']}[/{MUTED}]")
+    return _save_artifact(console, png, args.out or f"aetheris-chart-{meta['kind']}.png", "Chart")
+
+
+def cmd_slideshow(args: argparse.Namespace) -> int:
+    """``aetheris slideshow`` — Ken Burns slideshow GIF from local images."""
+    console = _make_console(args)
+    from .media.slideshow import Slide, build
+
+    slides = []
+    for path in args.images:
+        try:
+            slides.append(Slide(data=_read_source(path)))
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+    try:
+        gif, meta = build(
+            slides, width=args.width, height=args.height,
+            seconds_per_slide=args.seconds_per_slide,
+            transition_seconds=args.transition_seconds, fps=args.fps,
+            transition=args.transition, seed=args.seed,
+        )
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(
+        f"[{MUTED}]{meta['slides']} slides · {meta['frames']} frames @ {meta['fps']}fps · "
+        f"{meta['duration_seconds']}s · transition {meta['transition']}[/{MUTED}]"
+    )
+    return _save_artifact(console, gif, args.out or "aetheris-slideshow.gif", "Slideshow")
+
+
+def cmd_visualize(args: argparse.Namespace) -> int:
+    """``aetheris visualize`` — animate a WAV file into a visualizer GIF."""
+    console = _make_console(args)
+    from .media.visualizer import build
+
+    try:
+        wav = _read_source(args.audio)
+        gif, meta = build(
+            wav, mode=args.mode, width=args.width, height=args.height,
+            bins=args.bins, label=args.label, max_seconds=args.max_seconds,
+        )
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(
+        f"[{MUTED}]mode {meta['mode']} · {meta['frames']} frames @ {meta['fps']}fps · "
+        f"{meta['audio_seconds']}s of audio[/{MUTED}]"
+    )
+    return _save_artifact(console, gif, args.out or "aetheris-visualizer.gif", "Visualizer")
+
+
+def cmd_song(args: argparse.Namespace) -> int:
+    """``aetheris song`` — compose a structured stereo song."""
+    console = _make_console(args)
+    from .media.song import compose
+
+    try:
+        wav, meta = compose(
+            args.mood, key=args.key, tempo=args.tempo,
+            verse_bars=args.verse_bars, chorus_bars=args.chorus_bars,
+            seed=args.seed,
+        )
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(
+        f"[{MUTED}]mood [bold]{meta['mood']}[/bold] · key {meta['key']} · {meta['tempo']}bpm · "
+        f"{meta['seconds']}s · {len(meta['sections'])} sections · chords {meta['chords']}[/{MUTED}]"
+    )
+    return _save_artifact(console, wav, args.out or f"aetheris-song-{meta['mood']}.wav", "Song")
+
+
+def cmd_ambient(args: argparse.Namespace) -> int:
+    """``aetheris ambient`` — synthesise a soundscape or sound effect."""
+    console = _make_console(args)
+    from .media.ambient import render
+
+    try:
+        wav, meta = render(args.kind, seconds=args.seconds, seed=args.seed)
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(f"[{MUTED}]{meta['kind']} · {meta['seconds']}s · stereo 44.1kHz · "
+                  f"seed {meta['seed']}[/{MUTED}]")
+    return _save_artifact(console, wav, args.out or f"aetheris-{meta['kind']}.wav", "Ambient")
+
+
+def cmd_podcast(args: argparse.Namespace) -> int:
+    """``aetheris podcast`` — narration over a ducked music bed."""
+    console = _make_console(args)
+    from .media.podcast import build_intro
+
+    text = " ".join(args.text).strip()
+    if not text:
+        console.print("[red]error:[/red] provide some narration text.")
+        return 2
+    try:
+        wav, meta = build_intro(
+            text, voice=args.voice, rate=args.rate, pitch=args.pitch,
+            music=args.music, key=args.key, tempo=args.tempo,
+            duck_depth=args.duck, jingle=not args.no_jingle, seed=args.seed,
+        )
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+    console.print(
+        f"[{MUTED}]voice {meta['voice']} @ {meta['rate']}× · music {meta['music']} "
+        f"({meta['key']}) · duck {meta['duck_depth']} · {meta['seconds']}s[/{MUTED}]"
+    )
+    return _save_artifact(console, wav, args.out or "aetheris-podcast-intro.wav", "Podcast intro")
+
+
+def cmd_code_agent(args: argparse.Namespace) -> int:
+    """``aetheris code`` — Claude Code-style build agent (plan→write→verify→fix→ship)."""
+    console = _make_console(args)
+    from .services.coder import run_coder
+
+    task = " ".join(args.task).strip()
+    if not task:
+        console.print("[red]error:[/red] provide a task description.")
+        return 2
+    try:
+        result = asyncio.run(run_coder(
+            task,
+            name=args.name,
+            kind=args.kind,
+            push_repo=args.push,
+            branch=args.branch,
+            commit_message=args.commit_message,
+            create_pr=not args.no_pr,
+        ))
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+
+    for record in result.steps:
+        style = {"passed": TEAL, "failed": "red", "fixed": "yellow", "skipped": MUTED}.get(
+            record.status, MUTED
+        )
+        console.print(
+            f"  [bold]{record.step:9s}[/bold] [{style}]{record.status}[/{style}]"
+            f" [{MUTED}]{record.detail[:100]}[/{MUTED}]"
+        )
+    console.print(
+        f"[{TEAL}]Build complete[/{TEAL}] [bold]{result.name}[/bold] · engine {result.engine} · "
+        f"{len(result.files)} files · artifact {result.artifact_url}"
+    )
+    if result.github and "error" not in result.github:
+        console.print(
+            f"[{TEAL}]Pushed to GitHub[/{TEAL}] https://github.com/{result.github['repo']}/tree/{result.github['branch']}"
+            + (f"\n[{TEAL}]Pull request[/{TEAL}] {result.github['pr_url']}" if result.github.get("pr_url") else "")
+        )
+    if args.out:
+        import io
+        import zipfile
+        from pathlib import Path
+
+        with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path, content in result.files.items():
+                archive.writestr(path, content)
+        console.print(f"[{TEAL}]ZIP written[/{TEAL}] [bold]{args.out}[/bold]")
+    return 0
+
+
+def cmd_github(args: argparse.Namespace) -> int:
+    """``aetheris github`` — push code directly to GitHub."""
+    console = _make_console(args)
+    from .services.github_client import GitHubClient, GitHubError
+
+    async def run():
+        client = GitHubClient()
+        try:
+            if args.action == "status":
+                return await client.status()
+            if args.action == "repo-create":
+                if not args.repo:
+                    raise GitHubError("repo-create needs a repository as owner/name.")
+                return await client.create_repo(args.repo, description=args.message, private=args.private)
+            # push
+            if not args.repo:
+                raise GitHubError("push needs a repository as owner/name.")
+            from pathlib import Path
+
+            files: dict[str, str] = {}
+            root = Path(args.dir).expanduser() if args.dir else None
+            if root is not None and root.is_dir():
+                for path in sorted(p for p in root.rglob("*") if p.is_file()):
+                    if ".git" in path.parts:
+                        continue
+                    try:
+                        files[str(path.relative_to(root))] = path.read_text(encoding="utf-8")
+                    except (UnicodeDecodeError, OSError):
+                        continue
+            for token in (args.files or "").split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                path = Path(token).expanduser()
+                if not path.is_file():
+                    raise GitHubError(f"no such file: {token}")
+                files[path.name] = path.read_text(encoding="utf-8")
+            if not files:
+                raise GitHubError("nothing to push: pass --dir DIR or --files a,b,c.")
+            return await client.push(
+                args.repo, files,
+                branch=args.branch,
+                commit_message=args.message,
+                create_pr=not args.no_pr,
+                private=args.private,
+            )
+        finally:
+            await client.aclose()
+
+    try:
+        result = asyncio.run(run())
+    except (GitHubError, ValueError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+
+    if args.action == "status":
+        if result.get("connected"):
+            console.print(
+                f"[{TEAL}]GitHub connected[/{TEAL}] transport [bold]{result['transport']}[/bold] · "
+                f"user [bold]{result.get('user') or 'unknown'}[/bold]"
+            )
+        else:
+            console.print(f"[red]GitHub not connected[/red] {result.get('detail', '')}")
+        return 0
+    if args.action == "repo-create":
+        console.print(
+            f"[{TEAL}]{'Created' if result.get('created') else 'Already exists'}[/{TEAL}] "
+            f"[bold]{result['repo']}[/bold] {result.get('html_url', '')}"
+        )
+        return 0
+    console.print(
+        f"[{TEAL}]Pushed {result['files']} file(s)[/{TEAL}] to [bold]{result['repo']}[/bold]@"
+        f"[bold]{result['branch']}[/bold] · commit {result['commit']}"
+    )
+    if result.get("pr_url"):
+        console.print(f"[{TEAL}]Pull request[/{TEAL}] {result['pr_url']}")
+    if result.get("pr_note"):
+        console.print(f"[yellow]PR note[/yellow] {result['pr_note']}")
+    return 0
+
+
+def cmd_keys(args: argparse.Namespace) -> int:
+    """``aetheris keys`` — configure and verify provider API keys."""
+    console = _make_console(args)
+    from .services import keys as K
+
+    if args.action == "set":
+        try:
+            result = K.set_key(args.slot, args.value)
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+        console.print(
+            f"[{TEAL}]Key saved[/{TEAL}] [bold]{result['env']}[/bold] = {result['masked']} "
+            f"→ {result['file']}"
+        )
+        console.print(f"[yellow]{result['note']}[/yellow]")
+        return 0
+
+    if args.action == "unset":
+        try:
+            result = K.unset_key(args.slot)
+        except ValueError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            return 2
+        console.print(f"[{TEAL}]Removed[/{TEAL}] {result['env']} from {result['file']}")
+        return 0
+
+    if args.action == "test":
+        with console.status("[teal]Probing configured keys…[/teal]"):
+            results = asyncio.run(K.probe_all())
+        for row in results:
+            ok = row.get("ok")
+            if ok is True:
+                style, note = TEAL, "· " + row.get("feeds", "")
+            elif ok is False:
+                style, note = "red", "· " + row.get("detail", "")
+            elif row.get("probe") == "no-live-probe":
+                style, note = "yellow", "· verified on first use (no cheap probe endpoint)"
+            else:
+                style, note = MUTED, ""
+            state = "ok" if ok is True else "failed" if ok is False else "unprobed"
+            console.print(f"  [bold]{row['slot']:14s}[/bold] [{style}]{state}[/{style}]{note}")
+        return 0
+
+    # status
+    rows = K.key_status()
+    configured = sum(1 for r in rows if r["configured"])
+    console.print(f"[{MUTED}]{configured}/{len(rows)} provider keys configured. "
+                  f"Without keys Aetheris uses its offline engines; add a key to "
+                  f"upgrade to real generative models.[/{MUTED}]\n")
+    for row in rows:
+        state = f"[{TEAL}]{row['masked']}[/{TEAL}]" if row["configured"] else "[red]—[/red]"
+        fallback = " [yellow](via fallback env)[/yellow]" if row.get("uses_fallback_env") else ""
+        console.print(
+            f"  [bold]{row['slot']:14s}[/bold] {state}{fallback}  "
+            f"[{MUTED}]{row['label']}[/{MUTED}]"
+        )
+        console.print(f"  {'':14s}  [{MUTED}]env {row['env']} · feeds: {', '.join(row['feeds'])}[/{MUTED}]")
+    if args.json:
+        import json as _json
+        console.print(_json.dumps(rows, indent=2))
+    console.print(
+        f"\n[{MUTED}]Set one with:[/{MUTED}] [bold]aetheris keys set gemini-image <key>[/bold]"
+        f"\n[{MUTED}]Free keys:[/{MUTED}] aistudio.google.com/apikey · platform.openai.com · build.nvidia.com"
     )
     return 0
 
@@ -1307,8 +1734,145 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("text", nargs="+", help="text to speak")
     sp.add_argument("-o", "--out", default=None, help="output path (default aetheris-speech.wav)")
     sp.add_argument("--voice", default="default",
-                    choices=("default", "high", "low"), help="offline voice pitch")
+                    choices=("default", "high", "low", "deep", "bright", "robot"),
+                    help="offline voice pitch")
+    sp.add_argument("--rate", type=float, default=1.0, help="speaking speed 0.5–2.0")
+    sp.add_argument("--pitch", type=float, default=1.0, help="voice pitch 0.5–2.0")
     sp.set_defaults(func=cmd_speech, is_async=False)
+
+    # --- Studio Pro: advanced image/video/audio generation ---
+    qp = sub.add_parser("qr", help="encode text as a styled QR code PNG")
+    qp.add_argument("data", help="text to encode (URL, Wi-Fi, contact, …)")
+    qp.add_argument("-o", "--out", default=None, help="output path (default aetheris-qr.png)")
+    qp.add_argument("--ecl", default="M", choices=("L", "M", "Q", "H"),
+                    help="error-correction level")
+    qp.add_argument("--width", type=int, default=420)
+    qp.add_argument("--foreground", default="#0b132b")
+    qp.add_argument("--background", default="#f8f9fa")
+    qp.add_argument("--rounded", action="store_true", help="soften module corners")
+    qp.add_argument("--letter", default="", help="centre letter (one character)")
+    qp.set_defaults(func=cmd_qr, is_async=False)
+
+    rp = sub.add_parser("remix", help="reimagine/restyle a local PNG from its palette")
+    rp.add_argument("image", help="source PNG path")
+    rp.add_argument("prompt", nargs="*", default=[], help="what to reimagine")
+    rp.add_argument("-o", "--out", default=None, help="output path (default aetheris-remix.png)")
+    rp.add_argument("--operation", default="reimagine", choices=("reimagine", "restyle"))
+    rp.add_argument("--palette", default=None, help="for restyle: palette name or hex list")
+    rp.add_argument("--style", default=None, help="for reimagine: explicit procedural style")
+    rp.add_argument("--width", type=int, default=1024)
+    rp.add_argument("--height", type=int, default=576)
+    rp.add_argument("--no-dither", action="store_true", help="disable Floyd–Steinberg dithering")
+    rp.add_argument("--seed", type=int, default=None)
+    rp.set_defaults(func=cmd_remix, is_async=False)
+
+    cp2 = sub.add_parser("collage", help="compose local images into one sheet")
+    cp2.add_argument("images", nargs="+", help="PNG paths (2–16)")
+    cp2.add_argument("-o", "--out", default=None, help="output path (default aetheris-collage.png)")
+    cp2.add_argument("--layout", default="grid", choices=("grid", "polaroid", "filmstrip"))
+    cp2.add_argument("--width", type=int, default=1280)
+    cp2.add_argument("--height", type=int, default=720)
+    cp2.add_argument("--background", default="#0b132b")
+    cp2.add_argument("--seed", type=int, default=11)
+    cp2.set_defaults(func=cmd_collage, is_async=False)
+
+    chp = sub.add_parser("chart", help="render a chart from JSON data (or a JSON file)")
+    chp.add_argument("data", help="JSON: {\"title\", \"labels\", \"series\":[{\"name\",\"values\"}]}")
+    chp.add_argument("-o", "--out", default=None, help="output path (default aetheris-chart-<kind>.png)")
+    chp.add_argument("--kind", default="line", choices=("line", "bar", "pie", "donut", "radar"))
+    chp.add_argument("--width", type=int, default=960)
+    chp.add_argument("--height", type=int, default=560)
+    chp.set_defaults(func=cmd_chart, is_async=False)
+
+    slp = sub.add_parser("slideshow", help="Ken Burns slideshow GIF from local images")
+    slp.add_argument("images", nargs="+", help="PNG paths (1–16)")
+    slp.add_argument("-o", "--out", default=None, help="output path (default aetheris-slideshow.gif)")
+    slp.add_argument("--width", type=int, default=640)
+    slp.add_argument("--height", type=int, default=360)
+    slp.add_argument("--seconds-per-slide", type=float, default=2.5)
+    slp.add_argument("--transition-seconds", type=float, default=0.8)
+    slp.add_argument("--fps", type=int, default=12)
+    slp.add_argument("--transition", default="crossfade",
+                     choices=("crossfade", "pan", "zoom", "wipe"))
+    slp.add_argument("--seed", type=int, default=5)
+    slp.set_defaults(func=cmd_slideshow, is_async=False)
+
+    vp2 = sub.add_parser("visualize", help="animate a WAV file into a synced visualizer GIF")
+    vp2.add_argument("audio", help="WAV path")
+    vp2.add_argument("-o", "--out", default=None, help="output path (default aetheris-visualizer.gif)")
+    vp2.add_argument("--mode", default="bars", choices=("bars", "oscilloscope", "radial", "wave"))
+    vp2.add_argument("--width", type=int, default=480)
+    vp2.add_argument("--height", type=int, default=270)
+    vp2.add_argument("--bins", type=int, default=20, help="spectrum bands (bars/radial)")
+    vp2.add_argument("--label", default="", help="caption in the footer")
+    vp2.add_argument("--max-seconds", type=float, default=30.0)
+    vp2.set_defaults(func=cmd_visualize, is_async=False)
+
+    sop = sub.add_parser("song", help="compose a structured stereo song")
+    sop.add_argument("--mood", default="uplifting",
+                     choices=("uplifting", "mellow", "epic", "noir", "sparkle"))
+    sop.add_argument("-o", "--out", default=None, help="output path (default aetheris-song-<mood>.wav)")
+    sop.add_argument("--key", default="C", help="key like C, Am, or F#m")
+    sop.add_argument("--tempo", type=int, default=None)
+    sop.add_argument("--verse-bars", type=int, default=4)
+    sop.add_argument("--chorus-bars", type=int, default=4)
+    sop.add_argument("--seed", type=int, default=None)
+    sop.set_defaults(func=cmd_song, is_async=False)
+
+    amp = sub.add_parser("ambient", help="synthesise an ambient soundscape or sound effect")
+    amp.add_argument("kind", help="rain|wind|ocean|fire|forest|night|cafe|spaceship|laser|coin|…")
+    amp.add_argument("-o", "--out", default=None, help="output path (default aetheris-<kind>.wav)")
+    amp.add_argument("--seconds", type=float, default=12.0, help="duration (soundscapes only)")
+    amp.add_argument("--seed", type=int, default=None)
+    amp.set_defaults(func=cmd_ambient, is_async=False)
+
+    pop = sub.add_parser("podcast", help="narration over a ducked music bed (podcast intro)")
+    pop.add_argument("text", nargs="+", help="narration text")
+    pop.add_argument("-o", "--out", default=None, help="output path (default aetheris-podcast-intro.wav)")
+    pop.add_argument("--voice", default="default",
+                     choices=("default", "high", "low", "deep", "bright", "robot"))
+    pop.add_argument("--rate", type=float, default=1.0)
+    pop.add_argument("--pitch", type=float, default=1.0)
+    pop.add_argument("--music", default="pad", choices=("pad", "arp", "drone", "none"))
+    pop.add_argument("--key", default="Cmaj7", help="music bed chord(s)")
+    pop.add_argument("--tempo", type=int, default=96)
+    pop.add_argument("--duck", type=float, default=0.35, help="music dip depth 0–0.9")
+    pop.add_argument("--no-jingle", action="store_true")
+    pop.add_argument("--seed", type=int, default=None)
+    pop.set_defaults(func=cmd_podcast, is_async=False)
+
+    cap = sub.add_parser("code", help="build a whole project from a task (Claude Code style)")
+    cap.add_argument("task", nargs="+", help="what to build, in plain language")
+    cap.add_argument("--name", default="", help="project name (default derived from task)")
+    cap.add_argument("--kind", default=None,
+                     choices=("fastapi-service", "python-package", "cli-tool", "static-site"))
+    cap.add_argument("--push", default="", metavar="OWNER/NAME",
+                     help="push the result to this GitHub repository")
+    cap.add_argument("--branch", default="", help="branch to push")
+    cap.add_argument("--commit-message", default="", help="commit message")
+    cap.add_argument("--no-pr", action="store_true", help="do not open a pull request")
+    cap.add_argument("-o", "--out", default=None, help="also write the ZIP locally")
+    cap.set_defaults(func=cmd_code_agent, is_async=False)
+
+    ghp = sub.add_parser("github", help="push code directly to GitHub")
+    ghp.add_argument("action", choices=("status", "repo-create", "push"))
+    ghp.add_argument("repo", nargs="?", default="", help="repository as owner/name")
+    ghp.add_argument("--dir", default="", help="local directory to push (text files)")
+    ghp.add_argument("--files", default="", help="comma-separated local files to push")
+    ghp.add_argument("--message", default="Generated by Aetheris", help="commit message / repo description")
+    ghp.add_argument("--branch", default="", help="branch to push")
+    ghp.add_argument("--no-pr", action="store_true", help="do not open a pull request")
+    ghp.add_argument("--private", action="store_true", help="create the repository private")
+    ghp.set_defaults(func=cmd_github, is_async=False)
+
+    kp = sub.add_parser("keys", help="configure and verify provider API keys")
+    kp.add_argument("action", nargs="?", default="status",
+                    choices=("status", "set", "unset", "test"))
+    kp.add_argument("slot", nargs="?", default="",
+                    help="gemini-image | openai-image | openai-video | gemini-video | nvidia | stability | openai-chat | github")
+    kp.add_argument("value", nargs="?", default="", help="the key value (for 'set')")
+    kp.add_argument("--json", action="store_true", help="emit the status table as JSON")
+    kp.set_defaults(func=cmd_keys, is_async=False)
 
     pp = sub.add_parser("project", help="scaffold a runnable project")
     pp.add_argument("kind", choices=("fastapi-service", "python-package", "cli-tool", "static-site"))

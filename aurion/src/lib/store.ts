@@ -110,6 +110,22 @@ export function addMessage(threadId: string, message: Message): void {
   saveThreads(threads);
 }
 
+/** Keep only the messages up to (and including) ``keepIndex``.
+
+Used by regenerate/edit: everything after the pivot message is discarded
+before the turn is re-run.
+*/
+export function truncateThread(threadId: string, keepIndex: number): void {
+  const threads = getThreads();
+  const index = threads.findIndex((t) => t.id === threadId);
+  if (index < 0) return;
+  const messages = threads[index].messages;
+  if (keepIndex < 0 || keepIndex >= messages.length) return;
+  threads[index].messages = messages.slice(0, keepIndex + 1);
+  threads[index].updatedAt = Date.now();
+  saveThreads(threads);
+}
+
 /** Patch a message in place (used to record a rating). */
 export function updateMessage(
   threadId: string,

@@ -135,7 +135,7 @@ async def test_gemini_image_provider_parses_inline_data():
     )
     results = await provider.generate("a cat astronaut")
     assert results[0].data == _png_bytes()
-    assert results[0].provider == "gemini (imagen 3)"
+    assert results[0].provider == "gemini (imagen / nano banana)"
 
 
 @pytest.mark.asyncio

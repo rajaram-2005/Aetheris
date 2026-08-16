@@ -59,7 +59,9 @@ class TTSProvider(abc.ABC):
     def model(self) -> str: ...
 
     @abc.abstractmethod
-    async def synthesize(self, text: str, *, voice: str = "default") -> SpeechResult: ...
+    async def synthesize(
+        self, text: str, *, voice: str = "default", rate: float = 1.0, pitch: float = 1.0
+    ) -> SpeechResult: ...
 
     async def aclose(self) -> None:  # pragma: no cover
         return None
@@ -92,16 +94,24 @@ class OfflineTTSProvider(TTSProvider):
     def model(self) -> str:
         return "aetheris-formant-v1"
 
-    async def synthesize(self, text: str, *, voice: str = "default") -> SpeechResult:
+    async def synthesize(
+        self, text: str, *, voice: str = "default", rate: float = 1.0, pitch: float = 1.0
+    ) -> SpeechResult:
         from ..media import speech
 
-        wav = speech.synthesize(text, voice=voice)
+        wav = speech.synthesize(text, voice=voice, rate=rate, pitch=pitch)
         return SpeechResult(
             data=wav,
             media_type="audio/wav",
             provider=self.provider_name,
             model=self.model,
-            meta={"engine": "formant", "note": "Offline synthetic voice."},
+            meta={
+                "engine": "formant",
+                "voice": voice,
+                "rate": round(rate, 2),
+                "pitch": round(pitch, 2),
+                "note": "Offline synthetic voice.",
+            },
         )
 
 
@@ -154,12 +164,16 @@ class OpenAITTSProvider(TTSProvider):
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def synthesize(self, text: str, *, voice: str = "default") -> SpeechResult:
+    async def synthesize(
+        self, text: str, *, voice: str = "default", rate: float = 1.0, pitch: float = 1.0
+    ) -> SpeechResult:
         payload = {
             "model": self._model,
             "voice": voice or self._voice,
             "input": text,
         }
+        if rate != 1.0:  # OpenAI speed 0.25–4.0 (pitch has no API control)
+            payload["speed"] = max(0.25, min(4.0, rate))
         try:
             resp = await self._client.post("/audio/speech", json=payload)
             resp.raise_for_status()
@@ -234,7 +248,9 @@ class GeminiTTSProvider(TTSProvider):
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def synthesize(self, text: str, *, voice: str = "default") -> SpeechResult:
+    async def synthesize(
+        self, text: str, *, voice: str = "default", rate: float = 1.0, pitch: float = 1.0
+    ) -> SpeechResult:
         language_code, _, voice_name = (voice or self._voice or "en-US").partition("|")
         payload = {
             "input": {"text": text},
@@ -244,6 +260,8 @@ class GeminiTTSProvider(TTSProvider):
             },
             "audioConfig": {"audioEncoding": "LINEAR16"},
         }
+        if rate != 1.0:  # Gemini speakingRate 0.25–4.0 (pitch has no API control)
+            payload["audioConfig"]["speakingRate"] = max(0.25, min(4.0, rate))
         url = f"/v1beta/models/{self._model}:synthesizeSpeech"
         try:
             resp = await self._client.post(url, json=payload)

@@ -265,6 +265,35 @@ class Settings(BaseSettings):
         description="Memory budget for the generated-artifact store, in MiB.",
     )
 
+    # --- GitHub integration -----------------------------------------------------
+    # Generated code can be committed and pushed straight to GitHub — either
+    # through the REST API with AETHERIS_GITHUB_TOKEN, or through the
+    # authenticated 'gh' CLI when no token is configured (the CLI is bundled
+    # with most dev environments and CI runners).
+    github_enabled: bool = Field(
+        default=True,
+        description="Enable the GitHub integration (push generated code directly).",
+    )
+    github_token: str = Field(
+        default="",
+        description=(
+            "GitHub personal access token. When empty, Aetheris falls back to the "
+            "'gh' CLI (gh auth login), so code can still be pushed to GitHub."
+        ),
+    )
+    github_api_base_url: str = Field(
+        default="https://api.github.com",
+        description="GitHub REST API base URL (or an enterprise instance).",
+    )
+    github_default_branch: str = Field(
+        default="main",
+        description="Base branch used when pushing generated code to GitHub.",
+    )
+    github_open_pr: bool = Field(
+        default=True,
+        description="Open a pull request for generated code instead of pushing to the base branch.",
+    )
+
     # --- Image generation provider --------------------------------------------
     # Image generation is *layered*: fully offline by default (the deterministic
     # procedural renderer), upgraded to a real generative model whenever an
@@ -298,8 +327,11 @@ class Settings(BaseSettings):
         description="Google API key used specifically for Imagen image generation.",
     )
     gemini_image_model: str = Field(
-        default="imagen-3.0-generate-002",
-        description="Google Imagen model used for image generation.",
+        default="gemini-2.5-flash-image",
+        description=(
+            "Google image model. Default is Gemini 2.5 Flash Image ('nano banana'); "
+            "set imagen-3.0-generate-002 or imagen-4.0-generate-001 for pure Imagen."
+        ),
     )
     stability_api_key: str = Field(
         default="",
@@ -346,13 +378,41 @@ class Settings(BaseSettings):
     )
 
     # --- Video generation provider -------------------------------------------
-    video_provider: Literal["offline", "nvidia", "auto"] = Field(
+    video_provider: Literal["offline", "nvidia", "openai", "gemini", "auto"] = Field(
         default="auto",
         description=(
             "Video engine. 'offline' renders a procedural looping GIF. 'nvidia' "
             "calls a Cosmos/Visual GenAI NIM and returns MP4. 'auto' selects NVIDIA "
             "when AETHERIS_NVIDIA_API_KEY is set, otherwise offline."
         ),
+    )
+    openai_video_api_key: str = Field(
+        default="",
+        description="OpenAI API key used for Sora video generation.",
+    )
+    openai_video_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="OpenAI videos endpoint base URL.",
+    )
+    openai_video_model: str = Field(
+        default="sora-2",
+        description="OpenAI video model (sora-2 or sora-2-pro).",
+    )
+    gemini_video_api_key: str = Field(
+        default="",
+        description="Google API key used specifically for Veo video generation.",
+    )
+    gemini_video_model: str = Field(
+        default="veo-3.1-generate-preview",
+        description="Google Veo model used for video generation.",
+    )
+    video_remote_timeout: float = Field(
+        default=900.0,
+        description="Total request/poll timeout for remote video generation, in seconds.",
+    )
+    video_remote_poll_interval: float = Field(
+        default=3.0,
+        description="Poll interval for asynchronous remote video jobs, in seconds.",
     )
     nvidia_video_base_url: str = Field(
         default="https://ai.api.nvidia.com/v1/cosmos/nvidia/cosmos3-nano",
@@ -932,6 +992,18 @@ class Settings(BaseSettings):
         return self._key(self.gemini_image_api_key or self.gemini_api_key)
 
     @property
+    def has_openai_video_credentials(self) -> bool:
+        return self._key(self.openai_video_api_key or self.llm_api_key)
+
+    @property
+    def has_gemini_video_credentials(self) -> bool:
+        return self._key(self.gemini_video_api_key or self.gemini_api_key)
+
+    @property
+    def has_github_credentials(self) -> bool:
+        return bool(self.github_token)
+
+    @property
     def has_stability_credentials(self) -> bool:
         return self._key(self.stability_api_key)
 
@@ -984,9 +1056,28 @@ class Settings(BaseSettings):
             "image_provider_configured": self.has_image_credentials,
             "video_generation": self.video_generation_enabled,
             "video_provider": self.video_provider,
-            "video_provider_configured": self.has_nvidia_credentials,
+            "video_provider_configured": (
+                self.has_nvidia_credentials
+                or self.has_openai_video_credentials
+                or self.has_gemini_video_credentials
+            ),
+            "video_openai_sora": self.has_openai_video_credentials,
+            "video_gemini_veo": self.has_gemini_video_credentials,
+            "github_integration": self.github_enabled,
+            "github_connected": self.has_github_credentials,
+            "code_agent": self.code_generation_enabled,
             "audio_generation": self.audio_generation_enabled,
             "code_generation": self.code_generation_enabled,
+            # Studio Pro — advanced offline creation
+            "studio_qr": self.image_generation_enabled,
+            "studio_remix": self.image_generation_enabled,
+            "studio_collage": self.image_generation_enabled,
+            "studio_charts": self.image_generation_enabled,
+            "studio_slideshow": self.video_generation_enabled,
+            "studio_visualizer": self.video_generation_enabled,
+            "studio_song": self.audio_generation_enabled,
+            "studio_ambient": self.audio_generation_enabled,
+            "studio_podcast": self.speech_enabled,
             # Provider mix (chat + accelerated generation)
             "anthropic_provider": self.has_anthropic_credentials,
             "gemini_provider": self.has_gemini_credentials,

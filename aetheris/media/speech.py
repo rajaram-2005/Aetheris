@@ -276,36 +276,69 @@ def _synthesize_phoneme(
     return out
 
 
+# Voice profiles: base F0 (Hz), intonation drift (Hz across the utterance),
+# and a default pacing multiplier. ``robot`` flattens intonation entirely.
+_VOICES: dict[str, dict[str, float]] = {
+    "default": {"f0": 120.0, "drift": -14.0, "rate": 1.0},
+    "high": {"f0": 170.0, "drift": -20.0, "rate": 1.0},
+    "low": {"f0": 85.0, "drift": -9.0, "rate": 1.0},
+    "deep": {"f0": 68.0, "drift": -6.0, "rate": 0.9},
+    "bright": {"f0": 210.0, "drift": -22.0, "rate": 1.05},
+    "robot": {"f0": 140.0, "drift": 0.0, "rate": 1.0},
+}
+
+VOICES: tuple[str, ...] = tuple(_VOICES)
+
+
 def _base_f0_for(text_len: int) -> float:
     """Pick a pitch that falls slightly toward the end of a sentence."""
     return 120.0
 
 
-def synthesize(text: str, *, voice: str = "default") -> bytes:
+def synthesize(
+    text: str,
+    *,
+    voice: str = "default",
+    rate: float = 1.0,
+    pitch: float = 1.0,
+) -> bytes:
     """Synthesize ``text`` to a 16-bit PCM WAV and return the bytes.
 
-    ``voice`` selects a base pitch: ``default`` (~120 Hz), ``high`` (~170 Hz),
-    or ``low`` (~85 Hz).
+    ``voice`` selects a base pitch and intonation profile: ``default``
+    (~120 Hz), ``high`` (~170 Hz), ``low`` (~85 Hz), ``deep`` (~68 Hz),
+    ``bright`` (~210 Hz), or ``robot`` (flat, constant pitch).
+
+    ``rate`` scales speaking speed (0.5–2.0, 1.0 = natural pace) and
+    ``pitch`` scales the fundamental frequency (0.5–2.0, 1.0 = the voice's
+    native pitch). Both are cheap to apply — durations and formant excitation
+    are rescaled, not re-recorded — so they can be swept per request.
     """
-    base_f0 = {"high": 170.0, "low": 85.0}.get((voice or "default").lower(), 120.0)
+    profile = _VOICES.get((voice or "default").lower(), _VOICES["default"])
+    rate = max(0.4, min(3.0, rate))
+    pitch = max(0.5, min(2.0, pitch))
+    base_f0 = profile["f0"] * pitch
+    pacing = profile["rate"] / rate
     phonemes = _text_to_phonemes(text)
     if not phonemes:
         phonemes = ["ax", " "]
 
-    # Durations: stretches pause tokens for natural pacing.
+    # Durations: stretches pause tokens for natural pacing, then applies the
+    # rate/pacing multiplier so slower speech keeps its internal proportions.
     samples: list[float] = []
     seed = 1234
-    for phoneme in phonemes:
+    total = max(1, len(phonemes))
+    for index, phoneme in enumerate(phonemes):
         if phoneme in (" ", ",", ".", "?", "!", ";"):
             base = _PHONEMES[phoneme][0] / 1000.0
-            duration = base
+            duration = base * pacing
             phoneme = " "
         else:
             base = _PHONEMES.get(phoneme, _PHONEMES["ax"])[0] / 1000.0
-            duration = base
-        # A slow downward intonation across the utterance.
-        pitch = base_f0
-        samples.extend(_synthesize_phoneme(phoneme, duration, pitch, seed))
+            duration = base * pacing
+        # A slow downward intonation across the utterance (scaled with pitch),
+        # suppressed entirely for the robot voice.
+        drift = profile["drift"] * pitch * (index / total)
+        samples.extend(_synthesize_phoneme(phoneme, duration, base_f0 + drift, seed))
         seed += 1
 
     # Normalise and clip.
@@ -325,13 +358,42 @@ def synthesize(text: str, *, voice: str = "default") -> bytes:
     return buf.getvalue()
 
 
-def synthesize_duration_seconds(text: str) -> float:
+def synthesize_samples(
+    text: str,
+    *,
+    voice: str = "default",
+    rate: float = 1.0,
+    pitch: float = 1.0,
+) -> list[float]:
+    """Synthesize speech to a raw mono sample buffer (22.05 kHz).
+
+    Used by the podcast mixer and other composite generators that need the
+    speech as samples rather than an encoded file.
+    """
+    wav_bytes = synthesize(text, voice=voice, rate=rate, pitch=pitch)
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+        count = wf.getnframes()
+        raw = wf.readframes(count)
+    return [
+        s / 32767.0
+        for s in struct.unpack("<" + "h" * (len(raw) // 2), raw[: count * 2])
+    ]
+
+
+def synthesize_duration_seconds(text: str, *, rate: float = 1.0) -> float:
     """Estimate the synthesized duration of ``text`` in seconds."""
     phonemes = _text_to_phonemes(text)
     total = 0.0
+    pacing = _VOICES["default"]["rate"] / max(0.4, min(3.0, rate))
     for phoneme in phonemes:
-        total += _PHONEMES.get(phoneme, _PHONEMES["ax"])[0] / 1000.0
+        total += _PHONEMES.get(phoneme, _PHONEMES["ax"])[0] / 1000.0 * pacing
     return round(total, 2)
 
 
-__all__ = ["synthesize", "synthesize_duration_seconds", "SAMPLE_RATE"]
+__all__ = [
+    "SAMPLE_RATE",
+    "VOICES",
+    "synthesize",
+    "synthesize_samples",
+    "synthesize_duration_seconds",
+]

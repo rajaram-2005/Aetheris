@@ -1,10 +1,18 @@
-"""Layered video generation: offline GIF or NVIDIA Cosmos NIM MP4.
+"""Layered video generation: offline GIF, NVIDIA Cosmos NIM MP4, OpenAI Sora,
+or Google Veo.
 
-The offline provider preserves Aetheris's dependency-free animation engine.  The
-NVIDIA provider supports the hosted Cosmos Preview/NVCF response shape, the
-``/v1/infer`` shape used by downloadable Cosmos NIMs, and OpenAI-compatible
-``/v1/videos/generations`` deployments.  Remote failures can fall back to the
-local renderer, just like layered image generation.
+The offline provider preserves Aetheris's dependency-free animation engine.
+The remote providers speak each vendor's real contract:
+
+* **NVIDIA Cosmos** — hosted Preview/NVCF, ``/v1/infer`` NIMs, and
+  OpenAI-compatible ``/v1/videos/generations`` deployments.
+* **OpenAI Sora** — ``POST /v1/videos/generations`` (multipart), poll
+  ``GET /v1/videos/{id}``, download the finished MP4.
+* **Google Veo** — ``:predictLongRunning`` operation, poll the LRO, download
+  the generated MP4 from the returned ``gs://`` URI.
+
+Remote failures can fall back to the local renderer, just like layered image
+generation.
 """
 
 from __future__ import annotations
@@ -360,13 +368,321 @@ class NvidiaVideoProvider:
         )
 
 
-_provider: OfflineVideoProvider | NvidiaVideoProvider | None = None
+class OpenAIVideoProvider:
+    """OpenAI Sora video generation (``/v1/videos/generations``).
+
+    Sora jobs are asynchronous: submit the prompt (multipart form), poll the
+    video endpoint until completion, then download the MP4 from the returned
+    ``download_url`` (same origin, Bearer-authenticated).
+    """
+
+    provider_name = "openai (sora)"
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        *,
+        timeout: float = 900.0,
+        poll_interval: float = 3.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.timeout = timeout
+        self.poll_interval = poll_interval
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+            transport=transport,
+        )
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    @staticmethod
+    def _size(width: int, height: int) -> str:
+        longest = max(width, height)
+        tier = 1280 if longest >= 1280 else 768 if longest >= 768 else 640
+        if width >= height:
+            return f"{tier}x{max(320, round(tier * height / width / 32) * 32)}"
+        return f"{max(320, round(tier * width / height / 32) * 32)}x{tier}"
+
+    async def _poll(self, video_id: str) -> httpx.Response:
+        deadline = time.monotonic() + self.timeout
+        url = f"/videos/{video_id}"
+        while time.monotonic() < deadline:
+            await asyncio.sleep(self.poll_interval)
+            try:
+                response = await self._client.get(url)
+            except httpx.HTTPError as exc:
+                raise RuntimeError(f"Sora status request failed: {exc}") from exc
+            if response.status_code >= 400:
+                raise RuntimeError(
+                    f"Sora status endpoint returned {response.status_code}: {response.text[:300]}"
+                )
+            status = response.json().get("status", "")
+            if status in ("completed", "failed", "cancelled"):
+                return response
+        raise RuntimeError(
+            f"Sora video generation timed out after {self.timeout:g} seconds ({video_id})."
+        )
+
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        width: int = 832,
+        height: int = 480,
+        seconds: float = 4.0,
+        fps: int = 24,
+        motion: str | None = None,
+        palette: str | None = None,
+        seed: int | None = None,
+        loop: str = "loop",
+        negative_prompt: str = "blurry, distorted, low quality, jittery, deformed",
+    ) -> VideoGenerationResult:
+        if motion:
+            prompt = f"{prompt}. Camera motion: {motion}"
+        if palette:
+            prompt = f"{prompt}. Colour palette: {palette}"
+        duration = max(4, min(12, round(seconds)))
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "prompt": prompt,
+            "seconds": str(duration),
+            "size": self._size(width, height),
+        }
+        if seed is not None:
+            payload["seed"] = seed
+        try:
+            response = await self._client.post("/videos/generations", data=payload)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Sora request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Sora endpoint returned {response.status_code}: {response.text[:300]}"
+            )
+        body = response.json()
+        video_id = body.get("id") or ""
+        if not video_id:
+            raise RuntimeError("Sora accepted the request but returned no video id.")
+
+        final = await self._poll(video_id)
+        final_body = final.json()
+        if final_body.get("status") != "completed":
+            raise RuntimeError(
+                f"Sora job {video_id} ended with status {final_body.get('status')}"
+                f": {final_body.get('error') or final_body.get('status_message', '')}"
+            )
+        media = (final_body.get("media") or [{}])[0] or {}
+        download_url = media.get("download_url") or ""
+        if not download_url:
+            raise RuntimeError(f"Sora job {video_id} completed but has no download URL.")
+
+        try:
+            download = await self._client.get(download_url)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Sora download failed: {exc}") from exc
+        if download.status_code >= 400:
+            raise RuntimeError(f"Sora download returned {download.status_code}.")
+        if not download.content:
+            raise RuntimeError("Sora download was empty.")
+
+        return VideoGenerationResult(
+            data=download.content,
+            media_type=media.get("type") or "video/mp4",
+            provider=self.provider_name,
+            model=self.model,
+            seed=seed,
+            meta={
+                "accelerator": "OpenAI Sora",
+                "frames": duration * 24,
+                "fps": 24,
+                "duration": duration,
+                "duration_seconds": duration,
+                "width": width,
+                "height": height,
+                "format": "MP4",
+                "motion": motion or "sora world generation",
+                "loop": False,
+                "video_id": video_id,
+            },
+        )
+
+
+class GeminiVeoProvider:
+    """Google Veo video generation (Generative Language ``predictLongRunning``).
+
+    Veo jobs are asynchronous operations: submit the prompt, poll the returned
+    operation name until ``done``, then download the MP4 from the
+    ``gs://`` URI in the response (via the ``files`` download endpoint).
+    """
+
+    provider_name = "gemini (veo)"
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        *,
+        timeout: float = 900.0,
+        poll_interval: float = 3.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.timeout = timeout
+        self.poll_interval = poll_interval
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"x-goog-api-key": api_key},
+            timeout=timeout,
+            transport=transport,
+        )
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    @staticmethod
+    def _aspect(width: int, height: int) -> str:
+        return "16:9" if width >= height else "9:16"
+
+    async def _poll_operation(self, operation: str) -> dict[str, Any]:
+        deadline = time.monotonic() + self.timeout
+        url = f"/v1beta/{operation.lstrip('/')}"
+        while time.monotonic() < deadline:
+            await asyncio.sleep(self.poll_interval)
+            try:
+                response = await self._client.get(url)
+            except httpx.HTTPError as exc:
+                raise RuntimeError(f"Veo status request failed: {exc}") from exc
+            if response.status_code >= 400:
+                raise RuntimeError(
+                    f"Veo status endpoint returned {response.status_code}: {response.text[:300]}"
+                )
+            body = response.json()
+            if body.get("done"):
+                return body
+        raise RuntimeError(
+            f"Veo video generation timed out after {self.timeout:g} seconds ({operation})."
+        )
+
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        width: int = 832,
+        height: int = 480,
+        seconds: float = 4.0,
+        fps: int = 24,
+        motion: str | None = None,
+        palette: str | None = None,
+        seed: int | None = None,
+        loop: str = "loop",
+        negative_prompt: str = "blurry, distorted, low quality, jittery, deformed",
+    ) -> VideoGenerationResult:
+        if motion:
+            prompt = f"{prompt}. Camera motion: {motion}"
+        if palette:
+            prompt = f"{prompt}. Colour palette: {palette}"
+        duration = max(4, min(8, round(seconds)))
+        payload: dict[str, Any] = {
+            "instances": [{"prompt": prompt, "negativePrompt": negative_prompt}],
+            "parameters": {
+                "aspectRatio": self._aspect(width, height),
+                "durationSeconds": duration,
+                "resolution": "1080p" if max(width, height) >= 1280 else "720p",
+            },
+        }
+        if seed is not None:
+            payload["parameters"]["seed"] = seed
+        url = f"/v1beta/models/{self.model}:predictLongRunning"
+        try:
+            response = await self._client.post(url, json=payload)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Veo request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Veo endpoint returned {response.status_code}: {response.text[:300]}"
+            )
+        operation = response.json().get("name") or ""
+        if not operation:
+            raise RuntimeError("Veo accepted the request but returned no operation name.")
+
+        final = await self._poll_operation(operation)
+        error = final.get("error")
+        if error:
+            raise RuntimeError(f"Veo operation failed: {error.get('message', error)}")
+        response_block = final.get("response") or {}
+        samples = response_block.get("generateVideoResponse", {}).get("generatedSamples") or []
+        if not samples:
+            filtered = response_block.get("generateVideoResponse", {}).get(
+                "raiMediaFilteredCount", 0
+            )
+            raise RuntimeError(
+                "Veo returned no video samples"
+                f" ({filtered} filtered by safety). Try rephrasing the prompt."
+            )
+        sample = samples[0] or {}
+        video = sample.get("video") or {}
+        uri = video.get("uri") or ""
+        if not uri:
+            raise RuntimeError("Veo returned a sample without a video URI.")
+        # Download the gs:// object through the files endpoint.
+        object_path = uri.split("gs://", 1)[-1]
+        try:
+            download = await self._client.get(
+                f"/v1beta/files/{object_path}:download", params={"alt": "media"}
+            )
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Veo download failed: {exc}") from exc
+        if download.status_code >= 400:
+            raise RuntimeError(f"Veo download returned {download.status_code}.")
+        if not download.content:
+            raise RuntimeError("Veo download was empty.")
+
+        return VideoGenerationResult(
+            data=download.content,
+            media_type=video.get("mimeType") or "video/mp4",
+            provider=self.provider_name,
+            model=self.model,
+            seed=seed,
+            meta={
+                "accelerator": "Google Veo",
+                "frames": duration * 24,
+                "fps": 24,
+                "duration": duration,
+                "duration_seconds": duration,
+                "width": width,
+                "height": height,
+                "format": "MP4",
+                "motion": motion or "veo world generation",
+                "loop": False,
+                "operation": operation,
+            },
+        )
+
+
+_provider: (
+    OfflineVideoProvider | NvidiaVideoProvider | OpenAIVideoProvider | GeminiVeoProvider | None
+) = None
 
 
 def build_video_provider(provider: str | None = None):
     chosen = (provider or settings.video_provider or "auto").strip().lower()
     if chosen == "auto":
-        chosen = "nvidia" if settings.has_nvidia_credentials else "offline"
+        if settings.has_nvidia_credentials:
+            chosen = "nvidia"
+        elif settings.has_openai_video_credentials:
+            chosen = "openai"
+        elif settings.has_gemini_video_credentials:
+            chosen = "gemini"
+        else:
+            chosen = "offline"
     if chosen == "nvidia":
         if not settings.has_nvidia_credentials:
             raise RuntimeError(
@@ -382,6 +698,32 @@ def build_video_provider(provider: str | None = None):
             poll_interval=settings.nvidia_video_poll_interval,
             steps=settings.nvidia_video_steps,
             guidance_scale=settings.nvidia_video_guidance_scale,
+        )
+    if chosen == "openai":
+        if not settings.has_openai_video_credentials:
+            raise RuntimeError(
+                "Video provider 'openai' selected but no API key is configured. "
+                "Set AETHERIS_OPENAI_VIDEO_API_KEY (or AETHERIS_LLM_API_KEY)."
+            )
+        return OpenAIVideoProvider(
+            base_url=settings.openai_video_base_url,
+            api_key=settings.openai_video_api_key or settings.llm_api_key,
+            model=settings.openai_video_model,
+            timeout=settings.video_remote_timeout,
+            poll_interval=settings.video_remote_poll_interval,
+        )
+    if chosen == "gemini":
+        if not settings.has_gemini_video_credentials:
+            raise RuntimeError(
+                "Video provider 'gemini' selected but no API key is configured. "
+                "Set AETHERIS_GEMINI_VIDEO_API_KEY (or AETHERIS_GEMINI_API_KEY)."
+            )
+        return GeminiVeoProvider(
+            base_url=settings.gemini_base_url,
+            api_key=settings.gemini_video_api_key or settings.gemini_api_key,
+            model=settings.gemini_video_model,
+            timeout=settings.video_remote_timeout,
+            poll_interval=settings.video_remote_poll_interval,
         )
     return OfflineVideoProvider()
 
@@ -424,7 +766,7 @@ async def generate_video_bytes(
     palette: str | None = None,
     seed: int | None = None,
     loop: str = "loop",
-    provider: OfflineVideoProvider | NvidiaVideoProvider | None = None,
+    provider: OfflineVideoProvider | NvidiaVideoProvider | OpenAIVideoProvider | GeminiVeoProvider | None = None,
 ) -> VideoGenerationResult:
     engine = provider or get_video_provider()
     try:
@@ -442,7 +784,7 @@ async def generate_video_bytes(
     except (RuntimeError, ValueError):
         if isinstance(engine, OfflineVideoProvider) or not settings.video_fallback_offline:
             raise
-        logger.warning("Remote NVIDIA video generation failed; falling back to offline.", exc_info=True)
+        logger.warning("Remote video generation failed; falling back to offline.", exc_info=True)
         return await OfflineVideoProvider().generate(
             prompt,
             width=width,
@@ -460,6 +802,8 @@ __all__ = [
     "VideoGenerationResult",
     "OfflineVideoProvider",
     "NvidiaVideoProvider",
+    "OpenAIVideoProvider",
+    "GeminiVeoProvider",
     "build_video_provider",
     "get_video_provider",
     "reset_video_provider",
