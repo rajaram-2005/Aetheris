@@ -35,6 +35,10 @@ function getSpeechRecognition(): SpeechRecognitionConstructor | undefined {
 interface ComposerProps {
   onSend: (text: string, attachments?: Attachment[]) => void;
   disabled: boolean;
+  /** True while a turn is in flight — shows the Stop button. */
+  processing?: boolean;
+  /** Abort the in-flight generation. */
+  onStop?: () => void;
   voiceActive: boolean;
   onToggleVoice: () => void;
   onGenerateImage?: (prompt: string) => void;
@@ -46,7 +50,7 @@ interface ComposerProps {
 }
 
 export function Composer({
-  onSend, disabled, voiceActive, onToggleVoice,
+  onSend, disabled, processing, onStop, voiceActive, onToggleVoice,
   onGenerateImage, onSpeak, onSpeakLast, canSpeakLast,
   imageBusy, speaking,
 }: ComposerProps) {
@@ -219,7 +223,20 @@ export function Composer({
             </svg>
           </button>
 
-          {/* Send */}
+          {/* Send / Stop */}
+          {processing && onStop ? (
+            <button
+              onClick={onStop}
+              title="Stop generating"
+              className="btn btn-icon mb-0.5"
+              style={{
+                width: 34, height: 34, borderRadius: 10,
+                background: 'var(--accent-pink, #f472b6)', color: '#0a0e1a',
+              }}
+            >
+              <span className="block w-3 h-3 rounded-[3px]" style={{ background: '#0a0e1a' }} />
+            </button>
+          ) : (
           <button
             onClick={handleSend}
             disabled={disabled || !canSend}
@@ -231,6 +248,7 @@ export function Composer({
               <path d="M3 9h12M10 4l5 5-5 5" />
             </svg>
           </button>
+          )}
         </div>
 
         {/* Speak-last */}

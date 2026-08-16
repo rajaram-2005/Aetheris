@@ -5,12 +5,12 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
 import { Message, Thread, Settings, HermesRun, Attachment, ModelId, ModeId, Theme, AppView } from '@/types';
 import { runHermes, sendFeedback, getManifest, generateImage, synthesizeSpeech, HermesError } from '@/lib/hermes';
 import {
   getThreads, createThread, getThread, deleteThread, addMessage,
-  updateMessage, getSettings, saveSettings, getCurrentThreadId,
+  updateMessage, truncateThread, getSettings, saveSettings, getCurrentThreadId,
   setCurrentThreadId, exportThreadAsMarkdown,
 } from '@/lib/store';
 import { Sidebar } from '@/components/Sidebar';
@@ -75,6 +75,7 @@ export default function AetherisApp() {
   });
   const [settings, setSettings] = useState<Settings>(getSettings());
   const [processing, setProcessing] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [run, setRun] = useState<HermesRun | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [showInspector, setShowInspector] = useState(true);
@@ -213,43 +214,30 @@ export default function AetherisApp() {
     [currentThread],
   );
 
-  /** Send a turn: the whole cascade runs server-side. */
-  const handleSendMessage = useCallback(
-    async (text: string, attachments?: Attachment[]) => {
-      if (!text.trim() || processing) return;
-
-      let thread = currentThread;
-      if (!thread) {
-        thread = createThread();
-        setThreads((prev) => [thread!, ...prev]);
+  /** One turn: the whole cascade runs server-side. Abortable (Stop). */
+  const runTurn = useCallback(
+    async (threadId: string, task: string, options?: { appendUser?: boolean; attachments?: Attachment[] }) => {
+      if (options?.appendUser !== false) {
+        addMessage(threadId, {
+          id: `m-${Date.now()}-user`,
+          role: 'user',
+          content: task.split('\n\n[attached files]')[0],
+          timestamp: Date.now(),
+          attachments: options?.attachments,
+        });
       }
-      const threadId = thread.id;
-
-      addMessage(threadId, {
-        id: `m-${Date.now()}-user`,
-        role: 'user',
-        content: text,
-        timestamp: Date.now(),
-        attachments,
-      });
       refreshThread(threadId);
       setProcessing(true);
 
-      // Attachments are inlined into the task so the runtime can ground on them.
-      let task = text;
-      if (attachments?.length) {
-        const blocks = attachments
-          .map((a) => `--- file: ${a.name} ---\n${a.content.slice(0, 20_000)}`)
-          .join('\n\n');
-        task = `${text}\n\n[attached files]\n${blocks}`;
-      }
-
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const result = await runHermes(task, {
           sessionId: threadId,
           useMemory: settings.useMemory,
           learn: settings.learn,
           mode: settings.mode || 'general',
+          signal: controller.signal,
         });
         setRun(result);
         setLastAssistantText(result.answer);
@@ -261,6 +249,10 @@ export default function AetherisApp() {
           run: result,
         });
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // Stop generation: the user's message stays, no assistant bubble.
+          return;
+        }
         const message =
           error instanceof HermesError
             ? error.message
@@ -273,11 +265,73 @@ export default function AetherisApp() {
           error: true,
         });
       } finally {
+        if (abortRef.current === controller) abortRef.current = null;
         refreshThread(threadId);
         setProcessing(false);
       }
     },
-    [currentThread, processing, settings.useMemory, settings.learn, settings.mode, refreshThread],
+    [settings.useMemory, settings.learn, settings.mode, refreshThread],
+  );
+
+  /** Send a turn from the composer. */
+  const handleSendMessage = useCallback(
+    async (text: string, attachments?: Attachment[]) => {
+      if (!text.trim() || processing) return;
+
+      let thread = currentThread;
+      if (!thread) {
+        thread = createThread();
+        setThreads((prev) => [thread!, ...prev]);
+      }
+
+      // Attachments are inlined into the task so the runtime can ground on them.
+      let task = text;
+      if (attachments?.length) {
+        const blocks = attachments
+          .map((a) => `--- file: ${a.name} ---\n${a.content.slice(0, 20_000)}`)
+          .join('\n\n');
+        task = `${text}\n\n[attached files]\n${blocks}`;
+      }
+      await runTurn(thread.id, task, { attachments });
+    },
+    [currentThread, processing, runTurn],
+  );
+
+  /** Stop the in-flight generation (ChatGPT-style ⏹). */
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+    setProcessing(false);
+  }, []);
+
+  /** Regenerate the answer to the last user message. */
+  const handleRegenerate = useCallback(
+    async (assistantMessage: Message) => {
+      if (!currentThread || processing) return;
+      const messages = getThread(currentThread.id)?.messages ?? [];
+      const pivot = messages.findIndex((m) => m.id === assistantMessage.id);
+      if (pivot <= 0) return;
+      const userMessage = messages[pivot - 1];
+      if (userMessage.role !== 'user') return;
+      truncateThread(currentThread.id, pivot - 1);
+      refreshThread(currentThread.id);
+      await runTurn(currentThread.id, userMessage.content, { appendUser: false });
+    },
+    [currentThread, processing, refreshThread, runTurn],
+  );
+
+  /** Edit a user message and re-run the conversation from that point. */
+  const handleEditMessage = useCallback(
+    async (userMessage: Message, newText: string) => {
+      if (!currentThread || processing || !newText.trim()) return;
+      const messages = getThread(currentThread.id)?.messages ?? [];
+      const pivot = messages.findIndex((m) => m.id === userMessage.id);
+      if (pivot < 0) return;
+      truncateThread(currentThread.id, pivot);
+      updateMessage(currentThread.id, userMessage.id, { content: newText.trim() });
+      refreshThread(currentThread.id);
+      await runTurn(currentThread.id, newText.trim(), { appendUser: false });
+    },
+    [currentThread, processing, refreshThread, runTurn],
   );
 
   /** Rate an answer — this is the signal the meta-learner trains on. */
@@ -567,6 +621,9 @@ export default function AetherisApp() {
         sidebarOpen={sidebarOpen}
         onRunPrompt={handleRunPrompt}
         onRate={handleRate}
+        onRegenerate={handleRegenerate}
+        onEditMessage={handleEditMessage}
+        onStop={handleStop}
         onGenerateImage={handleGenerateImage}
         onSpeak={handleSpeak}
         onSpeakLast={handleSpeakLast}

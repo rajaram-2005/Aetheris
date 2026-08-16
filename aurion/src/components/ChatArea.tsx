@@ -32,6 +32,12 @@ interface ChatAreaProps {
   sidebarOpen: boolean;
   onRunPrompt: (text: string) => void;
   onRate?: (message: Message, reward: number) => void;
+  /** Regenerate the answer to a user message (last assistant only). */
+  onRegenerate?: (message: Message) => void;
+  /** Edit a user message and re-run the conversation from that point. */
+  onEditMessage?: (message: Message, newText: string) => void;
+  /** Abort the in-flight generation. */
+  onStop?: () => void;
   /** Create an image from a prompt. */
   onGenerateImage?: (prompt: string) => void;
   /** Speak text aloud via TTS. */
@@ -90,6 +96,9 @@ export function ChatArea({
   sidebarOpen,
   onRunPrompt,
   onRate,
+  onRegenerate,
+  onEditMessage,
+  onStop,
   onGenerateImage,
   onSpeak,
   onSpeakLast,
@@ -217,7 +226,18 @@ export function ChatArea({
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} onRate={onRate} />
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onRate={onRate}
+                onRegenerate={onRegenerate}
+                onEdit={onEditMessage}
+                isLastAssistant={
+                  msg.role === 'assistant' &&
+                  !msg.error &&
+                  msg.id === thread?.messages[thread.messages.length - 1]?.id
+                }
+              />
             ))}
             {processing && (
               <div className="flex items-start gap-3 animate-fade-in">
@@ -260,6 +280,8 @@ export function ChatArea({
       <Composer
         onSend={onSendMessage}
         disabled={processing}
+        processing={processing}
+        onStop={onStop}
         voiceActive={voiceActive}
         onToggleVoice={() => setVoiceActive(!voiceActive)}
         onGenerateImage={onGenerateImage}

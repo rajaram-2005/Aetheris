@@ -8,11 +8,28 @@ interface MessageBubbleProps {
   message: Message;
   /** Rate an answer — the reward signal the meta-learner trains on. */
   onRate?: (message: Message, reward: number) => void;
+  /** Regenerate the answer to the previous user message. */
+  onRegenerate?: (message: Message) => void;
+  /** Edit this user message and re-run the conversation. */
+  onEdit?: (message: Message, newText: string) => void;
+  /** Only the last assistant message offers regeneration. */
+  isLastAssistant?: boolean;
 }
 
-export function MessageBubble({ message, onRate }: MessageBubbleProps) {
+export function MessageBubble({ message, onRate, onRegenerate, onEdit, isLastAssistant }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [showThinking, setShowThinking] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content);
+  const [editingBusy, setEditingBusy] = useState(false);
+
+  const submitEdit = useCallback(() => {
+    if (!onEdit || !editText.trim() || editingBusy) return;
+    setEditingBusy(true);
+    setEditing(false);
+    onEdit(message, editText);
+    setEditingBusy(false);
+  }, [editText, editingBusy, message, onEdit]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(message.content);
@@ -112,9 +129,34 @@ export function MessageBubble({ message, onRate }: MessageBubbleProps) {
 
           {/* Render Main Content */}
           {isUser ? (
-            <p className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)' }}>
-              {content}
-            </p>
+            editing ? (
+              <div className="space-y-2">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  rows={Math.min(8, Math.max(2, editText.split('\n').length))}
+                  className="input surface w-full px-3 py-2 text-sm"
+                  style={{ background: 'var(--bg-tertiary)', resize: 'none' }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitEdit();
+                    if (e.key === 'Escape') setEditing(false);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button className="btn btn-primary text-xs" onClick={submitEdit} disabled={editingBusy || !editText.trim()}>
+                    Save & resend
+                  </button>
+                  <button className="btn text-xs" onClick={() => { setEditing(false); setEditText(message.content); }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)' }}>
+                {content}
+              </p>
+            )
           ) : (
             <div
               className="prose text-sm leading-relaxed"
@@ -151,6 +193,26 @@ export function MessageBubble({ message, onRate }: MessageBubbleProps) {
               style={{ color: copied ? 'var(--accent-mint)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
               {copied ? '✓ copied' : 'copy'}
+            </button>
+          )}
+          {!isUser && isLastAssistant && onRegenerate && !message.error && (
+            <button
+              onClick={() => onRegenerate(message)}
+              title="Regenerate this answer"
+              className="text-[10px] px-1.5 py-0.5 rounded hover:opacity-80 transition-colors"
+              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+            >
+              ↻ regenerate
+            </button>
+          )}
+          {isUser && onEdit && !editing && (
+            <button
+              onClick={() => { setEditText(message.content); setEditing(true); }}
+              title="Edit and resend"
+              className="text-[10px] px-1.5 py-0.5 rounded hover:opacity-80 transition-colors"
+              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+            >
+              ✎ edit
             </button>
           )}
           {message.run && (

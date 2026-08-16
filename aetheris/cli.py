@@ -787,6 +787,139 @@ def cmd_podcast(args: argparse.Namespace) -> int:
     return _save_artifact(console, wav, args.out or "aetheris-podcast-intro.wav", "Podcast intro")
 
 
+def cmd_code_agent(args: argparse.Namespace) -> int:
+    """``aetheris code`` — Claude Code-style build agent (plan→write→verify→fix→ship)."""
+    console = _make_console(args)
+    from .services.coder import run_coder
+
+    task = " ".join(args.task).strip()
+    if not task:
+        console.print("[red]error:[/red] provide a task description.")
+        return 2
+    try:
+        result = asyncio.run(run_coder(
+            task,
+            name=args.name,
+            kind=args.kind,
+            push_repo=args.push,
+            branch=args.branch,
+            commit_message=args.commit_message,
+            create_pr=not args.no_pr,
+        ))
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+
+    for record in result.steps:
+        style = {"passed": TEAL, "failed": "red", "fixed": "yellow", "skipped": MUTED}.get(
+            record.status, MUTED
+        )
+        console.print(
+            f"  [bold]{record.step:9s}[/bold] [{style}]{record.status}[/{style}]"
+            f" [{MUTED}]{record.detail[:100]}[/{MUTED}]"
+        )
+    console.print(
+        f"[{TEAL}]Build complete[/{TEAL}] [bold]{result.name}[/bold] · engine {result.engine} · "
+        f"{len(result.files)} files · artifact {result.artifact_url}"
+    )
+    if result.github and "error" not in result.github:
+        console.print(
+            f"[{TEAL}]Pushed to GitHub[/{TEAL}] https://github.com/{result.github['repo']}/tree/{result.github['branch']}"
+            + (f"\n[{TEAL}]Pull request[/{TEAL}] {result.github['pr_url']}" if result.github.get("pr_url") else "")
+        )
+    if args.out:
+        import io
+        import zipfile
+        from pathlib import Path
+
+        with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path, content in result.files.items():
+                archive.writestr(path, content)
+        console.print(f"[{TEAL}]ZIP written[/{TEAL}] [bold]{args.out}[/bold]")
+    return 0
+
+
+def cmd_github(args: argparse.Namespace) -> int:
+    """``aetheris github`` — push code directly to GitHub."""
+    console = _make_console(args)
+    from .services.github_client import GitHubClient, GitHubError
+
+    async def run():
+        client = GitHubClient()
+        try:
+            if args.action == "status":
+                return await client.status()
+            if args.action == "repo-create":
+                if not args.repo:
+                    raise GitHubError("repo-create needs a repository as owner/name.")
+                return await client.create_repo(args.repo, description=args.message, private=args.private)
+            # push
+            if not args.repo:
+                raise GitHubError("push needs a repository as owner/name.")
+            from pathlib import Path
+
+            files: dict[str, str] = {}
+            root = Path(args.dir).expanduser() if args.dir else None
+            if root is not None and root.is_dir():
+                for path in sorted(p for p in root.rglob("*") if p.is_file()):
+                    if ".git" in path.parts:
+                        continue
+                    try:
+                        files[str(path.relative_to(root))] = path.read_text(encoding="utf-8")
+                    except (UnicodeDecodeError, OSError):
+                        continue
+            for token in (args.files or "").split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                path = Path(token).expanduser()
+                if not path.is_file():
+                    raise GitHubError(f"no such file: {token}")
+                files[path.name] = path.read_text(encoding="utf-8")
+            if not files:
+                raise GitHubError("nothing to push: pass --dir DIR or --files a,b,c.")
+            return await client.push(
+                args.repo, files,
+                branch=args.branch,
+                commit_message=args.message,
+                create_pr=not args.no_pr,
+                private=args.private,
+            )
+        finally:
+            await client.aclose()
+
+    try:
+        result = asyncio.run(run())
+    except (GitHubError, ValueError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        return 2
+
+    if args.action == "status":
+        if result.get("connected"):
+            console.print(
+                f"[{TEAL}]GitHub connected[/{TEAL}] transport [bold]{result['transport']}[/bold] · "
+                f"user [bold]{result.get('user') or 'unknown'}[/bold]"
+            )
+        else:
+            console.print(f"[red]GitHub not connected[/red] {result.get('detail', '')}")
+        return 0
+    if args.action == "repo-create":
+        console.print(
+            f"[{TEAL}]{'Created' if result.get('created') else 'Already exists'}[/{TEAL}] "
+            f"[bold]{result['repo']}[/bold] {result.get('html_url', '')}"
+        )
+        return 0
+    console.print(
+        f"[{TEAL}]Pushed {result['files']} file(s)[/{TEAL}] to [bold]{result['repo']}[/bold]@"
+        f"[bold]{result['branch']}[/bold] · commit {result['commit']}"
+    )
+    if result.get("pr_url"):
+        console.print(f"[{TEAL}]Pull request[/{TEAL}] {result['pr_url']}")
+    if result.get("pr_note"):
+        console.print(f"[yellow]PR note[/yellow] {result['pr_note']}")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Inference helpers
 # ---------------------------------------------------------------------------
@@ -1639,6 +1772,30 @@ def _build_parser() -> argparse.ArgumentParser:
     pop.add_argument("--no-jingle", action="store_true")
     pop.add_argument("--seed", type=int, default=None)
     pop.set_defaults(func=cmd_podcast, is_async=False)
+
+    cap = sub.add_parser("code", help="build a whole project from a task (Claude Code style)")
+    cap.add_argument("task", nargs="+", help="what to build, in plain language")
+    cap.add_argument("--name", default="", help="project name (default derived from task)")
+    cap.add_argument("--kind", default=None,
+                     choices=("fastapi-service", "python-package", "cli-tool", "static-site"))
+    cap.add_argument("--push", default="", metavar="OWNER/NAME",
+                     help="push the result to this GitHub repository")
+    cap.add_argument("--branch", default="", help="branch to push")
+    cap.add_argument("--commit-message", default="", help="commit message")
+    cap.add_argument("--no-pr", action="store_true", help="do not open a pull request")
+    cap.add_argument("-o", "--out", default=None, help="also write the ZIP locally")
+    cap.set_defaults(func=cmd_code_agent, is_async=False)
+
+    ghp = sub.add_parser("github", help="push code directly to GitHub")
+    ghp.add_argument("action", choices=("status", "repo-create", "push"))
+    ghp.add_argument("repo", nargs="?", default="", help="repository as owner/name")
+    ghp.add_argument("--dir", default="", help="local directory to push (text files)")
+    ghp.add_argument("--files", default="", help="comma-separated local files to push")
+    ghp.add_argument("--message", default="Generated by Aetheris", help="commit message / repo description")
+    ghp.add_argument("--branch", default="", help="branch to push")
+    ghp.add_argument("--no-pr", action="store_true", help="do not open a pull request")
+    ghp.add_argument("--private", action="store_true", help="create the repository private")
+    ghp.set_defaults(func=cmd_github, is_async=False)
 
     pp = sub.add_parser("project", help="scaffold a runnable project")
     pp.add_argument("kind", choices=("fastapi-service", "python-package", "cli-tool", "static-site"))

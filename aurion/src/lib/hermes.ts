@@ -63,7 +63,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** Run one task through the full Hermes cascade. */
 export function runHermes(
   task: string,
-  options: { sessionId?: string; useMemory?: boolean; learn?: boolean; mode?: string } = {},
+  options: {
+    sessionId?: string;
+    useMemory?: boolean;
+    learn?: boolean;
+    mode?: string;
+    /** Abort the in-flight request (Stop generation). */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<HermesRun> {
   return request<HermesRun>('/v1/hermes/run', {
     method: 'POST',
@@ -74,6 +81,7 @@ export function runHermes(
       learn: options.learn ?? true,
       mode: options.mode ?? '',
     }),
+    signal: options.signal,
   });
 }
 
