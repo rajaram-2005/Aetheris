@@ -13,7 +13,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 | Phase | Component | State |
 |---|---|---|
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
-| 2 | GitHub Coding Factory (OAuth → push → Actions → read logs) | planned |
+| 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | Multimodal Cloud Studio (image / video / audio routing) | planned |
 | 4 | Cloud MCP App Store | planned |
 | 5 | UPI paywall (static QR + manual admin approval) | planned |
@@ -69,6 +69,28 @@ the UI shows under each reply (e.g. `via groq · 412 ms · ↻ 1 failover`).
 
 Click the mesh pill in the header to see live provider health and **pin** a provider to be tried first.
 
+## Cloud Coding Factory (Phase 2)
+
+Switch the header toggle to **Factory**, connect GitHub, and describe a program. Aetheris then:
+
+```
+prompt ─► router generates {files, testCommand} as JSON (Python / Node / Java)
+       ─► ensures a private repo  <you>/aetheris-factory  exists
+       ─► ONE commit on branch run/<id> (Git Data API) with the project + a workflow
+       ─► GitHub Actions runs the tests (ubuntu-latest, pytest / node --test / mvn test)
+       ─► polls the run, downloads the job log
+       ─► router summarises pass/fail + suggested fix ─► shown in One Chat
+```
+
+Progress streams live over SSE; every step links to the commit / run on GitHub. Nothing
+executes on your machine — compile & test happen on GitHub's free Actions minutes.
+
+**Connecting GitHub**
+- *OAuth*: create an OAuth App and set `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` (callback `<origin>/api/auth/github/callback`).
+- *Token*: without OAuth, paste a PAT with `repo` + `workflow` scopes. Either way the token is stored only in an AES-GCM-sealed httpOnly cookie (`AETHERIS_SECRET`).
+
+Runs land in `runs/<id>-<name>/` on branch `run/<id>`; nothing touches your other repos.
+
 ## API
 
 `POST /api/chat`
@@ -79,6 +101,11 @@ Click the mesh pill in the header to see live provider health and **pin** a prov
 
 `GET /api/providers` → mesh status (configured / ready / cooldown, success & failure counts, avg latency).
 
+`POST /api/factory/run` `{ "task": "…", "preferred"?: "groq" }` → `text/event-stream` of
+`{type:"step", step, status, detail, data}` events followed by `{type:"result", ok, conclusion, report, runUrl, commitUrl, branch, files}`.
+
+Auth: `GET /api/auth/github` (OAuth start) · `POST /api/auth/token` `{token}` · `GET /api/auth/me` · `POST /api/auth/logout`
+
 ## Project layout
 
 ```
@@ -86,9 +113,16 @@ src/lib/router/
   providers.ts   the 15-provider registry
   adapters.ts    wire protocols: OpenAI-compatible, Gemini, Cohere, Cloudflare
   router.ts      ordering, failover, cooldown/health tracking
-src/app/api/     /api/chat, /api/providers
-src/components/  Chat UI, mesh panel, tiny markdown renderer
-tests/           failover tests against a mock provider (npm test)
+src/lib/github/
+  auth.ts        sealed-cookie session, OAuth helpers
+  api.ts         GitHub REST client: repos, Git Data commits, Actions runs/jobs/logs
+src/lib/factory/
+  codegen.ts     prompt → structured project plan; CI log → summary (via the router)
+  workflow.ts    GitHub Actions workflow template per language
+  pipeline.ts    the orchestrator (emits step events)
+src/app/api/     /api/chat, /api/providers, /api/factory/run, /api/auth/*
+src/components/  Chat UI, mesh panel, factory run card, GitHub auth, markdown renderer
+tests/           router failover + full factory pipeline against mocked GitHub/LLM (npm test)
 ```
 
 ## Scripts

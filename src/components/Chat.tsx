@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
+import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
+import FactoryRun, { emptyFactoryState, type FactoryState, type StepId } from "./FactoryRun";
 
 interface UiMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  factory?: FactoryState;
   error?: boolean;
   provider?: string;
   model?: string;
@@ -26,6 +29,13 @@ const SUGGESTIONS = [
   "What is the Model Context Protocol?",
 ];
 
+const FACTORY_SUGGESTIONS = [
+  "A Python function that validates Indian UPI IDs, with tests",
+  "A Node module that parses ISO-8601 durations into seconds",
+  "A Java class implementing an LRU cache with JUnit tests",
+  "A Python CLI that converts CSV to JSON with edge-case tests",
+];
+
 const STORAGE_KEY = "aetheris.chat.v1";
 
 export default function Chat() {
@@ -35,6 +45,8 @@ export default function Chat() {
   const [mesh, setMesh] = useState<MeshSummary | null>(null);
   const [showMesh, setShowMesh] = useState(false);
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
+  const [mode, setMode] = useState<"chat" | "factory">("chat");
+  const auth = useGitHubAuth();
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -63,9 +75,69 @@ export default function Chat() {
     return () => clearInterval(t);
   }, [refreshMesh]);
 
+  const runFactory = useCallback(async (task: string) => {
+    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content: task };
+    const fid = crypto.randomUUID();
+    const patch = (fn: (f: FactoryState) => FactoryState) =>
+      setMessages((m) => m.map((x) => (x.id === fid && x.factory ? { ...x, factory: fn(x.factory) } : x)));
+
+    setMessages((m) => [...m, userMsg, { id: fid, role: "assistant", content: "", factory: emptyFactoryState(task) }]);
+    setInput("");
+    setBusy(true);
+    if (taRef.current) taRef.current.style.height = "auto";
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const r = await fetch("/api/factory/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task, preferred }),
+        signal: controller.signal,
+      });
+      if (!r.ok || !r.body) {
+        const j = await r.json().catch(() => ({}));
+        patch((f) => ({ ...f, error: j.error ?? `Request failed (${r.status})` }));
+        return;
+      }
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const part of parts) {
+          const line = part.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          const ev = JSON.parse(line.slice(6));
+          if (ev.type === "step") {
+            patch((f) => ({
+              ...f,
+              files: (ev.data?.files as string[] | undefined) ?? f.files,
+              steps: { ...f.steps, [ev.step as StepId]: { status: ev.status, detail: ev.detail, url: ev.data?.url } },
+            }));
+          } else if (ev.type === "result") {
+            patch((f) => ({ ...f, result: ev }));
+          } else if (ev.type === "error") {
+            patch((f) => ({ ...f, error: ev.message }));
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patch((f) => ({ ...f, error: "Connection to Aetheris lost." }));
+    } finally {
+      setBusy(false);
+      abortRef.current = null;
+      refreshMesh();
+    }
+  }, [preferred, refreshMesh]);
+
   const send = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || busy) return;
+    if (mode === "factory") return runFactory(content);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content };
     const history = [...messages, userMsg];
     setMessages(history);
@@ -80,7 +152,7 @@ export default function Chat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history.filter((m) => !m.error).map(({ role, content }) => ({ role, content })),
+          messages: history.filter((m) => !m.error && !m.factory).map(({ role, content }) => ({ role, content })),
           preferred,
         }),
         signal: controller.signal,
@@ -108,7 +180,7 @@ export default function Chat() {
       abortRef.current = null;
       refreshMesh();
     }
-  }, [input, busy, messages, preferred, refreshMesh]);
+  }, [input, busy, messages, preferred, refreshMesh, mode, runFactory]);
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -130,30 +202,59 @@ export default function Chat() {
           <h1>Aetheris One</h1>
           <span>omni-router</span>
         </div>
-        <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
-          <span className={`dot ${meshDot}`} />
-          {meshLabel}{preferredName ? ` · via ${preferredName}` : ""}
-        </button>
+        <div className="header-right">
+          <div className="mode-toggle" role="tablist">
+            <button className={mode === "chat" ? "active" : ""} onClick={() => setMode("chat")}>Chat</button>
+            <button className={mode === "factory" ? "active" : ""} onClick={() => setMode("factory")}>Factory</button>
+          </div>
+          <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
+            <span className={`dot ${meshDot}`} />
+            {meshLabel}{preferredName ? ` · via ${preferredName}` : ""}
+          </button>
+        </div>
       </header>
 
       <div ref={listRef} className="messages">
         {showMesh && mesh && (
           <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />
         )}
+        {mode === "factory" && (
+          <div className="factory-bar">
+            <div>
+              <strong>Cloud Coding Factory</strong>
+              <span> — describe a program; Aetheris writes it, pushes it to a private <code>aetheris-factory</code> repo, runs the tests on GitHub Actions, and reports back.</span>
+            </div>
+            <GitHubAuth auth={auth} />
+          </div>
+        )}
         {messages.length === 0 && !busy ? (
           <div className="empty">
-            <h2>One chat. Every free model.</h2>
-            <p>Your prompt is routed across a mesh of free AI providers. If one is rate-limited, Aetheris silently fails over to the next.</p>
-            <div className="suggestions">
-              {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}
-            </div>
+            {mode === "chat" ? (
+              <>
+                <h2>One chat. Every free model.</h2>
+                <p>Your prompt is routed across a mesh of free AI providers. If one is rate-limited, Aetheris silently fails over to the next.</p>
+                <div className="suggestions">
+                  {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}
+                </div>
+              </>
+            ) : (
+              <>
+                <h2>Code that runs in the cloud.</h2>
+                <p>{auth.user ? "What should the factory build?" : "Connect GitHub above to start a run."}</p>
+                <div className="suggestions">
+                  {FACTORY_SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} disabled={!auth.user}>{s}</button>)}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           messages.map((m) => (
             <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
-              {m.role === "assistant" && !m.error
-                ? <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
-                : <div className="bubble">{m.content}</div>}
+              {m.factory
+                ? <div className="bubble"><FactoryRun state={m.factory} /></div>
+                : m.role === "assistant" && !m.error
+                  ? <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
+                  : <div className="bubble">{m.content}</div>}
               {m.provider && (
                 <div className="meta-line">
                   <span className="via">via {m.provider}</span>
@@ -165,7 +266,7 @@ export default function Chat() {
             </div>
           ))
         )}
-        {busy && (
+        {busy && mode === "chat" && (
           <div className="msg assistant">
             <div className="bubble"><span className="typing"><i /><i /><i /></span></div>
           </div>
@@ -178,10 +279,10 @@ export default function Chat() {
             ref={taRef}
             rows={1}
             value={input}
-            placeholder="Ask anything…"
+            placeholder={mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory") : "Ask anything…"}
             onChange={autoGrow}
             onKeyDown={onKey}
-            disabled={busy}
+            disabled={busy || (mode === "factory" && !auth.user)}
           />
           {busy ? (
             <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
@@ -190,7 +291,7 @@ export default function Chat() {
               {messages.length > 0 && (
                 <button className="ghost" title="New chat" onClick={() => setMessages([])}>New</button>
               )}
-              <button className="send" onClick={() => send()} disabled={!input.trim()}>Send</button>
+              <button className="send" onClick={() => send()} disabled={!input.trim() || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : "Send"}</button>
             </>
           )}
         </div>
