@@ -8,7 +8,8 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "verify:connectors": "tsx scripts/verify-connectors.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

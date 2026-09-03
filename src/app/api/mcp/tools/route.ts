@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { McpClient } from "@/lib/mcp/client";
-import { resolveServer, type EnabledServer } from "@/lib/mcp/agent";
+import { bindServers, type EnabledServer } from "@/lib/mcp/agent";
+import { readTokens } from "@/lib/mcp/oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,14 +8,13 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const s = (await req.json().catch(() => null)) as EnabledServer | null;
   if (!s?.id) return NextResponse.json({ error: "server id required" }, { status: 400 });
-  const r = resolveServer(s);
-  if (!r) return NextResponse.json({ error: "This connector has no remote URL configured." }, { status: 400 });
-  try {
-    const client = new McpClient({ url: r.url, headers: r.headers }, 15_000);
-    const info = await client.initialize();
-    const tools = await client.listTools();
-    return NextResponse.json({ server: r.name, info, tools: tools.map((t) => ({ name: t.name, description: t.description })) });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+  const tokens = await readTokens();
+  const oauthTokens = Object.fromEntries(Object.entries(tokens).map(([k, v]) => [k, v.access_token]));
+  const { bound, failures } = await bindServers([s], { oauthTokens });
+  if (bound.length === 0) {
+    const err = failures[0]?.error ?? "connection failed";
+    const needsOauth = /401|403|Unauthorized|invalid_token/i.test(err);
+    return NextResponse.json({ error: err, needsOauth }, { status: 502 });
   }
+  return NextResponse.json({ server: s.id, tools: bound[0].tools.map((t) => ({ name: t.name, description: t.description })) });
 }

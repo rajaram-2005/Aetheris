@@ -2,6 +2,9 @@ import { route } from "@/lib/router/router";
 import type { ChatMessage } from "@/lib/router/types";
 import { McpClient, type McpTool } from "./client";
 import { connectorById, type Connector } from "./catalog";
+import { apiById } from "@/lib/gateway/apis";
+import { executeTool, toInputSchema, type ApiDef } from "@/lib/gateway/engine";
+import type { GH } from "@/lib/github/api";
 
 /** A server the user has enabled for this request (credentials come from the browser). */
 export interface EnabledServer {
@@ -21,7 +24,18 @@ export interface ToolEvent {
   error?: string;
 }
 
-interface Bound { server: string; client: McpClient; tools: McpTool[] }
+interface Bound {
+  server: string;
+  tools: McpTool[];
+  call: (tool: string, args: Record<string, unknown>) => Promise<string>;
+}
+
+/** Context the agent may need for internal tools. */
+export interface AgentContext {
+  github?: GH;
+  /** OAuth tokens obtained via /api/mcp/oauth, keyed by connector id. */
+  oauthTokens?: Record<string, string>;
+}
 
 function headersFor(s: EnabledServer, c?: Connector): Record<string, string> | undefined {
   const header = c?.auth?.header ?? s.headerName;
@@ -30,25 +44,63 @@ function headersFor(s: EnabledServer, c?: Connector): Record<string, string> | u
   return { [header]: `${prefix}${s.credential}` };
 }
 
-export function resolveServer(s: EnabledServer): { url: string; headers?: Record<string, string>; name: string } | null {
+export function resolveServer(s: EnabledServer, oauthToken?: string): { url: string; headers?: Record<string, string>; name: string } | null {
   const c = connectorById(s.id);
+  if (c?.kind === "gateway") return null;
   const url = c?.url ?? s.url;
-  if (!url || url.startsWith("internal://")) return null;
-  return { url, headers: headersFor(s, c), name: c?.name ?? s.id };
+  if (!url) return null;
+  const headers = oauthToken ? { Authorization: `Bearer ${oauthToken}` } : headersFor(s, c);
+  return { url, headers, name: c?.name ?? s.id };
+}
+
+async function bindGateway(s: EnabledServer, api: ApiDef, ctx: AgentContext): Promise<Bound> {
+  if (api.id === "aetheris-factory") {
+    return {
+      server: s.id,
+      tools: api.tools.map((t) => ({ name: t.name, description: t.description, inputSchema: toInputSchema(t) })),
+      call: async (_tool, args) => {
+        if (!ctx.github) return "Error: connect GitHub in the Factory tab first.";
+        const { runFactory } = await import("@/lib/factory/pipeline");
+        const lines: string[] = [];
+        let verdict = "";
+        await runFactory(ctx.github, String(args.task ?? ""), (e) => {
+          if (e.type === "step" && e.status !== "start") lines.push(`${e.step}: ${e.status}${e.detail ? ` — ${e.detail}` : ""}`);
+          if (e.type === "result") verdict = `CI ${e.conclusion} (${e.ok ? "tests passed" : "tests failed"}). Run: ${e.runUrl}\n\n${e.report}`;
+          if (e.type === "error") verdict = `Factory error: ${e.message}`;
+        });
+        return `${lines.join("\n")}\n\n${verdict}`;
+      },
+    };
+  }
+  return {
+    server: s.id,
+    tools: api.tools.map((t) => ({ name: t.name, description: t.description, inputSchema: toInputSchema(t) })),
+    call: (tool, args) => {
+      const t = api.tools.find((x) => x.name === tool);
+      if (!t) throw new Error(`unknown tool ${tool}`);
+      return executeTool(api, t, args, s.credential);
+    },
+  };
 }
 
 /** Connect to each enabled server and list its tools. Failures are reported, not fatal. */
-export async function bindServers(servers: EnabledServer[]): Promise<{ bound: Bound[]; failures: { server: string; error: string }[] }> {
+export async function bindServers(servers: EnabledServer[], ctx: AgentContext = {}): Promise<{ bound: Bound[]; failures: { server: string; error: string }[] }> {
   const bound: Bound[] = [];
   const failures: { server: string; error: string }[] = [];
   await Promise.all(
     servers.map(async (s) => {
-      const r = resolveServer(s);
+      const c = connectorById(s.id);
+      if (c?.kind === "gateway") {
+        const api = apiById(s.id);
+        if (!api) return failures.push({ server: s.id, error: "gateway definition missing" });
+        return bound.push(await bindGateway(s, api, ctx));
+      }
+      const r = resolveServer(s, ctx.oauthTokens?.[s.id]);
       if (!r) return failures.push({ server: s.id, error: "no URL" });
       const client = new McpClient({ url: r.url, headers: r.headers });
       try {
         const tools = await client.listTools();
-        bound.push({ server: s.id, client, tools });
+        bound.push({ server: s.id, tools, call: (tool, args) => client.callTool(tool, args) });
       } catch (e) {
         failures.push({ server: s.id, error: (e as Error).message });
       }
@@ -92,8 +144,9 @@ export async function runAgent(opts: {
   preferred?: string;
   maxRounds?: number;
   onEvent?: (e: ToolEvent) => void;
+  ctx?: AgentContext;
 }): Promise<{ content: string; provider: string; model: string; rounds: number; toolEvents: ToolEvent[]; failures: { server: string; error: string }[] }> {
-  const { bound, failures } = await bindServers(opts.servers);
+  const { bound, failures } = await bindServers(opts.servers, opts.ctx ?? {});
   const toolEvents: ToolEvent[] = [];
   const emit = (e: ToolEvent) => { toolEvents.push(e); opts.onEvent?.(e); };
 
@@ -131,7 +184,7 @@ export async function runAgent(opts: {
       continue;
     }
     try {
-      const result = await b.client.callTool(tool, call.arguments);
+      const result = await b.call(tool, call.arguments);
       const clipped = result.length > 8000 ? result.slice(0, 8000) + "\n…(truncated)" : result;
       emit({ type: "tool_result", server: b.server, tool, result: clipped });
       convo.push({ role: "user", content: `TOOL RESULT for ${b.server}.${tool}:\n${clipped}` });

@@ -5,6 +5,8 @@ import { getUserId, uidCookie } from "@/lib/user";
 import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
 import { runAgent, type EnabledServer } from "@/lib/mcp/agent";
 import { connectorById } from "@/lib/mcp/catalog";
+import { getSession } from "@/lib/github/auth";
+import { readTokens, refreshToken, tokensCookie } from "@/lib/mcp/oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,9 +74,22 @@ export async function POST(req: Request) {
 
   try {
     if (servers.length > 0) {
-      const a = await runAgent({ messages, servers, preferred });
+      const gh = await getSession();
+      const tokenMap = await readTokens();
+      let tokensChanged = false;
+      const oauthTokens: Record<string, string> = {};
+      for (const [id, t] of Object.entries(tokenMap)) {
+        let tok = t;
+        if (tok.expires_at && tok.expires_at < Date.now() + 30_000) {
+          const r = await refreshToken(tok);
+          if (r) { tok = r; tokenMap[id] = r; tokensChanged = true; }
+        }
+        oauthTokens[id] = tok.access_token;
+      }
+      const a = await runAgent({ messages, servers, preferred, ctx: { github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens } });
       const res = NextResponse.json({ content: a.content, provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota });
       if (isNew) res.cookies.set(uidCookie(uid));
+      if (tokensChanged) res.cookies.set(tokensCookie(tokenMap));
       return res;
     }
     const result = await route({ messages, preferred, temperature, signal: req.signal });

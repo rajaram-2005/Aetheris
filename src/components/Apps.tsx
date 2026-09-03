@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 interface Connector {
   id: string; name: string; category: string; description: string; url: string;
+  kind: "remote" | "gateway"; oauth?: boolean; tools?: string[];
   auth?: { header: string; prefix?: string; label: string; help?: string };
-  premium?: boolean; featured?: boolean; status: "verified" | "community";
+  premium?: boolean; featured?: boolean;
 }
 interface Category { id: string; label: string }
 
@@ -28,10 +29,27 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [custom, setCustom] = useState({ name: "", url: "", header: "Authorization", prefix: "Bearer ", credential: "" });
+  const [connected, setConnected] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
 
+  const loadCatalog = () => fetch("/api/mcp/catalog").then((r) => r.json()).then((j) => { setConnectors(j.connectors); setCategories(j.categories); setConnected(j.connected ?? []); }).catch(() => undefined);
   useEffect(() => {
-    fetch("/api/mcp/catalog").then((r) => r.json()).then((j) => { setConnectors(j.connectors); setCategories(j.categories); }).catch(() => undefined);
-  }, []);
+    loadCatalog();
+    // Handle return from an OAuth dance.
+    const sp = new URLSearchParams(window.location.search);
+    const mcp = sp.get("mcp");
+    if (mcp) {
+      const id = sp.get("id") ?? "";
+      if (mcp === "ok") {
+        const cur = loadServers();
+        if (id && !cur.some((s) => s.id === id)) { const next = [...cur, { id }]; onChange(next); localStorage.setItem(STORAGE, JSON.stringify(next)); }
+        setNotice(`Connected ${id}.`);
+      } else {
+        setNotice(`Could not connect ${id}: ${sp.get("reason") ?? "unknown error"}`);
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (s: EnabledServer[]) => { onChange(s); localStorage.setItem(STORAGE, JSON.stringify(s)); };
   const isOn = (id: string) => enabled.some((s) => s.id === id);
@@ -47,8 +65,14 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
   const toggle = (c: Connector) => {
     if (isOn(c.id)) return save(enabled.filter((s) => s.id !== c.id));
     if (c.premium && !hasPremium) return onUpgrade(`${c.name} is a premium MCP connector.`);
-    if (c.auth) { setOpen(c.id); setCred(""); return; }
+    if (c.auth && !connected.includes(c.id)) { setOpen(c.id); setCred(""); return; }
     save([...enabled, { id: c.id, name: c.name }]);
+  };
+  const oauthStart = (c: Connector) => { window.location.href = `/api/mcp/oauth/start?id=${encodeURIComponent(c.id)}`; };
+  const oauthDisconnect = async (c: Connector) => {
+    await fetch("/api/mcp/oauth/disconnect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id }) });
+    save(enabled.filter((s) => s.id !== c.id));
+    loadCatalog();
   };
   const connect = (c: Connector) => {
     save([...enabled.filter((s) => s.id !== c.id), { id: c.id, name: c.name, credential: cred }]);
@@ -59,7 +83,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
     try {
       const r = await fetch("/api/mcp/tools", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
       const j = await r.json();
-      setTestResult((t) => ({ ...t, [s.id]: r.ok ? { ok: true, msg: `${j.tools.length} tools: ${j.tools.slice(0, 6).map((x: { name: string }) => x.name).join(", ")}${j.tools.length > 6 ? "…" : ""}` } : { ok: false, msg: j.error } }));
+      setTestResult((t) => ({ ...t, [s.id]: r.ok ? { ok: true, msg: `${j.tools.length} tools: ${j.tools.slice(0, 6).map((x: { name: string }) => x.name).join(", ")}${j.tools.length > 6 ? "…" : ""}` } : { ok: false, msg: j.needsOauth ? `${j.error} — try "Sign in"` : j.error } }));
     } finally { setTesting(null); }
   };
 
@@ -75,10 +99,11 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
       <div className="apps-head">
         <div>
           <strong>Cloud MCP App Store</strong>
-          <span> — {connectors.length} connectors. Enabled apps become tools the model can call from One Chat.</span>
+          <span> — {connectors.length} connectors ({connectors.filter((c) => c.kind === "remote").length} vendor-hosted MCP servers, {connectors.filter((c) => c.kind === "gateway").length} via the Aetheris gateway). Enabled apps become tools the model can call from One Chat.</span>
         </div>
         <span className="chip on">{enabled.length} enabled</span>
       </div>
+      {notice && <div className="upsell">{notice}<button className="link" onClick={() => setNotice(null)}>dismiss</button></div>}
 
       <div className="apps-filters">
         <input placeholder="Search connectors…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -96,19 +121,24 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
           return (
             <div key={c.id} className={`app ${on ? "on" : ""}`}>
               <div className="app-top">
-                <div className="app-name">{c.name} {c.premium && <span className="badge">PRO</span>}{c.status === "community" && <span className="tag">community</span>}</div>
-                <button className={on ? "ghost" : "send"} onClick={() => toggle(c)} style={{ padding: "5px 10px", fontSize: 12 }}>{on ? "Disable" : c.auth ? "Connect" : "Enable"}</button>
+                <div className="app-name">{c.name} {c.premium && <span className="badge">PRO</span>}<span className="tag">{c.kind === "gateway" ? "gateway" : "MCP"}</span>{connected.includes(c.id) && <span className="tag" style={{ color: "var(--ok)" }}>signed in</span>}</div>
+                <button className={on ? "ghost" : "send"} onClick={() => toggle(c)} style={{ padding: "5px 10px", fontSize: 12 }}>{on ? "Disable" : c.auth && !connected.includes(c.id) ? "Connect" : "Enable"}</button>
               </div>
               <div className="app-desc">{c.description}</div>
+              {c.tools && c.tools.length > 0 && <div className="app-desc" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{c.tools.join(" · ")}</div>}
               {open === c.id && c.auth && (
-                <form className="utr-form" onSubmit={(e) => { e.preventDefault(); connect(c); }}>
-                  <input type="password" placeholder={c.auth.label} value={cred} onChange={(e) => setCred(e.target.value)} autoComplete="off" />
-                  <button className="send" disabled={!cred.trim()}>Save</button>
-                </form>
+                <div className="connect-box">
+                  {c.oauth && <button className="gh-btn" onClick={() => oauthStart(c)}>Sign in with {c.name}</button>}
+                  <form className="utr-form" onSubmit={(e) => { e.preventDefault(); connect(c); }}>
+                    <input type="password" placeholder={c.oauth ? `or paste ${c.auth.label}` : c.auth.label} value={cred} onChange={(e) => setCred(e.target.value)} autoComplete="off" />
+                    <button className="send" disabled={!cred.trim()}>Save</button>
+                  </form>
+                </div>
               )}
               {on && s && (
                 <div className="app-foot">
                   <button className="link" onClick={() => test(s)} disabled={testing === c.id}>{testing === c.id ? "testing…" : "test connection"}</button>
+                  {connected.includes(c.id) && <button className="link" onClick={() => oauthDisconnect(c)}>sign out</button>}
                   {tr && <span className={tr.ok ? "ok-text" : "err-text"}>{tr.msg}</span>}
                 </div>
               )}
@@ -135,7 +165,10 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
           </div>
         ))}
       </details>
-      <p className="hint">Credentials are kept in this browser and forwarded only to the connector you entered them for. &quot;community&quot; connectors need a hosted MCP endpoint — add one via custom server.</p>
+      <p className="hint">
+        <strong>MCP</strong> connectors are vendor-hosted servers — sign in with OAuth or paste a token. <strong>gateway</strong> connectors are served by Aetheris itself
+        (<code>/api/gateway/&lt;id&gt;</code>) and wrap the vendor&apos;s public REST API, so any MCP client can use them too. Pasted credentials stay in this browser; OAuth tokens live in an encrypted cookie.
+      </p>
     </div>
   );
 }

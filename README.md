@@ -15,7 +15,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
-| 4 | **Cloud MCP App Store** (91 connectors, real MCP client, tool-calling for any model) | ✅ this repo |
+| 4 | **Cloud MCP App Store** (108 connectors: 63 vendor MCP servers w/ OAuth + 45 via built-in REST→MCP gateway) | ✅ this repo |
 | 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
 
 ## Quick start
@@ -107,14 +107,22 @@ Runway key. We deliberately do not cycle trial keys — it violates those provid
 
 ## Cloud MCP App Store (Phase 4)
 
-**Apps** tab — 91 connectors across productivity, dev, payments, CRM/ERP, social, web-scraping,
-storage. Featured: Notion, GitHub, Slack, Figma, Stripe, Razorpay, Vercel, Google Workspace.
+**Apps** tab — **108 connectors**, every one backed by a real endpoint:
 
-- `src/lib/mcp/client.ts` — a real **MCP client** (Streamable HTTP, JSON-RPC, SSE responses, session ids).
-- `src/lib/mcp/agent.ts` — a **provider-agnostic tool loop**: tools are described in the system prompt and the model emits `<tool_call>{…}</tool_call>`; Aetheris executes it against the MCP server and feeds the result back (max 6 rounds). This works with *every* model in the mesh, not just those with native function-calling.
-- Credentials for a connector are stored in the browser and forwarded only to that connector's URL.
-- "verified" connectors point at known public MCP endpoints; "community" ones ship with a placeholder URL — add a hosted endpoint via *custom server*.
-- Premium connectors (Google Workspace, Salesforce, SAP, WhatsApp Business, Enterprise GitHub Automation…) require Pro.
+| Kind | Count | How it works |
+|---|---|---|
+| **MCP** (vendor-hosted) | 63 | Aetheris' MCP client talks Streamable HTTP to the vendor's own server (Notion, GitHub, Slack, Figma, Stripe, Linear, Atlassian, Vercel, Supabase, Sentry, Canva, Zapier, Google's official Workspace servers…). 51 of them support **MCP OAuth 2.1** — click *Sign in*, approve, done. Others take a pasted token. |
+| **Gateway** (built-in) | 45 | Aetheris itself serves an MCP server at `/api/gateway/<id>` that wraps the vendor's public REST API (Razorpay, WhatsApp Business, Twilio, Discord, Telegram, X, YouTube, Google Workspace REST, Salesforce, Zoho, Zendesk, Odoo, SAP OData, BigQuery, Snowflake, OpenWeather, CoinGecko, Hacker News, Wikipedia…). Because it is a real MCP endpoint, Claude Desktop / Cursor / any client can use it too. |
+
+**How it's built**
+- `src/lib/mcp/client.ts` — MCP client (Streamable HTTP, JSON-RPC, SSE responses, session ids).
+- `src/lib/mcp/oauth.ts` — MCP authorization spec: protected-resource metadata → AS metadata → **dynamic client registration** → **PKCE** → token → refresh. Tokens sealed in an httpOnly cookie; nothing server-side.
+- `src/lib/gateway/engine.ts` — declarative REST→MCP engine: `{path, query, body}` templates, header/query/basic/arg auth, JSON or form bodies, `prepare()` hooks; exposes `tools/list` + `tools/call`.
+- `src/lib/gateway/apis.ts` — the 45 API definitions (~110 tools).
+- `src/lib/mcp/agent.ts` — **provider-agnostic tool loop**: tools go in the prompt, the model emits `<tool_call>{…}</tool_call>`, Aetheris executes (remote MCP or in-process gateway) and feeds the result back. Works with *every* model in the mesh. The *Enterprise GitHub Automation* connector calls the Phase-2 factory directly.
+- Pasted credentials stay in the browser and are forwarded only to that connector; premium connectors require Pro.
+
+**Verifying endpoints** — vendors move URLs. `npm run verify:connectors` probes every remote MCP server (`initialize`) and gateway upstream and prints a ✓/✗ table; the Apps tab's *test connection* does the same per connector.
 
 ## UPI Monetisation (Phase 5)
 
@@ -152,7 +160,9 @@ Chat with tools: `POST /api/chat` also accepts `servers: [{id, url?, credential?
 
 Media: `POST /api/media/generate` `{kind: image|audio|video, prompt, keys?, voice?}` → `{url, mime, provider, attempts}` · `GET /api/media/providers`
 
-MCP: `GET /api/mcp/catalog` · `POST /api/mcp/tools` (test a server, list tools)
+MCP: `GET /api/mcp/catalog` · `POST /api/mcp/tools` (test a server, list tools) · `GET /api/mcp/oauth/start?id=` · `POST /api/mcp/oauth/disconnect`
+
+Gateway (MCP Streamable HTTP): `POST /api/gateway/<id>` with `Authorization: Bearer <credential>` — e.g. add `https://<your-host>/api/gateway/razorpay` to Claude Desktop or Cursor.
 
 Billing: `GET /api/billing/plans` · `POST /api/billing/checkout {planId}` · `POST /api/billing/confirm {id, utr}` · `GET /api/billing/status?id=` · admin `GET|POST /api/admin/payments` (Bearer `AETHERIS_ADMIN_KEY`)
 
@@ -171,13 +181,15 @@ src/lib/factory/
   workflow.ts    GitHub Actions workflow template per language
   pipeline.ts    the orchestrator (emits step events)
 src/lib/media/   image / speech / video provider mesh + adapters
-src/lib/mcp/     MCP client, 91-connector catalog, tool-calling agent loop
+src/lib/mcp/     MCP client, OAuth 2.1 client, 108-connector catalog, tool-calling agent loop
+src/lib/gateway/ REST→MCP gateway engine + 45 API definitions (served at /api/gateway/<id>)
 src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
 src/lib/store.ts locked JSON file store (data/)
 src/app/api/     chat, providers, factory, auth, media, mcp, billing, admin
 src/app/admin/   payments approval console
 src/components/  Chat (modes: Chat · Factory · Studio · Apps), Upgrade modal, mesh panel…
-tests/           13 tests: router failover, factory pipeline, MCP client + agent, media mesh, billing
+tests/           20 tests: router failover, factory pipeline, MCP client/OAuth/agent, gateway engine, media mesh, billing
+scripts/         verify-connectors.ts — live probe of every connector endpoint
 ```
 
 ## Scripts
