@@ -14,9 +14,9 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 |---|---|---|
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
-| 3 | Multimodal Cloud Studio (image / video / audio routing) | planned |
-| 4 | Cloud MCP App Store | planned |
-| 5 | UPI paywall (static QR + manual admin approval) | planned |
+| 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
+| 4 | **Cloud MCP App Store** (91 connectors, real MCP client, tool-calling for any model) | ✅ this repo |
+| 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
 
 ## Quick start
 
@@ -91,6 +91,48 @@ executes on your machine — compile & test happen on GitHub's free Actions minu
 
 Runs land in `runs/<id>-<name>/` on branch `run/<id>`; nothing touches your other repos.
 
+## Multimodal Cloud Studio (Phase 3)
+
+**Studio** tab. Each media type has its own failover mesh, same pattern as chat:
+
+| Kind | Providers (priority order) | Notes |
+|---|---|---|
+| Image | Hugging Face FLUX.1-schnell → Fal.ai FLUX → Cloudflare SDXL Lightning | free tiers |
+| Speech | ElevenLabs → Hugging Face Kokoro Space | ElevenLabs is BYOK |
+| Video ✦ | Luma Dream Machine → Runway Gen-3 Alpha Turbo | **Pro feature**, or BYOK |
+
+**BYOK**: users can paste their own keys in the Studio; they live in the browser and travel
+only with that request. Video is gated behind Aetheris Pro *unless* the user brings a Luma or
+Runway key. We deliberately do not cycle trial keys — it violates those providers' terms.
+
+## Cloud MCP App Store (Phase 4)
+
+**Apps** tab — 91 connectors across productivity, dev, payments, CRM/ERP, social, web-scraping,
+storage. Featured: Notion, GitHub, Slack, Figma, Stripe, Razorpay, Vercel, Google Workspace.
+
+- `src/lib/mcp/client.ts` — a real **MCP client** (Streamable HTTP, JSON-RPC, SSE responses, session ids).
+- `src/lib/mcp/agent.ts` — a **provider-agnostic tool loop**: tools are described in the system prompt and the model emits `<tool_call>{…}</tool_call>`; Aetheris executes it against the MCP server and feeds the result back (max 6 rounds). This works with *every* model in the mesh, not just those with native function-calling.
+- Credentials for a connector are stored in the browser and forwarded only to that connector's URL.
+- "verified" connectors point at known public MCP endpoints; "community" ones ship with a placeholder URL — add a hosted endpoint via *custom server*.
+- Premium connectors (Google Workspace, Salesforce, SAP, WhatsApp Business, Enterprise GitHub Automation…) require Pro.
+
+## UPI Monetisation (Phase 5)
+
+Free tier: 50 chat messages/day, images, speech, standard connectors.
+**Pro ₹299/30d** (video, unlimited chat, premium MCP) · **Enterprise ₹999/30d** (+ Enterprise GitHub Automation).
+
+```
+Upgrade → POST /api/billing/checkout  → order ref AETxxxxxxxx + upi://pay QR (pa=9488407998@upi, am, tr)
+user scans with GPay/PhonePe → pays → enters 12-digit UTR → POST /api/billing/confirm  (status: submitted)
+founder opens /admin (AETHERIS_ADMIN_KEY) → verifies UTR in GPay history → Approve
+→ entitlement granted; the user's open modal polls /api/billing/status and unlocks instantly
+```
+
+Personal UPI has no webhook, so verification is a one-click manual approval. Swapping in a
+Razorpay/Cashfree webhook later only touches `src/lib/billing/payments.ts::decide`.
+Data lives in `data/*.json` (git-ignored) via a tiny locked JSON store — swap for a DB by
+re-implementing `src/lib/store.ts`.
+
 ## API
 
 `POST /api/chat`
@@ -106,6 +148,14 @@ Runs land in `runs/<id>-<name>/` on branch `run/<id>`; nothing touches your othe
 
 Auth: `GET /api/auth/github` (OAuth start) · `POST /api/auth/token` `{token}` · `GET /api/auth/me` · `POST /api/auth/logout`
 
+Chat with tools: `POST /api/chat` also accepts `servers: [{id, url?, credential?, headerName?, headerPrefix?}]` and returns `toolEvents`.
+
+Media: `POST /api/media/generate` `{kind: image|audio|video, prompt, keys?, voice?}` → `{url, mime, provider, attempts}` · `GET /api/media/providers`
+
+MCP: `GET /api/mcp/catalog` · `POST /api/mcp/tools` (test a server, list tools)
+
+Billing: `GET /api/billing/plans` · `POST /api/billing/checkout {planId}` · `POST /api/billing/confirm {id, utr}` · `GET /api/billing/status?id=` · admin `GET|POST /api/admin/payments` (Bearer `AETHERIS_ADMIN_KEY`)
+
 ## Project layout
 
 ```
@@ -120,9 +170,14 @@ src/lib/factory/
   codegen.ts     prompt → structured project plan; CI log → summary (via the router)
   workflow.ts    GitHub Actions workflow template per language
   pipeline.ts    the orchestrator (emits step events)
-src/app/api/     /api/chat, /api/providers, /api/factory/run, /api/auth/*
-src/components/  Chat UI, mesh panel, factory run card, GitHub auth, markdown renderer
-tests/           router failover + full factory pipeline against mocked GitHub/LLM (npm test)
+src/lib/media/   image / speech / video provider mesh + adapters
+src/lib/mcp/     MCP client, 91-connector catalog, tool-calling agent loop
+src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
+src/lib/store.ts locked JSON file store (data/)
+src/app/api/     chat, providers, factory, auth, media, mcp, billing, admin
+src/app/admin/   payments approval console
+src/components/  Chat (modes: Chat · Factory · Studio · Apps), Upgrade modal, mesh panel…
+tests/           13 tests: router failover, factory pipeline, MCP client + agent, media mesh, billing
 ```
 
 ## Scripts

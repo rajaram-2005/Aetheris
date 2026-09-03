@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { route } from "@/lib/router/router";
 import { ProviderError, type ChatMessage, type ProviderAttempt } from "@/lib/router/types";
+import { getUserId, uidCookie } from "@/lib/user";
+import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
+import { runAgent, type EnabledServer } from "@/lib/mcp/agent";
+import { connectorById } from "@/lib/mcp/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +23,7 @@ function isMessage(m: unknown): m is ChatMessage {
 }
 
 export async function POST(req: Request) {
-  let body: { messages?: unknown; preferred?: unknown; temperature?: unknown };
+  let body: { messages?: unknown; preferred?: unknown; temperature?: unknown; servers?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -44,13 +48,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Message too long" }, { status: 413 });
   }
 
+  const { uid, isNew } = await getUserId();
+  const quota = await consumeChat(uid);
+  if (!quota.allowed) {
+    const res = NextResponse.json(
+      { error: `Free tier limit reached (${quota.limit} messages/day). Upgrade to Aetheris Pro for unlimited chat.`, code: "quota", quota },
+      { status: 402 },
+    );
+    if (isNew) res.cookies.set(uidCookie(uid));
+    return res;
+  }
+
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }, ...kept];
   const preferred = typeof body.preferred === "string" ? body.preferred : undefined;
   const temperature = typeof body.temperature === "number" ? body.temperature : undefined;
 
+  const servers = (Array.isArray(body.servers) ? body.servers : []) as EnabledServer[];
+  if (servers.length > 0 && servers.some((s) => connectorById(s.id)?.premium)) {
+    if (!(await hasFeature(uid, "mcp_premium"))) {
+      return NextResponse.json({ error: "That connector is a premium MCP. Upgrade to Aetheris Pro to use it.", code: "upgrade", feature: "mcp_premium" }, { status: 402 });
+    }
+  }
+
   try {
+    if (servers.length > 0) {
+      const a = await runAgent({ messages, servers, preferred });
+      const res = NextResponse.json({ content: a.content, provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota });
+      if (isNew) res.cookies.set(uidCookie(uid));
+      return res;
+    }
     const result = await route({ messages, preferred, temperature, signal: req.signal });
-    return NextResponse.json(result);
+    const res = NextResponse.json({ ...result, quota });
+    if (isNew) res.cookies.set(uidCookie(uid));
+    return res;
   } catch (err) {
     if (err instanceof ProviderError) {
       const attempts = (err as ProviderError & { attempts?: ProviderAttempt[] }).attempts ?? [];

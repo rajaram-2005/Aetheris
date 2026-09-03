@@ -5,12 +5,16 @@ import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
 import FactoryRun, { emptyFactoryState, type FactoryState, type StepId } from "./FactoryRun";
+import Studio from "./Studio";
+import Apps, { loadServers, type EnabledServer } from "./Apps";
+import Upgrade, { useAccount } from "./Upgrade";
 
 interface UiMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   factory?: FactoryState;
+  toolEvents?: { type: string; server: string; tool: string; error?: string }[];
   error?: boolean;
   provider?: string;
   model?: string;
@@ -45,8 +49,13 @@ export default function Chat() {
   const [mesh, setMesh] = useState<MeshSummary | null>(null);
   const [showMesh, setShowMesh] = useState(false);
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<"chat" | "factory">("chat");
+  const [mode, setMode] = useState<"chat" | "factory" | "studio" | "apps">("chat");
   const auth = useGitHubAuth();
+  const { account, refresh: refreshAccount } = useAccount();
+  const [upgrade, setUpgrade] = useState<string | null>(null);
+  const [servers, setServers] = useState<EnabledServer[]>([]);
+  useEffect(() => { setServers(loadServers()); }, []);
+  const features = account?.features ?? [];
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -154,11 +163,16 @@ export default function Chat() {
         body: JSON.stringify({
           messages: history.filter((m) => !m.error && !m.factory).map(({ role, content }) => ({ role, content })),
           preferred,
+          servers,
         }),
         signal: controller.signal,
       });
       const data = await r.json();
-      if (!r.ok) {
+      if (r.status === 402) {
+        setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", error: true, content: data.error }]);
+        setUpgrade(data.error);
+        refreshAccount();
+      } else if (!r.ok) {
         const attempts: Attempt[] = data.attempts ?? [];
         const detail = attempts.length
           ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n")
@@ -168,8 +182,9 @@ export default function Chat() {
         const failovers = (data.attempts ?? []).filter((a: Attempt) => !a.ok).length;
         setMessages((m) => [...m, {
           id: crypto.randomUUID(), role: "assistant", content: data.content,
-          provider: data.provider, model: data.model, latencyMs: data.latencyMs, failovers,
+          provider: data.provider, model: data.model, latencyMs: data.latencyMs, failovers, toolEvents: data.toolEvents,
         }]);
+        if (data.quota) refreshAccount();
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -180,7 +195,7 @@ export default function Chat() {
       abortRef.current = null;
       refreshMesh();
     }
-  }, [input, busy, messages, preferred, refreshMesh, mode, runFactory]);
+  }, [input, busy, messages, preferred, refreshMesh, mode, runFactory, servers, refreshAccount]);
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -206,7 +221,14 @@ export default function Chat() {
           <div className="mode-toggle" role="tablist">
             <button className={mode === "chat" ? "active" : ""} onClick={() => setMode("chat")}>Chat</button>
             <button className={mode === "factory" ? "active" : ""} onClick={() => setMode("factory")}>Factory</button>
+            <button className={mode === "studio" ? "active" : ""} onClick={() => setMode("studio")}>Studio</button>
+            <button className={mode === "apps" ? "active" : ""} onClick={() => setMode("apps")}>Apps{servers.length ? ` · ${servers.length}` : ""}</button>
           </div>
+          {account && (account.plan
+            ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
+            : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">
+                ✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit} free` : "Upgrade"}
+              </button>)}
           <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
             <span className={`dot ${meshDot}`} />
             {meshLabel}{preferredName ? ` · via ${preferredName}` : ""}
@@ -215,6 +237,9 @@ export default function Chat() {
       </header>
 
       <div ref={listRef} className="messages">
+        {mode === "studio" && <Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} />}
+        {mode === "apps" && <Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} />}
+        {(mode === "chat" || mode === "factory") && <>
         {showMesh && mesh && (
           <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />
         )}
@@ -255,6 +280,13 @@ export default function Chat() {
                 : m.role === "assistant" && !m.error
                   ? <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
                   : <div className="bubble">{m.content}</div>}
+              {m.toolEvents && m.toolEvents.length > 0 && (
+                <div className="tool-trail">
+                  {m.toolEvents.filter((t) => t.type !== "tool_result").map((t, i) => (
+                    <span key={i} className={`chip ${t.type === "tool_error" ? "bad" : "on"}`}>⚙ {t.server}.{t.tool}{t.error ? ` — ${t.error.slice(0, 60)}` : ""}</span>
+                  ))}
+                </div>
+              )}
               {m.provider && (
                 <div className="meta-line">
                   <span className="via">via {m.provider}</span>
@@ -268,12 +300,16 @@ export default function Chat() {
         )}
         {busy && mode === "chat" && (
           <div className="msg assistant">
-            <div className="bubble"><span className="typing"><i /><i /><i /></span></div>
+            <div className="bubble"><span className="typing"><i /><i /><i /></span>{servers.length ? <span className="hint" style={{ marginLeft: 8 }}>may call {servers.length} app{servers.length > 1 ? "s" : ""}</span> : null}</div>
           </div>
         )}
+        </>}
       </div>
+      {upgrade !== null && account && (
+        <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />
+      )}
 
-      <div className="composer">
+      {(mode === "chat" || mode === "factory") && <div className="composer">
         <div className="composer-box">
           <textarea
             ref={taRef}
@@ -296,7 +332,7 @@ export default function Chat() {
           )}
         </div>
         <div className="hint">Enter to send · Shift+Enter for newline · Click the mesh pill to pin a provider</div>
-      </div>
+      </div>}
     </div>
   );
 }
