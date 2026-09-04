@@ -8,19 +8,31 @@ import path from "node:path";
 const DIR = process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
 const locks = new Map<string, Promise<unknown>>();
 
+// Perf (Phase 19): in-process read cache per collection keyed by file mtime. Hot reads (telemetry, devices,
+// jobs, events) no longer re-parse JSON on every call. Writes stay write-through and atomic (tmp + rename)
+// so a crash never loses an acknowledged write; the cache is refreshed from the written data.
+const cache = new Map<string, { mtimeMs: number; data: Record<string, unknown> }>();
+const fileOf = (name: string) => path.join(DIR, `${name}.json`);
+
 async function readAll<T>(name: string): Promise<Record<string, T>> {
+  const file = fileOf(name);
   try {
-    return JSON.parse(await fs.readFile(path.join(DIR, `${name}.json`), "utf8"));
-  } catch {
-    return {};
-  }
+    const st = await fs.stat(file); const c = cache.get(name);
+    if (c && c.mtimeMs === st.mtimeMs) return c.data as Record<string, T>;
+    const data = JSON.parse(await fs.readFile(file, "utf8")) as Record<string, T>;
+    cache.set(name, { mtimeMs: st.mtimeMs, data }); return data;
+  } catch { return {}; }
 }
 async function writeAll<T>(name: string, data: Record<string, T>) {
   await fs.mkdir(DIR, { recursive: true });
-  const file = path.join(DIR, `${name}.json`);
+  const file = fileOf(name);
   await fs.writeFile(file + ".tmp", JSON.stringify(data, null, 2));
   await fs.rename(file + ".tmp", file);
+  let mtimeMs = 0; try { mtimeMs = (await fs.stat(file)).mtimeMs; } catch { /* ignore */ }
+  cache.set(name, { mtimeMs, data: data as Record<string, unknown> });
 }
+/** Drop the read cache (tests / external edits). */
+export function invalidateStoreCache(name?: string) { if (name) cache.delete(name); else cache.clear(); }
 
 /** Serialise mutations per collection. */
 function withLock<R>(name: string, fn: () => Promise<R>): Promise<R> {
