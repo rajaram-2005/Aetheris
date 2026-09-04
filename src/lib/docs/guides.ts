@@ -183,6 +183,27 @@ Runs stream every step; each output is expandable, and **Continue in chat →** 
 ## API
 \`GET/POST /api/workflows\`, \`GET/DELETE /api/workflows/:id\`, \`POST /api/workflows/:id/run\` (SSE).
 `},
+  { slug: "schedules", section: "Build", title: "Scheduled automations", body: `
+**⏰ Schedules** (sidebar, or \`/schedules\`) run an agent prompt or a whole workflow on a timer and deliver the result — daily briefings, weekly study plans, monthly finance checklists, Monday engineering reminders.
+
+## Create one
+1. **Name** and **when** — pick a preset (daily 8:00, weekdays 9:00, every Monday, hourly, 1st of month…) or write a 5-field cron (\`min hour day month weekday\`, lists/ranges/steps/names supported). Time zone defaults to yours (e.g. \`Asia/Kolkata\`). Minimum interval: 15 minutes.
+2. **Task** — an **agent prompt** (choose any of the 100+ agents; use \`{{date}}\` for today's date) or a **workflow** from ⛓️ Workflows with its input.
+3. **Deliver** — every run is saved in history and published as a **share link** (\`/s/<id>\`). Optionally **email** (server needs \`RESEND_API_KEY\`) and/or a **webhook** (HTTPS POST with JSON \`{schedule, run, text, content}\` — works directly with Slack and Discord incoming webhooks, WhatsApp gateways such as CallMeBot/Twilio via a relay, Zapier, Make, n8n).
+4. **▶ Run now** to test immediately; toggle to pause; edit anytime.
+
+## Run history
+Each run records status, duration, output, delivery results and the share link. Open a run to read it, copy it, or **Discuss in chat** to refine the prompt. The last 50 runs per schedule are kept.
+
+## How it runs (and on serverless)
+- While the Aetheris server process is alive it ticks every minute and runs anything due.
+- On serverless hosts (Vercel, Netlify, Cloud Run scale-to-zero) also call **\`GET /api/schedules/tick\`** every 5–15 minutes from an external cron: Vercel Cron (\`vercel.json\` → \`{"crons":[{"path":"/api/schedules/tick","schedule":"*/10 * * * *"}]}\`), GitHub Actions, cron-job.org, UptimeRobot. Set \`CRON_SECRET\` and send \`Authorization: Bearer <secret>\` (or \`?secret=\`).
+- A due schedule is *claimed* before it runs, so parallel tickers never double-run it; missed slots are caught up once, not replayed.
+- Automations run unattended with a system instruction to produce the complete deliverable without questions.
+
+## API
+\`GET/POST /api/schedules\` · \`GET/PATCH/DELETE /api/schedules/:id\` · \`POST /api/schedules/:id/run\` · \`GET /api/schedules/runs?id=\` · \`GET|POST /api/schedules/tick\`.
+`},
   { slug: "debate-arena-research", section: "Agents", title: "Debate, Arena and Deep Research", body: `
 ## /debate <motion>
 Two agents argue for and against over up to 4 rounds; **Metis** adjudicates with a scorecard (evidence, logic, rebuttal, clarity), names a winner and gives a balanced bottom line. Great for decisions and essays. \`POST /api/debate { motion, pro?, con?, rounds? }\`.

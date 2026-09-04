@@ -394,6 +394,10 @@ persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 Hands-free conversation: browser speech recognition in 18 languages/accents (English-India, Tamil, Hindi, Telugu, Kannada, Malayalam, …), spoken replies that start while the answer is still streaming (browser TTS) or via the Studio TTS mesh, barge-in interruption, automatic re-listen, and voice-tuned answers (short, no markdown, language-matched). Nothing is recorded — only the transcript is sent. `/voice` or the 🎙 chip. See `/docs/voice`.
 
+## ⏰ Scheduled automations
+
+Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (Vercel Cron, GitHub Actions, cron-job.org) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
+
 ## 📁 Chat with documents
 
 Per-user knowledge bases: upload PDF (page-aware), DOCX, CSV (row-aware), TXT/Markdown, HTML, JSON, code, web pages or pasted text; sentence/heading-aware chunking with overlap; BM25 retrieval (no embedding API needed — works anywhere, free); answers cite passages as [D1], [D2]… with document/page/section shown under each reply; retrieval tester; API under `/api/kb`. See `/docs/documents`.
