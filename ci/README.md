@@ -7,7 +7,7 @@ The GitHub Actions workflows live in `.github/` (this folder keeps only document
 | `.github/workflows/ci.yml` | every push / PR | `typecheck → test → eval → build`, plus `npm ci && npm run typecheck` in `desktop/` with `ELECTRON_SKIP_BINARY_DOWNLOAD=1` so the Electron shell is compiled against the real `electron` types without pulling binaries |
 | `.github/workflows/release.yml` | **cron `30 3 1 * *`** (03:30 UTC on the 1st of every month) + manual | verify → bump the CalVer → write the CHANGELOG → commit, tag `v<version>`, push → open the GitHub Release → build and attach the desktop installers |
 | `.github/workflows/release-desktop.yml` | manual | rebuild the macOS/Linux/Windows installers for an existing release |
-| `.github/actions/build-desktop/` | — | composite action: `next build` (standalone) → `desktop/resources/server` → `electron-builder` on the current runner's OS |
+| `.github/actions/build-desktop/` | — | composite action: install → `next build` (standalone) → stamp the version → `desktop/resources/server` → `tsc` (`desktop/src` → `desktop/dist`) → `electron-builder` on the current runner's OS |
 
 The `desktop/` tree is excluded from the root `tsconfig.json` program on purpose: the Next.js
 build must never compile `main.ts`/`preload.ts`, and the root program has no `electron` module.
@@ -38,8 +38,17 @@ bash tools/release.sh --no-push                                  # a release, st
 npm run desktop:build                                            # unpacked desktop app for smoke-testing
 ```
 
-If `npm run desktop:typecheck` complains that `tsc` is missing, run `npm ci` inside `desktop/`
-first — its dependencies (including `electron`'s bundled types) are not installed by the root install.
-The download of the ~100 MB Electron binaries is skipped automatically: `desktop/package.json` sets
-`"config": { "ELECTRON_SKIP_BINARY_DOWNLOAD": "1" }`, and CI sets the same env var explicitly.
-Packaging a real installer does need the binaries, and the build action leaves the flag off there.
+If `npm run desktop:typecheck` complains that `tsc` is missing, run the install inside `desktop/`
+first — its dependencies (including `electron`'s bundled types) are not installed by the root install:
+
+```bash
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci                     # bash / zsh
+$env:ELECTRON_SKIP_BINARY_DOWNLOAD=1; npm ci               # PowerShell
+```
+
+Compiling and typechecking need no Electron binary; packaging a real installer does not need the
+`node_modules/electron` one either, because `electron-builder` downloads the distribution it packages
+itself. The variable has to be a real environment variable — `electron`'s `install.js` reads
+`process.env.ELECTRON_SKIP_BINARY_DOWNLOAD`, so a `"config"` block in `package.json` (which npm only
+exposes as `npm_config_*`) does **not** skip the ~100 MB download. CI and the build action set it
+explicitly; if you skip it locally you simply wait for the download once.

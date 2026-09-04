@@ -19,10 +19,12 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { formatCalVer, isCalVer, nextCalVer, parseCalVer } from "../desktop/src/lib/calver";
 
-export const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
+// fileURLToPath: `new URL(…).pathname` is `/C:/…` on Windows, which path.resolve mangles.
+export const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 /** Every file that carries the version, with the pattern that finds it. `$1` is kept. */
 export const VERSION_TARGETS = [
@@ -134,6 +136,7 @@ export function main(argv) {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL(argv[1]): on Windows `file://${argv[1]}` never equals import.meta.url.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   process.exit(main(process.argv));
 }

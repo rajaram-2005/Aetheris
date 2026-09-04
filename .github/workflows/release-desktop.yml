@@ -36,9 +36,14 @@ jobs:
 
       - name: Resolve the version
         id: v
+        # bash, not the runner default: windows-latest runs `run:` steps in pwsh, where
+        # `set -euo pipefail` and `[ -n … ]` are not commands.
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          version="${{ inputs.version }}"
+          version="$VERSION_INPUT"
           [ -n "$version" ] || version="$(cat VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 

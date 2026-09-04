@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Cut an Aetheris release from a working tree — the local twin of ci/release.yml.
+# Cut an Aetheris release from a working tree — the local twin of .github/workflows/release.yml.
 #
 #   bash tools/release.sh                # monthly bump, full checks, commit + tag + push
 #   bash tools/release.sh --patch        # hot-fix inside the current month
@@ -9,7 +9,7 @@
 #   bash tools/release.sh --skip-checks  # only if you already ran them (not recommended)
 #
 # What it does: verify → bump VERSION everywhere → write the CHANGELOG → commit → tag → push.
-# The GitHub Release and the desktop installers are produced by ci/release.yml; pushing the tag
+# The GitHub Release and the desktop installers are produced by .github/workflows/release.yml; pushing the tag
 # does not trigger them, so create the release with `gh release create v<version> -F RELEASE_NOTES.md`
 # (or let the scheduled workflow do the whole thing on the 1st of the month).
 set -euo pipefail
@@ -69,4 +69,4 @@ else
   echo "release: --no-push — push with: git push origin \"$(git rev-parse --abbrev-ref HEAD)\" && git push origin v$version"
 fi
 echo "release: publish it with: gh release create v$version --title \"Aetheris $version\" --notes-file RELEASE_NOTES.md"
-echo "release: then build installers with ci/release-desktop.yml (version=$version, publish_tag=v$version)"
+echo "release: then build installers with .github/workflows/release-desktop.yml (version=$version, publish_tag=v$version)"

@@ -10,8 +10,10 @@
  */
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DESKTOP = path.resolve(new URL("..", import.meta.url).pathname);
+// fileURLToPath: `new URL(…).pathname` is `/C:/…` on Windows, which path.resolve mangles.
+const DESKTOP = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const ROOT = path.resolve(DESKTOP, "..");
 const PORT = Number(process.env.PORT ?? 3000);
 const URL = process.env.AETHERIS_DESKTOP_SERVER ?? `http://127.0.0.1:${PORT}`;

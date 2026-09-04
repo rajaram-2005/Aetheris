@@ -11,8 +11,13 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const DESKTOP = path.resolve(new URL("..", import.meta.url).pathname);
+/**
+ * `fileURLToPath`, never `new URL(…, import.meta.url).pathname`: on Windows the pathname of a
+ * `file:` URL is `/C:/…`, and `path.resolve` turns that into the unusable `\C:\…`.
+ */
+const DESKTOP = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const ROOT = path.resolve(DESKTOP, "..");
 const STANDALONE = path.join(ROOT, ".next", "standalone");
 const OUT = path.join(DESKTOP, "resources", "server");
@@ -120,6 +125,8 @@ export function prepare() {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL(argv[1])`, not `file://${argv[1]}`: Windows paths are `C:\…`, and a string
+// comparison would never match, so the script would exit 0 having done nothing.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   process.exit(prepare());
 }

@@ -58,9 +58,23 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Typecheck only — no Electron binaries needed here.
+      # No Electron *binary* anywhere in this job: `ELECTRON_SKIP_BINARY_DOWNLOAD=1` only stops
+      # `electron`'s postinstall download, and the shell is compiled (not run) here.
       - run: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
+
+      # The desktop project is its own npm package. Installing + compiling it makes
+      # `tests/desktop.main.test.ts` actually execute the main process instead of skipping itself
+      # (it skips when `desktop/dist` is missing).
+      - name: Install and compile the desktop shell
+        working-directory: desktop
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: "1" }
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run compile
+
       - run: npm run typecheck
+      - run: npm run desktop:typecheck
       - run: npm test
       - run: npm run eval
       - run: npm run build
@@ -68,12 +82,15 @@ jobs:
 
       - name: Compute the next version
         id: bump
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          PATCH_INPUT: ${{ inputs.patch }}
         run: |
           set -euo pipefail
           previous="$(node -p "require('./package.json').version")"
           args=()
-          if [ -n "${{ inputs.version }}" ]; then args+=(--set "${{ inputs.version }}")
-          elif [ "${{ inputs.patch }}" = "true" ]; then args+=(--patch)
+          if [ -n "$VERSION_INPUT" ]; then args+=(--set "$VERSION_INPUT")
+          elif [ "$PATCH_INPUT" = "true" ]; then args+=(--patch)
           fi
           npx tsx tools/bump-version.mjs ${args[@]+"${args[@]}"}
           version="$(cat VERSION)"
@@ -122,7 +139,12 @@ jobs:
           - os: windows-latest # NSIS installer + .zip
     runs-on: ${{ matrix.os }}
     steps:
+      # The release commit the `publish` job just pushed, not `github.sha` (which is the branch head
+      # as it was when the run started — building that would ship the previous version's code with
+      # the previous version's name).
       - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.publish.outputs.version }}
       - uses: ./.github/actions/build-desktop
         with:
           version: ${{ needs.publish.outputs.version }}
