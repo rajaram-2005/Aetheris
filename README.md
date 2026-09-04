@@ -351,6 +351,22 @@ The key still works for scripts (`Authorization: Bearer …`).
 - **Install as an app** — PWA manifest + service worker: "Add to Home Screen" on Android/iOS or Install in Chrome/Edge.
   The shell loads offline; API calls always go to the network.
 
+## 99 agents, @picker, slash commands, workflows, debate
+
+- **99 agents** across 17 domains (academy incl. physics/chemistry/biology/history/economics/exam strategist/kids;
+  coding incl. frontend/backend/mobile/SRE/security/QA/docs/embedded/gamedev/web3; data incl. ML/SQL/data-eng/spreadsheets;
+  research, science, writing, creative, business, marketing, finance (Indian tax, investing, accounting), legal, health,
+  career, language (English/Tamil/Hindi/polyglot), productivity, design). Each has its own protocol, skills and aliases;
+  Prime auto-routes, or force with `@id`. Roster: `src/lib/agents/catalog.ts` + `catalog-extended.ts`.
+- **@ picker** — type `@` in the composer to search agents by id, alias, name, domain or skill (↑↓, Tab/Enter).
+- **Slash commands** — `/research`, `/arena`, `/debate <motion>`, `/image`, `/room`, `/share`, `/workflows`, `/gallery`,
+  `/agents`, `/settings`, `/export`, `/new`.
+- **Workflows** (⛓️ mode) — chain agents into saved automations with templated prompts (`{{input}}`, `{{prev}}`,
+  `{{steps.id}}`), pure transforms (bullets, extract_json…), and regex branches. Streams every step; 5 public templates
+  (blog pipeline, code review + tests, startup validator, lesson plan, Tamil+Hindi translation pack). `/api/workflows`.
+- **Debate** — `/debate Remote work beats office work`: two agents argue for/against over rounds, Metis adjudicates
+  with a scorecard. `/api/debate`.
+
 ## Rooms, gallery, languages
 
 - **Live rooms** — 👥 in the header turns the current chat into a room at `/room/<id>`. Anyone with the link joins;

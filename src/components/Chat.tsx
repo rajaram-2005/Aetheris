@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
 import Gallery from "./Gallery";
+import MentionPicker from "./MentionPicker";
+import Workflows from "./Workflows";
 import { useLang } from "@/lib/i18n";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
 import FactoryRun, { emptyFactoryState, type StepId } from "./FactoryRun";
@@ -75,6 +77,8 @@ export default function Chat() {
   const sync = useCloudSync({ convos, setConvos, projects, upsertProject: saveProject, memory, addMemory, settings, updateSettings, loaded });
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const { t } = useLang();
+  const [caret, setCaret] = useState(0);
+  const [pickerOff, setPickerOff] = useState(false);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<string | null>(null);
@@ -217,6 +221,30 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.tavilyKey, preferred, active, activeProject]);
 
+  // ---- debate (/debate <motion>) --------------------------------------------------------------
+  const runDebate = useCallback(async (motion: string) => {
+    const c = startConvo({ id: crypto.randomUUID(), role: "user", content: `🥊 Debate: ${motion}` });
+    const aid = crypto.randomUUID();
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true }] });
+    setInput(""); setBusy(true);
+    const controller = new AbortController(); abortRef.current = controller;
+    let current = ""; // heading of the turn being streamed
+    try {
+      const r = await fetch("/api/debate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motion, model }), signal: controller.signal });
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: j.error ?? `Request failed (${r.status})` })); return; }
+      for await (const ev of sse(r)) {
+        if (ev.type === "turn") { current = ev.side === "judge" ? `\n\n---\n\n### 🦉 Metis — verdict\n\n` : `\n\n### ${ev.icon} ${ev.name} · ${ev.side === "pro" ? "FOR" : "AGAINST"} · round ${ev.round}\n\n`; patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + current })); }
+        else if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
+        else if (ev.type === "verdict") patchMsg(c.id, aid, (m) => ({ ...m, provider: ev.provider }));
+        else if (ev.type === "done") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
+        else if (ev.type === "error") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || ev.error }));
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: "Connection to Aetheris lost." }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, active, activeProject]);
+
   // ---- agents (Prime → specialists → Metis) ---------------------------------------------------
   const runAgents = useCallback(async (content: string, imgs: string[]) => {
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: imgs.length ? imgs : undefined };
@@ -271,6 +299,7 @@ export default function Chat() {
     const content = (text ?? input).trim();
     if ((!content && images.length === 0) || busy) return;
     if (mode === "factory") return runFactory(content);
+    if (/^\/debate\s+/i.test(content)) return runDebate(content.replace(/^\/debate\s+/i, ""));
     if (research) return runResearch(content);
     if (arena) return runArenaRef.current(content, images);
     const tier = models.find((m) => m.id === model);
@@ -330,7 +359,7 @@ export default function Chat() {
       else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents]);
+  }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents, runDebate]);
 
   const regenerate = () => {
     if (!active || busy) return;
@@ -400,7 +429,23 @@ export default function Chat() {
   };
   const onPaste = (e: React.ClipboardEvent) => { const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (files.length) { e.preventDefault(); addImages(files); } };
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
-  const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
+  const runCommand = (id: string) => {
+    setInput(""); setPickerOff(true);
+    if (id === "research") { setResearch(true); setArena(false); }
+    else if (id === "arena") { setArena(true); setResearch(false); }
+    else if (id === "image") setMode("studio");
+    else if (id === "room") openRoom();
+    else if (id === "share") shareConvo();
+    else if (id === "new") newChat();
+    else if (id === "agents") setMode("agents");
+    else if (id === "gallery") setMode("gallery");
+    else if (id === "workflows") setMode("workflows");
+    else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
+    else if (id === "settings") setShowSettings(true);
+    else if (id === "export") exportConvo();
+    setTimeout(() => taRef.current?.focus(), 30);
+  };
+  const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); setPickerOff(false); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
 
   const openRoom = async () => {
     const r = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: active?.title ?? "Room", messages: (active?.messages ?? []).filter((m) => !m.error && m.content).map((m) => ({ role: m.role, content: m.content, provider: m.provider, model: m.model })) }) });
@@ -505,6 +550,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
+          {mode === "workflows" && <div className="pane"><Workflows agents={agentList} onSendToChat={(text) => { setMode("chat"); setInput(`Here is the output of a workflow. Let's continue from it:\n\n${text}`); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "gallery" && <div className="pane"><Gallery onUse={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
@@ -621,11 +667,13 @@ export default function Chat() {
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
         {(mode === "chat" || mode === "factory") && <div className="composer">
+          {mode === "chat" && !pickerOff && <MentionPicker value={input} caret={caret} agents={agentList} onClose={() => setPickerOff(true)} onCommand={runCommand}
+            onPick={(next, c) => { setInput(next); setCaret(c); setTimeout(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(c, c); } }, 0); }} />}
           {images.length > 0 && <div className="attach-row">{images.map((src, i) => <span key={i} className="attach"><img src={src} alt="" /><button onClick={() => setImages(images.filter((_, j) => j !== i))}>✕</button></span>)}</div>}
           <div className="composer-box">
             {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-            <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} disabled={busy || (mode === "factory" && !auth.user)} />
+            <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} disabled={busy || (mode === "factory" && !auth.user)} />
             {mode === "chat" && /(^|\s)@([\w-]*)$/.test(input) && !busy && (
               <MentionMenu agents={agentList} query={/(^|\s)@([\w-]*)$/.exec(input)![2]} onPick={(id) => { setInput((v) => v.replace(/(^|\s)@([\w-]*)$/, `$1@${id} `)); taRef.current?.focus(); }} />
             )}

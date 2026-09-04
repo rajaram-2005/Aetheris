@@ -655,3 +655,41 @@ button.chip { cursor: pointer; }
 .gcard-meta { display: flex; gap: 6px; flex-wrap: wrap; }
 .gcard-foot { display: flex; gap: 8px; align-items: center; }
 .gcard-foot .send { padding: 6px 10px; font-size: 12px; }
+
+/* ── @mention / slash picker ───────────────────────────── */
+.composer { position: relative; }
+.mention-pop { position: absolute; left: 12px; right: 12px; bottom: calc(100% + 6px); max-height: 320px; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.45); padding: 6px; z-index: 30; display: flex; flex-direction: column; gap: 2px; }
+.mention-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; background: transparent; color: var(--fg); border-radius: 10px; text-align: left; font-size: 13px; width: 100%; }
+.mention-item.on { background: var(--panel-2); }
+.mi-icon { width: 22px; text-align: center; }
+.mi-label { font-weight: 700; font-family: ui-monospace, monospace; font-size: 12px; }
+.mi-hint { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-foot { font-size: 11px; color: var(--muted); padding: 6px 10px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* ── Workflows ─────────────────────────────────────────── */
+.wf { display: grid; grid-template-columns: 260px 1fr; gap: 12px; min-height: 60vh; padding: 4px 4px 24px; }
+@media (max-width: 800px) { .wf { grid-template-columns: 1fr; } }
+.wf-list { display: flex; flex-direction: column; gap: 6px; }
+.wf-list-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px; }
+.wf-item { text-align: left; border: 1px solid var(--border); background: var(--panel); color: var(--fg); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.wf-item small { color: var(--muted); }
+.wf-item.on { border-color: var(--accent); }
+.wf-main { min-width: 0; }
+.wf-editor, .wf-run { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 14px; padding: 14px; background: var(--panel); }
+.wf-editor input, .wf-editor textarea, .wf-editor select, .wf-run textarea { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13px; width: 100%; }
+.wf-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wf-step-edit { border: 1px dashed var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.wf-steps-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+.wf-pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.wf-pill.running { border-color: var(--accent); color: var(--fg); }
+.wf-pill.done { border-color: #3ecf8e; color: var(--fg); }
+.wf-pill.skipped { opacity: 0.5; text-decoration: line-through; }
+.wf-out { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; }
+.wf-out summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.wf-out .bubble { margin-top: 8px; }
+
+/* ── Debate ────────────────────────────────────────────── */
+.debate { display: flex; flex-direction: column; gap: 10px; }
+.debate-turn { border-left: 3px solid var(--border); padding: 6px 12px; border-radius: 6px; background: var(--panel-2); }
+.debate-turn.pro { border-color: #3ecf8e; } .debate-turn.con { border-color: #f6ad55; } .debate-turn.judge { border-color: var(--accent); background: var(--panel); }
+.debate-turn .who { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }

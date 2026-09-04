@@ -1,4 +1,5 @@
 import type { AgentSpec } from "./types";
+import { EXTENDED_AGENTS } from "./catalog-extended";
 
 /* ------------------------------------------------------------------------------------------ */
 /* Base layers                                                                                 */
@@ -31,7 +32,7 @@ Lessons must be short (max 140 chars), general (not tied to one-off facts), and 
 
 const A = (a: AgentSpec): AgentSpec => a;
 
-export const AGENTS: AgentSpec[] = [
+const CORE_AGENTS: AgentSpec[] = [
   // ---- Ultra --------------------------------------------------------------------------------
   A({
     id: "prime", name: "Aetheris Prime", icon: "✴️", tier: "ultra", domain: "core",
@@ -174,11 +175,14 @@ export const AGENTS: AgentSpec[] = [
     system: `You are the Prompt Engineer. Produce prompts with role, goal, constraints, format, and examples; explain each design choice in one line; include a quick eval rubric.`, temperature: 0.4 }),
 ];
 
+/** Full roster: core (ultra + gods + original specialists) plus the extended domain roster. */
+export const AGENTS: AgentSpec[] = [...CORE_AGENTS, ...EXTENDED_AGENTS];
+
 export const AGENT_INDEX = new Map<string, AgentSpec>();
-for (const a of AGENTS) {
-  AGENT_INDEX.set(a.id, a);
-  for (const al of a.aliases ?? []) AGENT_INDEX.set(al, a);
-}
+// Aliases first, then ids: an agent's own id always wins over another agent's alias
+// (e.g. @physics → Physics Tutor, not the Scientist's alias).
+for (const a of AGENTS) for (const al of a.aliases ?? []) if (!AGENT_INDEX.has(al)) AGENT_INDEX.set(al, a);
+for (const a of AGENTS) AGENT_INDEX.set(a.id, a);
 
 export function agentById(id: string): AgentSpec | undefined {
   return AGENT_INDEX.get(id.toLowerCase());
