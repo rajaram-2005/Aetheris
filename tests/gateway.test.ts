@@ -122,3 +122,18 @@ test("agent binds gateway connectors in-process and executes tools", async () =>
     assert.match(seen.at(-1)!.url, /^\/search\?tags=front_page/);
   } finally { llm.close(); }
 });
+
+test("engine: absolute-URL args are not encoded in paths; tool headers are templated", async () => {
+  const { executeTool } = await import("../src/lib/gateway/engine");
+  const api = {
+    id: "p", name: "P", baseUrl: `http://127.0.0.1:${port}`, auth: { in: "arg" as const, name: "cred" },
+    tools: [{ name: "hit", description: "", params: { hook: { type: "string" as const, required: true } }, path: "{hook}",
+      headers: { "x-id": "{id}", "x-secret": "{secret}" },
+      prepare: (a: Record<string, unknown>) => { const [id, secret] = String(a.cred).split(":"); return { ...a, id, secret }; } }],
+  };
+  await executeTool(api, api.tools[0], { hook: `http://127.0.0.1:${port}/hooks/a?x=1` }, "k:v");
+  const r = seen.at(-1)!;
+  assert.equal(r.url, "/hooks/a?x=1");
+  assert.equal(r.headers["x-id"], "k");
+  assert.equal(r.headers["x-secret"], "v");
+});

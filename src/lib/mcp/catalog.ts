@@ -26,6 +26,14 @@ export interface Connector {
   featured?: boolean;
 }
 
+/**
+ * Live-check log — every `remote` URL below was probed over HTTPS on this date; a server counts as
+ * live when it answers with an MCP/OAuth challenge (401/403/405/406 or a JSON-RPC error), i.e. the
+ * endpoint exists and speaks the protocol. Anything that 404'd or redirected to a docs page was
+ * re-pointed to the correct path or moved onto the built-in gateway. Re-run `npm run verify:connectors`.
+ */
+export const LIVE_CHECKED_AT = "2026-09-04";
+
 export const CONNECTORS: Connector[] = [
   // ---- Featured -----------------------------------------------------------------------
   { id: "notion", kind: "remote", oauth: true, name: "Notion", category: "productivity", featured: true, url: "https://mcp.notion.com/mcp",
@@ -46,8 +54,8 @@ export const CONNECTORS: Connector[] = [
   { id: "razorpay", kind: "gateway", name: "Razorpay", category: "payments", featured: true, url: "/api/gateway/razorpay",
     description: "Payment links, orders, settlements and refund status.",
     auth: { header: "Authorization", prefix: "Basic ", label: "base64(key_id:key_secret)" } },
-  { id: "vercel", kind: "remote", oauth: true, name: "Vercel", category: "dev", featured: true, url: "https://mcp.vercel.com",
-    description: "Trigger deployments, inspect logs and manage projects.",
+  { id: "vercel", kind: "gateway", name: "Vercel", category: "dev", featured: true, url: "/api/gateway/vercel",
+    description: "Deployments, projects and logs via the Vercel REST API (Vercel's hosted MCP only admits allow-listed clients).",
     auth: { header: "Authorization", prefix: "Bearer ", label: "Vercel token" } },
   { id: "google-workspace", kind: "gateway", name: "Google Workspace", category: "productivity", featured: true, url: "/api/gateway/google-workspace",
     description: "Gmail drafts, Calendar events, Docs and Sheets via Google Cloud APIs.",
@@ -61,10 +69,8 @@ export const CONNECTORS: Connector[] = [
     description: "Ask questions about any public GitHub repository's documentation." },
   { id: "context7", kind: "remote", oauth: true, name: "Context7", category: "dev", url: "https://mcp.context7.com/mcp",
     description: "Up-to-date library and framework documentation for coding." },
-  { id: "fetch", kind: "remote", name: "Web Fetch", category: "web", url: "https://remote.mcpservers.org/fetch/mcp",
-    description: "Fetch and read any public web page as markdown." },
-  { id: "sequential-thinking", kind: "remote", name: "Sequential Thinking", category: "data", url: "https://remote.mcpservers.org/sequentialthinking/mcp",
-    description: "Structured step-by-step reasoning scratchpad." },
+  { id: "fetch", kind: "gateway", name: "Web Fetch", category: "web", url: "/api/gateway/fetch",
+    description: "Read any public web page as clean markdown (no key needed)." },
   { id: "edgeone-pages", kind: "remote", name: "EdgeOne Pages", category: "dev", url: "https://mcp-on-edge.edgeone.site/mcp-server",
     description: "Deploy HTML to a public URL instantly." },
 
@@ -82,11 +88,11 @@ export const CONNECTORS: Connector[] = [
   { id: "huggingface", kind: "remote", oauth: true, name: "Hugging Face", category: "dev", url: "https://huggingface.co/mcp", description: "Search models, datasets, Spaces and papers.", auth: { header: "Authorization", prefix: "Bearer ", label: "HF token" } },
   { id: "netlify", kind: "remote", oauth: true, name: "Netlify", category: "dev", url: "https://netlify-mcp.netlify.app/mcp", description: "Sites, deploys and env vars.", auth: { header: "Authorization", prefix: "Bearer ", label: "Netlify PAT" } },
   { id: "render", kind: "remote", oauth: true, name: "Render", category: "dev", url: "https://mcp.render.com/mcp", description: "Services, deploys and logs.", auth: { header: "Authorization", prefix: "Bearer ", label: "Render API key" } },
-  { id: "docker-hub", kind: "remote", oauth: true, name: "Docker Hub", category: "dev", url: "https://mcp.docker.com/mcp", description: "Images, tags and repositories.", auth: { header: "Authorization", prefix: "Bearer ", label: "Docker PAT" } },
+  { id: "docker-hub", kind: "gateway", name: "Docker Hub", category: "dev", url: "/api/gateway/docker-hub", description: "Search images, list tags and repositories.", auth: { header: "Authorization", prefix: "Bearer ", label: "Docker Hub PAT (or leave blank for public search)" } },
   { id: "grafana", kind: "gateway", name: "Grafana", category: "data", url: "/api/gateway/grafana", description: "Dashboards, alerts and Loki queries.", auth: { header: "Authorization", prefix: "Bearer ", label: "Grafana service account token" } },
 
   // ---- Payments / commerce ----------------------------------------------------------
-  { id: "paypal", kind: "remote", oauth: true, name: "PayPal", category: "payments", url: "https://mcp.paypal.com/http", description: "Invoices, orders and disputes.", auth: { header: "Authorization", prefix: "Bearer ", label: "PayPal access token" } },
+  { id: "paypal", kind: "remote", oauth: true, name: "PayPal", category: "payments", url: "https://mcp.paypal.com/mcp", description: "Invoices, orders and disputes.", auth: { header: "Authorization", prefix: "Bearer ", label: "PayPal access token" } },
   { id: "square", kind: "remote", oauth: true, name: "Square", category: "payments", url: "https://mcp.squareup.com/sse", description: "Payments, catalog and customers.", auth: { header: "Authorization", prefix: "Bearer ", label: "Square access token" } },
   { id: "shopify", kind: "gateway", name: "Shopify", category: "payments", url: "/api/gateway/shopify", description: "Products, orders and inventory.", auth: { header: "X-Shopify-Access-Token", label: "Admin API token" } },
   { id: "plaid", kind: "gateway", name: "Plaid", category: "payments", url: "/api/gateway/plaid", description: "Bank accounts and transactions.", auth: { header: "Authorization", prefix: "Bearer ", label: "Plaid token" }, premium: true },
@@ -134,7 +140,7 @@ export const CONNECTORS: Connector[] = [
   { id: "google-drive", kind: "gateway", name: "Google Drive", category: "storage", url: "/api/gateway/google-drive", description: "Search and read files.", auth: { header: "Authorization", prefix: "Bearer ", label: "Google OAuth access token" } },
   { id: "dropbox", kind: "remote", oauth: true, name: "Dropbox", category: "storage", url: "https://mcp.dropbox.com/mcp", description: "Files and shared links.", auth: { header: "Authorization", prefix: "Bearer ", label: "Dropbox token" } },
   { id: "onedrive", kind: "gateway", name: "OneDrive", category: "storage", url: "/api/gateway/onedrive", description: "Files via Microsoft Graph.", auth: { header: "Authorization", prefix: "Bearer ", label: "Graph access token" } },
-  { id: "box", kind: "remote", oauth: true, name: "Box", category: "storage", url: "https://mcp.box.com", description: "Enterprise content and metadata.", auth: { header: "Authorization", prefix: "Bearer ", label: "Box developer token" } },
+  { id: "box", kind: "remote", oauth: true, name: "Box", category: "storage", url: "https://mcp.box.com/mcp", description: "Enterprise content and metadata.", auth: { header: "Authorization", prefix: "Bearer ", label: "Box developer token" } },
   { id: "aws-s3", kind: "gateway", name: "AWS S3", category: "storage", url: "/api/gateway/aws-s3", description: "Buckets and objects.", auth: { header: "Authorization", prefix: "Bearer ", label: "Pre-signed token" }, premium: true },
   { id: "cloudinary", kind: "remote", name: "Cloudinary", category: "storage", url: "https://asset-management.mcp.cloudinary.com/mcp", description: "Upload and transform media.", auth: { header: "Authorization", prefix: "Basic ", label: "base64(key:secret)" } },
 
@@ -152,7 +158,7 @@ export const CONNECTORS: Connector[] = [
   { id: "make", kind: "gateway", name: "Make", category: "productivity", url: "/api/gateway/make", description: "Run Make scenarios on demand.", auth: { header: "Authorization", prefix: "Token ", label: "Make API token" } },
   { id: "n8n", kind: "gateway", name: "n8n", category: "productivity", url: "/api/gateway/n8n", description: "Trigger n8n workflows.", auth: { header: "Authorization", prefix: "Bearer ", label: "n8n MCP token" } },
   { id: "openweather", kind: "gateway", name: "OpenWeather", category: "data", url: "/api/gateway/openweather", description: "Current weather and forecasts.", auth: { header: "X-Api-Key", label: "OpenWeather key" } },
-  { id: "alpha-vantage", kind: "remote", oauth: true, name: "Alpha Vantage", category: "data", url: "https://mcp.alphavantage.co", description: "Stocks, forex and crypto data.", auth: { header: "X-Api-Key", label: "Alpha Vantage key" } },
+  { id: "alpha-vantage", kind: "remote", oauth: true, name: "Alpha Vantage", category: "data", url: "https://mcp.alphavantage.co/mcp", description: "Stocks, forex and crypto data.", auth: { header: "X-Api-Key", label: "Alpha Vantage key" } },
   { id: "coingecko", kind: "gateway", name: "CoinGecko", category: "data", url: "/api/gateway/coingecko", description: "Crypto prices and market data." },
   { id: "google-maps", kind: "remote", oauth: true, name: "Google Maps", category: "data", url: "https://mapstools.googleapis.com/mcp", description: "Geocoding, places and directions.", auth: { header: "X-Goog-Api-Key", label: "Maps API key" } },
   { id: "bigquery", kind: "gateway", name: "BigQuery", category: "data", url: "/api/gateway/bigquery", description: "Run SQL on your datasets.", auth: { header: "Authorization", prefix: "Bearer ", label: "Google OAuth access token" }, premium: true },
@@ -172,7 +178,7 @@ export const CONNECTORS: Connector[] = [
   { id: "amplitude", kind: "remote", oauth: true, name: "Amplitude", category: "data", url: "https://mcp.amplitude.com/mcp", description: "Behavioural analytics and experiments.", auth: { header: "Authorization", prefix: "Bearer ", label: "Amplitude token" } },
   { id: "launchdarkly", kind: "remote", oauth: true, name: "LaunchDarkly", category: "dev", url: "https://mcp.launchdarkly.com/mcp/launchdarkly", description: "Feature flags and observability.", auth: { header: "Authorization", prefix: "Bearer ", label: "LaunchDarkly token" } },
   { id: "vimeo", kind: "remote", oauth: true, name: "Vimeo", category: "social", url: "https://mcp.vimeo.com/mcp", description: "Videos, transcripts, analytics and showcases.", auth: { header: "Authorization", prefix: "Bearer ", label: "Vimeo access token" } },
-  { id: "cashfree", kind: "remote", oauth: true, name: "Cashfree", category: "payments", url: "https://mcp.cashfree.com/mcp", description: "Indian payment gateway, payouts and KYC.", auth: { header: "Authorization", prefix: "Bearer ", label: "Cashfree token" } },
+  { id: "cashfree", kind: "gateway", name: "Cashfree", category: "payments", url: "/api/gateway/cashfree", description: "Indian payment gateway: orders, payments, payouts.", auth: { header: "Authorization", prefix: "Bearer ", label: "client_id:client_secret" } },
   { id: "google-calendar", kind: "remote", name: "Google Calendar (official)", category: "productivity", url: "https://calendarmcp.googleapis.com/mcp/v1", description: "Google's own Calendar MCP server (Developer Preview).", auth: { header: "Authorization", prefix: "Bearer ", label: "Google OAuth access token" } },
   { id: "gmail", kind: "remote", name: "Gmail (official)", category: "communication", url: "https://gmailmcp.googleapis.com/mcp/v1", description: "Google's own Gmail MCP server (Developer Preview).", auth: { header: "Authorization", prefix: "Bearer ", label: "Google OAuth access token" } },
   { id: "google-sheets", kind: "remote", name: "Google Sheets (official)", category: "productivity", url: "https://sheetsmcp.googleapis.com/mcp/v1", description: "Read and update spreadsheets.", auth: { header: "Authorization", prefix: "Bearer ", label: "Google OAuth access token" } },

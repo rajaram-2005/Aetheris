@@ -15,7 +15,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
-| 4 | **Cloud MCP App Store** (108 connectors: 63 vendor MCP servers w/ OAuth + 45 via built-in REST→MCP gateway) | ✅ this repo |
+| 4 | **Cloud MCP App Store** (107 connectors: 58 vendor MCP servers w/ OAuth + 49 via built-in REST→MCP gateway) | ✅ this repo |
 | 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
 
 ## Quick start
@@ -107,7 +107,7 @@ Runway key. We deliberately do not cycle trial keys — it violates those provid
 
 ## Cloud MCP App Store (Phase 4)
 
-**Apps** tab — **108 connectors**, every one backed by a real endpoint:
+**Apps** tab — **107 connectors**, every one backed by a real endpoint:
 
 | Kind | Count | How it works |
 |---|---|---|
@@ -121,6 +121,8 @@ Runway key. We deliberately do not cycle trial keys — it violates those provid
 - `src/lib/gateway/apis.ts` — the 45 API definitions (~110 tools).
 - `src/lib/mcp/agent.ts` — **provider-agnostic tool loop**: tools go in the prompt, the model emits `<tool_call>{…}</tool_call>`, Aetheris executes (remote MCP or in-process gateway) and feeds the result back. Works with *every* model in the mesh. The *Enterprise GitHub Automation* connector calls the Phase-2 factory directly.
 - Pasted credentials stay in the browser and are forwarded only to that connector; premium connectors require Pro.
+
+**Live-checked 2026-09-04** — every remote MCP URL in the catalog was probed over HTTPS and answered with a protocol-level response (OAuth challenge / JSON-RPC error / 405 on GET), confirming the endpoint exists. Corrections made from that sweep: PayPal → `mcp.paypal.com/mcp`; Box → `/mcp`; Alpha Vantage → `/mcp`; Docker Hub, Cashfree, Web Fetch and Vercel moved to the built-in gateway (Docker/Cashfree have no hosted MCP; `remote.mcpservers.org` was down; Vercel's MCP admits only allow-listed clients). Sequential Thinking dropped. See `LIVE_CHECKED_AT` in `src/lib/mcp/catalog.ts`.
 
 **Verifying endpoints** — vendors move URLs. `npm run verify:connectors` probes every remote MCP server (`initialize`) and gateway upstream and prints a ✓/✗ table; the Apps tab's *test connection* does the same per connector.
 
@@ -181,7 +183,7 @@ src/lib/factory/
   workflow.ts    GitHub Actions workflow template per language
   pipeline.ts    the orchestrator (emits step events)
 src/lib/media/   image / speech / video provider mesh + adapters
-src/lib/mcp/     MCP client, OAuth 2.1 client, 108-connector catalog, tool-calling agent loop
+src/lib/mcp/     MCP client, OAuth 2.1 client, 107-connector catalog, tool-calling agent loop
 src/lib/gateway/ REST→MCP gateway engine + 45 API definitions (served at /api/gateway/<id>)
 src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
 src/lib/store.ts locked JSON file store (data/)

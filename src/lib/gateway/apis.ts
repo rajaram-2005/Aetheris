@@ -8,6 +8,9 @@ const n = (description: string, required = false) => ({ type: "integer" as const
  * REST-backed connectors served by the Aetheris gateway. Every endpoint here is a documented
  * public API; the user supplies the credential in the Apps tab.
  */
+const CF_HEADERS = { "x-client-id": "{cf_id}", "x-client-secret": "{cf_secret}" };
+const cfSplit = (a: Record<string, unknown>) => { const [id, secret] = String(a.cf_cred ?? "").split(":"); return { ...a, cf_id: id, cf_secret: secret }; };
+
 export const APIS: ApiDef[] = [
   // ---- Communication ----------------------------------------------------------------------
   {
@@ -354,6 +357,35 @@ export const APIS: ApiDef[] = [
   {
     id: "snowflake", name: "Snowflake", baseUrl: "https://example.snowflakecomputing.com", auth: bearer(),
     tools: [{ name: "sql", description: "Run a statement via SQL API", params: { account_url: s("https://acct.snowflakecomputing.com", true), sql: s("SQL", true), warehouse: s("Warehouse") }, path: "{account_url}/api/v2/statements", headers: { "X-Snowflake-Authorization-Token-Type": "OAUTH" }, body: { statement: "{sql}", warehouse: "{warehouse}", timeout: 60 } }],
+  },
+  {
+    id: "docker-hub", name: "Docker Hub", baseUrl: "https://hub.docker.com/v2", auth: bearer(),
+    tools: [
+      { name: "search", description: "Search public images", params: { q: s("Query", true) }, path: "/search/repositories", query: { query: "{q}", page_size: 15 } },
+      { name: "list_tags", description: "Tags for an image", params: { namespace: s("Namespace, e.g. library", true), repo: s("Repository, e.g. nginx", true) }, path: "/repositories/{namespace}/{repo}/tags", query: { page_size: 20 } },
+      { name: "repo_info", description: "Repository details", params: { namespace: s("Namespace", true), repo: s("Repository", true) }, path: "/repositories/{namespace}/{repo}" },
+    ],
+  },
+  {
+    id: "cashfree", name: "Cashfree", baseUrl: "https://api.cashfree.com/pg", auth: { in: "arg", name: "cf_cred" }, headers: { "x-api-version": "2023-08-01" },
+    tools: [
+      { name: "get_order", description: "Fetch an order", params: { order_id: s("Order id", true) }, path: "/orders/{order_id}", headers: CF_HEADERS, prepare: cfSplit },
+      { name: "create_order", description: "Create a payment order (INR)", params: { amount_inr: n("Amount", true), customer_id: s("Customer id", true), customer_phone: s("Phone", true) }, path: "/orders", method: "POST", headers: CF_HEADERS, prepare: cfSplit, body: { order_amount: "{amount_inr}", order_currency: "INR", customer_details: { customer_id: "{customer_id}", customer_phone: "{customer_phone}" } } },
+      { name: "order_payments", description: "Payments for an order", params: { order_id: s("Order id", true) }, path: "/orders/{order_id}/payments", headers: CF_HEADERS, prepare: cfSplit },
+    ],
+  },
+  {
+    id: "fetch", name: "Web Fetch", baseUrl: "https://r.jina.ai", auth: { in: "none" }, headers: { Accept: "text/plain", "X-Return-Format": "markdown" },
+    tools: [{ name: "fetch", description: "Fetch a public URL and return its content as markdown", params: { url: s("Absolute URL", true) }, path: "/{url}" }],
+  },
+  {
+    id: "vercel", name: "Vercel", baseUrl: "https://api.vercel.com", auth: bearer(),
+    tools: [
+      { name: "list_projects", description: "Your projects", path: "/v10/projects", query: { limit: 20 } },
+      { name: "list_deployments", description: "Recent deployments", params: { project: s("Project id or name") }, path: "/v6/deployments", query: { projectId: "{project}", limit: 10 } },
+      { name: "deployment_events", description: "Build logs for a deployment", params: { deployment_id: s("Deployment id", true) }, path: "/v3/deployments/{deployment_id}/events", query: { limit: 200 } },
+      { name: "trigger_deploy_hook", description: "Trigger a deploy hook URL", params: { hook_url: s("Deploy hook URL from project settings", true) }, path: "{hook_url}", method: "POST", body: {} },
+    ],
   },
   {
     id: "aetheris-factory", name: "Enterprise GitHub Automation", baseUrl: "internal", auth: { in: "none" },

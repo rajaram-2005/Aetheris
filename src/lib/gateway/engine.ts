@@ -104,15 +104,21 @@ export async function executeTool(api: ApiDef, tool: ToolDef, rawArgs: Record<st
   for (const [k, p] of Object.entries(tool.params ?? {})) {
     if (p.required && (args[k] === undefined || args[k] === "")) throw new GatewayError(`missing required argument "${k}"`);
   }
-  const path = fill(tool.path, args, true);
+  const rawPath = tool.path.replace(TPL, (m, k: string) => (typeof args[k] === "string" && /^https?:\/\//.test(args[k] as string) ? `\u0000${k}\u0000` : m));
+  let path = fill(rawPath, args, true);
   if (path === undefined) throw new GatewayError(`missing argument for path ${tool.path}`);
+  path = path.replace(/\u0000([a-zA-Z0-9_]+)\u0000/g, (_m, k: string) => String(args[k]));
   const url = new URL(path.startsWith("http") ? path : api.baseUrl.replace(/\/$/, "") + path);
   for (const [k, v] of Object.entries(tool.query ?? {})) {
     const val = typeof v === "string" ? fill(v, args) : String(v);
     if (val !== undefined) url.searchParams.set(k, val);
   }
 
-  const headers: Record<string, string> = { Accept: "application/json", "User-Agent": "aetheris-one-gateway", ...(api.headers ?? {}), ...(tool.headers ?? {}) };
+  const headers: Record<string, string> = { Accept: "application/json", "User-Agent": "aetheris-one-gateway", ...(api.headers ?? {}) };
+  for (const [k, v] of Object.entries(tool.headers ?? {})) {
+    const val = fill(v, args);
+    if (val !== undefined) headers[k] = val;
+  }
   if (api.auth.in !== "none" && api.auth.in !== "arg" && !credential) throw new GatewayError(`${api.name} requires a credential`, 401);
   if (api.auth.in === "header") headers[api.auth.name] = `${api.auth.prefix ?? ""}${credential}`;
   if (api.auth.in === "query") url.searchParams.set(api.auth.name, credential!);
