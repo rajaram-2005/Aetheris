@@ -1,6 +1,6 @@
 {
   "name": "aetheris",
-  "version": "2026.9.1",
+  "version": "2026.9.2",
   "private": false,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",

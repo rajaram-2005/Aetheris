@@ -11,6 +11,135 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 <!-- CHANGELOG: new entries go directly below this line, newest first. -->
 
+## 2026.9.2 — 2026-09-04
+
+### desktop
+
+- add homepage to package.json for electron-builder deb/rpm
+- fix a non-existent settings path, register the app in the capability registry
+- harden deep links, fix the macOS menu, document the app in-app
+- fix window navigation, load keys from the data dir, test the main process
+- macOS/Linux/Windows app + a monthly CalVer release pipeline
+
+### release
+
+- fix the desktop build so both release workflows can finish
+
+### ci
+
+- move Actions to the Node-24 majors to clear the deprecation warning
+- typecheck the Electron shell against real electron types; repoint workflow tests at .github
+- enable the workflows
+- document that both release workflows reference the composite action path
+- keep workflow under ci/ (app lacks workflows permission)
+
+### other
+
+- Delete .github/workflows
+- Create workflows
+- Delete .github/workflows
+- Create workflows
+- Keep the root build from type-checking the Electron entry points
+- Execute page JavaScript and sample video frames without a host binary
+- Recover the data behind JS-rendered pages; record why the binaries stay optional
+- Persistent telemetry and offline semantic embeddings
+- Implement the verification engine, workspace sharing and dependency-free video
+- Add files via upload
+- Join old and new: hub tools now pass execution policy (+_confirmationToken), unified knowledge query (fabric + document KBs) in /api/knowledge, /api/chat and /api/agents/run, Metis lessons → procedural memory, legacy workflows/factory/media/research traced as events; tests 108
+- Phase 22: docs — README as Intelligence OS with honest status matrix, ARCHITECTURE as-built diagram + phase ledger 1–22, docs consistency test (API.md routes exist), SECURITY pointer
+- Phase 21: plugin SDK (definePlugin, /api/plugins, example unit-convert, tests), aetheris-bridge daemon, docs: HARDWARE ROBOTICS SECURITY MODELS AGENTS MCP KNOWLEDGE MEMORY RESEARCH API DEVELOPMENT PLUGIN_SDK CONTRIBUTING; webhook secret timing-safe compare
+- Phase 21: API-first gaps — /api/workspaces (+core/workspaces), /api/tools callable view, Control Center workspaces+tools tabs, registry entry, test
+- Phase 20: deployment — Dockerfile, compose, /api/health, docs/DEPLOYMENT.md, env reference
+- Phase 19: perf — mtime-keyed store read cache (5x faster reads), perf budget tests
+- Phase 18: evaluation harness (intent/policy/sandbox/retrieval benchmarks with thresholds), CI workflow (typecheck+test+eval+build), intent rule improvements found by evals
+- Phase 17: security — guard module (rate limit, SSRF/DNS check, redaction, audit export), edge middleware (headers + per-IP limits), SSRF checks wired into MCP/automations/devices/browser, event scrubbing
+- Phase 16: Control Center — jobs, executions, MCP servers, knowledge/memory, devices, twins, robots, automations, browser panels; token issue endpoint; stopAction policy; fix prod build (route exports)
+- Phase 15: automation engine — cron/webhook/device/twin/job triggers, expression or rubric conditions & verification, actions (webhook/email/remember/twin event/job/actuate), per-stage runs; /api/automations
+- Phase 14: robotics (rosbridge client + safety-governed RobotAgent, /api/robots) and digital twins (sync, bounds, rule simulation DSL, health, /api/twins); mock ws server test helper
+- test typing
+- Phase 13: Physical AI layer — device registry, http/mqtt/modbus adapters (dependency-free protocol clients), telemetry, safety policy loop with interlocks/E-stop, physical opt-in; /api/devices
+- Phase 12: browser agent — http engine (snapshot/follow/submit/extract, robots, deny private nets), optional playwright, permission-gated; /api/browser
+- sensor flat trend fix
+- Phase 11: multimodal perception entry point (image/document/audio/video/sensor) with honest availability; /api/multimodal
+- Phase 10: research engine — keyless academic sources, dedupe, citation graph, claim extraction, contradiction detection; /api/research/academic
+- fix hotspot root exclusion
+- Phase 9: GitHub Repository Intelligence — repo map, architecture brief, PR review, issue triage, incremental patch→PR; /api/github/repos/intel
+- Phase 8: knowledge fabric (SQLite FTS5 + local/provider vectors + entity graph + temporal supersession, provenance) and typed memory system; /api/knowledge, /api/memory; auto-recall in chat; tests
+- Phase 7: MCP gateway — user-registered servers, manifest/versioning, health sweeps, schema validation, permission classification; tests for policy/sandbox/gateway
+- Phase 4–6: task-aware model router (ModelPolicy: coding/reasoning/long-context/multilingual/tools, locality local/prefer_local/remote, context fit; local providers Ollama/LM Studio/vLLM), agent runtime with background jobs (budgets, timeouts, checkpoints, cancel, retry, SSE) at /api/jobs, server-side process sandbox (temp workspace, scrubbed env, SIGKILL timeout, allow/deny policy, unshare network isolation, fs-change tracking, audit) at /api/executions gated by full_workspace confirmation
+- Intelligence OS core (Phase 1–3 + Control Center): repository audit + architecture/roadmap doc; Capability Registry (373 capabilities from models/agents/connectors/platform sources with honest status, permissions, reliability, search API); execution policy (read_only→admin + isolated physical, single-use confirmation tokens, audit); observability event bus instrumented into router/orchestrator/MCP hub/schedules; local intent→capability router with @agent//mode override; provider-independence interfaces; Physical-AI/robotics/twin contracts + tested deterministic safety policy (NOT AVAILABLE, no mocks); 🎛️ Control Center mode; APIs /api/capabilities /api/intent /api/telemetry /api/permissions; tests 84 pass
+- Scheduled automations: cron engine (5-field, tz-aware, presets, 15-min floor), agent-prompt or workflow tasks, share-link/email/webhook delivery, run history, claim-before-run tick with in-process ticker + /api/schedules/tick for external crons (CRON_SECRET); ⏰ Schedules mode + /schedules; docs + README + .env.example; tests (79 pass)
+- Chat with documents: per-user knowledge bases (PDF page-aware, DOCX zip reader, CSV row-aware, HTML, text/code, URL, paste), heading-aware chunking, BM25 retrieval, [D#] citations in chat with doc/page/section chips, 📁 Docs mode + /docs command, retrieval tester; API /api/kb/*; docs + README; tests (75 pass)
+- Voice mode: hands-free overlay with orb/level meter, 18 recognition languages (auto-follows UI language), streaming sentence-by-sentence browser TTS or Studio TTS, barge-in, auto re-listen, voice-tuned system prompt (chat + agents routes); /voice command; docs + README; tests (71 pass)
+- Study mode: adaptive quizzes & flashcards with SM-2 spaced repetition — tutor-agent card generation (flashcard/MCQ/cloze/short, adaptive to failures), review sessions with keyboard grading, typed-answer grading, progress (stages, retention, heatmap, streak); API /api/study/*; 🎓 sidebar mode + /study; docs; tests (67 pass)
+- Explained AI: 46-concept knowledge base (foundations, how LLMs work, limits, agents/RAG, explainability, ethics, governance incl. DPDP/EU AI Act, using AI well) with analogies, misconceptions and try-it prompts; 📚 Learn view + /learn; /docs/concepts + per-concept pages; GET /api/concepts; grounds Explainer/Ethicist; 5 gallery recipes; tests (64 pass)
+- AI ethics & explainability: 3 new agents (AI Ethicist, AI Explainer, Fairness Auditor), /explain endpoint + per-message 'explain' link, /ethics command, docs/ethics guide, 10 gallery recipes, tests (61 pass)
+- Gallery seed: +109 recipes (gaming & entertainment, social & relationships, safety & security, using AI well) → 705 across 26 domains; collision-proof seed ids
+- Gallery seed: +150 recipes (engineering, students, presentation/speaking, arts, industry playbooks) → 533 across 21 domains; tags ordered by frequency with 'more' toggle
+- Gallery search: relevance ranking (whole-word > prefix > substring; title > tags/agents > description > prompt; multi-term AND) + tests
+- Gallery seed: +132 recipes (career, language, productivity, creative, data/ML) → 383 across 16 domains
+- Gallery seed: +118 recipes (finance, legal, health, science, design) → 251; stable ids for non-Latin titles
+- Docs site (/docs) generated from live catalogs + 133-recipe gallery seed
+- 99-agent roster (70 new specialists), @mention/slash picker, Workflows engine + UI with templates, Debate mode
+- Live collaborative rooms (SSE + polling, shared AI replies), prompt/agent gallery mode, i18n (English/Tamil/Hindi)
+- Cloud sync for accounts, public share links (/s/:id) with continue-in-Aetheris, PWA manifest + service worker
+- Free for everyone: all features unlocked, no metering or payments by default (AETHERIS_PAID_PLANS=1 re-enables billing)
+- Move CI workflow to docs/ci.yml (token lacks workflows scope)
+- Wire accounts into plans/settings UI; open-source scaffolding (CI, CONTRIBUTING, SECURITY, CoC, templates, package metadata)
+- Admin accounts: founder email/phone sign-in gets God Mode, unlimited credits and /admin access
+- Aetheris Hub: all 107 MCP connectors behind one Streamable-HTTP MCP server (/api/mcp/hub) with namespaced tools, discovery meta-tools, lazy remote tool lists, sealed per-user credentials, API-key auth for external MCP clients; 'Enable all' card in Apps; hub option for /api/v1 and in-app agents; 40 tests
+- Connect everything: unified credit ledger with per-feature kinds + history (chat/agents/research/arena/factory/media/api), pre-check before charging, priority routing enforced for paid plans, Enterprise Factory gate + custom repo, video/factory 402→upgrade in UI, Plan & usage tab, admin subscribers/MRR + manual plan changes, agent quick-starts, Markdown export, keyboard shortcuts; 38 tests
+- Combine agents and models: each Aetheris model tier carries its agent policy; model picker drives Prime routing (Direct toggle), model→agent flow matrix on Agents page
+- Agent hierarchy: Aetheris Prime (ultra), Hermes + Metis (god), 26 sub-agents; orchestrator with plan/pipeline/parallel, meta-learning lessons, Agents page, @mentions
+- Key links: never navigate the iframe (provider pages forbid framing); new tab or copy
+- Key links: fall back to top-level navigation when popups are blocked
+- Expand provider mesh to 27: keyless Pollinations/LLM7 tier 0, 10 new free-key providers, key URLs + free-tier notes on Providers page
+- Fix scrolling: lock viewport, make message pane the scroller; fix .app class collision with connector cards
+- One Chat: Model Arena compare, voice mode, in-browser code interpreter
+- One Chat: streaming, multi-chat sidebar, vision, Artifacts panel, web search w/ citations, Deep Research, Projects, Memory
+- MCP catalog: live-check every remote endpoint; fix PayPal/Box/AlphaVantage paths; move Docker Hub, Cashfree, Fetch, Vercel to gateway
+- MCP store: real endpoints for every connector, OAuth 2.1, built-in REST→MCP gateway
+- Phases 3-5: Multimodal Studio, MCP App Store, UPI monetisation
+- Phase 2: GitHub Coding Factory
+- Aetheris One: chat UI + 15-provider omni-router with failover
+- Initial commit
+
+### accounts
+
+- Google/GitHub/email/phone sign-in with identity linking, /login page, sidebar account chip
+
+### gallery
+
+- world seed — 63 writing recipes written natively in 40+ languages (Indian, European, Middle East/African, East & SE Asian) + multilingual craft recipes → 596 total
+
+### layout
+
+- replace 3-column grid with flex shell; rails overlay on narrow windows so the app always keeps full width
+- full-bleed panes, wider chat measure (1100px), narrower sidebar
+
+### plans
+
+- Free/Lite ₹200/Pro ₹500/Pro Max ₹1500/God Mode ₹4000 with per-plan credits, model tiers aetheris-free…god (routing policy + Metis critique), personal sk-aeth API keys with OpenAI-compatible /api/v1, plan gating for agents/research/keys, 5-tier upgrade UI, model picker
+
+### providers
+
+- key links survive sandboxed iframes (open or copy + show URL)
+- dedicated full-page tab in sidebar with all 15 providers, key links and setup steps; inline mesh panel kept in chat
+
+### research
+
+- dedupe by doi id
+
+### router
+
+- explain sandbox/no-egress failures distinctly from provider failures
+
+### ui/ux
+
+- sidebar mode navigation, full-width Factory/Studio/Apps panes, redesigned chat (avatars, code chrome, hero, composer)
+
+---
+
 ## 2026.9.1 — 2026-09-04
 
 ### javascript & video without a host binary

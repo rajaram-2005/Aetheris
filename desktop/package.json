@@ -1,6 +1,6 @@
 {
   "name": "aetheris-desktop",
-  "version": "2026.9.1",
+  "version": "2026.9.2",
   "private": true,
   "description": "Aetheris One desktop app \u2014 the Intelligence OS as a native window on macOS, Linux and Windows. Runs the Next.js server embedded (loopback-only) or connects to any Aetheris server you point it at.",
   "main": "dist/main.js",
