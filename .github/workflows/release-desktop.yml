@@ -42,7 +42,7 @@ jobs:
           [ -n "$version" ] || version="$(cat VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: ./ci/actions/build-desktop
+      - uses: ./.github/actions/build-desktop
         with:
           version: ${{ steps.v.outputs.version }}
           publish_tag: ${{ inputs.publish_tag }}
