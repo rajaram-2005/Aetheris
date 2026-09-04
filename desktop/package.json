@@ -4,6 +4,7 @@
   "private": true,
   "description": "Aetheris One desktop app \u2014 the Intelligence OS as a native window on macOS, Linux and Windows. Runs the Next.js server embedded (loopback-only) or connects to any Aetheris server you point it at.",
   "main": "dist/main.js",
+  "homepage": "https://github.com/rajaram-2005/Aetheris#readme",
   "author": {
     "name": "Rajaram",
     "email": "ramkpraja175@gmail.com"
