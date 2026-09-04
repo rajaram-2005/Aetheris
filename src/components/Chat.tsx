@@ -8,7 +8,7 @@ import FactoryRun, { emptyFactoryState, type StepId } from "./FactoryRun";
 import Studio from "./Studio";
 import Apps, { loadServers, type EnabledServer } from "./Apps";
 import Upgrade, { useAccount } from "./Upgrade";
-import Sidebar from "./Sidebar";
+import Sidebar, { MODES, type Mode } from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import ProjectModal from "./ProjectModal";
 import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from "./Artifacts";
@@ -19,7 +19,6 @@ import { imageToDataUrl, titleFrom, useConversations, useMemory, useProjects, us
 
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
-type Mode = "chat" | "factory" | "studio" | "apps";
 
 const SUGGESTIONS = [
   "Build a landing page for a Chennai coffee roaster (HTML artifact)",
@@ -336,7 +335,8 @@ export default function Chat() {
 
   return (
     <div className={`shell ${sidebar ? "with-sb" : ""} ${artifactsOpen && artifacts.length ? "with-art" : ""}`}>
-      <Sidebar convos={convos} projects={projects} activeId={activeId} activeProject={activeProject} open={sidebar}
+      <Sidebar convos={convos} projects={projects} activeId={activeId} activeProject={activeProject} open={sidebar} mode={mode} appsCount={servers.length}
+        onMode={(m) => { setMode(m); if (window.innerWidth < 900) setSidebar(false); }}
         onOpen={() => setSidebar(true)} onClose={() => setSidebar(false)} onNew={newChat}
         onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 900) setSidebar(false); }}
         onDelete={(id) => { remove(id); if (id === activeId) newChat(); }}
@@ -349,29 +349,30 @@ export default function Chat() {
       <div className="app">
         <header className="header">
           <div className="brand">
-            <h1>Aetheris One</h1>
-            {project ? <span className="proj-pill" title={project.instructions || "No instructions"}>📁 {project.name}</span> : <span>omni-router</span>}
+            {!sidebar && <button className="icon-btn" title="Open sidebar" onClick={() => setSidebar(true)}>☰</button>}
+            <h1>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : MODES.find((m) => m.id === mode)?.label}</h1>
+            {mode === "chat" && project && <span className="proj-pill" title={project.instructions || "No instructions"}>📁 project</span>}
           </div>
           <div className="header-right">
-            <div className="mode-toggle" role="tablist">
-              <button className={mode === "chat" ? "active" : ""} onClick={() => setMode("chat")}>Chat</button>
-              <button className={mode === "factory" ? "active" : ""} onClick={() => setMode("factory")}>Factory</button>
-              <button className={mode === "studio" ? "active" : ""} onClick={() => setMode("studio")}>Studio</button>
-              <button className={mode === "apps" ? "active" : ""} onClick={() => setMode("apps")}>Apps{servers.length ? ` · ${servers.length}` : ""}</button>
-            </div>
+            {!sidebar && (
+              <div className="mode-toggle" role="tablist">
+                {MODES.map((m) => <button key={m.id} className={mode === m.id ? "active" : ""} onClick={() => setMode(m.id)} title={m.label}>{m.icon}<span className="mt-label"> {m.label}</span></button>)}
+              </div>
+            )}
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
-              : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit} free` : "Upgrade"}</button>)}
+              : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
             <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
               <span className={`dot ${meshDot}`} />{meshLabel}{preferredName ? ` · ${preferredName}` : ""}
             </button>
           </div>
         </header>
 
-        <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
-          {mode === "studio" && <Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} />}
-          {mode === "apps" && <Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} />}
+        <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}
+          onClick={(e) => { const b = (e.target as HTMLElement).closest("button[data-copy]") as HTMLButtonElement | null; if (b) { const code = b.closest(".codeblock")?.querySelector("code")?.textContent ?? ""; navigator.clipboard.writeText(code); b.textContent = "copied"; setTimeout(() => { b.textContent = "copy"; }, 1200); } }}>
+          {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
+          {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
             {showMesh && mesh && <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />}
             {mode === "factory" && (
@@ -383,17 +384,23 @@ export default function Chat() {
             {messages.length === 0 && !busy ? (
               <div className="empty">
                 {mode === "chat" ? (<>
-                  <h2>{project ? project.name : "One chat. Every free model."}</h2>
-                  <p>{project ? (project.instructions ? project.instructions.slice(0, 160) : "Project chats share these instructions and files.") : "Streaming answers routed across a mesh of free AI providers with silent failover. Artifacts, vision, web search, Deep Research, projects and memory built in."}</p>
-                  <div className="suggestions">{SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}</div>
+                  <div className="hero-orb" />
+                  <h2>{project ? project.name : <>Hello. What shall we <em>make</em> today?</>}</h2>
+                  <p>{project ? (project.instructions ? project.instructions.slice(0, 160) : "Project chats share these instructions and files.") : "One chat across a mesh of free AI providers with silent failover — artifacts, vision, web search, deep research, projects and memory built in."}</p>
+                  <div className="suggest-grid">
+                    {SUGGESTIONS.map((s, i) => <button key={s} onClick={() => send(s)}><span className="sg-ico">{["🧱", "🌐", "⚛️", "🧭"][i]}</span><span>{s}</span></button>)}
+                  </div>
                 </>) : (<>
+                  <div className="hero-orb" />
                   <h2>Code that runs in the cloud.</h2>
-                  <p>{auth.user ? "What should the factory build?" : "Connect GitHub above to start a run."}</p>
-                  <div className="suggestions">{FACTORY_SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} disabled={!auth.user}>{s}</button>)}</div>
+                  <p>{auth.user ? "Describe a program. Aetheris writes it, pushes it to a private repo, runs the tests on GitHub Actions and reports back." : "Connect GitHub above to start a run."}</p>
+                  <div className="suggest-grid">{FACTORY_SUGGESTIONS.map((s, i) => <button key={s} onClick={() => send(s)} disabled={!auth.user}><span className="sg-ico">{["🐍", "🟢", "☕", "📄"][i]}</span><span>{s}</span></button>)}</div>
                 </>)}
               </div>
             ) : messages.map((m, idx) => (
               <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
+                {m.role === "assistant" && <div className="avatar" aria-hidden><span /></div>}
+                <div className="msg-body">
                 {m.images && m.images.length > 0 && <div className="msg-images">{m.images.map((src, i) => <img key={i} src={src} alt="" />)}</div>}
                 {m.research && (
                   <div className="research-card">
@@ -445,6 +452,7 @@ export default function Chat() {
                     {idx === messages.length - 1 && !busy && !m.research && <button className="link" onClick={regenerate}>regenerate</button>}
                   </div>
                 )}
+                </div>
               </div>
             ))}
           </>}

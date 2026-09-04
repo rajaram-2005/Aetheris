@@ -14,7 +14,7 @@ test("markdown: tables, lists, quotes, headings, escaping", () => {
 });
 
 test("markdown: unterminated fence during streaming still renders as code", () => {
-  assert.match(renderMarkdown("```js\nlet x = 1"), /<pre><code class="lang-js">let x = 1<\/code><\/pre>/);
+  assert.match(renderMarkdown("```js\nlet x = 1"), /<div class="codeblock">[\s\S]*<pre><code class="lang-js">let x = 1<\/code><\/pre>/);
 });
 
 test("artifacts: titled fences are extracted and replaced by a card", () => {

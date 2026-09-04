@@ -22,7 +22,7 @@ export function renderMarkdown(src: string): string {
   const blocks: string[] = [];
   // Pull out fenced code first so nothing inside gets transformed.
   let text = src.replace(/```([\w+-]*)[^\n]*\n([\s\S]*?)(```|$)/g, (_m, lang: string | undefined, code: string) => {
-    const idx = blocks.push(`<pre><code${lang ? ` class="lang-${escapeHtml(lang)}"` : ""}>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+    const idx = blocks.push(`<div class="codeblock"><div class="cb-head"><span>${escapeHtml(lang || "code")}</span><button type="button" data-copy>copy</button></div><pre><code${lang ? ` class="lang-${escapeHtml(lang)}"` : ""}>${escapeHtml(code.replace(/\n$/, ""))}</code></pre></div>`);
     return `\u0000${idx - 1}\u0000`;
   });
   text = escapeHtml(text);

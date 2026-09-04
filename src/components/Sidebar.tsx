@@ -3,8 +3,16 @@
 import { useMemo, useState } from "react";
 import type { Conversation, Project } from "./store";
 
-export default function Sidebar({ convos, projects, activeId, activeProject, open, onOpen, onNew, onSelect, onDelete, onPin, onRename, onProject, onNewProject, onEditProject, onDeleteProject, onSettings, onClose }: {
-  convos: Conversation[]; projects: Project[]; activeId: string | null; activeProject: string | null; open: boolean;
+export type Mode = "chat" | "factory" | "studio" | "apps";
+export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
+  { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
+  { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
+  { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
+  { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },
+];
+
+export default function Sidebar({ convos, projects, activeId, activeProject, open, mode, onMode, appsCount, onOpen, onNew, onSelect, onDelete, onPin, onRename, onProject, onNewProject, onEditProject, onDeleteProject, onSettings, onClose }: {
+  convos: Conversation[]; projects: Project[]; activeId: string | null; activeProject: string | null; open: boolean; mode: Mode; onMode: (m: Mode) => void; appsCount: number;
   onOpen: () => void; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onPin: (id: string) => void; onRename: (id: string, t: string) => void;
   onProject: (id: string | null) => void; onNewProject: () => void; onEditProject: (id: string) => void; onDeleteProject: (id: string) => void; onSettings: () => void; onClose: () => void;
 }) {
@@ -35,6 +43,14 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
       <div className="sb-top">
         <button className="sb-new" onClick={onNew}>＋ New chat</button>
         <button className="ghost sb-close" onClick={onClose} title="Hide sidebar">⟨</button>
+      </div>
+      <div className="sb-nav">
+        {MODES.map((m) => (
+          <button key={m.id} className={`sb-navitem ${mode === m.id ? "active" : ""}`} onClick={() => onMode(m.id)}>
+            <span className="sb-ico">{m.icon}</span>
+            <span className="sb-navtext"><span>{m.label}{m.id === "apps" && appsCount ? <span className="sb-count-pill">{appsCount}</span> : null}</span><small>{m.blurb}</small></span>
+          </button>
+        ))}
       </div>
       <input className="sb-search" placeholder="Search chats…" value={q} onChange={(e) => setQ(e.target.value)} />
 
