@@ -37,7 +37,7 @@ export async function repoMap(g: GH, repo: string, ref?: string): Promise<RepoMa
 export function summarizeTree(files: string[]) {
   const dirCount = new Map<string, number>();
   for (const f of files) { const d = f.includes("/") ? f.split("/").slice(0, 2).join("/") : "."; dirCount.set(d, (dirCount.get(d) ?? 0) + 1); }
-  const hotspots = [...dirCount.entries()].map(([dir, n]) => ({ dir, files: n })).sort((a, b) => b.files - a.files).slice(0, 12);
+  const hotspots = [...dirCount.entries()].filter(([d]) => d !== ".").map(([dir, n]) => ({ dir, files: n })).sort((a, b) => b.files - a.files).slice(0, 12);
   const dirs = [...new Set(files.filter((f) => f.includes("/")).map((f) => f.split("/")[0]))].sort();
   const keyFiles = files.filter((f) => KEY.test(f)).slice(0, 20);
   const skip = /(^|\/)(node_modules|dist|build|\.next|vendor|__pycache__|\.git)\//;
