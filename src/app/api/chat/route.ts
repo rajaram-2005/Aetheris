@@ -62,6 +62,8 @@ interface Body {
   voice?: unknown;
   /** Knowledge base id → retrieve passages for the last user message and cite them. */
   kb?: unknown;
+  fabric?: unknown;
+  workspace?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -137,6 +139,15 @@ export async function POST(req: Request) {
 
   if (typeof body.voice === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(body.voice)) sysParts.push(voicePrompt(body.voice));
   const lastUser = [...kept].reverse().find((m) => m.role === "user");
+  // Server-side typed memory + knowledge fabric (Phase 8): hybrid recall, provenance-stamped. Best-effort, never blocks chat.
+  if (lastUser && body.fabric !== false) {
+    try {
+      const [{ recall, memoryBlock }, { queryFacts, knowledgeBlock }] = await Promise.all([import("@/core/memory/memory"), import("@/core/knowledge/fabric")]);
+      const [mem, facts] = await Promise.all([recall(uid, lastUser.content, { k: 6 }), queryFacts(uid, lastUser.content, { k: 5, workspace: typeof body.workspace === "string" ? body.workspace : undefined })]);
+      const mb = memoryBlock(mem); if (mb) sysParts.push(mb);
+      const kbk = knowledgeBlock(facts.filter((h) => !h.fact.tags.some((t) => t.startsWith("memory:")))); if (kbk) sysParts.push(kbk);
+    } catch { /* fabric unavailable on this host — chat continues without it */ }
+  }
   let citations: ReturnType<typeof kbGroundingBlock>["cites"] | undefined; let kbName: string | undefined;
   if (typeof body.kb === "string" && lastUser) {
     const kb = await getKb(body.kb);
