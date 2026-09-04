@@ -206,11 +206,17 @@ button.sb-item { background: none; border: 0; padding: 8px; width: 100%; text-al
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
-  padding: 12px;
+  padding: 14px;
   margin-bottom: 10px;
-  max-height: 40vh;
-  overflow: auto;
 }
+.mesh-inline { flex: none; }
+.mesh-inline .mesh-panel { max-height: 45vh; overflow: auto; }
+.mesh-panel.mesh-full { border: 0; background: transparent; padding: 0; }
+.mesh-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.mesh-title h2 { margin: 0; font-size: 16px; color: var(--text); }
+.mesh-item.off { opacity: 0.85; }
+.mesh-item .meta a { color: var(--accent); }
+.mesh-item .meta code { font-family: var(--mono); background: var(--panel); padding: 0 4px; border-radius: 4px; }
 .mesh-panel h2 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .mesh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 .mesh-item {

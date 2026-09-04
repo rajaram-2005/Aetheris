@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import type { Conversation, Project } from "./store";
 
-export type Mode = "chat" | "factory" | "studio" | "apps";
+export type Mode = "chat" | "factory" | "studio" | "apps" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
   { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
   { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },
+  { id: "providers", label: "Providers", icon: "🛰️", blurb: "AI mesh status & keys" },
 ];
 
 export default function Sidebar({ convos, projects, activeId, activeProject, open, mode, onMode, appsCount, onOpen, onNew, onSelect, onDelete, onPin, onRename, onProject, onNewProject, onEditProject, onDeleteProject, onSettings, onClose }: {

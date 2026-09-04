@@ -370,7 +370,7 @@ export default function Chat() {
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
               : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
-            <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
+            <button className={`mesh-pill ${mode === "providers" ? "on" : ""}`} onClick={() => (mode === "chat" ? setShowMesh((s) => !s) : setMode("providers"))} title="Provider mesh status (click to toggle panel)">
               <span className={`dot ${meshDot}`} />{meshLabel}{preferredName ? ` · ${preferredName}` : ""}
             </button>
           </div>
@@ -379,9 +379,10 @@ export default function Chat() {
         <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}
           onClick={(e) => { const b = (e.target as HTMLElement).closest("button[data-copy]") as HTMLButtonElement | null; if (b) { const code = b.closest(".codeblock")?.querySelector("code")?.textContent ?? ""; navigator.clipboard.writeText(code); b.textContent = "copied"; setTimeout(() => { b.textContent = "copy"; }, 1200); } }}>
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
+          {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
-            {showMesh && mesh && <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />}
+            {showMesh && mesh && <div className="mesh-inline"><MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /><div style={{ textAlign: "right" }}><button className="link" onClick={() => setMode("providers")}>open full Providers page →</button></div></div>}
             {mode === "factory" && (
               <div className="factory-bar">
                 <div><strong>Cloud Coding Factory</strong><span> — describe a program; Aetheris writes it, pushes it to a private <code>aetheris-factory</code> repo, runs the tests on GitHub Actions, and reports back.</span></div>

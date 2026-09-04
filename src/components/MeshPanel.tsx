@@ -16,25 +16,43 @@ export interface ProviderStatus {
   lastError?: string;
 }
 
+const KEY_URLS: Record<string, string> = {
+  groq: "https://console.groq.com/keys", cerebras: "https://cloud.cerebras.ai", sambanova: "https://cloud.sambanova.ai", gemini: "https://aistudio.google.com/apikey",
+  github: "https://github.com/settings/tokens", openrouter: "https://openrouter.ai/keys", mistral: "https://console.mistral.ai", together: "https://api.together.ai",
+  cohere: "https://dashboard.cohere.com/api-keys", cloudflare: "https://dash.cloudflare.com/profile/api-tokens", huggingface: "https://huggingface.co/settings/tokens",
+  nvidia: "https://build.nvidia.com", deepseek: "https://platform.deepseek.com", ai21: "https://studio.ai21.com", perplexity: "https://www.perplexity.ai/settings/api",
+};
+
 export default function MeshPanel({
   providers,
   preferred,
   onSelect,
+  full,
 }: {
   providers: ProviderStatus[];
   preferred?: string;
   onSelect: (id: string) => void;
+  /** Render as a full page (Providers tab) instead of an inline card. */
+  full?: boolean;
 }) {
   const configured = providers.filter((p) => p.configured);
   const unconfigured = providers.filter((p) => !p.configured);
   return (
-    <div className="mesh-panel">
-      <h2>Provider mesh</h2>
+    <div className={`mesh-panel ${full ? "mesh-full" : ""}`}>
+      <div className="mesh-title">
+        <h2>Provider mesh</h2>
+        <span className="hint" style={{ margin: 0 }}>{configured.length}/{providers.length} configured · {providers.filter((p) => p.state === "ready").length} ready{preferred ? ` · pinned: ${providers.find((p) => p.id === preferred)?.name}` : ""}</span>
+      </div>
       {configured.length === 0 ? (
-        <p className="mesh-empty">
-          No providers are configured yet. Copy <code>.env.example</code> to <code>.env.local</code>, add at
-          least one key (e.g. <code>GROQ_API_KEY</code>), and restart the dev server.
-        </p>
+        <div className="mesh-empty">
+          <strong style={{ color: "var(--text)" }}>No providers are configured yet.</strong>
+          <ol style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.8 }}>
+            <li>Copy <code>.env.example</code> to <code>.env.local</code></li>
+            <li>Add at least one key — the free ones below take under a minute (Groq, Cerebras, Gemini are the fastest)</li>
+            <li>Restart <code>npm run dev</code></li>
+          </ol>
+          <p style={{ margin: "8px 0 0" }}>The router only uses providers whose key is present, tries them in priority order and fails over automatically on rate limits.</p>
+        </div>
       ) : (
         <div className="mesh-grid">
           {configured.map((p) => (
@@ -59,14 +77,16 @@ export default function MeshPanel({
       )}
       {unconfigured.length > 0 && (
         <>
-          <h2 style={{ marginTop: 12 }}>Not configured ({unconfigured.length})</h2>
+          <h2 style={{ marginTop: 16 }}>Available — add a key to activate ({unconfigured.length})</h2>
           <div className="mesh-grid">
             {unconfigured.map((p) => (
-              <div key={p.id} className="mesh-item" style={{ opacity: 0.6 }}>
+              <div key={p.id} className="mesh-item off">
                 <span className="dot" />
-                <span>
-                  <div className="name">{p.name}</div>
-                  <div className="meta">set {p.envKey}</div>
+                <span style={{ minWidth: 0 }}>
+                  <div className="name">{p.name} <span className="tag">P{p.priority}</span></div>
+                  <div className="meta">{p.model}</div>
+                  {p.notes && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.notes}</div>}
+                  <div className="meta">env: <code>{p.envKey}</code>{KEY_URLS[p.id] && <> · <a href={KEY_URLS[p.id]} target="_blank" rel="noreferrer">get a free key ↗</a></>}</div>
                 </span>
               </div>
             ))}
