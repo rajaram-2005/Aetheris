@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const key = token ? await authenticateKey(token) : null;
   if (!key) return oaiErr("Invalid API key. Create one in Aetheris → Settings → API keys.", 401, "authentication_error", "invalid_api_key");
 
-  const body = await req.json().catch(() => null) as null | { model?: string; messages?: { role: string; content: unknown }[]; stream?: boolean; temperature?: number; max_tokens?: number; agents?: string[] };
+  const body = await req.json().catch(() => null) as null | { model?: string; messages?: { role: string; content: unknown }[]; stream?: boolean; temperature?: number; max_tokens?: number; agents?: string[]; hub?: boolean; connectors?: string[] };
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) return oaiErr("`messages` is required", 400);
 
   const plan = await planFor(key.uid);
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   const id = "chatcmpl-" + Math.random().toString(36).slice(2, 14);
   const created = Math.floor(Date.now() / 1000);
   const modelLabel = tier.id + (downgraded ? " (plan-capped)" : "");
-  const wantAgents = !!body.agents?.length || /^@[\w-]+/.test(msgs[msgs.length - 1]?.content ?? "");
+  const wantAgents = !!body.agents?.length || !!body.hub || !!body.connectors?.length || /^@[\w-]+/.test(msgs[msgs.length - 1]?.content ?? "");
   const priority = plan.features.includes("priority_routing");
   const routeOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: Math.min(body.max_tokens ?? tier.maxTokens, tier.maxTokens), temperature: body.temperature, priority };
 
@@ -51,8 +51,9 @@ export async function POST(req: Request) {
     if (wantAgents) {
       if (!plan.features.includes("agents") && (body.agents?.length ?? 0) > 1) throw Object.assign(new Error("Multi-agent runs need Lite or above."), { status: 402 });
       let text = ""; let provider = "";
+      const servers = body.hub || body.connectors?.length ? [{ id: "hub" }, ...(body.connectors ?? []).map((id) => ({ id }))] : [];
       await orchestrate({
-        messages: msgs, agents: body.agents, lessons: await getLessons(key.uid), signal: req.signal,
+        messages: msgs, agents: body.agents, lessons: await getLessons(key.uid), signal: req.signal, servers, ctx: { uid: key.uid },
         policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel, critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: routeOpts.maxTokens, priority },
         onEvent: (e) => { if (e.type === "delta") { text += e.text; onDelta?.(e.text); } else if (e.type === "done") provider = e.provider; },
       });

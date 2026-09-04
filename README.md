@@ -60,6 +60,23 @@ curl https://<host>/api/v1/chat/completions \
 `GET /api/v1/models` lists tiers. Keys are stored as SHA-256 hashes; a requested tier above the plan
 is silently capped to the plan's best tier.
 
+## Aetheris Hub — all 107 MCP connectors behind one server
+
+`POST /api/mcp/hub` is a single Streamable-HTTP MCP server that fronts every connector in the
+catalog (58 vendor-hosted MCP servers proxied + 49 REST APIs via the built-in gateway + the Factory).
+Tools are namespaced `<connector>__<tool>`; meta-tools `hub__connectors`, `hub__search_tools` and
+`hub__list_tools` let a model discover what it can do. Remote servers' tool lists load lazily and are
+cached 10 minutes.
+
+- **In One Chat**: Apps → "Enable all" on the Hub card. The model then sees every *ready* connector
+  (public ones + those you have connected) and can search for the rest.
+- **From any MCP client** (Claude Desktop, Cursor, Windsurf…): `{"url": "https://<host>/api/mcp/hub",
+  "headers": {"Authorization": "Bearer sk-aeth-…"}}`. Needs a Lite+ API key.
+- **From your API key**: `POST /api/v1/chat/completions` with `"hub": true` (or `"connectors": ["github","slack"]`).
+- Credentials you connect in Apps are stored **sealed (AES-GCM) server-side** so the Hub and your
+  keys can use them; or pass them per request as `X-Aetheris-Cred-<connector>`. Restrict a session
+  with `X-Aetheris-Connectors: github,notion`. Premium connectors still need `mcp_premium` (Pro+).
+
 ## The agent hierarchy
 
 ```

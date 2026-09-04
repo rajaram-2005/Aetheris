@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       try {
         await orchestrate({
           messages, preferred: body?.preferred, agents: body?.agents, servers: body?.servers ?? [],
-          ctx: { github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens },
+          ctx: { uid, github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens },
           searchKey: searchKeyFor(body?.searchKey), lessons, signal: req.signal,
           policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel && plan.features.includes("parallel_agents"), critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens, priority: plan.features.includes("priority_routing") },
           onEvent: async (e) => {

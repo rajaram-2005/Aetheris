@@ -176,7 +176,7 @@ export async function POST(req: Request) {
         }
         oauthTokens[id] = tok.access_token;
       }
-      const ctx = { github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens };
+      const ctx = { uid, github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens };
       if (!wantStream) {
         const a = await runAgent({ messages, servers, preferred, ctx });
         const res = NextResponse.json({ content: a.content, provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota, sources, searchQuery });

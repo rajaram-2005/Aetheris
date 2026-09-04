@@ -76,8 +76,13 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
   };
   const connect = (c: Connector) => {
     save([...enabled.filter((s) => s.id !== c.id), { id: c.id, name: c.name, credential: cred }]);
+    // Also store (sealed) server-side so the Hub and your API keys can use it.
+    fetch("/api/mcp/hub/credentials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, credential: cred }) }).catch(() => undefined);
     setOpen(null);
   };
+  const hubOn = isOn("hub");
+  const toggleHub = () => save(hubOn ? enabled.filter((s) => s.id !== "hub") : [{ id: "hub", name: "Aetheris Hub" }, ...enabled]);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const test = async (s: EnabledServer) => {
     setTesting(s.id);
     try {
@@ -104,6 +109,26 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
         <span className="chip on">{enabled.length} enabled</span>
       </div>
       {notice && <div className="upsell">{notice}<button className="link" onClick={() => setNotice(null)}>dismiss</button></div>}
+
+      <div className={`hubcard ${hubOn ? "on" : ""}`}>
+        <div className="app-top">
+          <div className="app-name">🧿 Aetheris Hub <span className="tag">all {connectors.length} in one MCP</span>{hubOn && <span className="tag" style={{ color: "var(--ok)" }}>enabled</span>}</div>
+          <button className={hubOn ? "ghost" : "send"} onClick={toggleHub} style={{ padding: "5px 10px", fontSize: 12 }}>{hubOn ? "Disable" : "Enable all"}</button>
+        </div>
+        <div className="app-desc">One server, every connector. The model discovers tools with <code>hub__search_tools</code> and calls them as <code>&lt;connector&gt;__&lt;tool&gt;</code>. Connectors you have connected below are ready; others are listed as "needs credential" so the model can ask you.</div>
+        <details className="hub-details">
+          <summary>Use the Hub from Claude Desktop, Cursor, or any MCP client</summary>
+          <pre className="codeblock" style={{ fontSize: 12 }}>{`{
+  "mcpServers": {
+    "aetheris": {
+      "url": "${origin}/api/mcp/hub",
+      "headers": { "Authorization": "Bearer sk-aeth-…" }
+    }
+  }
+}`}</pre>
+          <div className="hint" style={{ textAlign: "left" }}>Create an API key in Settings → API keys (Lite+). Credentials you connect here are stored encrypted and used by the Hub; you can also pass them per request as <code>X-Aetheris-Cred-&lt;connector&gt;</code>.</div>
+        </details>
+      </div>
 
       <div className="apps-filters">
         <input placeholder="Search connectors…" value={q} onChange={(e) => setQ(e.target.value)} />

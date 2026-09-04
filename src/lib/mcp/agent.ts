@@ -32,6 +32,7 @@ interface Bound {
 
 /** Context the agent may need for internal tools. */
 export interface AgentContext {
+  uid?: string;
   github?: GH;
   /** OAuth tokens obtained via /api/mcp/oauth, keyed by connector id. */
   oauthTokens?: Record<string, string>;
@@ -87,8 +88,21 @@ async function bindGateway(s: EnabledServer, api: ApiDef, ctx: AgentContext): Pr
 export async function bindServers(servers: EnabledServer[], ctx: AgentContext = {}): Promise<{ bound: Bound[]; failures: { server: string; error: string }[] }> {
   const bound: Bound[] = [];
   const failures: { server: string; error: string }[] = [];
+  // When the hub is enabled, other enabled connectors are folded into it (their pasted
+  // credentials are used) rather than bound twice.
+  const hubOn = servers.some((s) => s.id === "hub");
+  const toBind = hubOn ? servers.filter((s) => s.id === "hub") : servers;
   await Promise.all(
-    servers.map(async (s) => {
+    toBind.map(async (s) => {
+      // "hub" = every connector behind one server (tools <connector>__<tool> + hub__search_tools).
+      if (s.id === "hub") {
+        const { listHubTools, callHubTool, getStoredCreds } = await import("./hub");
+        const creds = ctx.uid ? await getStoredCreds(ctx.uid) : {};
+        for (const o of servers) if (o.id !== "hub" && o.credential) creds[o.id] = o.credential;
+        const hctx = { uid: ctx.uid ?? "anon", creds, oauthTokens: ctx.oauthTokens, github: ctx.github };
+        const { tools } = await listHubTools(hctx, { eager: false, readyOnly: true });
+        return bound.push({ server: "hub", tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })), call: (tool, args) => callHubTool(hctx, tool, args) });
+      }
       const c = connectorById(s.id);
       if (c?.kind === "gateway") {
         const api = apiById(s.id);
