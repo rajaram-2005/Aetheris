@@ -15,6 +15,7 @@ import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from 
 import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
 import { RunOutput, runnableLang, useInterpreter, type RunResult } from "./Interpreter";
 import { useVoice } from "./Voice";
+import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from "./Agents";
 import { imageToDataUrl, titleFrom, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
@@ -84,6 +85,8 @@ export default function Chat() {
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [arena, setArena] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);
+  const agentList = useAgents();
   const [arenaPick, setArenaPick] = useState<string[]>([]);
   const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
   const [voiceMode, setVoiceMode] = useState(false);
@@ -193,6 +196,54 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.tavilyKey, preferred, active, activeProject]);
 
+  // ---- agents (Prime → specialists → Metis) ---------------------------------------------------
+  const runAgents = useCallback(async (content: string, imgs: string[]) => {
+    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: imgs.length ? imgs : undefined };
+    const c = startConvo(userMsg);
+    const aid = crypto.randomUUID();
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true, agentRun: { mode: "single", steps: [], reason: "Prime is planning…" } }] });
+    setInput(""); setImages([]); setBusy(true);
+    if (taRef.current) taRef.current.style.height = "auto";
+    const controller = new AbortController(); abortRef.current = controller;
+    const history = c.messages.filter((m) => !m.error && !m.factory && !m.arena).map(({ role, content, images }) => ({ role, content, images }));
+    const patchRun = (fn: (r: AgentRun) => AgentRun) => patchMsg(c.id, aid, (m) => ({ ...m, agentRun: fn(m.agentRun ?? { mode: "single", steps: [] }) }));
+    try {
+      const r = await fetch("/api/agents/run", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history, preferred, servers, searchKey: settings.tavilyKey || undefined, project: project ? { instructions: project.instructions, files: project.files } : null, memory: settings.memoryEnabled ? memory : [] }),
+        signal: controller.signal,
+      });
+      if (!r.ok || !r.body) {
+        const j = await r.json().catch(() => ({}));
+        patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: j.error ?? `Request failed (${r.status})` }));
+        if (r.status === 402) { setUpgrade(j.error); refreshAccount(); }
+        return;
+      }
+      let live = ""; // text streamed by the currently running specialist (shown until final)
+      let finalStarted = false;
+      for await (const ev of sse(r)) {
+        if (ev.type === "plan") patchRun((x) => ({ ...x, mode: ev.plan.mode, reason: ev.plan.reason, steps: ev.plan.agents.map((a: string, i: number) => ({ agent: a, brief: ev.plan.briefs[i] ?? "", status: "running" as const })) }));
+        else if (ev.type === "agent_start") { live = ""; patchRun((x) => ({ ...x, steps: x.steps.map((st, i) => (i === ev.index ? { ...st, status: "running" } : st)) })); }
+        else if (ev.type === "agent_delta") { if (!finalStarted) { live += ev.text; patchMsg(c.id, aid, (m) => ({ ...m, content: live })); } }
+        else if (ev.type === "agent_done") patchRun((x) => ({ ...x, steps: x.steps.map((st) => (st.agent === ev.agent && st.status === "running" ? { ...st, status: "done", provider: ev.provider } : st)) }));
+        else if (ev.type === "agent_error") patchRun((x) => ({ ...x, steps: x.steps.map((st) => (st.agent === ev.agent ? { ...st, status: "error", error: ev.error } : st)) }));
+        else if (ev.type === "tool") patchMsg(c.id, aid, (m) => ({ ...m, toolEvents: [...(m.toolEvents ?? []), ev.event] }));
+        else if (ev.type === "synthesis") { finalStarted = true; live = ""; patchMsg(c.id, aid, (m) => ({ ...m, content: "" })); patchRun((x) => ({ ...x, synthesising: true })); }
+        else if (ev.type === "delta") {
+          if (finalStarted) patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
+          else { finalStarted = true; patchMsg(c.id, aid, (m) => ({ ...m, content: ev.text })); }
+        }
+        else if (ev.type === "done") { patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, provider: ev.provider, model: ev.model, latencyMs: ev.latencyMs })); patchRun((x) => ({ ...x, synthesising: false, done: true })); }
+        else if (ev.type === "lessons") patchRun((x) => ({ ...x, lessons: ev.lessons }));
+        else if (ev.type === "error") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || ev.error }));
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || "Connection to Aetheris lost." }));
+      else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferred, servers, settings, memory, project, active, activeProject]);
+
   const runArenaRef = useRef<(c: string, i: string[]) => Promise<void>>(async () => undefined);
   // ---- chat -----------------------------------------------------------------------------------
   const send = useCallback(async (text?: string) => {
@@ -201,6 +252,7 @@ export default function Chat() {
     if (mode === "factory") return runFactory(content);
     if (research) return runResearch(content);
     if (arena) return runArenaRef.current(content, images);
+    if (agentMode || /^@[a-z][\w-]*\b/i.test(content)) return runAgents(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
     const c = startConvo(userMsg);
     const aid = crypto.randomUUID();
@@ -255,7 +307,7 @@ export default function Chat() {
       else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, images, busy, mode, research, arena, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch]);
+  }, [input, images, busy, mode, research, arena, agentMode, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents]);
 
   const regenerate = () => {
     if (!active || busy) return;
@@ -337,7 +389,7 @@ export default function Chat() {
   const preferredName = mesh?.providers.find((p) => p.id === preferred)?.name;
   const webOn = (webOverride ?? settings.web) !== "off" && !!settings.tavilyKey;
   const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
-    : research ? "What should I research in depth?" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
+    : research ? "What should I research in depth?" : agentMode ? "Describe the task — Prime will pick the right specialists (or type @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
     <div className="shell">
@@ -379,6 +431,7 @@ export default function Chat() {
         <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}
           onClick={(e) => { const b = (e.target as HTMLElement).closest("button[data-copy]") as HTMLButtonElement | null; if (b) { const code = b.closest(".codeblock")?.querySelector("code")?.textContent ?? ""; navigator.clipboard.writeText(code); b.textContent = "copied"; setTimeout(() => { b.textContent = "copy"; }, 1200); } }}>
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
+          {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setAgentMode(true); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
@@ -410,6 +463,7 @@ export default function Chat() {
                 {m.role === "assistant" && <div className="avatar" aria-hidden><span /></div>}
                 <div className="msg-body">
                 {m.images && m.images.length > 0 && <div className="msg-images">{m.images.map((src, i) => <img key={i} src={src} alt="" />)}</div>}
+                {m.agentRun && <AgentTrail run={m.agentRun} agents={agentList} />}
                 {m.research && (
                   <div className="research-card">
                     <div className="rc-head"><span className={m.research.done ? "ok-text" : ""}>{m.research.done ? "✓" : <span className="spin" />}</span> <strong>Deep Research</strong> <span className="hint" style={{ margin: 0 }}>{m.research.status}</span></div>
@@ -476,6 +530,9 @@ export default function Chat() {
             {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
             <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} disabled={busy || (mode === "factory" && !auth.user)} />
+            {mode === "chat" && /(^|\s)@([\w-]*)$/.test(input) && !busy && (
+              <MentionMenu agents={agentList} query={/(^|\s)@([\w-]*)$/.exec(input)![2]} onPick={(id) => { setInput((v) => v.replace(/(^|\s)@([\w-]*)$/, `$1@${id} `)); taRef.current?.focus(); }} />
+            )}
             {mode === "chat" && voiceMode && !busy && (
               <button className={`icon-btn mic ${voice.listening ? "live" : ""}`} title={voice.listening ? "Stop listening" : "Speak"} onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}>{voice.listening ? "◼" : "🎙"}</button>
             )}
@@ -487,6 +544,7 @@ export default function Chat() {
           {mode === "chat" && (
             <div className="composer-tools">
               <button className={`chip ${webOn ? "on" : ""}`} title={settings.tavilyKey ? `Web search: ${webOverride ?? settings.web}` : "Add a Tavily key in Settings to enable web search"} onClick={() => settings.tavilyKey ? setWebOverride((w) => (w ? null : "on")) : setShowSettings(true)}>🌐 {settings.tavilyKey ? (webOverride === "on" ? "Search: on" : `Search: ${settings.web}`) : "Search"}</button>
+              <button className={`chip ${agentMode ? "on" : ""}`} title="Multi-agent mode: Prime plans, specialists execute, Metis learns (2 credits). Or type @agent to force one." onClick={() => { setAgentMode((a) => !a); setResearch(false); setArena(false); }}>🤖 Agents</button>
               <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
               <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>

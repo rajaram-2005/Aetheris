@@ -519,3 +519,30 @@ button.chip { cursor: pointer; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 *::-webkit-scrollbar-thumb:hover { background: #2f3650; }
+
+/* ---- Agents ------------------------------------------------------------------------------ */
+.agents-page { display: flex; flex-direction: column; gap: 6px; }
+.agents-h { margin: 18px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.agents-domain { margin: 10px 0 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.agent-card { text-align: left; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 8px; transition: border-color .15s, transform .15s; }
+.agent-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.agent-card.big { grid-column: span 1; }
+.agent-card.tier-ultra { border-color: rgba(255, 200, 120, 0.5); background: linear-gradient(135deg, rgba(255,200,120,0.08), transparent 60%), var(--panel); }
+.agent-card.tier-god { border-color: rgba(124,156,255,0.5); background: linear-gradient(135deg, rgba(124,156,255,0.10), transparent 60%), var(--panel); }
+.agent-head { display: flex; gap: 10px; align-items: center; }
+.agent-icon { font-size: 24px; line-height: 1; }
+.agent-card .name { font-weight: 600; font-size: 14px; }
+.agent-card .meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.agent-desc { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.agent-skills { display: flex; flex-wrap: wrap; gap: 4px; }
+.agent-search { flex: 1; max-width: 360px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; color: var(--text); font-size: 13px; }
+.lessons { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.lessons .link { margin-left: 8px; }
+.agent-trail { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; background: var(--panel); font-size: 12.5px; margin-bottom: 6px; }
+.agent-trail-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); }
+.mention-menu { position: absolute; bottom: calc(100% + 6px); left: 8px; right: 8px; max-width: 520px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; z-index: 20; box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+.mention-menu button { display: grid; grid-template-columns: 24px auto 1fr; gap: 8px; align-items: center; width: 100%; text-align: left; background: transparent; border: 0; color: var(--text); padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.mention-menu button:hover { background: rgba(124,156,255,0.12); }
+.mention-menu .meta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer-box { position: relative; }

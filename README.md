@@ -32,6 +32,23 @@ Any subset of keys works — the router only uses providers whose key is set.
 deployment answers immediately (at low rate limits) and every key you add raises quality and
 throughput. The **Providers** page in the app links straight to each provider's free-key page.
 
+## The agent hierarchy
+
+```
+✴️ Aetheris Prime (ultra)  — plans, delegates, synthesises
+   ├─ ⚡ Hermes (god)        — execution base every agent inherits: reason → tools → deliver
+   ├─ 🦉 Metis (god)         — meta-learning: reflects after each run, stores lessons, injects them next time
+   └─ 26 sub-agents          — Academy (tutor, math, quiz, scholar), Coding (architect, coder, debugger,
+                               reviewer, devops), Research/Data (researcher, analyst, scientist), Writing
+                               (writer, editor, storyteller, translator), Business (strategist, marketer,
+                               finance, sales), Life & work (legal, health, career, planner, designer, prompt)
+```
+
+- Turn on **🤖 Agents** in the composer and Prime routes automatically (single agent for simple asks;
+  pipeline/parallel for cross-domain tasks), or type `@coder`, `@tutor`, `@academy`… to force one.
+- `GET /api/agents` lists the catalog; `POST /api/agents/run` streams `plan → agent_start/delta/done →
+  synthesis → done → lessons` events; `GET/DELETE /api/agents/lessons` manages Metis's memory.
+
 ## The provider mesh
 
 | # | Provider | Env var | Default model | Priority |

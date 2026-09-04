@@ -19,6 +19,7 @@ export interface UiMessage {
   toolEvents?: { type: string; server: string; tool: string; error?: string }[];
   sources?: Source[];
   research?: { questions: string[]; searched: number; status: string; done?: boolean };
+  agentRun?: import("./Agents").AgentRun;
   arena?: ArenaRun;
   error?: boolean;
   provider?: string;

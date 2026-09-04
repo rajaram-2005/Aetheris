@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import type { Conversation, Project } from "./store";
 
-export type Mode = "chat" | "factory" | "studio" | "apps" | "providers";
+export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
+  { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
   { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
   { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
   { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },
