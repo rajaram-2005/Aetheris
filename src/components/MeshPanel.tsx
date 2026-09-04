@@ -34,29 +34,24 @@ const KEY_URLS: Record<string, string> = {
  * blocked silently, so we fall back to copying the URL and telling the user.
  */
 function KeyLink({ href, children }: { href: string; children: React.ReactNode }) {
-  const [blocked, setBlocked] = useState(false);
+  const [blocked, setBlocked] = useState<false | "copied" | "manual">(false);
   const onClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Try a real new tab first. Sandboxed iframes (hosted previews) return null here.
+    e.preventDefault();
+    // Only ever open in a NEW tab. Never navigate this frame: provider key pages send
+    // X-Frame-Options / CSP frame-ancestors and refuse to render inside an iframe.
     let w: Window | null = null;
     try { w = window.open(href, "_blank", "noopener,noreferrer"); } catch { w = null; }
-    if (w) { e.preventDefault(); return; }
-    e.preventDefault();
-    // Fallback 1: navigate the top-level page (allowed in most sandboxes on user gesture).
-    try {
-      if (window.top && window.top !== window) { window.top.location.href = href; return; }
-    } catch { /* cross-origin top navigation denied */ }
-    // Fallback 2: same-tab navigation.
-    try { window.location.assign(href); return; } catch { /* ignore */ }
-    navigator.clipboard?.writeText(href).catch(() => {});
-    setBlocked(true);
+    if (w) return;
+    navigator.clipboard?.writeText(href).then(() => setBlocked("copied")).catch(() => setBlocked("manual"));
   };
   return (
     <span className="keylink">
-      <a href={href} target="_top" rel="noreferrer noopener" onClick={onClick}>{children}</a>
+      <a href={href} target="_blank" rel="noreferrer noopener" onClick={onClick}>{children}</a>
       {blocked && (
         <span className="keylink-note">
-          this preview blocks navigation — open the app in its own tab, or paste: <code>{href}</code>
+          {blocked === "copied" ? "Link copied. " : ""}This embedded preview can't open new tabs — paste this in a new tab:{" "}
+          <code>{href}</code>
         </span>
       )}
     </span>
