@@ -70,3 +70,13 @@ describe("research engine (pure parts)", () => {
     assert.equal(c.length, 1);
   });
 });
+
+describe("multimodal sensor analytics", () => {
+  it("computes stats, trend and anomalies", async () => {
+    const { analyzeSeries } = await import("../src/core/multimodal/perceive");
+    const s = Array.from({ length: 50 }, (_, i) => ({ t: i, v: 20 + i * 0.1 + (i % 2 ? 0.05 : -0.05) })); s.push({ t: 50, v: 80 });
+    const a = analyzeSeries(s, 3); assert.equal(a.n, 51); assert.equal(a.anomalies!.length, 1); assert.equal(a.anomalies![0].v, 80);
+    assert.equal(analyzeSeries(Array.from({ length: 20 }, (_, i) => ({ t: i, v: 5 })), 3).trend, "flat");
+    assert.equal(analyzeSeries([]).n, 0);
+  });
+});
