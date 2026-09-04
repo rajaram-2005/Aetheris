@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "eval": "tsx evals/run.ts",
     "verify:connectors": "tsx scripts/verify-connectors.ts"
   },
   "dependencies": {

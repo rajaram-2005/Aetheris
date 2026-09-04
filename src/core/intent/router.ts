@@ -12,19 +12,19 @@ export interface IntentPlan { task: TaskType; confidence: number; mode: string; 
 
 const RULES: { task: TaskType; re: RegExp; mode: string; agents: string[]; needs?: IntentPlan["needs"] }[] = [
   { task: "device", re: /\b(esp32|arduino|raspberry|stm32|sensor|mqtt|modbus|opc.?ua|plc|scada|actuator|relay|servo|firmware|telemetry|iot)\b/i, mode: "control", agents: ["coder"], needs: { physical: true, confirmation: true } },
-  { task: "robot", re: /\b(ros ?2?|robot|drone|slam|trajectory|manipulator|robotic arm)\b/i, mode: "control", agents: ["coder"], needs: { physical: true, confirmation: true } },
+  { task: "robot", re: /\b(ros ?2?|robots?|drone|slam|trajectory|manipulator|robotic arm|turtlebot|rover|quadruped|gripper|nav2|moveit|obstacle)\b/i, mode: "control", agents: ["coder"], needs: { physical: true, confirmation: true } },
   { task: "github", re: /\b(github|pull request|\bpr\b|repo(sitory)?|commit|branch|ci\b|actions workflow|issue #?\d+)\b/i, mode: "factory", agents: ["coder", "reviewer"], needs: { confirmation: true } },
+  { task: "ethics", re: /\b(ethics?|ethical|moral|bias|fairness|responsible ai|impact assessment|privacy risk|surveillance|should (we|i|society)|is it (right|wrong|ok|okay|fair))\b/i, mode: "chat", agents: ["ai-ethics"] },
+  { task: "math", re: /\b(solve|integral|derivative|equation|theorem|proofs?|prove|probability|matrix|irrational|prime|calculus|algebra|geometry|lemma)\b|[∫∑√]|\d+\s*[x×]\s*\d+/i, mode: "chat", agents: ["math"] },
+  { task: "study", re: /\b(quiz(zes)?|flashcards?|revise|revision|exam|test me|study plan|spaced repetition|mock test|worksheet|for class \d+|grade \d+|syllabus|lesson plan|teach me)\b/i, mode: "study", agents: ["tutor"] },
   { task: "code", re: /\b(code|function|bug|debug|refactor|compile|typescript|python|javascript|java|rust|golang|sql|api|stack ?trace|error:|exception|unit test)\b/i, mode: "chat", agents: ["coder"] },
+  { task: "automation", re: /\b(every ((\d+ )?(day|morning|evening|night|week|month|hour|minute)s?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday)|daily|weekly|monthly|hourly|schedule|remind me|automat(e|ion)|cron|workflow|whenever|when .* (happens|exceeds|drops|arrives)|trigger|digest|alert me)\b/i, mode: "schedules", agents: [] },
   { task: "research", re: /\b(research|literature|papers?|arxiv|cite|citations?|survey|state of the art|compare .* (models|approaches)|deep dive)\b/i, mode: "chat", agents: ["researcher"], needs: { web: true } },
   { task: "documents", re: /\b(this (pdf|document|file|contract|report)|in my (notes|documents|files)|knowledge base|summari[sz]e the (attached|uploaded)|according to the document)\b/i, mode: "docs", agents: ["analyst"], needs: { knowledge: true } },
-  { task: "study", re: /\b(quiz me|flashcards?|revise|revision|exam|test me|study plan|spaced repetition|mock test)\b/i, mode: "study", agents: ["tutor"] },
   { task: "media", re: /\b(generate|create|make|draw) (an? )?(image|picture|logo|poster|illustration|video|song|voice ?over)\b|\btext.to.(image|speech|video)\b/i, mode: "studio", agents: ["designer"] },
   { task: "voice", re: /\b(voice mode|talk to me|read (it|this) aloud|speak)\b/i, mode: "voice", agents: [] },
-  { task: "automation", re: /\b(every (day|morning|week|monday|hour)|daily|weekly|schedule|remind me|automat(e|ion)|cron|workflow)\b/i, mode: "schedules", agents: [] },
   { task: "data", re: /\b(csv|spreadsheet|dataset|dataframe|pandas|chart|plot|statistics|regression|forecast)\b/i, mode: "chat", agents: ["data-scientist", "analyst"] },
-  { task: "math", re: /\b(solve|integral|derivative|equation|theorem|proof|probability|matrix)\b|[∫∑√]|\d+\s*[x×]\s*\d+/i, mode: "chat", agents: ["math"] },
   { task: "translate", re: /\b(translate|in tamil|in hindi|தமிழில்|हिंदी में|to english)\b/i, mode: "chat", agents: ["polyglot"] },
-  { task: "ethics", re: /\b(ethic|bias|fairness|responsible ai|impact assessment|privacy risk)\b/i, mode: "chat", agents: ["ai-ethics"] },
   { task: "writing", re: /\b(write|draft|essay|email|blog|cover letter|resume|rewrite|proofread|story|poem)\b/i, mode: "chat", agents: ["writer"] },
 ];
 const MODES = ["chat", "agents", "factory", "studio", "docs", "study", "schedules", "workflows", "learn", "apps", "voice"];
