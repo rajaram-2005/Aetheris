@@ -290,6 +290,25 @@ r = client.chat.completions.create(model="aetheris-pro", messages=[{"role": "use
 
 \`GET /api/v1/models\` lists the tiers. Streaming uses standard \`data:\` chunks with \`[DONE]\`.
 `},
+  { slug: "control-center", section: "Developers", title: "Control Center, Capability Registry & permissions", body: `
+Aetheris is organised as an **Intelligence OS**: every model, agent, tool, connector and subsystem is a *capability* with an honest status, a permission level and live telemetry. **🎛️ Control Center** (sidebar, or \`/control\`) is where you see all of it.
+
+## Tabs
+- **Overview** — providers ready / cooling down, capability counts by status, events and errors in the last hour, model mesh, your permission grants, and the **platform status board**: each subsystem marked IMPLEMENTED · PARTIAL · EXPERIMENTAL · MOCKED · NOT AVAILABLE. Nothing is mocked; Physical AI, robotics, digital twins, browser agent and server sandbox are shown as *not available* because they are designed but not built.
+- **Registry** — search 370+ capabilities (\`pdf\`, \`tamil\`, \`github\`, \`mqtt\`, \`vision\`…) with category, status, required permission and measured reliability.
+- **Events** — live feed of model attempts, agent steps, tool/MCP calls, schedule runs and permission decisions (your own + system events; admins see everyone's).
+- **Intent** — type a command and see how Aetheris would route it (task, mode, agents, connectors) *before* sending — locally, no model call. Override with \`@agent\` or \`/mode\`.
+- **Permissions** — test the execution policy on any capability with and without confirmation.
+
+## Permission model
+Levels: \`read_only\` < \`safe_write\` < \`full_workspace\` < \`admin\`, plus \`physical\` which is never implied and never granted by default. Everyone gets \`read_only + safe_write\` over their own data. Anything higher, or flagged *requires confirmation* (e.g. Coding Factory pushes, delete tools), needs a **single-use confirmation token** bound to you and that capability, valid 5 minutes. Every decision is audited. Admins: \`AETHERIS_ADMIN_UIDS=uid1,uid2\`.
+
+## APIs
+\`GET /api/capabilities?q=&category=&status=&tags=&maxSecurity=&id=\` · \`POST /api/intent {text}\` · \`GET /api/telemetry?type=&limit=&errors=1\` · \`GET/POST /api/permissions\`.
+
+## For contributors
+Add a capability by registering a source (\`registerSource\` in \`src/core/capabilities\`) — never by editing Core. Ask the policy (\`authorize\`) before acting; call \`record\`/\`traced\` so it shows up here. Full audit, architecture map and 20-phase roadmap: \`docs/ARCHITECTURE.md\`.
+`},
   { slug: "self-host", section: "Developers", title: "Self-hosting and configuration", body: `
 \`\`\`bash
 git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris

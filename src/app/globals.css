@@ -784,3 +784,10 @@ button.chip { cursor: pointer; }
 .switch input:checked + span::before { transform: translateX(16px); background: #fff; }
 .schedules .modal { display: flex; flex-direction: column; gap: 12px; }
 .schedules code { font-size: 11px; }
+
+/* ── Control Center ─────────────────────────────────────── */
+.cc-kpis { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; }
+.st { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); white-space: nowrap; }
+.st-implemented { color: #16a34a; } .st-partial { color: #d97706; } .st-experimental { color: #2563eb; } .st-mocked { color: #dc2626; } .st-not_available { color: var(--muted); }
+.cc-row.st-implemented { border-left-color: #22c55e; } .cc-row.st-partial { border-left-color: #f59e0b; } .cc-row.st-experimental { border-left-color: #3b82f6; } .cc-row.st-not_available { border-left-color: var(--border); }
+.cc-pre { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; font-size: 12px; overflow: auto; max-height: 420px; white-space: pre-wrap; }

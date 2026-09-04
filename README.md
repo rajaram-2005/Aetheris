@@ -394,6 +394,10 @@ persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 Hands-free conversation: browser speech recognition in 18 languages/accents (English-India, Tamil, Hindi, Telugu, Kannada, Malayalam, …), spoken replies that start while the answer is still streaming (browser TTS) or via the Studio TTS mesh, barge-in interruption, automatic re-listen, and voice-tuned answers (short, no markdown, language-matched). Nothing is recorded — only the transcript is sent. `/voice` or the 🎙 chip. See `/docs/voice`.
 
+## 🎛️ Intelligence OS core (Control Center)
+
+Aetheris is structured as a platform, not a pile of features: `src/core` holds the **Capability Registry** (370+ models/agents/tools/connectors/subsystems with honest IMPLEMENTED / PARTIAL / NOT AVAILABLE status), the **execution policy** (capability-based permissions `read_only → admin` + isolated `physical`, single-use confirmation tokens, audit), **observability** (structured events for every model/agent/tool/schedule/permission action) and a local **intent router**. The **Control Center** shows health, registry, events, routing and permissions live. Provider-independence interfaces and Physical-AI/robotics contracts (with a tested deterministic safety policy) are defined; hardware adapters are *not available* yet and nothing is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## ⏰ Scheduled automations
 
 Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (Vercel Cron, GitHub Actions, cron-job.org) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.

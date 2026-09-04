@@ -1,3 +1,4 @@
+import { traced } from "@/core/observability/events";
 /**
  * Aetheris MCP Hub — every connector behind ONE MCP server.
  *
@@ -108,6 +109,9 @@ export async function listHubTools(ctx: HubContext, opts: { eager?: boolean; rea
 }
 
 export async function callHubTool(ctx: HubContext, name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
+  return traced({ type: "mcp", uid: ctx.uid, capability: `tool:${name.replace(SEP, ".")}` }, () => callHubToolInner(ctx, name, args, signal));
+}
+async function callHubToolInner(ctx: HubContext, name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
   const i = name.indexOf(SEP);
   if (i === -1) throw new Error(`tool name must be <connector>${SEP}<tool>; got ${name}`);
   const cid = name.slice(0, i); const tool = name.slice(i + SEP.length);

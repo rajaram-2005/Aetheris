@@ -9,6 +9,7 @@ import Learn from "@/components/Learn";
 import Study from "@/components/Study";
 import Docs from "@/components/Docs";
 import Schedules from "@/components/Schedules";
+import ControlCenter from "@/components/ControlCenter";
 import Workflows from "./Workflows";
 import { useLang } from "@/lib/i18n";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
@@ -502,6 +503,7 @@ export default function Chat() {
     else if (id === "voice") enterVoice();
     else if (id === "docs") setMode("docs");
     else if (id === "schedules") setMode("schedules");
+    else if (id === "control") setMode("control");
     else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
     else if (id === "explain") { runExplain(); return; }
     else if (id === "ethics") { setInput("@ai-ethics Run an AI ethics impact assessment on: "); setPickerOff(true); setTimeout(() => taRef.current?.focus(), 30); return; }
@@ -614,6 +616,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
+          {mode === "control" && <div className="pane"><ControlCenter onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "schedules" && <div className="pane"><Schedules onOpenWorkflows={() => setMode("workflows")} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "docs" && <div className="pane"><Docs activeKb={kb?.id ?? null} onUseKb={setKb} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "study" && <div className="pane"><Study onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}

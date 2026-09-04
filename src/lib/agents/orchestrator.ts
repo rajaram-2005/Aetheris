@@ -1,3 +1,4 @@
+import { record } from "@/core/observability/events";
 /**
  * Orchestrator — Aetheris Prime (ultra) plans; Hermes-based sub-agents execute;
  * Prime synthesises; Metis reflects and stores lessons (meta-learning loop).
@@ -112,6 +113,7 @@ async function runSpecialist(
     text = r.content; provider = r.provider; model = r.model;
   }
   opts.onEvent({ type: "agent_done", agent: agent.id, provider, model, latencyMs: Date.now() - started, chars: text.length });
+  record({ type: "agent", uid: opts.ctx?.uid, capability: `agent:${agent.id}`, ok: true, ms: Date.now() - started, meta: { provider, chars: text.length } });
   return { text, provider, model };
 }
 
@@ -154,7 +156,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     const results = await Promise.allSettled(specs.map((a, i) => runSpecialist(opts, a, p.briefs[i] ?? task, i, undefined, baseSystem)));
     results.forEach((r, i) => {
       if (r.status === "fulfilled") outputs.push({ agent: specs[i], ...r.value });
-      else emit({ type: "agent_error", agent: specs[i].id, error: (r.reason as Error).message });
+      else { emit({ type: "agent_error", agent: specs[i].id, error: (r.reason as Error).message }); record({ type: "agent", uid: opts.ctx?.uid, capability: `agent:${specs[i].id}`, ok: false, detail: (r.reason as Error).message }); }
     });
   } else {
     let prior: string | undefined;
@@ -164,7 +166,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
         outputs.push({ agent: specs[i], ...r });
         prior = r.text;
       } catch (e) {
-        emit({ type: "agent_error", agent: specs[i].id, error: (e as Error).message });
+        emit({ type: "agent_error", agent: specs[i].id, error: (e as Error).message }); record({ type: "agent", uid: opts.ctx?.uid, capability: `agent:${specs[i].id}`, ok: false, detail: (e as Error).message });
         if (i === 0) throw e; // nothing to build on
       }
     }

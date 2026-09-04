@@ -4,7 +4,7 @@ import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
-export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "providers";
+export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
@@ -17,6 +17,7 @@ export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] =
   { id: "docs", label: "Docs", icon: "📁", blurb: "Chat with your documents (PDF, DOCX, CSV…)" },
   { id: "study", label: "Study", icon: "🎓", blurb: "Quizzes & flashcards, spaced repetition" },
   { id: "learn", label: "Learn", icon: "📚", blurb: "Explained AI: concepts & ethics" },
+  { id: "control", label: "Control Center", icon: "🎛️", blurb: "Health, capabilities, events, permissions" },
   { id: "providers", label: "Providers", icon: "🛰️", blurb: "AI mesh status & keys" },
 ];
 

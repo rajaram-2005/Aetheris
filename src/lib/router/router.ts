@@ -1,3 +1,4 @@
+import { record } from "@/core/observability/events";
 import { callProvider, hasImages } from "./adapters";
 import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
@@ -177,11 +178,13 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
       });
       const latencyMs = Date.now() - started;
       recordSuccess(provider.id, latencyMs);
+      record({ type: "model", capability: `model:${provider.id}`, ok: true, ms: latencyMs, meta: { model, attempts: attempts.length + 1, streamed: streamed > 0 } });
       attempts.push({ provider: provider.id, ok: true, latencyMs });
       return { provider: provider.id, model, content, latencyMs, attempts };
     } catch (err) {
       const latencyMs = Date.now() - started;
       recordFailure(provider.id, err);
+      record({ type: "model", capability: `model:${provider.id}`, ok: false, ms: latencyMs, detail: err instanceof Error ? err.message : String(err) });
       attempts.push({
         provider: provider.id,
         ok: false,

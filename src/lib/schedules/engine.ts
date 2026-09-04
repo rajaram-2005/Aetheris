@@ -10,6 +10,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { store } from "@/lib/store";
+import { record } from "@/core/observability/events";
 import { agentById, HERMES_BASE } from "@/lib/agents/catalog";
 import { route } from "@/lib/router/router";
 import { getWorkflow, runWorkflow } from "@/lib/workflows/engine";
@@ -106,6 +107,7 @@ export async function executeSchedule(s: Schedule, trigger: ScheduleRun["trigger
       } catch (e) { run.delivered.push({ type: d.type, ok: false, detail: (e as Error).message.slice(0, 200) }); }
     }
   }
+  record({ type: "schedule", uid: s.uid, capability: `schedule:${s.id}`, ok: run.status === "ok", ms: (run.finishedAt ?? Date.now()) - run.startedAt, detail: run.error ?? `${s.name} (${trigger})`, meta: { delivered: run.delivered } });
   await store.set(RUNS, run.id, run);
   // trim history
   const mine = (await listScheduleRuns(s.uid, s.id, 1000)); for (const old of mine.slice(SCHEDULE_LIMITS.runsKept)) await store.remove(RUNS, old.id);
