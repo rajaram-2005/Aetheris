@@ -21,6 +21,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "GROQ_API_KEY",
     model: "llama-3.3-70b-versatile",
     priority: 1,
+    vision: true, visionModel: "meta-llama/llama-4-scout-17b-16e-instruct",
     notes: "LPU-accelerated Llama; very fast, free tier.",
   },
   {
@@ -41,6 +42,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "SAMBANOVA_API_KEY",
     model: "Meta-Llama-3.3-70B-Instruct",
     priority: 1,
+    vision: true, visionModel: "Llama-4-Maverick-17B-128E-Instruct",
     notes: "High-speed free tier inference.",
   },
   {
@@ -51,6 +53,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "GEMINI_API_KEY",
     model: "gemini-2.0-flash",
     priority: 1,
+    vision: true,
     notes: "Gemini Flash; generous free tier.",
   },
 
@@ -63,6 +66,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "GITHUB_MODELS_TOKEN",
     model: "openai/gpt-4o-mini",
     priority: 2,
+    vision: true,
     notes: "Free for developers with a GitHub PAT (models:read scope).",
   },
   {
@@ -73,6 +77,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "OPENROUTER_API_KEY",
     model: "meta-llama/llama-3.3-70b-instruct:free",
     priority: 2,
+    vision: true, visionModel: "google/gemma-3-27b-it:free",
     headers: {
       "HTTP-Referer": "https://github.com/rajaram-2005/Aetheris",
       "X-Title": "Aetheris One",
@@ -87,6 +92,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "MISTRAL_API_KEY",
     model: "open-mistral-nemo",
     priority: 2,
+    vision: true, visionModel: "pixtral-12b-2409",
     notes: "Free experiment tier.",
   },
   {
@@ -97,6 +103,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "TOGETHER_API_KEY",
     model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
     priority: 2,
+    vision: true, visionModel: "meta-llama/Llama-Vision-Free",
     notes: "Free credit tier for Llama and Qwen.",
   },
   {
@@ -139,6 +146,7 @@ export const PROVIDERS: ProviderConfig[] = [
     envKey: "NVIDIA_API_KEY",
     model: "meta/llama-3.1-70b-instruct",
     priority: 3,
+    vision: true, visionModel: "meta/llama-3.2-90b-vision-instruct",
     notes: "Free developer credits.",
   },
   {
@@ -178,7 +186,12 @@ export function providerById(id: string): ProviderConfig | undefined {
 }
 
 /** Resolve the model for a provider, honouring AETHERIS_MODEL_<ID> overrides. */
-export function resolveModel(p: ProviderConfig): string {
+export function resolveModel(p: ProviderConfig, opts?: { vision?: boolean }): string {
+  if (opts?.vision) {
+    const vo = process.env[`AETHERIS_VISION_MODEL_${p.id.toUpperCase()}`];
+    if (vo && vo.trim()) return vo.trim();
+    if (p.visionModel) return p.visionModel;
+  }
   const override = process.env[`AETHERIS_MODEL_${p.id.toUpperCase()}`];
   return override && override.trim() ? override.trim() : p.model;
 }

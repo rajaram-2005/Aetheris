@@ -1,38 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
-import FactoryRun, { emptyFactoryState, type FactoryState, type StepId } from "./FactoryRun";
+import FactoryRun, { emptyFactoryState, type StepId } from "./FactoryRun";
 import Studio from "./Studio";
 import Apps, { loadServers, type EnabledServer } from "./Apps";
 import Upgrade, { useAccount } from "./Upgrade";
-
-interface UiMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  factory?: FactoryState;
-  toolEvents?: { type: string; server: string; tool: string; error?: string }[];
-  error?: boolean;
-  provider?: string;
-  model?: string;
-  latencyMs?: number;
-  failovers?: number;
-}
+import Sidebar from "./Sidebar";
+import SettingsModal from "./SettingsModal";
+import ProjectModal from "./ProjectModal";
+import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from "./Artifacts";
+import { imageToDataUrl, titleFrom, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
-
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
+type Mode = "chat" | "factory" | "studio" | "apps";
 
 const SUGGESTIONS = [
-  "Explain how load balancing across AI providers works",
-  "Write a Python script that fetches GitHub Actions logs",
-  "Draft a WhatsApp message announcing a product launch",
-  "What is the Model Context Protocol?",
+  "Build a landing page for a Chennai coffee roaster (HTML artifact)",
+  "What changed in the latest Next.js release?",
+  "Write a React counter component with Tailwind",
+  "Draw a Mermaid diagram of an OAuth 2.1 PKCE flow",
 ];
-
 const FACTORY_SUGGESTIONS = [
   "A Python function that validates Indian UPI IDs, with tests",
   "A Node module that parses ISO-8601 durations into seconds",
@@ -40,299 +31,363 @@ const FACTORY_SUGGESTIONS = [
   "A Python CLI that converts CSV to JSON with edge-case tests",
 ];
 
-const STORAGE_KEY = "aetheris.chat.v1";
+async function* sse(r: Response) {
+  const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n"); buf = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.split("\n").find((l) => l.startsWith("data: "));
+      if (line) { try { yield JSON.parse(line.slice(6)); } catch { /* ignore */ } }
+    }
+  }
+}
 
 export default function Chat() {
-  const [messages, setMessages] = useState<UiMessage[]>([]);
+  // ---- persistence ------------------------------------------------------------------------
+  const { convos, loaded, upsert, remove, clearAll } = useConversations();
+  const { projects, upsert: saveProject, remove: removeProject } = useProjects();
+  const { memory, add: addMemory, remove: forget, clear: clearMemory } = useMemory();
+  const { settings, update: updateSettings } = useSettings();
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeProject, setActiveProject] = useState<string | null>(null);
+  const active = convos.find((c) => c.id === activeId) ?? null;
+  const messages = useMemo(() => active?.messages ?? [], [active]);
+  const project: Project | null = projects.find((p) => p.id === (active?.projectId ?? activeProject)) ?? null;
+
+  // ---- ui state ----------------------------------------------------------------------------
   const [input, setInput] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [mesh, setMesh] = useState<MeshSummary | null>(null);
   const [showMesh, setShowMesh] = useState(false);
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<"chat" | "factory" | "studio" | "apps">("chat");
+  const [mode, setMode] = useState<Mode>("chat");
+  const [sidebar, setSidebar] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null | "new">(null);
+  const [research, setResearch] = useState(false);
+  const [webOverride, setWebOverride] = useState<"on" | null>(null);
+  const [artifactId, setArtifactId] = useState<string | null>(null);
+  const [artifactsOpen, setArtifactsOpen] = useState(false);
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const auth = useGitHubAuth();
   const { account, refresh: refreshAccount } = useAccount();
   const [upgrade, setUpgrade] = useState<string | null>(null);
   const [servers, setServers] = useState<EnabledServer[]>([]);
-  useEffect(() => { setServers(loadServers()); }, []);
+  useEffect(() => { setServers(loadServers()); if (window.innerWidth < 900) setSidebar(false); }, []);
   const features = account?.features ?? [];
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Persist conversation locally
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setMessages(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-100))); } catch { /* ignore */ }
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: busy ? "auto" : "smooth" }); }, [messages, busy]);
+
+  const artifacts: Artifact[] = useMemo(() => {
+    const all = messages.filter((m) => m.role === "assistant" && !m.error).flatMap((m) => extractArtifacts(m.content, m.id));
+    return all.map((a) => (edits[a.id] !== undefined ? { ...a, code: edits[a.id] } : a));
+  }, [messages, edits]);
+  useEffect(() => { if (artifacts.length && !busy) { const last = artifacts[artifacts.length - 1]; if (!artifactId || !artifacts.some((a) => a.id === artifactId)) setArtifactId(last.id); } }, [artifacts, busy, artifactId]);
+  const prevCount = useRef(0);
+  useEffect(() => { if (artifacts.length > prevCount.current && !busy) { setArtifactsOpen(true); setArtifactId(artifacts[artifacts.length - 1].id); } prevCount.current = artifacts.length; }, [artifacts, busy]);
 
   const refreshMesh = useCallback(async () => {
-    try {
-      const r = await fetch("/api/providers", { cache: "no-store" });
-      if (r.ok) setMesh(await r.json());
-    } catch { /* ignore */ }
+    try { const r = await fetch("/api/providers", { cache: "no-store" }); if (r.ok) setMesh(await r.json()); } catch { /* ignore */ }
   }, []);
-  useEffect(() => {
-    refreshMesh();
-    const t = setInterval(refreshMesh, 20_000);
-    return () => clearInterval(t);
-  }, [refreshMesh]);
+  useEffect(() => { refreshMesh(); const t = setInterval(refreshMesh, 20_000); return () => clearInterval(t); }, [refreshMesh]);
 
+  // ---- conversation helpers -----------------------------------------------------------------
+  const convoRef = useRef<Conversation | null>(null);
+  const commit = useCallback((c: Conversation) => { convoRef.current = c; upsert(c); }, [upsert]);
+  const patchMsg = useCallback((convoId: string, msgId: string, fn: (m: UiMessage) => UiMessage) => {
+    const cur = convoRef.current && convoRef.current.id === convoId ? convoRef.current : convos.find((c) => c.id === convoId);
+    if (!cur) return;
+    commit({ ...cur, updatedAt: Date.now(), messages: cur.messages.map((m) => (m.id === msgId ? fn(m) : m)) });
+  }, [commit, convos]);
+
+  const startConvo = (firstUser: UiMessage): Conversation => {
+    const base = active ?? { id: crypto.randomUUID(), title: titleFrom(firstUser.content || "Image"), createdAt: Date.now(), updatedAt: Date.now(), projectId: activeProject ?? undefined, messages: [] };
+    const c = { ...base, updatedAt: Date.now(), messages: [...base.messages, firstUser] };
+    if (!active) setActiveId(c.id);
+    commit(c);
+    return c;
+  };
+  const newChat = () => { setActiveId(null); convoRef.current = null; setArtifactsOpen(false); setMode("chat"); taRef.current?.focus(); };
+
+  // ---- factory ------------------------------------------------------------------------------
   const runFactory = useCallback(async (task: string) => {
-    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content: task };
+    const c = startConvo({ id: crypto.randomUUID(), role: "user", content: task });
     const fid = crypto.randomUUID();
-    const patch = (fn: (f: FactoryState) => FactoryState) =>
-      setMessages((m) => m.map((x) => (x.id === fid && x.factory ? { ...x, factory: fn(x.factory) } : x)));
-
-    setMessages((m) => [...m, userMsg, { id: fid, role: "assistant", content: "", factory: emptyFactoryState(task) }]);
-    setInput("");
-    setBusy(true);
+    commit({ ...c, messages: [...c.messages, { id: fid, role: "assistant", content: "", factory: emptyFactoryState(task) }] });
+    const patch = (fn: (f: NonNullable<UiMessage["factory"]>) => NonNullable<UiMessage["factory"]>) => patchMsg(c.id, fid, (m) => (m.factory ? { ...m, factory: fn(m.factory) } : m));
+    setInput(""); setBusy(true);
     if (taRef.current) taRef.current.style.height = "auto";
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const controller = new AbortController(); abortRef.current = controller;
     try {
-      const r = await fetch("/api/factory/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, preferred }),
-        signal: controller.signal,
-      });
-      if (!r.ok || !r.body) {
-        const j = await r.json().catch(() => ({}));
-        patch((f) => ({ ...f, error: j.error ?? `Request failed (${r.status})` }));
-        return;
-      }
-      const reader = r.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const parts = buf.split("\n\n");
-        buf = parts.pop() ?? "";
-        for (const part of parts) {
-          const line = part.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          const ev = JSON.parse(line.slice(6));
-          if (ev.type === "step") {
-            patch((f) => ({
-              ...f,
-              files: (ev.data?.files as string[] | undefined) ?? f.files,
-              steps: { ...f.steps, [ev.step as StepId]: { status: ev.status, detail: ev.detail, url: ev.data?.url } },
-            }));
-          } else if (ev.type === "result") {
-            patch((f) => ({ ...f, result: ev }));
-          } else if (ev.type === "error") {
-            patch((f) => ({ ...f, error: ev.message }));
-          }
-        }
+      const r = await fetch("/api/factory/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task, preferred }), signal: controller.signal });
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patch((f) => ({ ...f, error: j.error ?? `Request failed (${r.status})` })); return; }
+      for await (const ev of sse(r)) {
+        if (ev.type === "step") patch((f) => ({ ...f, files: (ev.data?.files as string[] | undefined) ?? f.files, steps: { ...f.steps, [ev.step as StepId]: { status: ev.status, detail: ev.detail, url: ev.data?.url } } }));
+        else if (ev.type === "result") patch((f) => ({ ...f, result: ev }));
+        else if (ev.type === "error") patch((f) => ({ ...f, error: ev.message }));
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") patch((f) => ({ ...f, error: "Connection to Aetheris lost." }));
-    } finally {
-      setBusy(false);
-      abortRef.current = null;
-      refreshMesh();
-    }
-  }, [preferred, refreshMesh]);
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferred, refreshMesh, active, activeProject]);
 
+  // ---- deep research ------------------------------------------------------------------------
+  const runResearch = useCallback(async (topic: string) => {
+    if (!settings.tavilyKey) { setShowSettings(true); return; }
+    const c = startConvo({ id: crypto.randomUUID(), role: "user", content: `🔬 Deep Research: ${topic}` });
+    const aid = crypto.randomUUID();
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true, research: { questions: [], searched: 0, status: "Planning research…" } }] });
+    setInput(""); setBusy(true);
+    const controller = new AbortController(); abortRef.current = controller;
+    try {
+      const r = await fetch("/api/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, searchKey: settings.tavilyKey, preferred }), signal: controller.signal });
+      if (!r.ok || !r.body) {
+        const j = await r.json().catch(() => ({}));
+        patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: j.error ?? `Request failed (${r.status})` }));
+        if (r.status === 402) { setUpgrade(j.error); refreshAccount(); }
+        return;
+      }
+      for await (const ev of sse(r)) {
+        if (ev.type === "plan") patchMsg(c.id, aid, (m) => ({ ...m, research: { ...m.research!, questions: ev.questions, status: `Searching ${ev.questions.length} angles…` } }));
+        else if (ev.type === "search") patchMsg(c.id, aid, (m) => ({ ...m, research: { ...m.research!, searched: m.research!.searched + 1, status: `Read ${ev.count} sources for “${ev.question}”` } }));
+        else if (ev.type === "notes") patchMsg(c.id, aid, (m) => ({ ...m, research: { ...m.research!, status: `Taking notes (${ev.provider})…` } }));
+        else if (ev.type === "writing") patchMsg(c.id, aid, (m) => ({ ...m, research: { ...m.research!, status: "Writing report…" } }));
+        else if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
+        else if (ev.type === "done") patchMsg(c.id, aid, (m) => ({ ...m, content: ev.report, streaming: false, provider: ev.provider, model: ev.model, latencyMs: ev.durationMs, sources: ev.sources, research: { ...m.research!, status: `Done · ${ev.sources.length} sources`, done: true } }));
+        else if (ev.type === "error") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || ev.error, research: { ...m.research!, status: `Error: ${ev.error}` } }));
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: "Connection to Aetheris lost." }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.tavilyKey, preferred, active, activeProject]);
+
+  // ---- chat -----------------------------------------------------------------------------------
   const send = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
-    if (!content || busy) return;
+    if ((!content && images.length === 0) || busy) return;
     if (mode === "factory") return runFactory(content);
-    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content };
-    const history = [...messages, userMsg];
-    setMessages(history);
-    setInput("");
-    setBusy(true);
+    if (research) return runResearch(content);
+    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
+    const c = startConvo(userMsg);
+    const aid = crypto.randomUUID();
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true }] });
+    setInput(""); setImages([]); setBusy(true);
     if (taRef.current) taRef.current.style.height = "auto";
-
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const controller = new AbortController(); abortRef.current = controller;
+    const history = c.messages.filter((m) => !m.error && !m.factory).map(({ role, content, images }) => ({ role, content, images }));
     try {
       const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history.filter((m) => !m.error && !m.factory).map(({ role, content }) => ({ role, content })),
-          preferred,
-          servers,
+          messages: history, preferred, servers, stream: true,
+          web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
+          project: project ? { instructions: project.instructions, files: project.files } : null,
+          memory: settings.memoryEnabled ? memory : [],
         }),
         signal: controller.signal,
       });
-      const data = await r.json();
-      if (r.status === 402) {
-        setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", error: true, content: data.error }]);
-        setUpgrade(data.error);
-        refreshAccount();
-      } else if (!r.ok) {
+      if (!r.ok || !r.headers.get("content-type")?.includes("text/event-stream")) {
+        const data = await r.json().catch(() => ({}));
         const attempts: Attempt[] = data.attempts ?? [];
-        const detail = attempts.length
-          ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n")
-          : "";
-        setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", error: true, content: `${data.error ?? "Request failed"}${detail}` }]);
-      } else {
-        const failovers = (data.attempts ?? []).filter((a: Attempt) => !a.ok).length;
-        setMessages((m) => [...m, {
-          id: crypto.randomUUID(), role: "assistant", content: data.content,
-          provider: data.provider, model: data.model, latencyMs: data.latencyMs, failovers, toolEvents: data.toolEvents,
-        }]);
-        if (data.quota) refreshAccount();
+        const detail = attempts.length ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n") : "";
+        patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: `${data.error ?? "Request failed"}${detail}` }));
+        if (r.status === 402) { setUpgrade(data.error); refreshAccount(); }
+        return;
+      }
+      let failovers = 0; let provider = "";
+      for await (const ev of sse(r)) {
+        if (ev.type === "provider") { if (provider) failovers++; provider = ev.provider; }
+        else if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
+        else if (ev.type === "sources") patchMsg(c.id, aid, (m) => ({ ...m, sources: ev.sources }));
+        else if (ev.type === "tool") patchMsg(c.id, aid, (m) => ({ ...m, toolEvents: [...(m.toolEvents ?? []), ev.event] }));
+        else if (ev.type === "done") {
+          const fo = (ev.attempts ?? []).filter((a: Attempt) => !a.ok).length || failovers;
+          patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, provider: ev.provider, model: ev.model, latencyMs: ev.latencyMs, failovers: fo, toolEvents: ev.toolEvents ?? m.toolEvents }));
+          if (ev.quota) refreshAccount();
+        } else if (ev.type === "error") {
+          const attempts: Attempt[] = ev.attempts ?? [];
+          const detail = attempts.length ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n") : "";
+          patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content ? m.content + `\n\n_(stream interrupted: ${ev.error})_` : `${ev.error}${detail}` }));
+        }
+      }
+      // Memory extraction (fire and forget)
+      if (settings.memoryEnabled && content.length > 12) {
+        const final = convoRef.current?.messages.find((m) => m.id === aid)?.content ?? "";
+        fetch("/api/memory/extract", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: content, assistant: final, memory }) })
+          .then((x) => x.json()).then((j) => { if (Array.isArray(j.facts) && j.facts.length) addMemory(j.facts); }).catch(() => undefined);
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", error: true, content: "Network error reaching Aetheris." }]);
-      }
-    } finally {
-      setBusy(false);
-      abortRef.current = null;
-      refreshMesh();
-    }
-  }, [input, busy, messages, preferred, refreshMesh, mode, runFactory, servers, refreshAccount]);
+      if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || "Network error reaching Aetheris." }));
+      else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, images, busy, mode, research, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch]);
 
-  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  const regenerate = () => {
+    if (!active || busy) return;
+    const lastUserIdx = [...active.messages].map((m) => m.role).lastIndexOf("user");
+    if (lastUserIdx === -1) return;
+    const u = active.messages[lastUserIdx];
+    commit({ ...active, messages: active.messages.slice(0, lastUserIdx) });
+    setTimeout(() => { setImages(u.images ?? []); send(u.content); }, 0);
   };
-  const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+
+  const addImages = async (files: FileList | File[] | null) => {
+    if (!files) return;
+    const out: string[] = [];
+    for (const f of Array.from(files).slice(0, 4 - images.length)) if (f.type.startsWith("image/")) { try { out.push(await imageToDataUrl(f)); } catch { /* skip */ } }
+    if (out.length) setImages((i) => [...i, ...out].slice(0, 4));
+  };
+  const onPaste = (e: React.ClipboardEvent) => { const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (files.length) { e.preventDefault(); addImages(files); } };
+  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+  const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
+
+  const exportAll = () => {
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), conversations: convos, projects, memory, settings: { ...settings, tavilyKey: "" } }, null, 2)], { type: "application/json" });
+    const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = `aetheris-export-${Date.now()}.json`; a.click(); URL.revokeObjectURL(u);
   };
 
   const meshDot = !mesh ? "" : mesh.configured === 0 ? "err" : mesh.ready === 0 ? "warn" : "ok";
-  const meshLabel = !mesh ? "mesh…" : `${mesh.ready}/${mesh.configured} ready · ${mesh.total} in mesh`;
+  const meshLabel = !mesh ? "mesh…" : `${mesh.ready}/${mesh.configured} ready`;
   const preferredName = mesh?.providers.find((p) => p.id === preferred)?.name;
+  const webOn = (webOverride ?? settings.web) !== "off" && !!settings.tavilyKey;
+  const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
+    : research ? "What should I research in depth?" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
-          <h1>Aetheris One</h1>
-          <span>omni-router</span>
-        </div>
-        <div className="header-right">
-          <div className="mode-toggle" role="tablist">
-            <button className={mode === "chat" ? "active" : ""} onClick={() => setMode("chat")}>Chat</button>
-            <button className={mode === "factory" ? "active" : ""} onClick={() => setMode("factory")}>Factory</button>
-            <button className={mode === "studio" ? "active" : ""} onClick={() => setMode("studio")}>Studio</button>
-            <button className={mode === "apps" ? "active" : ""} onClick={() => setMode("apps")}>Apps{servers.length ? ` · ${servers.length}` : ""}</button>
-          </div>
-          {account && (account.plan
-            ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
-            : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">
-                ✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit} free` : "Upgrade"}
-              </button>)}
-          <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
-            <span className={`dot ${meshDot}`} />
-            {meshLabel}{preferredName ? ` · via ${preferredName}` : ""}
-          </button>
-        </div>
-      </header>
+    <div className={`shell ${sidebar ? "with-sb" : ""} ${artifactsOpen && artifacts.length ? "with-art" : ""}`}>
+      <Sidebar convos={convos} projects={projects} activeId={activeId} activeProject={activeProject} open={sidebar}
+        onOpen={() => setSidebar(true)} onClose={() => setSidebar(false)} onNew={newChat}
+        onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 900) setSidebar(false); }}
+        onDelete={(id) => { remove(id); if (id === activeId) newChat(); }}
+        onPin={(id) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, pinned: !c.pinned }); }}
+        onRename={(id, t) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, title: t }); }}
+        onProject={(id) => { setActiveProject(id); newChat(); }} onNewProject={() => setEditProject("new")}
+        onEditProject={(id) => setEditProject(projects.find((p) => p.id === id) ?? null)} onDeleteProject={(id) => { removeProject(id); if (activeProject === id) setActiveProject(null); }}
+        onSettings={() => setShowSettings(true)} />
 
-      <div ref={listRef} className="messages">
-        {mode === "studio" && <Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} />}
-        {mode === "apps" && <Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} />}
-        {(mode === "chat" || mode === "factory") && <>
-        {showMesh && mesh && (
-          <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />
-        )}
-        {mode === "factory" && (
-          <div className="factory-bar">
-            <div>
-              <strong>Cloud Coding Factory</strong>
-              <span> — describe a program; Aetheris writes it, pushes it to a private <code>aetheris-factory</code> repo, runs the tests on GitHub Actions, and reports back.</span>
-            </div>
-            <GitHubAuth auth={auth} />
+      <div className="app">
+        <header className="header">
+          <div className="brand">
+            <h1>Aetheris One</h1>
+            {project ? <span className="proj-pill" title={project.instructions || "No instructions"}>📁 {project.name}</span> : <span>omni-router</span>}
           </div>
-        )}
-        {messages.length === 0 && !busy ? (
-          <div className="empty">
-            {mode === "chat" ? (
-              <>
-                <h2>One chat. Every free model.</h2>
-                <p>Your prompt is routed across a mesh of free AI providers. If one is rate-limited, Aetheris silently fails over to the next.</p>
-                <div className="suggestions">
-                  {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}
-                </div>
-              </>
-            ) : (
-              <>
-                <h2>Code that runs in the cloud.</h2>
-                <p>{auth.user ? "What should the factory build?" : "Connect GitHub above to start a run."}</p>
-                <div className="suggestions">
-                  {FACTORY_SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} disabled={!auth.user}>{s}</button>)}
-                </div>
-              </>
+          <div className="header-right">
+            <div className="mode-toggle" role="tablist">
+              <button className={mode === "chat" ? "active" : ""} onClick={() => setMode("chat")}>Chat</button>
+              <button className={mode === "factory" ? "active" : ""} onClick={() => setMode("factory")}>Factory</button>
+              <button className={mode === "studio" ? "active" : ""} onClick={() => setMode("studio")}>Studio</button>
+              <button className={mode === "apps" ? "active" : ""} onClick={() => setMode("apps")}>Apps{servers.length ? ` · ${servers.length}` : ""}</button>
+            </div>
+            {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
+            {account && (account.plan
+              ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
+              : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit} free` : "Upgrade"}</button>)}
+            <button className="mesh-pill" onClick={() => setShowMesh((s) => !s)} title="Provider mesh status">
+              <span className={`dot ${meshDot}`} />{meshLabel}{preferredName ? ` · ${preferredName}` : ""}
+            </button>
+          </div>
+        </header>
+
+        <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}>
+          {mode === "studio" && <Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} />}
+          {mode === "apps" && <Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} />}
+          {(mode === "chat" || mode === "factory") && <>
+            {showMesh && mesh && <MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} />}
+            {mode === "factory" && (
+              <div className="factory-bar">
+                <div><strong>Cloud Coding Factory</strong><span> — describe a program; Aetheris writes it, pushes it to a private <code>aetheris-factory</code> repo, runs the tests on GitHub Actions, and reports back.</span></div>
+                <GitHubAuth auth={auth} />
+              </div>
             )}
-          </div>
-        ) : (
-          messages.map((m) => (
-            <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
-              {m.factory
-                ? <div className="bubble"><FactoryRun state={m.factory} /></div>
-                : m.role === "assistant" && !m.error
-                  ? <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
-                  : <div className="bubble">{m.content}</div>}
-              {m.toolEvents && m.toolEvents.length > 0 && (
-                <div className="tool-trail">
-                  {m.toolEvents.filter((t) => t.type !== "tool_result").map((t, i) => (
-                    <span key={i} className={`chip ${t.type === "tool_error" ? "bad" : "on"}`}>⚙ {t.server}.{t.tool}{t.error ? ` — ${t.error.slice(0, 60)}` : ""}</span>
-                  ))}
-                </div>
-              )}
-              {m.provider && (
-                <div className="meta-line">
-                  <span className="via">via {m.provider}</span>
-                  <span>{m.model}</span>
-                  <span>{m.latencyMs} ms</span>
-                  {m.failovers ? <span className="failover">↻ {m.failovers} failover{m.failovers > 1 ? "s" : ""}</span> : null}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-        {busy && mode === "chat" && (
-          <div className="msg assistant">
-            <div className="bubble"><span className="typing"><i /><i /><i /></span>{servers.length ? <span className="hint" style={{ marginLeft: 8 }}>may call {servers.length} app{servers.length > 1 ? "s" : ""}</span> : null}</div>
-          </div>
-        )}
-        </>}
-      </div>
-      {upgrade !== null && account && (
-        <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />
-      )}
-
-      {(mode === "chat" || mode === "factory") && <div className="composer">
-        <div className="composer-box">
-          <textarea
-            ref={taRef}
-            rows={1}
-            value={input}
-            placeholder={mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory") : "Ask anything…"}
-            onChange={autoGrow}
-            onKeyDown={onKey}
-            disabled={busy || (mode === "factory" && !auth.user)}
-          />
-          {busy ? (
-            <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
-          ) : (
-            <>
-              {messages.length > 0 && (
-                <button className="ghost" title="New chat" onClick={() => setMessages([])}>New</button>
-              )}
-              <button className="send" onClick={() => send()} disabled={!input.trim() || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : "Send"}</button>
-            </>
-          )}
+            {messages.length === 0 && !busy ? (
+              <div className="empty">
+                {mode === "chat" ? (<>
+                  <h2>{project ? project.name : "One chat. Every free model."}</h2>
+                  <p>{project ? (project.instructions ? project.instructions.slice(0, 160) : "Project chats share these instructions and files.") : "Streaming answers routed across a mesh of free AI providers with silent failover. Artifacts, vision, web search, Deep Research, projects and memory built in."}</p>
+                  <div className="suggestions">{SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}</div>
+                </>) : (<>
+                  <h2>Code that runs in the cloud.</h2>
+                  <p>{auth.user ? "What should the factory build?" : "Connect GitHub above to start a run."}</p>
+                  <div className="suggestions">{FACTORY_SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} disabled={!auth.user}>{s}</button>)}</div>
+                </>)}
+              </div>
+            ) : messages.map((m, idx) => (
+              <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
+                {m.images && m.images.length > 0 && <div className="msg-images">{m.images.map((src, i) => <img key={i} src={src} alt="" />)}</div>}
+                {m.research && (
+                  <div className="research-card">
+                    <div className="rc-head"><span className={m.research.done ? "ok-text" : ""}>{m.research.done ? "✓" : <span className="spin" />}</span> <strong>Deep Research</strong> <span className="hint" style={{ margin: 0 }}>{m.research.status}</span></div>
+                    {m.research.questions.length > 0 && <ul>{m.research.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
+                  </div>
+                )}
+                {m.factory
+                  ? <div className="bubble"><FactoryRun state={m.factory} /></div>
+                  : m.role === "assistant" && !m.error
+                    ? (m.content || !m.streaming) && <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripArtifacts(m.content)) + (m.streaming ? '<span class="caret"/>' : "") }} onClick={(e) => { const t = e.target as HTMLElement; if (t.closest("blockquote") && artifacts.some((a) => a.messageId === m.id)) { setArtifactId(artifacts.filter((a) => a.messageId === m.id)[0].id); setArtifactsOpen(true); } }} />
+                    : m.content && <div className="bubble">{m.content}</div>}
+                {m.streaming && !m.content && !m.research && <div className="bubble"><span className="typing"><i /><i /><i /></span>{servers.length ? <span className="hint" style={{ marginLeft: 8 }}>may call {servers.length} app{servers.length > 1 ? "s" : ""}</span> : null}</div>}
+                {m.toolEvents && m.toolEvents.length > 0 && (
+                  <div className="tool-trail">{m.toolEvents.filter((t) => t.type !== "tool_result").map((t, i) => <span key={i} className={`chip ${t.type === "tool_error" ? "bad" : "on"}`}>⚙ {t.server}.{t.tool}{t.error ? ` — ${t.error.slice(0, 60)}` : ""}</span>)}</div>
+                )}
+                {m.sources && m.sources.length > 0 && !m.research && (
+                  <div className="sources">{m.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="chip" title={s.title}>[{i + 1}] {new URL(s.url).hostname.replace(/^www\./, "")}</a>)}</div>
+                )}
+                {artifacts.some((a) => a.messageId === m.id) && (
+                  <div className="tool-trail">{artifacts.filter((a) => a.messageId === m.id).map((a) => <button key={a.id} className={`chip art-chip ${a.id === artifactId && artifactsOpen ? "on" : ""}`} onClick={() => { setArtifactId(a.id); setArtifactsOpen(true); }}>📎 {a.title}</button>)}</div>
+                )}
+                {m.provider && !m.streaming && (
+                  <div className="meta-line">
+                    <span className="via">via {m.provider}</span><span>{m.model}</span><span>{m.latencyMs} ms</span>
+                    {m.failovers ? <span className="failover">↻ {m.failovers} failover{m.failovers > 1 ? "s" : ""}</span> : null}
+                    {m.sources?.length ? <span>🌐 {m.sources.length} sources</span> : null}
+                    <button className="link" onClick={() => navigator.clipboard.writeText(m.content)}>copy</button>
+                    {idx === messages.length - 1 && !busy && !m.research && <button className="link" onClick={regenerate}>regenerate</button>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>}
         </div>
-        <div className="hint">Enter to send · Shift+Enter for newline · Click the mesh pill to pin a provider</div>
-      </div>}
+
+        {upgrade !== null && account && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
+        {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
+        {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
+
+        {(mode === "chat" || mode === "factory") && <div className="composer">
+          {images.length > 0 && <div className="attach-row">{images.map((src, i) => <span key={i} className="attach"><img src={src} alt="" /><button onClick={() => setImages(images.filter((_, j) => j !== i))}>✕</button></span>)}</div>}
+          <div className="composer-box">
+            {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
+            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
+            <textarea ref={taRef} rows={1} value={input} placeholder={placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} disabled={busy || (mode === "factory" && !auth.user)} />
+            {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
+              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : research ? "Research" : "Send"}</button>}
+          </div>
+          {mode === "chat" && (
+            <div className="composer-tools">
+              <button className={`chip ${webOn ? "on" : ""}`} title={settings.tavilyKey ? `Web search: ${webOverride ?? settings.web}` : "Add a Tavily key in Settings to enable web search"} onClick={() => settings.tavilyKey ? setWebOverride((w) => (w ? null : "on")) : setShowSettings(true)}>🌐 {settings.tavilyKey ? (webOverride === "on" ? "Search: on" : `Search: ${settings.web}`) : "Search"}</button>
+              <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
+              <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
+              <span className="hint" style={{ margin: 0, marginLeft: "auto" }}>Enter to send · Shift+Enter newline</span>
+            </div>
+          )}
+        </div>}
+      </div>
+
+      {artifactsOpen && artifacts.length > 0 && (
+        <ArtifactsPanel artifacts={artifacts} activeId={artifactId} onSelect={setArtifactId} onClose={() => setArtifactsOpen(false)} onChange={(id, code) => setEdits((e) => ({ ...e, [id]: code }))} />
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
+| 6 | **One Chat flagship UX** (streaming, sidebar, vision, artifacts, web search, Deep Research, projects, memory) | ✅ this repo |
 | 4 | **Cloud MCP App Store** (107 connectors: 58 vendor MCP servers w/ OAuth + 49 via built-in REST→MCP gateway) | ✅ this repo |
 | 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
 
@@ -104,6 +105,22 @@ Runs land in `runs/<id>-<name>/` on branch `run/<id>`; nothing touches your othe
 **BYOK**: users can paste their own keys in the Studio; they live in the browser and travel
 only with that request. Video is gated behind Aetheris Pro *unless* the user brings a Luma or
 Runway key. We deliberately do not cycle trial keys — it violates those providers' terms.
+
+## One Chat — flagship features (Phase 6)
+
+Everything people expect from Claude / ChatGPT / Gemini, on top of the free-provider mesh:
+
+| Feature | How it works |
+|---|---|
+| **Streaming** | `/api/chat` returns SSE (`provider`, `delta`, `sources`, `tool`, `done`, `error`). Every adapter streams (OpenAI-compatible, Gemini `streamGenerateContent`, Cohere v2); Cloudflare is buffered. Failover stays *silent* until the first token; a mid-stream failure keeps the partial text and is flagged. |
+| **Multi-chat sidebar** | Conversations with auto-titles, search (title + body), pin, rename, delete, date groups; export all as JSON. Stored in `localStorage` (versioned; v1 single-thread chat is migrated). |
+| **Vision** | Paste / drop / attach up to 4 images (downscaled client-side). Router restricts candidates to `vision: true` providers and swaps to their `visionModel` (Groq Llama-4 Scout, Gemini, GitHub GPT-4o-mini, OpenRouter Gemma-3, Mistral Pixtral, Together Llama-Vision, SambaNova Maverick, NVIDIA Llama-3.2-90B). |
+| **Artifacts** | The system prompt asks the model to emit substantial content as ```` ```html title="…" ```` fences. They open in a side panel with live preview (HTML/SVG in a sandboxed iframe, **React/TSX** via Babel + Tailwind CDN, **Mermaid** diagrams, Markdown), an editable code view, copy, download, open-in-tab. |
+| **Web search + citations** | Tavily (free 1k/month, BYOK in Settings or `TAVILY_API_KEY`). Modes: *auto* (heuristic for time-sensitive prompts), *on*, *off*. Results are injected as a numbered grounding block; the reply cites `[n]` and source chips are shown. |
+| **Deep Research** | `/api/research` (SSE): plan 3–8 sub-questions → parallel advanced searches → cited notes per question → streamed long-form report with a deduplicated bibliography. Costs 5 message credits. |
+| **Projects** | Folders with custom instructions and knowledge files (text/code/CSV/JSON, ≤2 MB, ≤20). Instructions + ~40k chars of files are prepended to every chat in the project. |
+| **Memory** | After each exchange `/api/memory/extract` asks the router for ≤3 durable third-person facts; they are stored locally, shown/edited in Settings → Memory and injected into future chats. Toggle off any time. |
+| Also | Regenerate, copy, per-message provider/model/latency/failover meta, richer Markdown (tables, ordered lists, quotes), mobile layout (sidebar/artifacts become overlays). |
 
 ## Cloud MCP App Store (Phase 4)
 

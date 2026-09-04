@@ -1,0 +1,86 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { Conversation, Project } from "./store";
+
+export default function Sidebar({ convos, projects, activeId, activeProject, open, onOpen, onNew, onSelect, onDelete, onPin, onRename, onProject, onNewProject, onEditProject, onDeleteProject, onSettings, onClose }: {
+  convos: Conversation[]; projects: Project[]; activeId: string | null; activeProject: string | null; open: boolean;
+  onOpen: () => void; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onPin: (id: string) => void; onRename: (id: string, t: string) => void;
+  onProject: (id: string | null) => void; onNewProject: () => void; onEditProject: (id: string) => void; onDeleteProject: (id: string) => void; onSettings: () => void; onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return convos.filter((c) => (activeProject ? c.projectId === activeProject : true) && (!t || c.title.toLowerCase().includes(t) || c.messages.some((m) => m.content.toLowerCase().includes(t))));
+  }, [convos, q, activeProject]);
+
+  const groups = useMemo(() => {
+    const now = Date.now(); const day = 86_400_000;
+    const g: Record<string, Conversation[]> = { Pinned: [], Today: [], Yesterday: [], "Previous 7 days": [], "Previous 30 days": [], Older: [] };
+    for (const c of filtered) {
+      const age = now - c.updatedAt;
+      const k = c.pinned ? "Pinned" : age < day ? "Today" : age < 2 * day ? "Yesterday" : age < 7 * day ? "Previous 7 days" : age < 30 * day ? "Previous 30 days" : "Older";
+      g[k].push(c);
+    }
+    return Object.entries(g).filter(([, v]) => v.length);
+  }, [filtered]);
+
+  if (!open) return <button className="sb-toggle" onClick={onOpen} title="Open sidebar">☰</button>;
+
+  return (
+    <nav className="sidebar">
+      <div className="sb-top">
+        <button className="sb-new" onClick={onNew}>＋ New chat</button>
+        <button className="ghost sb-close" onClick={onClose} title="Hide sidebar">⟨</button>
+      </div>
+      <input className="sb-search" placeholder="Search chats…" value={q} onChange={(e) => setQ(e.target.value)} />
+
+      <div className="sb-section">
+        <div className="sb-label">Projects <button className="link" onClick={onNewProject}>+ new</button></div>
+        <button className={`sb-item ${activeProject === null ? "active" : ""}`} onClick={() => onProject(null)}>All chats</button>
+        {projects.map((p) => (
+          <div key={p.id} className={`sb-item sb-proj ${activeProject === p.id ? "active" : ""}`}>
+            <button className="sb-item-main" onClick={() => onProject(p.id)}>📁 {p.name}<span className="sb-count">{convos.filter((c) => c.projectId === p.id).length}</span></button>
+            <span className="sb-item-actions">
+              <button title="Edit project" onClick={() => onEditProject(p.id)}>✎</button>
+              <button title="Delete project" onClick={() => { if (confirm(`Delete project "${p.name}"? Chats are kept.`)) onDeleteProject(p.id); }}>🗑</button>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="sb-list">
+        {groups.length === 0 && <div className="sb-empty">{q ? "No matches." : "No chats yet."}</div>}
+        {groups.map(([label, list]) => (
+          <div key={label} className="sb-section">
+            <div className="sb-label">{label}</div>
+            {list.map((c) => (
+              <div key={c.id} className={`sb-item ${c.id === activeId ? "active" : ""}`}>
+                {editing === c.id ? (
+                  <input autoFocus className="sb-rename" value={draft} onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => { onRename(c.id, draft.trim() || c.title); setEditing(null); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }} />
+                ) : (
+                  <button className="sb-item-main" onClick={() => onSelect(c.id)} onDoubleClick={() => { setEditing(c.id); setDraft(c.title); }} title={c.title}>
+                    {c.title}
+                  </button>
+                )}
+                <span className="sb-item-actions">
+                  <button title={c.pinned ? "Unpin" : "Pin"} onClick={() => onPin(c.id)}>{c.pinned ? "★" : "☆"}</button>
+                  <button title="Rename" onClick={() => { setEditing(c.id); setDraft(c.title); }}>✎</button>
+                  <button title="Delete" onClick={() => onDelete(c.id)}>🗑</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="sb-bottom">
+        <button className="sb-item sb-item-main" onClick={onSettings}>⚙ Settings, memory & keys</button>
+      </div>
+    </nav>
+  );
+}

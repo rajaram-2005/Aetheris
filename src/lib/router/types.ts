@@ -3,6 +3,8 @@ export type Role = "system" | "user" | "assistant";
 export interface ChatMessage {
   role: Role;
   content: string;
+  /** Optional image attachments (data: URLs or https URLs). Routed to vision-capable providers only. */
+  images?: string[];
 }
 
 export type AdapterKind = "openai" | "gemini" | "cohere" | "cloudflare";
@@ -20,6 +22,10 @@ export interface ProviderConfig {
   envKey: string;
   /** Default model to use */
   model: string;
+  /** Model used when the request contains images (omit if `model` is already multimodal). */
+  visionModel?: string;
+  /** Whether this provider can accept images (with `visionModel` or `model`). */
+  vision?: boolean;
   /** Lower = tried first. Ties are shuffled for load balancing. */
   priority: number;
   /** Extra headers required by the provider */

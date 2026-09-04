@@ -13,6 +13,8 @@ export interface AdapterCall {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** Called with each text delta as it arrives. When omitted the adapter buffers. */
+  onDelta?: (text: string) => void;
 }
 
 async function doFetch(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
@@ -49,11 +51,50 @@ async function ensureOk(res: Response, providerName: string): Promise<void> {
   );
 }
 
+/** Iterate `data: {...}` events of an SSE body. */
+async function* sseJson(res: Response): AsyncGenerator<unknown> {
+  const reader = res.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try { yield JSON.parse(data); } catch { /* partial / keep-alive */ }
+    }
+  }
+}
+
+function hasImages(msgs: ChatMessage[]): boolean {
+  return msgs.some((m) => m.images && m.images.length > 0);
+}
+
 // ---------------------------------------------------------------------------------------
 // OpenAI-compatible (Groq, Cerebras, SambaNova, GitHub Models, OpenRouter, Mistral, Together,
-// HF router, NVIDIA, DeepSeek, AI21, Perplexity)
+// HF router, NVIDIA, DeepSeek, AI21, Perplexity) — streaming + multimodal content parts
 // ---------------------------------------------------------------------------------------
+function toOpenAIMessages(msgs: ChatMessage[]) {
+  return msgs.map((m) => {
+    if (!m.images?.length) return { role: m.role, content: m.content };
+    return {
+      role: m.role,
+      content: [
+        ...(m.content ? [{ type: "text", text: m.content }] : []),
+        ...m.images.map((url) => ({ type: "image_url", image_url: { url } })),
+      ],
+    };
+  });
+}
+
 async function callOpenAI(c: AdapterCall): Promise<string> {
+  const stream = !!c.onDelta;
   const res = await doFetch(
     `${c.provider.baseUrl}/chat/completions`,
     {
@@ -65,33 +106,54 @@ async function callOpenAI(c: AdapterCall): Promise<string> {
       },
       body: JSON.stringify({
         model: c.model,
-        messages: c.messages,
+        messages: toOpenAIMessages(c.messages),
         temperature: c.temperature ?? 0.7,
         ...(c.maxTokens ? { max_tokens: c.maxTokens } : {}),
-        stream: false,
+        stream,
       }),
     },
     c.signal,
   );
   await ensureOk(res, c.provider.name);
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string | null } }[];
-  };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
-  return content;
+  if (!stream || !res.headers.get("content-type")?.includes("text/event-stream")) {
+    const json = (await res.json()) as { choices?: { message?: { content?: string | null } }[] };
+    const content = json.choices?.[0]?.message?.content;
+    if (!content) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+    c.onDelta?.(content);
+    return content;
+  }
+  let out = "";
+  for await (const ev of sseJson(res)) {
+    const delta = (ev as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
+    if (delta) { out += delta; c.onDelta!(delta); }
+  }
+  if (!out) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------
-// Google Gemini (generateContent)
+// Google Gemini (streamGenerateContent / generateContent) — inline_data for images
 // ---------------------------------------------------------------------------------------
+function geminiParts(m: ChatMessage) {
+  const parts: unknown[] = [];
+  if (m.content) parts.push({ text: m.content });
+  for (const url of m.images ?? []) {
+    const match = /^data:([^;]+);base64,(.+)$/.exec(url);
+    if (match) parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+    else parts.push({ file_data: { file_uri: url } });
+  }
+  return parts;
+}
+
 async function callGemini(c: AdapterCall): Promise<string> {
   const system = c.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents = c.messages
     .filter((m) => m.role !== "system")
-    .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+    .map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: geminiParts(m) }));
 
-  const url = `${c.provider.baseUrl}/models/${encodeURIComponent(c.model)}:generateContent`;
+  const stream = !!c.onDelta;
+  const method = stream ? "streamGenerateContent?alt=sse" : "generateContent";
+  const url = `${c.provider.baseUrl}/models/${encodeURIComponent(c.model)}:${method}`;
   const res = await doFetch(
     url,
     {
@@ -109,18 +171,27 @@ async function callGemini(c: AdapterCall): Promise<string> {
     c.signal,
   );
   await ensureOk(res, c.provider.name);
-  const json = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-  if (!text) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
-  return text;
+  type G = { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const textOf = (j: G) => j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  if (!stream) {
+    const text = textOf((await res.json()) as G);
+    if (!text) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+    return text;
+  }
+  let out = "";
+  for await (const ev of sseJson(res)) {
+    const t = textOf(ev as G);
+    if (t) { out += t; c.onDelta!(t); }
+  }
+  if (!out) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------
-// Cohere v2 chat
+// Cohere v2 chat (streaming)
 // ---------------------------------------------------------------------------------------
 async function callCohere(c: AdapterCall): Promise<string> {
+  const stream = !!c.onDelta;
   const res = await doFetch(
     `${c.provider.baseUrl}/chat`,
     {
@@ -128,22 +199,33 @@ async function callCohere(c: AdapterCall): Promise<string> {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.apiKey}` },
       body: JSON.stringify({
         model: c.model,
-        messages: c.messages,
+        messages: c.messages.map(({ role, content }) => ({ role, content })),
         temperature: c.temperature ?? 0.7,
         ...(c.maxTokens ? { max_tokens: c.maxTokens } : {}),
+        stream,
       }),
     },
     c.signal,
   );
   await ensureOk(res, c.provider.name);
-  const json = (await res.json()) as { message?: { content?: { type: string; text?: string }[] } };
-  const text = json.message?.content?.filter((p) => p.type === "text").map((p) => p.text ?? "").join("") ?? "";
-  if (!text) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
-  return text;
+  if (!stream) {
+    const json = (await res.json()) as { message?: { content?: { type: string; text?: string }[] } };
+    const text = json.message?.content?.filter((p) => p.type === "text").map((p) => p.text ?? "").join("") ?? "";
+    if (!text) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+    return text;
+  }
+  let out = "";
+  for await (const ev of sseJson(res)) {
+    const e = ev as { type?: string; delta?: { message?: { content?: { text?: string } } } };
+    const t = e.type === "content-delta" ? e.delta?.message?.content?.text : undefined;
+    if (t) { out += t; c.onDelta!(t); }
+  }
+  if (!out) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------
-// Cloudflare Workers AI
+// Cloudflare Workers AI (buffered)
 // ---------------------------------------------------------------------------------------
 async function callCloudflare(c: AdapterCall): Promise<string> {
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -154,7 +236,7 @@ async function callCloudflare(c: AdapterCall): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.apiKey}` },
       body: JSON.stringify({
-        messages: c.messages,
+        messages: c.messages.map(({ role, content }) => ({ role, content })),
         temperature: c.temperature ?? 0.7,
         ...(c.maxTokens ? { max_tokens: c.maxTokens } : {}),
       }),
@@ -165,10 +247,14 @@ async function callCloudflare(c: AdapterCall): Promise<string> {
   const json = (await res.json()) as { result?: { response?: string } };
   const text = json.result?.response ?? "";
   if (!text) throw new ProviderError(`${c.provider.name} returned an empty completion`, 200, true);
+  c.onDelta?.(text);
   return text;
 }
 
 export function callProvider(c: AdapterCall): Promise<string> {
+  if (hasImages(c.messages) && !c.provider.vision) {
+    return Promise.reject(new ProviderError(`${c.provider.name} does not accept images`, 415, false));
+  }
   switch (c.provider.kind) {
     case "openai":
       return callOpenAI(c);
@@ -180,3 +266,5 @@ export function callProvider(c: AdapterCall): Promise<string> {
       return callCloudflare(c);
   }
 }
+
+export { hasImages };

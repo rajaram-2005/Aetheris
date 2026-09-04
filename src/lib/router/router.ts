@@ -1,4 +1,4 @@
-import { callProvider } from "./adapters";
+import { callProvider, hasImages } from "./adapters";
 import { PROVIDERS, isConfigured, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
 
@@ -71,9 +71,9 @@ function shuffle<T>(arr: T[]): T[] {
  * within each group (cheap load balancing), with cooled-down providers pushed to the end
  * as a last resort.
  */
-export function orderedCandidates(opts?: { preferred?: string; exclude?: string[] }): ProviderConfig[] {
+export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean }): ProviderConfig[] {
   const now = Date.now();
-  const configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id));
+  const configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
 
   const groups = new Map<number, ProviderConfig[]>();
   for (const p of configured) {
@@ -106,13 +106,22 @@ export interface RouteOptions {
   /** Cap the number of providers tried. */
   maxAttempts?: number;
   signal?: AbortSignal;
+  /**
+   * Stream text deltas. Failover stays silent as long as the failing provider has not yet
+   * emitted anything; once tokens have been streamed a failure is surfaced (partial text is
+   * kept) rather than restarting with another provider.
+   */
+  onDelta?: (text: string, provider: string) => void;
 }
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
-  const candidates = orderedCandidates({ preferred: opts.preferred });
+  const vision = hasImages(opts.messages);
+  const candidates = orderedCandidates({ preferred: opts.preferred, vision });
   if (candidates.length === 0) {
     throw new ProviderError(
-      "No providers configured. Add at least one API key to .env.local (see .env.example).",
+      vision
+        ? "No vision-capable provider configured (Groq, Gemini, GitHub Models, OpenRouter, Mistral, Together, SambaNova or NVIDIA)."
+        : "No providers configured. Add at least one API key to .env.local (see .env.example).",
       503,
       false,
     );
@@ -123,9 +132,10 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
 
   for (const provider of candidates.slice(0, max)) {
     if (opts.signal?.aborted) throw new ProviderError("request aborted", 499, false);
-    const model = resolveModel(provider);
+    const model = resolveModel(provider, { vision });
     const apiKey = process.env[provider.envKey]!;
     const started = Date.now();
+    let streamed = 0;
     try {
       const content = await callProvider({
         provider,
@@ -135,6 +145,7 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
         temperature: opts.temperature,
         maxTokens: opts.maxTokens,
         signal: opts.signal,
+        onDelta: opts.onDelta ? (t) => { streamed += t.length; opts.onDelta!(t, provider.id); } : undefined,
       });
       const latencyMs = Date.now() - started;
       recordSuccess(provider.id, latencyMs);
@@ -151,6 +162,11 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
         latencyMs,
       });
       if (err instanceof ProviderError && err.status === 499) throw err;
+      if (streamed > 0) {
+        const e = new ProviderError(`${provider.id} failed mid-stream: ${err instanceof Error ? err.message : String(err)}`, 502, false);
+        (e as ProviderError & { attempts?: ProviderAttempt[] }).attempts = attempts;
+        throw e;
+      }
       // otherwise: fall through to the next provider
     }
   }

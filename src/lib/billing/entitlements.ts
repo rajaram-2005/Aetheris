@@ -34,12 +34,12 @@ export async function grant(uid: string, planId: string, grantedBy: string): Pro
 interface Usage { day: string; count: number }
 function today() { return new Date().toISOString().slice(0, 10); }
 
-export async function consumeChat(uid: string): Promise<{ allowed: boolean; used: number; limit: number | null }> {
+export async function consumeChat(uid: string, cost = 1): Promise<{ allowed: boolean; used: number; limit: number | null }> {
   if (await hasFeature(uid, "unlimited_chat")) return { allowed: true, used: 0, limit: null };
   const u = await store.update<Usage>("usage", uid, (cur) => {
     const d = today();
-    if (!cur || cur.day !== d) return { day: d, count: 1 };
-    return { day: d, count: cur.count + 1 };
+    if (!cur || cur.day !== d) return { day: d, count: cost };
+    return { day: d, count: cur.count + cost };
   });
   return { allowed: u.count <= FREE_DAILY_MESSAGES, used: u.count, limit: FREE_DAILY_MESSAGES };
 }
