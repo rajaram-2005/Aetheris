@@ -9,6 +9,7 @@ export default function Gallery({ onUse }: { onUse: (prompt: string) => void }) 
   const { t } = useLang();
   const [items, setItems] = useState<GalleryEntry[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState(false);
   const [q, setQ] = useState(""); const [tag, setTag] = useState<string | null>(null); const [mine, setMine] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", prompt: "", agents: "", tags: "" });
@@ -37,7 +38,7 @@ export default function Gallery({ onUse }: { onUse: (prompt: string) => void }) 
         <input className="agent-search" placeholder={t("gallery.search")} value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="mode-toggle"><button className={!mine ? "active" : ""} onClick={() => setMine(false)}>{t("gallery.all")}</button><button className={mine ? "active" : ""} onClick={() => setMine(true)}>{t("gallery.mine")}</button></div>
       </div>
-      <div className="gallery-tags">{tags.map((x) => <button key={x} className={`chip ${tag === x ? "on" : ""}`} onClick={() => setTag(tag === x ? null : x)}>#{x}</button>)}</div>
+      <div className="gallery-tags">{(allTags ? tags : tags.slice(0, 24)).map((x) => <button key={x} className={`chip ${tag === x ? "on" : ""}`} onClick={() => setTag(tag === x ? null : x)}>#{x}</button>)}{tags.length > 24 && <button className="chip" onClick={() => setAllTags((v) => !v)}>{allTags ? "less ▲" : `+${tags.length - 24} more`}</button>}</div>
       {publishing && (
         <div className="gallery-form">
           <h3 style={{ margin: 0 }}>{t("gallery.publishTitle")}</h3>

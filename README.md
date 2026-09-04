@@ -393,7 +393,7 @@ persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 ## Docs & prompt gallery
 
 - **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, self-hosting…) plus **reference pages generated from the live catalogs** (all 99 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
-- **Prompt gallery seed** — 380+ hand-written, templated recipes across 16 domains — education, coding, business, marketing, writing, life, finance, legal, health, science, design, career, language, productivity, creative and data/ML (Tamil/Hindi included) in `src/lib/gallery/seeds/*.ts`. Every recipe references real agents (tested).
+- **Prompt gallery seed** — 530+ hand-written, templated recipes across 21 domains — education, students, coding, engineering (civil/mechanical/electrical/chemical/aero/auto), business, industry playbooks (agriculture, hospitality, retail, real estate, logistics, manufacturing, NGOs, government, sports…), marketing, writing, presentation & speaking, arts (music, photography, film, fashion, architecture), life, finance, legal, health, science, design, career, language, productivity, creative and data/ML (Tamil/Hindi included) in `src/lib/gallery/seeds/*.ts`. Every recipe references real agents (tested).
 
 ## License
 MIT © 2026 Rajaram K — see [LICENSE](LICENSE).

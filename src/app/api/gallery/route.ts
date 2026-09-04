@@ -27,7 +27,10 @@ export async function GET(req: Request) {
   if (tag) items = items.filter((i) => i.tags.includes(tag));
   const byPopularity = (a: GalleryItem, b: GalleryItem) => (b.likes * 3 + b.uses) - (a.likes * 3 + a.uses) || b.createdAt - a.createdAt;
   items = rankItems(items, q, byPopularity);
-  const tags = Array.from(new Set((await all()).flatMap((i) => i.tags))).sort();
+  // Tags ordered by frequency so the most useful categories come first in the UI.
+  const counts = new Map<string, number>();
+  for (const i of await all()) for (const t of i.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const tags = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
   return NextResponse.json({ items: items.map((i) => ({ ...i, liked: i.likedBy?.includes(uid) ?? false, likedBy: undefined, mine: i.author.uid === uid })), tags });
 }
 
