@@ -2,7 +2,7 @@ name: release-desktop
 
 # Rebuild the desktop installers for a release that already exists.
 #
-# The monthly release (ci/release.yml) builds them itself; use this when an upload failed, when a
+# The monthly release (.github/workflows/release.yml) builds them itself; use this when an upload failed, when a
 # runner produced a broken artefact, or when you want installers for a commit that was never
 # released. Leave `publish_tag` empty to get workflow artefacts instead of touching a release.
 
@@ -32,7 +32,7 @@ jobs:
           - os: windows-latest # NSIS installer + .zip
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve the version
         id: v

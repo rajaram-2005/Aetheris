@@ -122,7 +122,7 @@ than by memory:
 2026.9.1  →  2026.9.2                                               hot-fix inside a month
 ```
 
-At 03:30 UTC on the 1st of every month `ci/release.yml` verifies the tree, bumps the version,
+At 03:30 UTC on the 1st of every month `.github/workflows/release.yml` verifies the tree, bumps the version,
 writes the CHANGELOG from the commits since the previous tag, pushes the tag, opens the GitHub
 Release, and attaches desktop installers built on macOS, Linux and Windows runners. To do it by
 hand: `bash tools/release.sh` (`--patch` for a hot-fix, `--set 2027.3.1` for an exact version,

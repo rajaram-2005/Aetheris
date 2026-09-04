@@ -27,9 +27,9 @@ npm run dev                 # http://localhost:3000 (binds 0.0.0.0)
 | `npm run changelog` | write the CHANGELOG section for the version in `VERSION` |
 | `bash tools/release.sh` | verify → bump → changelog → commit → tag → push (`--no-push` to stop early) |
 
-CI (`ci/github-actions-ci.yml`): typecheck → test → eval → build. The monthly release lives in
-`ci/release.yml` (cron `30 3 1 * *`). Copy them to `.github/workflows/` in your fork — see
-`ci/README.md`, which explains why they are not already there.
+CI (`.github/workflows/ci.yml`): typecheck → test → eval → build, then `npm ci && npm run typecheck`
+inside `desktop/` so the Electron shell is compiled against the real `electron` types. The monthly
+release lives in `.github/workflows/release.yml` (cron `30 3 1 * *`); `ci/README.md` maps the whole pipeline.
 
 ## Layout
 

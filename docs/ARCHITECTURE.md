@@ -28,7 +28,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 | Physical AI / robotics / twins | Nothing existed. | Interfaces + deterministic safety policy defined; `NOT AVAILABLE`; no fake telemetry. |
 | Dead/duplicated code | `Upgrade.tsx` & billing UI unused in free mode (kept behind flag). Two "🛰️" icons (Providers) — Control Center uses 🎛️. Legacy `api/mcp/tools` overlaps hub (kept for compatibility). | Noted; no destructive removals. |
 | Dependencies | `pdf-parse@1.1.1` imported via internal path to avoid its debug side-effect. `next build` corrupts `.next` if dev server runs concurrently (dev-only). | Documented. |
-| Deployment | CI workflow is in `ci/github-actions-ci.yml` (the automation cannot push `.github/workflows`). Schedules need external cron on serverless. | `docs/DEPLOYMENT.md`. |
+| Deployment | Workflows live in `.github/workflows/` (`ci.yml`, `release.yml`, `release-desktop.yml`) with the shared `.github/actions/build-desktop/` action; `ci/README.md` documents the pipeline. Schedules need external cron on serverless. | `docs/DEPLOYMENT.md`. |
 
 ---
 

@@ -1,36 +1,18 @@
 # CI and releases
 
-These files are GitHub Actions workflows that live **outside** `.github/workflows/` because the
-Arena GitHub App that pushes this branch lacks the `workflows` permission — GitHub ignores (and the
-API refuses to create) workflow files pushed by an app without that scope. To enable them, move them
-into place in one commit:
-
-```bash
-mkdir -p .github/workflows .github/actions
-git mv ci/github-actions-ci.yml .github/workflows/ci.yml
-git mv ci/release.yml           .github/workflows/release.yml
-git mv ci/release-desktop.yml   .github/workflows/release-desktop.yml
-git mv ci/actions/build-desktop .github/actions/build-desktop
-
-# both release workflows call the composite action by path — repoint them
-sed -i 's#\./ci/actions/build-desktop#./.github/actions/build-desktop#' \
-  .github/workflows/release.yml .github/workflows/release-desktop.yml
-
-git add -A && git commit -m "ci: enable the workflows" && git push
-```
-
-(The composite action must end up at `.github/actions/build-desktop/`. **Two** files reference it as
-`./ci/actions/build-desktop` — `release.yml` and `release-desktop.yml` — so both need the `sed` above
-in the same commit, or the desktop jobs will fail to find the action.)
-
-## What each workflow does
+The GitHub Actions workflows live in `.github/` (this folder keeps only documentation):
 
 | File | Trigger | Does |
 |---|---|---|
-| `github-actions-ci.yml` | every push / PR | `typecheck → test → eval → build` |
-| `release.yml` | **cron `30 3 1 * *`** (03:30 UTC on the 1st of every month) + manual | verify → bump the CalVer → write the CHANGELOG → commit, tag `v<version>`, push → open the GitHub Release → build and attach the desktop installers |
-| `release-desktop.yml` | manual | rebuild the macOS/Linux/Windows installers for an existing release |
-| `actions/build-desktop/` | — | composite action: `next build` (standalone) → `desktop/resources/server` → `electron-builder` on the current runner's OS |
+| `.github/workflows/ci.yml` | every push / PR | `typecheck → test → eval → build`, plus `npm ci && npm run typecheck` in `desktop/` with `ELECTRON_SKIP_BINARY_DOWNLOAD=1` so the Electron shell is compiled against the real `electron` types without pulling binaries |
+| `.github/workflows/release.yml` | **cron `30 3 1 * *`** (03:30 UTC on the 1st of every month) + manual | verify → bump the CalVer → write the CHANGELOG → commit, tag `v<version>`, push → open the GitHub Release → build and attach the desktop installers |
+| `.github/workflows/release-desktop.yml` | manual | rebuild the macOS/Linux/Windows installers for an existing release |
+| `.github/actions/build-desktop/` | — | composite action: `next build` (standalone) → `desktop/resources/server` → `electron-builder` on the current runner's OS |
+
+The `desktop/` tree is excluded from the root `tsconfig.json` program on purpose: the Next.js
+build must never compile `main.ts`/`preload.ts`, and the root program has no `electron` module.
+The desktop project therefore typechecks itself with its own `tsconfig.json` — CI runs it, and
+so can you (`npm run desktop:typecheck` from the root).
 
 ## The monthly version cadence
 
@@ -51,6 +33,13 @@ stops being monthly.
 
 ```bash
 npm run typecheck && npm test && npm run eval && npm run build   # what CI runs
+npm run desktop:typecheck                                        # the Electron shell, against real electron types
 bash tools/release.sh --no-push                                  # a release, stopped before pushing
 npm run desktop:build                                            # unpacked desktop app for smoke-testing
 ```
+
+If `npm run desktop:typecheck` complains that `tsc` is missing, run `npm ci` inside `desktop/`
+first — its dependencies (including `electron`'s bundled types) are not installed by the root install.
+The download of the ~100 MB Electron binaries is skipped automatically: `desktop/package.json` sets
+`"config": { "ELECTRON_SKIP_BINARY_DOWNLOAD": "1" }`, and CI sets the same env var explicitly.
+Packaging a real installer does need the binaries, and the build action leaves the flag off there.

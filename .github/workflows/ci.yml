@@ -4,11 +4,21 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm run typecheck
+      # The Electron shell is its own TypeScript project (desktop/tsconfig.json). The root tsc
+      # program deliberately excludes desktop/, so typecheck it here against the real electron
+      # types — installing with ELECTRON_SKIP_BINARY_DOWNLOAD because compiling needs no binary.
+      - name: Install desktop deps (no Electron binary)
+        working-directory: desktop
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: "1" }
+        run: npm ci
+      - name: Typecheck the desktop app
+        working-directory: desktop
+        run: npm run typecheck
       - run: npm test
       - run: npm run eval
       - run: npm run build
