@@ -42,3 +42,19 @@ test("typed memory remember/recall/dedupe + working/short-term", async () => {
   workingSet("job1", "plan", ["a", "b"]); assert.deepEqual(workingGet("job1", "plan"), ["a", "b"]);
   pushShortTerm("s1", "user", "hi"); assert.equal(getShortTerm("s1").length, 1);
 });
+
+test("automation engine: validation, device trigger edge detection, manual fire with condition/expr verify/remember action", async () => {
+  const { validateAutomation, deviceTriggerFires, saveAutomation, fire } = await import("../src/core/automation/engine");
+  assert.equal(validateAutomation({ name: "x", trigger: { kind: "manual" }, actions: [{ kind: "webhook", url: "http://insecure" }] }), "webhook url must be https");
+  assert.match(validateAutomation({ name: "x", trigger: { kind: "cron", cron: "* * * * *", tz: "UTC" }, actions: [{ kind: "webhook", url: "https://a" }] })!, /interval/);
+  assert.match(validateAutomation({ name: "x", trigger: { kind: "manual" }, actions: [{ kind: "actuate", deviceId: "d", capability: "c", value: 1 }] })!, /physicalToken/);
+  const trig = { kind: "device" as const, deviceId: "d", key: "temp", op: ">" as const, value: 80, cooldownMin: 10 };
+  assert.equal(deviceTriggerFires(trig, 85), true); assert.equal(deviceTriggerFires(trig, 70), false);
+  assert.equal(deviceTriggerFires(trig, 85, 85, Date.now() - 20 * 60_000), false); // same value → no re-fire
+  assert.equal(deviceTriggerFires(trig, 90, 85, Date.now() - 1000), false);        // cooldown
+  assert.equal(deviceTriggerFires(trig, 90, 85, Date.now() - 20 * 60_000), true);
+  const a = await saveAutomation("auto-u", { name: "hot", trigger: { kind: "manual" }, condition: { kind: "expr", expr: "value - 80" }, verify: { kind: "expr", expr: "value - 50" }, actions: [{ kind: "remember", type: "episodic", template: "Sensor {{key}} hit {{value}}" }] });
+  const skipped = await fire(a, "manual", { key: "temp", value: 80 }); assert.equal(skipped.status, "skipped");
+  const ok = await fire(a, "manual", { key: "temp", value: 95 }); assert.equal(ok.status, "ok"); assert.deepEqual(ok.stages.map((s) => s.stage), ["condition", "verify", "action"]);
+  const { recall } = await import("../src/core/memory/memory"); assert.ok((await recall("auto-u", "sensor temp 95", { types: ["episodic"] })).some((m) => m.text === "Sensor temp hit 95"));
+});

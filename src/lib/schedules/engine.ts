@@ -139,6 +139,7 @@ export async function tick(now = Date.now(), origin?: string): Promise<{ ran: { 
   try {
     try { const { sweepHealth } = await import("@/core/mcp/gateway"); await sweepHealth(); } catch { /* health sweep is best-effort */ }
     try { const { syncAllTwins } = await import("@/core/twins/twins"); await syncAllTwins(); } catch { /* twin sync is best-effort */ }
+    try { const { tickAutomations } = await import("@/core/automation/engine"); await tickAutomations(now, origin); } catch { /* automations are best-effort */ }
     const due = Object.values(await store.all<Schedule>(COL)).filter((s) => s.enabled && s.nextAt !== null && s.nextAt <= now);
     for (const s of due) {
       // claim first (so parallel tickers don't double-run), then execute

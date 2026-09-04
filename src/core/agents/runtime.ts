@@ -76,6 +76,8 @@ async function run(job: Job, opts: Parameters<typeof submitJob>[0]) {
     await save(job);
     record({ type: "agent", uid: job.uid, capability: "system:agent-runtime", ok: job.status === "done", ms: job.finishedAt - (job.startedAt ?? job.createdAt), detail: `${job.title} → ${job.status}`, meta: { modelCalls: job.used.modelCalls, chars: job.used.chars, agents: job.used.agents } });
     live.delete(job.id);
+    // Automation "job" triggers (best-effort, never throws into the runtime)
+    import("../automation/engine").then(({ onJobFinished }) => onJobFinished(job.uid, { id: job.id, title: job.title, status: job.status, result: acc })).catch(() => undefined);
   }
 }
 
