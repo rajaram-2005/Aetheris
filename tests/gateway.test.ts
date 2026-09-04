@@ -57,3 +57,16 @@ describe("github intelligence (pure parts)", () => {
     assert.deepEqual(parseFindings("no json"), []);
   });
 });
+
+describe("research engine (pure parts)", () => {
+  it("parses arXiv, inverts OpenAlex abstracts, dedupes, finds contradictions", async () => {
+    const { parseArxiv, invertAbstract, dedupeEvidence, findContradictions } = await import("../src/core/research/engine");
+    const xml = `<feed><entry><id>http://arxiv.org/abs/2401.00001v1</id><title>Test  Paper</title><summary>An abstract.</summary><published>2024-01-02</published><author><name>A One</name></author><arxiv:doi>10.1/abc</arxiv:doi></entry></feed>`;
+    const a = parseArxiv(xml); assert.equal(a[0].id, "arxiv:2401.00001v1"); assert.equal(a[0].title, "Test Paper"); assert.equal(a[0].year, 2024); assert.deepEqual(a[0].authors, ["A One"]);
+    assert.equal(invertAbstract({ world: [1], hello: [0] }), "hello world");
+    const d = dedupeEvidence([a, [{ id: "doi:10.1/abc", source: "crossref", title: "Test Paper", authors: [], url: "u", citationCount: 9 }]]);
+    assert.equal(d.length, 1); assert.equal(d[0].citationCount, 9);
+    const c = findContradictions([{ text: "Larger models improve reasoning accuracy", support: ["x"], stance: "supports", confidence: 0.8 }, { text: "Larger models do not improve reasoning accuracy on this benchmark", support: ["y"], stance: "contradicts", confidence: 0.7 }, { text: "Weather is nice", support: ["z"], stance: "contradicts", confidence: 0.5 }]);
+    assert.equal(c.length, 1);
+  });
+});
