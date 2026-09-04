@@ -1,3 +1,4 @@
+import { rankItems } from "@/lib/gallery/search";
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getUserId, uidCookie } from "@/lib/user";
@@ -24,8 +25,8 @@ export async function GET(req: Request) {
   let items = await all();
   if (mine) items = items.filter((i) => i.author.uid === uid);
   if (tag) items = items.filter((i) => i.tags.includes(tag));
-  if (q) items = items.filter((i) => [i.title, i.description, i.prompt, ...i.tags, ...i.agents].join(" ").toLowerCase().includes(q));
-  items.sort((a, b) => (b.likes * 3 + b.uses) - (a.likes * 3 + a.uses) || b.createdAt - a.createdAt);
+  const byPopularity = (a: GalleryItem, b: GalleryItem) => (b.likes * 3 + b.uses) - (a.likes * 3 + a.uses) || b.createdAt - a.createdAt;
+  items = rankItems(items, q, byPopularity);
   const tags = Array.from(new Set((await all()).flatMap((i) => i.tags))).sort();
   return NextResponse.json({ items: items.map((i) => ({ ...i, liked: i.likedBy?.includes(uid) ?? false, likedBy: undefined, mine: i.author.uid === uid })), tags });
 }

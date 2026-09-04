@@ -29,3 +29,22 @@ test("gallery seed: 100+ hand-written recipes, unique ids, only real agents, pla
   const cats = new Set(SEED.map((s) => s.tags[0]));
   assert.ok(cats.size >= 6);
 });
+
+test("gallery search: whole-word title matches outrank substring hits; multi-term is AND", async () => {
+  const { scoreItem, rankItems, tokenize } = await import("../src/lib/gallery/search");
+  const mk = (title: string, extra: Partial<{ description: string; prompt: string; tags: string[]; agents: string[] }> = {}) =>
+    ({ title, description: "", prompt: "", tags: [], agents: [], likes: 0, uses: 0, createdAt: 0, ...extra });
+  const rag = mk("Fine-tune or RAG?", { tags: ["ml", "rag"] });
+  const grant = mk("Grant aims page", { prompt: "Write a grant" });
+  const window = mk("Window functions tutorial");
+  assert.ok(scoreItem(rag, "rag") > scoreItem(grant, "rag"));
+  assert.ok(scoreItem(rag, "rag") > scoreItem(window, "rag"));
+  const ranked = rankItems([grant, window, rag], "rag", () => 0);
+  assert.equal(ranked[0].title, "Fine-tune or RAG?");
+  assert.equal(scoreItem(mk("Tamil kavithai"), "tamil poem"), 0, "AND semantics");
+  assert.ok(scoreItem(mk("Tamil kavithai", { tags: ["poetry"] }), "tamil poet") > 0, "prefix match on tag");
+  assert.deepEqual(tokenize("@coder  SQL "), ["coder", "sql"]);
+  const { SEED } = await import("../src/lib/gallery/seed");
+  const top = rankItems(SEED, "rag", () => 0);
+  assert.ok(/rag/i.test(top[0].title), top[0].title);
+});
