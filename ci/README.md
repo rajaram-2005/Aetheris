@@ -11,11 +11,17 @@ git mv ci/github-actions-ci.yml .github/workflows/ci.yml
 git mv ci/release.yml           .github/workflows/release.yml
 git mv ci/release-desktop.yml   .github/workflows/release-desktop.yml
 git mv ci/actions/build-desktop .github/actions/build-desktop
-git commit -m "ci: enable the workflows" && git push
+
+# both release workflows call the composite action by path — repoint them
+sed -i 's#\./ci/actions/build-desktop#./.github/actions/build-desktop#' \
+  .github/workflows/release.yml .github/workflows/release-desktop.yml
+
+git add -A && git commit -m "ci: enable the workflows" && git push
 ```
 
-(The composite action must end up at `.github/actions/build-desktop/` — `ci/release.yml` references
-it as `./ci/actions/build-desktop`, so update that path in the same commit.)
+(The composite action must end up at `.github/actions/build-desktop/`. **Two** files reference it as
+`./ci/actions/build-desktop` — `release.yml` and `release-desktop.yml` — so both need the `sed` above
+in the same commit, or the desktop jobs will fail to find the action.)
 
 ## What each workflow does
 
