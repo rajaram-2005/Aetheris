@@ -172,7 +172,12 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
   }
 
   const summary = attempts.map((a) => `${a.provider}: ${a.error ?? "unknown"}`).join(" | ");
-  const e = new ProviderError(`All ${attempts.length} provider(s) failed. ${summary}`, 502, false);
+  const allNetwork = attempts.length > 0 && attempts.every((a) => (a.error ?? "").startsWith("network error"));
+  const msg = allNetwork
+    ? `This server has no outbound internet access — every provider request failed before reaching the provider (${summary}). ` +
+      `This is a hosting/network limitation, not a provider or key issue: run Aetheris locally (npm run dev) or deploy it (e.g. Vercel) and the same request will succeed.`
+    : `All ${attempts.length} provider(s) failed. ${summary}`;
+  const e = new ProviderError(msg, 502, false);
   (e as ProviderError & { attempts?: ProviderAttempt[] }).attempts = attempts;
   throw e;
 }
