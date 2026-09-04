@@ -80,3 +80,16 @@ describe("multimodal sensor analytics", () => {
     assert.equal(analyzeSeries([]).n, 0);
   });
 });
+
+describe("browser agent (pure parts)", () => {
+  it("snapshots HTML, enforces policy, parses actions", async () => {
+    const { snapshot, policyOk, parseAction, render } = await import("../src/core/browser/agent");
+    const s = snapshot("https://ex.com/a/", `<html><head><title>Hi &amp; Bye</title><script>x()</script></head><body><h1>Head</h1><a href="/b">Go B</a><a href="#top">skip</a><form action="/s" method="post"><input name="q" placeholder="Search"><input type="hidden" name="t" value="1"><button>go</button></form></body></html>`);
+    assert.equal(s.title, "Hi & Bye"); assert.deepEqual(s.links, [{ n: 1, text: "Go B", href: "https://ex.com/b" }]);
+    assert.equal(s.forms[0].method, "post"); assert.equal(s.forms[0].fields.length, 2); assert.equal(s.forms[0].fields[0].label, "Search");
+    assert.ok(render(s).includes("[1] Go B"));
+    assert.equal(policyOk("http://127.0.0.1:3000/", {}), "URL blocked by deny-list (private networks are never browsed)");
+    assert.equal(policyOk("https://ok.com/", { allow: [/ok\.com/] }), null); assert.ok(policyOk("https://bad.com/", { allow: [/ok\.com/] }));
+    assert.deepEqual(parseAction('{"type":"follow","n":2}'), { type: "follow", n: 2 }); assert.equal(parseAction("nope"), null); assert.equal(parseAction('{"type":"goto"}'), null);
+  });
+});
