@@ -1,5 +1,5 @@
 import { callProvider, hasImages } from "./adapters";
-import { PROVIDERS, isConfigured, resolveModel } from "./providers";
+import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
 
 /** Cooldown applied after a rate limit / server error, per provider. */
@@ -133,7 +133,7 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
   for (const provider of candidates.slice(0, max)) {
     if (opts.signal?.aborted) throw new ProviderError("request aborted", 499, false);
     const model = resolveModel(provider, { vision });
-    const apiKey = process.env[provider.envKey]!;
+    const apiKey = apiKeyFor(provider);
     const started = Date.now();
     let streamed = 0;
     try {
@@ -191,6 +191,10 @@ export function meshStatus() {
       priority: p.priority,
       envKey: p.envKey,
       notes: p.notes,
+      keyless: !!p.keyless,
+      hasKey: !!(process.env[p.envKey] && process.env[p.envKey]!.trim()),
+      keyUrl: p.keyUrl,
+      freeTier: p.freeTier,
       configured,
       state: !configured ? "unconfigured" : coolingDown ? "cooldown" : "ready",
       cooldownSecs: coolingDown ? Math.ceil((h.cooldownUntil - now) / 1000) : 0,

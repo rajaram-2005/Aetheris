@@ -20,6 +20,15 @@ export interface ProviderConfig {
   baseUrl: string;
   /** Environment variable holding the API key */
   envKey: string;
+  /**
+   * Works without any key (anonymous / community tier). The provider is always "configured";
+   * a key in `envKey`, if present, raises the rate limit.
+   */
+  keyless?: boolean;
+  /** Where to obtain a free key. */
+  keyUrl?: string;
+  /** Documented free-tier limit, for the Providers page. */
+  freeTier?: string;
   /** Default model to use */
   model: string;
   /** Model used when the request contains images (omit if `model` is already multimodal). */

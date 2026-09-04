@@ -14,6 +14,10 @@ export interface ProviderStatus {
   failures: number;
   avgLatencyMs: number;
   lastError?: string;
+  keyless?: boolean;
+  hasKey?: boolean;
+  keyUrl?: string;
+  freeTier?: string;
 }
 
 const KEY_URLS: Record<string, string> = {
@@ -45,7 +49,7 @@ export default function MeshPanel({
       </div>
       {configured.length === 0 ? (
         <div className="mesh-empty">
-          <strong style={{ color: "var(--text)" }}>No providers are configured yet.</strong>
+          <strong style={{ color: "var(--text)" }}>No keyed providers yet.</strong>
           <ol style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.8 }}>
             <li>Copy <code>.env.example</code> to <code>.env.local</code></li>
             <li>Add at least one key — the free ones below take under a minute (Groq, Cerebras, Gemini are the fastest)</li>
@@ -64,8 +68,10 @@ export default function MeshPanel({
             >
               <span className={`dot ${p.state === "ready" ? "ok" : "warn"}`} />
               <span>
-                <div className="name">{p.name}{p.state === "cooldown" ? ` · cooldown ${p.cooldownSecs}s` : ""}</div>
+                <div className="name">{p.name}{p.keyless && !p.hasKey ? <span className="tag">keyless</span> : null}{p.state === "cooldown" ? ` · cooldown ${p.cooldownSecs}s` : ""}</div>
                 <div className="meta">{p.model}</div>
+                {p.freeTier && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.freeTier}</div>}
+                {p.keyless && !p.hasKey && p.keyUrl && <div className="meta"><a href={p.keyUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>add a free token for higher limits ↗</a></div>}
                 <div className="meta">
                   P{p.priority} · ✓{p.successes} ✗{p.failures}{p.avgLatencyMs ? ` · ${p.avgLatencyMs}ms` : ""}
                 </div>
@@ -86,7 +92,8 @@ export default function MeshPanel({
                   <div className="name">{p.name} <span className="tag">P{p.priority}</span></div>
                   <div className="meta">{p.model}</div>
                   {p.notes && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.notes}</div>}
-                  <div className="meta">env: <code>{p.envKey}</code>{KEY_URLS[p.id] && <> · <a href={KEY_URLS[p.id]} target="_blank" rel="noreferrer">get a free key ↗</a></>}</div>
+                  {p.freeTier && <div className="meta" style={{ fontFamily: "var(--font)", color: "var(--ok)" }}>{p.freeTier}</div>}
+                  <div className="meta">env: <code>{p.envKey}</code>{(p.keyUrl ?? KEY_URLS[p.id]) && <> · <a href={p.keyUrl ?? KEY_URLS[p.id]} target="_blank" rel="noreferrer">get a free key ↗</a></>}</div>
                 </span>
               </div>
             ))}

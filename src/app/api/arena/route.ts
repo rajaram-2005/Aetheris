@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { callProvider } from "@/lib/router/adapters";
-import { PROVIDERS, isConfigured, resolveModel } from "@/lib/router/providers";
+import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "@/lib/router/providers";
 import type { ChatMessage } from "@/lib/router/types";
 import { getUserId, uidCookie } from "@/lib/user";
 import { consumeChat } from "@/lib/billing/entitlements";
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         const started = Date.now();
         try {
           await callProvider({
-            provider: p, model: resolveModel(p, { vision: hasImages }), apiKey: process.env[p.envKey]!, signal: req.signal,
+            provider: p, model: resolveModel(p, { vision: hasImages }), apiKey: apiKeyFor(p), signal: req.signal,
             messages: [{ role: "system", content: SYSTEM }, ...msgs],
             onDelta: (t) => send({ type: "delta", i, text: t }),
           });

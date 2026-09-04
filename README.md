@@ -3,7 +3,7 @@
 **One chat. A mesh of free AI providers. Automatic failover.**
 
 Aetheris One is a minimalist chat interface backed by an *omni-router*: your prompt is
-load-balanced across 15 free-tier AI providers. When one provider rate-limits or errors,
+load-balanced across 27 free-tier AI providers. When one provider rate-limits or errors,
 Aetheris silently reroutes to the next — no local GPU, no paid API required.
 
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com
@@ -12,7 +12,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 
 | Phase | Component | State |
 |---|---|---|
-| 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
+| 1 | **One Chat + Omni-Router** (27 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
 | 6 | **One Chat flagship UX** (streaming, sidebar, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ this repo |
@@ -28,6 +28,9 @@ npm run dev                    # http://localhost:3000
 ```
 
 Any subset of keys works — the router only uses providers whose key is set.
+**Zero keys also works:** Pollinations and LLM7.io are keyless community endpoints, so a fresh
+deployment answers immediately (at low rate limits) and every key you add raises quality and
+throughput. The **Providers** page in the app links straight to each provider's free-key page.
 
 ## The provider mesh
 
@@ -48,6 +51,24 @@ Any subset of keys works — the router only uses providers whose key is set.
 | 13 | DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat | 3 |
 | 14 | AI21 Labs | `AI21_API_KEY` | jamba-mini | 3 |
 | 15 | Perplexity | `PERPLEXITY_API_KEY` | sonar | 4 |
+| 16 | ModelScope | `MODELSCOPE_API_KEY` | Qwen/Qwen2.5-72B-Instruct | 3 |
+| 17 | OVHcloud AI Endpoints | `OVH_AI_ENDPOINTS_TOKEN` | Meta-Llama-3_3-70B-Instruct | 3 |
+| 18 | Ollama Cloud | `OLLAMA_API_KEY` | gpt-oss:20b | 3 |
+| 19 | Kilo Code | `KILO_API_KEY` | nemotron-3-super-120b:free | 3 |
+| 20 | Z.AI (GLM) | `ZAI_API_KEY` | glm-4-flash | 3 |
+| 21 | SiliconFlow | `SILICONFLOW_API_KEY` | Qwen/Qwen2.5-7B-Instruct | 3 |
+| 22 | Nebius AI Studio | `NEBIUS_API_KEY` | Meta-Llama-3.1-70B-Instruct | 3 |
+| 23 | Chutes.ai | `CHUTES_API_KEY` | DeepSeek-V3-0324 | 3 |
+| 24 | glhf.chat | `GLHF_API_KEY` | hf:Llama-3.3-70B-Instruct | 3 |
+| 25 | Nscale | `NSCALE_API_KEY` | Llama-3.3-70B-Instruct | 3 |
+| 26 | Pollinations *(keyless)* | `POLLINATIONS_API_KEY` (optional) | openai | 5 |
+| 27 | LLM7.io *(keyless)* | `LLM7_API_KEY` (optional) | gpt-4o-mini | 5 |
+
+Every key above is free (no credit card). A note on what "free" means here: each provider's
+free tier is granted to **you**, the deployer, under that provider's terms — Aetheris does not
+ship, share, or rotate anyone else's keys. Directories such as
+[awesome-freellm-apis](https://github.com/open-free-llm-api/awesome-freellm-apis) track which
+tiers are still live.
 
 Override any default model with `AETHERIS_MODEL_<ID>` (e.g. `AETHERIS_MODEL_GROQ=llama-3.1-8b-instant`).
 Free-tier model catalogs change often; if a provider returns 404 for its model, set an override.
