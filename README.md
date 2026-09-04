@@ -4,7 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-182%20passing-brightgreen.svg)](tests)
+[![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
@@ -32,31 +34,34 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](docs/MODELS.md) |
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
-| Verification engine | PARTIAL | critique/explain/automation-verify; no default test loop |
-| Capability Registry (383 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Verification engine — schema validation, independent reviewer, test loop | IMPLEMENTED | `GET/POST /api/verify`, [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Capability Registry (387 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](docs/SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](docs/SECURITY.md) |
 | MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](docs/MCP.md) |
 | MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](docs/MCP.md) |
-| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (lexical embeddings by default) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
+| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (offline semantic embeddings trained on your own corpus; `EMBEDDINGS_URL` preferred when set) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](docs/MEMORY.md) |
 | Research engine — arXiv/Crossref/OpenAlex/S2, claims, contradictions | IMPLEMENTED (network) | [RESEARCH](docs/RESEARCH.md) |
 | GitHub repository intelligence + coding factory | IMPLEMENTED (untestable offline) | [AGENTS](docs/AGENTS.md) |
-| Multimodal perception (image/doc/audio/sensor; video needs ffmpeg) | PARTIAL | `GET /api/multimodal` |
-| Browser agent (http engine; Playwright optional) | PARTIAL | `GET /api/browser` |
+| Multimodal perception — image/doc/audio/sensor, plus video via host ffmpeg, **ffmpeg-as-WASM**, an inline-video model, or a pure-JS container read | IMPLEMENTED (frame sampling needs no host binary — a vision key is enough) | `GET /api/multimodal` |
+| Browser agent — goal-driven navigation, robots/SSRF gates, JS-shell detection, SSR payload recovery (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD) | IMPLEMENTED (3 engines: playwright → **jsdom, which executes page JS with no browser binary** → http) | `GET /api/browser` |
 | Physical AI — http/mqtt/modbus adapters, safety loop, e-stop, telemetry | IMPLEMENTED (mqtt/modbus verified on mocks only); serial via bridge; opcua/can NOT AVAILABLE | [HARDWARE](docs/HARDWARE.md) |
 | Robotics — ROS 2 via rosbridge, governor, watchdog, e-stop | IMPLEMENTED (verified on mock rosbridge) | [ROBOTICS](docs/ROBOTICS.md) |
 | Digital twins — sync, rule simulation, health | IMPLEMENTED | [ROBOTICS](docs/ROBOTICS.md) |
 | Automation engine — trigger → condition → agent → verify → action | IMPLEMENTED | [API](docs/API.md) |
-| Workspaces | IMPLEMENTED (no sharing) | [API](docs/API.md) |
+| Workspaces — scopes, computed stats, sharing with editor/viewer roles | IMPLEMENTED (sharing is read-only) | [API](docs/API.md) |
 | Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](docs/SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
-| Evals (intent, policy, sandbox, retrieval) + 106 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Evals (intent, policy, sandbox, retrieval) + 182 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
-| Horizontal scaling, persistent telemetry store, semantic embeddings offline | NOT AVAILABLE / PARTIAL | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](docs/DESKTOP.md) |
+| Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](CHANGELOG.md) |
+| Telemetry — durable event log surviving restarts, Control Center, audit export | IMPLEMENTED (`AETHERIS_EVENT_PERSIST=0` for memory-only) | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Horizontal scaling, multi-instance storage | NOT AVAILABLE (single-instance JSON store; `StorageProvider` is the swap point) | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
 
-Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md)
+Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [DESKTOP](docs/DESKTOP.md) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -86,6 +91,47 @@ Any subset of keys works — the router only uses providers whose key is set.
 **Zero keys also works:** Pollinations and LLM7.io are keyless community endpoints, so a fresh
 deployment answers immediately (at low rate limits) and every key you add raises quality and
 throughput. The **Providers** page in the app links straight to each provider's free-key page.
+
+## Desktop app — macOS, Linux, Windows
+
+Aetheris also ships as a desktop app (`desktop/`, Electron) around the same code — not a second
+product. It either runs the server **embedded** on `127.0.0.1` (a self-contained, offline app whose
+data lives in `~/Library/Application Support/Aetheris`, `~/.config/Aetheris` or `%APPDATA%/Aetheris`),
+or acts as a thin client for **any** Aetheris server you point it at — switchable from the app
+menu's **Connection settings…**. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
+check come with it. See [docs/DESKTOP.md](docs/DESKTOP.md).
+
+| Platform | Artefacts |
+|---|---|
+| macOS | `.dmg` + `.zip` — Apple silicon and Intel (unsigned: right-click → Open the first time) |
+| Linux | `.AppImage`, `.deb`, `.rpm` — x64 and arm64 |
+| Windows | NSIS installer + `.zip` — x64 |
+
+```bash
+npm run desktop:dev      # next dev + the desktop shell, with hot reload
+npm run desktop:build    # standalone server → resources/server → unpacked app you can run
+```
+
+## Versioning — a new release every month
+
+Aetheris releases on **CalVer `YYYY.M.P`**, once a month, and the schedule is enforced by CI rather
+than by memory:
+
+```
+2026.9.1  →  2026.10.1  →  2026.11.1  →  2026.12.1  →  2027.1.1     monthly (the patch resets)
+2026.9.1  →  2026.9.2                                               hot-fix inside a month
+```
+
+At 03:30 UTC on the 1st of every month `ci/release.yml` verifies the tree, bumps the version,
+writes the CHANGELOG from the commits since the previous tag, pushes the tag, opens the GitHub
+Release, and attaches desktop installers built on macOS, Linux and Windows runners. To do it by
+hand: `bash tools/release.sh` (`--patch` for a hot-fix, `--set 2027.3.1` for an exact version,
+`--no-push` to stop before pushing).
+
+`VERSION` at the repository root is the single source of truth; the release tooling copies it into
+`package.json`, `desktop/package.json` and `public/manifest.webmanifest`, and `GET /api/version`
+serves it. `tests/desktop.test.ts` fails if those copies drift apart or if the schedule stops being
+monthly.
 
 ## 100% free — for everyone
 
@@ -447,7 +493,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## 🎛️ Intelligence OS core (Control Center)
 
-`src/core` holds the **Capability Registry** (383 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+`src/core` holds the **Capability Registry** (387 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## ⏰ Scheduled automations
 

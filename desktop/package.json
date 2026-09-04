@@ -1,0 +1,175 @@
+{
+  "name": "aetheris-desktop",
+  "version": "2026.9.1",
+  "private": true,
+  "description": "Aetheris One desktop app \u2014 the Intelligence OS as a native window on macOS, Linux and Windows. Runs the Next.js server embedded (loopback-only) or connects to any Aetheris server you point it at.",
+  "main": "dist/main.js",
+  "author": {
+    "name": "Rajaram",
+    "email": "ramkpraja175@gmail.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "prepare:app": "node scripts/prepare-app.mjs",
+    "dev": "node scripts/dev.mjs",
+    "pack": "npm run compile && npm run prepare:app && electron-builder --dir",
+    "dist": "npm run compile && npm run prepare:app && electron-builder",
+    "dist:mac": "npm run compile && npm run prepare:app && electron-builder --mac",
+    "dist:linux": "npm run compile && npm run prepare:app && electron-builder --linux",
+    "dist:win": "npm run compile && npm run prepare:app && electron-builder --win",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "icons": "node ../tools/gen-icons.mjs"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "config": {
+    "ELECTRON_SKIP_BINARY_DOWNLOAD": "1"
+  },
+  "build": {
+    "appId": "io.aetheris.one",
+    "productName": "Aetheris",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "copyright": "Copyright \u00a9 2026 Rajaram. MIT licensed.",
+    "asar": true,
+    "asarUnpack": [],
+    "files": [
+      "dist/**/*",
+      "src/renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/server",
+        "to": "server"
+      },
+      {
+        "from": "buildResources",
+        "to": "buildResources",
+        "filter": [
+          "icon.png",
+          "tray*.png",
+          "*.plist"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "buildResources"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "buildResources/entitlements.mac.plist",
+      "entitlementsInherit": "buildResources/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Aetheris uses the microphone only for voice input you start yourself.",
+        "NSCameraUsageDescription": "Aetheris uses the camera only for image input you attach yourself.",
+        "NSSupportsAutomaticGraphicsSwitching": true
+      },
+      "icon": "buildResources/icon.png"
+    },
+    "dmg": {
+      "sign": false
+    },
+    "linux": {
+      "category": "Utility",
+      "synopsis": "Aetheris One \u2014 the open Intelligence Operating System",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "desktop": {
+        "Name": "Aetheris One",
+        "Comment": "One chat over a mesh of AI providers, agents, knowledge, tools and physical systems",
+        "Keywords": "ai;llm;agents;mcp;assistant;",
+        "StartupWMClass": "Aetheris"
+      },
+      "icon": "buildResources/icon.png"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libsecret-1-0"
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "icon": "buildResources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aetheris"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rajaram-2005",
+        "repo": "Aetheris"
+      }
+    ]
+  }
+}

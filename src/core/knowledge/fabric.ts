@@ -15,6 +15,7 @@ import path from "node:path";
 import { mkdirSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { record } from "../observability/events";
+import * as semantic from "./semantic";
 
 export type SourceKind = "user" | "document" | "web" | "agent" | "device" | "github" | "research" | "memory" | "import";
 export interface Provenance { kind: SourceKind; ref?: string; confidence: number; by?: string; at: number }
@@ -39,7 +40,33 @@ export function localEmbed(text: string): Float32Array {
   let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1; for (let i = 0; i < DIM; i++) v[i] /= n; return v;
 }
 export const cosine = (a: Float32Array, b: Float32Array) => { let s = 0; for (let i = 0; i < a.length && i < b.length; i++) s += a[i] * b[i]; return s; };
-let embedMode: "local" | "provider" = "local";
+/**
+ * Which space a stored vector lives in. Vectors from different spaces are NOT comparable, so every
+ * row is tagged and the vector search only compares like with like.
+ */
+const vecSpace = () => (semanticEnabled() ? "semantic" : process.env.EMBEDDINGS_URL ? "provider" : "hash");
+const semanticEnabled = () => process.env.AETHERIS_SEMANTIC !== "0";
+
+let embedMode: "local" | "semantic" | "provider" = "local";
+let semModel: semantic.SemanticModel | undefined;
+async function loadModel(d: Db): Promise<semantic.SemanticModel> {
+  if (semModel) return semModel;
+  try {
+    const row = d.prepare("SELECT model FROM semantic_model WHERE id=1").get();
+    semModel = row ? semantic.deserialize(String(row.model)) : semantic.createModel();
+  } catch { semModel = semantic.createModel(); }
+  return semModel!;
+}
+let semDirty = false;
+/** Write the learned model back. Called on add; failures are non-fatal (the corpus is the source). */
+function persistModel(d: Db) {
+  if (!semDirty || !semModel) return;
+  semDirty = false;
+  try {
+    d.prepare("INSERT INTO semantic_model (id, model, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET model=excluded.model, updated_at=excluded.updated_at")
+      .run(semantic.serialize(semModel), Date.now());
+  } catch { semDirty = true; }
+}
 async function embed(text: string): Promise<Float32Array> {
   const url = process.env.EMBEDDINGS_URL, key = process.env.EMBEDDINGS_KEY, model = process.env.EMBEDDINGS_MODEL ?? "text-embedding-3-small";
   if (url && key) {
@@ -47,6 +74,11 @@ async function embed(text: string): Promise<Float32Array> {
       const r = await fetch(url.replace(/\/$/, "") + "/embeddings", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: text.slice(0, 8000) }), signal: AbortSignal.timeout(15_000) });
       if (r.ok) { const j = (await r.json()) as { data: { embedding: number[] }[] }; embedMode = "provider"; return Float32Array.from(j.data[0].embedding); }
     } catch { /* fall back to local */ }
+  }
+  if (semanticEnabled() && semModel && semModel.learnedFrom > 0) {
+    // A model that has learned nothing yet is no better than the lexical hash, so fall through.
+    embedMode = "semantic";
+    return semantic.vector(semModel, text);
   }
   embedMode = "local"; return localEmbed(text);
 }
@@ -61,11 +93,13 @@ async function open(): Promise<Db> {
     mkdirSync(DIR, { recursive: true });
     const d = new DatabaseSync(process.env.AETHERIS_KNOWLEDGE_DB ?? path.join(DIR, "knowledge.sqlite"));
     d.exec(`PRAGMA journal_mode=WAL;
-      CREATE TABLE IF NOT EXISTS facts(id TEXT PRIMARY KEY, uid TEXT, workspace TEXT, text TEXT, entities TEXT, tags TEXT, valid_from INTEGER, valid_to INTEGER, supersedes TEXT, prov TEXT, created_at INTEGER, vec BLOB, vec_dim INTEGER);
+      CREATE TABLE IF NOT EXISTS facts(id TEXT PRIMARY KEY, uid TEXT, workspace TEXT, text TEXT, entities TEXT, tags TEXT, valid_from INTEGER, valid_to INTEGER, supersedes TEXT, prov TEXT, created_at INTEGER, vec BLOB, vec_dim INTEGER, vec_space TEXT);
+      CREATE TABLE IF NOT EXISTS semantic_model(id INTEGER PRIMARY KEY CHECK (id = 1), model TEXT NOT NULL, updated_at INTEGER);
       CREATE INDEX IF NOT EXISTS facts_uw ON facts(uid, workspace);
       CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(id UNINDEXED, text, entities, tags);
       CREATE TABLE IF NOT EXISTS edges(id TEXT PRIMARY KEY, uid TEXT, workspace TEXT, src TEXT, rel TEXT, dst TEXT, fact_id TEXT, weight REAL, prov TEXT);
       CREATE INDEX IF NOT EXISTS edges_src ON edges(uid, src); CREATE INDEX IF NOT EXISTS edges_dst ON edges(uid, dst);`);
+    try { d.exec("ALTER TABLE facts ADD COLUMN vec_space TEXT"); } catch { /* column already present */ }
     db = d; return d;
   } catch (e) { dbErr = `knowledge fabric unavailable: ${(e as Error).message}`; throw new Error(dbErr); }
 }
@@ -97,15 +131,37 @@ export async function addFact(input: { uid: string; workspace?: string; text: st
   const text = input.text.trim().slice(0, 4000); if (!text) throw new Error("empty fact");
   const entities = input.entities ?? extractEntities(text);
   const f: Fact = { id: randomBytes(6).toString("hex"), uid: input.uid, workspace: input.workspace ?? "default", text, entities, tags: input.tags ?? [], validFrom: input.validFrom ?? (input.supersedes ? Date.now() : undefined), validTo: input.validTo, supersedes: input.supersedes, provenance: { ...input.provenance, at: input.provenance.at ?? Date.now(), confidence: Math.max(0, Math.min(1, input.provenance.confidence)) }, createdAt: Date.now() };
+  if (semanticEnabled()) { const m = await loadModel(d); if (semantic.learn(m, text)) semDirty = true; }
   const vec = await embed(text);
-  d.prepare("INSERT INTO facts VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run(f.id, f.uid, f.workspace, f.text, JSON.stringify(f.entities), JSON.stringify(f.tags), f.validFrom ?? null, f.validTo ?? null, f.supersedes ?? null, JSON.stringify(f.provenance), f.createdAt, new Uint8Array(vec.buffer), vec.length);
+  d.prepare("INSERT INTO facts(id,uid,workspace,text,entities,tags,valid_from,valid_to,supersedes,prov,created_at,vec,vec_dim,vec_space) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(f.id, f.uid, f.workspace, f.text, JSON.stringify(f.entities), JSON.stringify(f.tags), f.validFrom ?? null, f.validTo ?? null, f.supersedes ?? null, JSON.stringify(f.provenance), f.createdAt, new Uint8Array(vec.buffer), vec.length, vecSpace());
   d.prepare("INSERT INTO facts_fts(id,text,entities,tags) VALUES(?,?,?,?)").run(f.id, f.text, f.entities.join(" "), f.tags.join(" "));
   if (f.supersedes) d.prepare("UPDATE facts SET valid_to=COALESCE(valid_to,?) WHERE id=? AND uid=?").run(f.createdAt, f.supersedes, f.uid);
   const edges: { src: string; rel: string; dst: string; weight?: number }[] = input.edges ?? extractTriples(text, entities);
   const ins = d.prepare("INSERT INTO edges VALUES(?,?,?,?,?,?,?,?,?)");
   for (const e of edges) ins.run(randomBytes(6).toString("hex"), f.uid, f.workspace, e.src, e.rel, e.dst, f.id, e.weight ?? f.provenance.confidence, JSON.stringify(f.provenance));
+  persistModel(d);
   record({ type: "knowledge", uid: f.uid, capability: "knowledge:add", ok: true, ms: Date.now() - t0, detail: `${entities.length} entities · ${edges.length} edges · ${embedMode} embed` });
   return f;
+}
+
+/**
+ * Re-embed every stored fact in the current space. Needed when the embedding mode changes (or after
+ * the corpus has grown enough for the semantic model to be worth switching to); until then, older
+ * rows simply rank through keyword/graph/temporal instead of vector.
+ */
+export async function reindexEmbeddings(limit = 20_000): Promise<{ reindexed: number; space: string }> {
+  const d = await open();
+  await loadModel(d);
+  const space = vecSpace();
+  const rows = d.prepare("SELECT id, text FROM facts WHERE COALESCE(vec_space, 'hash') <> ? ORDER BY created_at DESC LIMIT ?").all(space, limit);
+  const upd = d.prepare("UPDATE facts SET vec=?, vec_dim=?, vec_space=? WHERE id=?");
+  for (const r of rows) {
+    const vec = await embed(String(r.text));
+    upd.run(new Uint8Array(vec.buffer), vec.length, space, r.id as string);
+  }
+  persistModel(d);
+  record({ type: "knowledge", capability: "knowledge:reindex", ok: true, detail: `${rows.length} facts → ${space}` });
+  return { reindexed: rows.length, space };
 }
 
 export async function getFact(uid: string, id: string): Promise<Fact | undefined> { const r = (await open()).prepare("SELECT * FROM facts WHERE id=? AND uid=?").get(id, uid); return r ? rowToFact(r) : undefined; }
@@ -138,7 +194,11 @@ export async function queryFacts(uid: string, q: string, opts: QueryOpts = {}): 
   }
   if (mode === "hybrid" || mode === "vector") {
     const qv = await embed(q);
-    d.prepare(`SELECT f.* FROM facts f WHERE ${scoped()} ORDER BY created_at DESC LIMIT 5000`).all(...scopedArgs()).map((r) => ({ f: rowToFact(r), c: cosine(qv, vecOf(r)) })).filter((x) => x.c > 0.08).sort((a, b) => b.c - a.c).slice(0, k * 3).forEach((x, i) => add(x.f, i, "vector"));
+    // Only rows embedded in the same space are comparable; others still rank via keyword/graph/time.
+    const space = vecSpace();
+    d.prepare(`SELECT f.* FROM facts f WHERE ${scoped()} ORDER BY created_at DESC LIMIT 5000`).all(...scopedArgs())
+      .filter((r) => (r.vec_space as string | null) === space)
+      .map((r) => ({ f: rowToFact(r), c: cosine(qv, vecOf(r)) })).filter((x) => x.c > 0.08).sort((a, b) => b.c - a.c).slice(0, k * 3).forEach((x, i) => add(x.f, i, "vector"));
   }
   if (mode === "hybrid" || mode === "graph") {
     const ents = opts.entity ? [opts.entity] : extractEntities(q).concat(tok(q).filter((w) => w.length > 3)).slice(0, 6);
@@ -154,7 +214,23 @@ export async function queryFacts(uid: string, q: string, opts: QueryOpts = {}): 
 }
 
 export async function fabricStatus() {
-  try { const d = await open(); const c = d.prepare("SELECT (SELECT COUNT(*) FROM facts) AS facts, (SELECT COUNT(*) FROM edges) AS edges").get()!; return { available: true, engine: "node:sqlite + FTS5", embeddings: process.env.EMBEDDINGS_URL ? "provider (EMBEDDINGS_URL)" : "local hashed n-gram (lexical, not semantic)", facts: c.facts as number, edges: c.edges as number, dim: DIM }; }
+  try {
+    const d = await open();
+    const c = d.prepare("SELECT (SELECT COUNT(*) FROM facts) AS facts, (SELECT COUNT(*) FROM edges) AS edges").get()!;
+    const m = await loadModel(d);
+    const st = semantic.stats(m);
+    const spaces = d.prepare("SELECT COALESCE(vec_space, 'hash') AS sp, COUNT(*) AS n FROM facts GROUP BY 1").all().map((r) => `${r.sp}:${r.n}`);
+    return {
+      available: true, engine: "node:sqlite + FTS5", facts: c.facts as number, edges: c.edges as number, dim: DIM,
+      embeddings: process.env.EMBEDDINGS_URL
+        ? "provider (EMBEDDINGS_URL) — preferred over the local model"
+        : st.learnedFrom > 0
+          ? `local semantic (random indexing, ${st.words} words from ${st.learnedFrom} documents, offline)`
+          : "local hashed n-gram (lexical) — no corpus learned yet; set AETHERIS_SEMANTIC=0 to stay lexical",
+      semantic: { enabled: semanticEnabled(), ...st },
+      vecSpaces: spaces,
+    };
+  }
   catch (e) { return { available: false, error: (e as Error).message }; }
 }
 /** Render hits as a grounding block with numbered provenance for prompts. */

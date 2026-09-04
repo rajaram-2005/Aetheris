@@ -76,6 +76,11 @@ function hasImages(msgs: ChatMessage[]): boolean {
   return msgs.some((m) => m.images && m.images.length > 0);
 }
 
+/** A video passed as an inline data URL in the image slot (the only inline binary slot there is). */
+export function hasVideo(msgs: ChatMessage[]): boolean {
+  return msgs.some((m) => m.images?.some((u) => /^data:video\//i.test(u) || /\.(mp4|mov|m4v|webm|3gp)(\?|$)/i.test(u)));
+}
+
 // ---------------------------------------------------------------------------------------
 // OpenAI-compatible (Groq, Cerebras, SambaNova, GitHub Models, OpenRouter, Mistral, Together,
 // HF router, NVIDIA, DeepSeek, AI21, Perplexity) — streaming + multimodal content parts

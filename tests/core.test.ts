@@ -105,3 +105,76 @@ test("workspaces: default exists, create/update/delete, stats computed", async (
   assert.equal(await ws.deleteWorkspace(uid, w.id), true);
   assert.equal(await ws.getWorkspace("other", list[0].id), undefined);
 });
+
+test("workspaces: sharing gives a member read scope, a role, and no more than that", async () => {
+  const ws = await import("../src/core/workspaces/workspaces");
+  const owner = "a".repeat(32); // real uids are 32-hex (src/lib/user.ts); the data dir is fresh per run
+  const mate = "b".repeat(32);
+  const stranger = "c".repeat(32);
+
+  const w = await ws.createWorkspace(owner, { name: "Shared lab", tags: ["demo"] });
+  const owned = await ws.listWorkspaces(owner);
+
+  // The default workspace holds the user's unscoped data, so it is not shareable.
+  await assert.rejects(() => ws.addMember(owner, owned[0].id, { member: mate }), /default workspace/);
+  await assert.rejects(() => ws.addMember(owner, w.id, { member: owner }), /already own/);
+  await assert.rejects(() => ws.addMember(owner, w.id, { member: mate, role: "owner" }), /editor.*viewer/);
+  await assert.rejects(() => ws.addMember(owner, w.id, { member: "" }), /member required/);
+  // Only a real user id can authenticate, so only a real user id can be shared with.
+  await assert.rejects(() => ws.addMember(owner, w.id, { member: "mate-1" }), /32-character user id/);
+
+  const shared = await ws.addMember(owner, w.id, { member: mate, role: "viewer" });
+  assert.equal(shared.members?.length, 1);
+  assert.deepEqual((await ws.listMembers(mate, w.id))?.members, [{ uid: mate, role: "viewer", addedAt: shared.members![0].addedAt }]);
+
+  // What the member can see: the shared scope, with its role, plus its own workspaces.
+  const scopes = await ws.readableScopes(mate);
+  const sharedScope = scopes.find((s) => s.workspaceId === w.id);
+  assert.ok(sharedScope, `shared scope missing from ${JSON.stringify(scopes.map((s) => s.workspaceId))}`);
+  assert.equal(sharedScope.uid, owner, "the member reads the OWNER's data, under the owner's uid");
+  assert.equal(sharedScope.workspace, ws.scopeOf(w));
+  assert.equal(sharedScope.role, "viewer");
+  assert.equal((await ws.accessWorkspace(mate, w.id))?.role, "viewer");
+  assert.equal((await ws.accessWorkspace(stranger, w.id)), null, "a non-member gets nothing");
+  assert.deepEqual((await ws.listSharedWorkspaces(stranger)).length, 0);
+  assert.equal(await ws.getWorkspace(mate, w.id), undefined, "getWorkspace stays owner-only");
+  assert.equal((await ws.workspaceStats(mate, w)).role, "viewer");
+
+  // Re-rolling, then leaving.
+  await ws.setMemberRole(owner, w.id, mate, "editor");
+  assert.equal((await ws.accessWorkspace(mate, w.id))?.role, "editor");
+  await assert.rejects(() => ws.setMemberRole(owner, w.id, stranger, "editor"), /not a member/);
+  assert.equal(await ws.removeMember(stranger, w.id, stranger), null, "a non-member cannot remove anyone");
+  assert.equal(await ws.removeMember(mate, w.id, owner), null, "a member cannot remove the owner");
+  const left = await ws.removeMember(mate, w.id, mate);
+  assert.equal(left?.members?.length, 0, "a member can remove itself");
+  assert.equal(await ws.accessWorkspace(mate, w.id), null);
+
+  // A missing id must be "not found", not a crash: norm() used to throw on an undefined record.
+  assert.equal(await ws.accessWorkspace(owner, "nobody:nope"), null);
+  assert.equal(await ws.accessWorkspace(owner, ""), null);
+  assert.equal(await ws.getWorkspace(owner, "nobody:nope"), undefined);
+  assert.equal((await ws.listMembers(owner, "nobody:nope")), null);
+  assert.equal(await ws.removeMember(owner, "nobody:nope", mate), null);
+
+  // Only the owner may change membership.
+  const b = await ws.createWorkspace(mate, { name: "Mine" });
+  assert.equal((await ws.listMembers(owner, b.id)), null, "the owner of A has no access to B's workspace");
+  assert.equal((await ws.workspaceStats(owner, w)).members, 0);
+});
+
+test("workspaces: the member routes are guarded and the knowledge route reads through readableScopes", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path");
+  const root = path.join(__dirname, "..");
+  const members = fs.readFileSync(path.join(root, "src/app/api/workspaces/[id]/members/route.ts"), "utf8");
+  assert.match(members, /authorize\(\{ principal: principalFor\(uid\), capabilityId: "workspace:share"/, "POST /members must go through authorize()");
+  assert.match(members, /accessWorkspace\(uid, id\)/, "GET /members must resolve access, not ownership alone");
+  const memberRoute = fs.readFileSync(path.join(root, "src/app/api/workspaces/[id]/members/[member]/route.ts"), "utf8");
+  assert.match(memberRoute, /access\.role !== "owner"/, "PATCH must be owner-only");
+  assert.match(memberRoute, /removeMember\(uid, id, member\)/);
+  const knowledge = fs.readFileSync(path.join(root, "src/app/api/knowledge/route.ts"), "utf8");
+  assert.match(knowledge, /readableScopes\(uid\)/, "/api/knowledge must resolve shared workspaces through readableScopes()");
+  assert.match(knowledge, /workspace not found/, "an unknown or unshared scope is a 404, not a silent empty result");
+  const verify = fs.readFileSync(path.join(root, "src/app/api/verify/route.ts"), "utf8");
+  assert.match(verify, /authorize\(\{ principal: principalFor\(uid\), capabilityId: "execution:server-sandbox"/, "the test loop executes commands, so it must be authorised");
+});

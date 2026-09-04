@@ -25,6 +25,34 @@ export interface ExecResult { ok: boolean; exitCode: number | null; signal?: str
 const ALLOWED_BIN = new Set(["python3", "python", "node", "npx", "bash", "sh", "ls", "cat", "echo", "grep", "sed", "awk", "wc", "sort", "head", "tail", "find", "diff", "tsc", "npm", "pip", "pip3", "git", "make", "gcc", "g++", "go", "cargo", "rustc", "java", "javac", "jq", "curl", "wget", "tar", "unzip", "env", "true", "false", "test", "printf", "date", "seq", "xargs", "tee", "touch", "mkdir", "cp", "mv", "rm", "tr", "cut", "uniq", "pwd", "which", "time", "sleep", "timeout"]);
 const DENY = /(\brm\s+-rf\s+\/(\s|$))|(\bmkfs\b)|(\bdd\s+if=)|(\b(shutdown|reboot|halt|poweroff)\b)|(\bsudo\b)|(\bsu\b\s)|(\bchmod\s+[0-7]*7[0-7]*\s+\/)|(\/etc\/(passwd|shadow|sudoers))|(\bnc\b.*-e)|(\bcrontab\b)|(\bsystemctl\b)|(\bkill\s+-9\s+-1\b)|(:\(\)\s*\{)/i;
 
+/**
+ * Split a command into pipeline/`&&`/`;` segments, but ignore separators inside quotes. Without
+ * this, `node -e "a(); b()"` was mis-parsed as two segments and the quoted `b()` was rejected as a
+ * binary — legitimate inline scripts were refused while the check added no security.
+ */
+export function splitSegments(cmd: string): string[] {
+  const out: string[] = [];
+  let buf = "";
+  let quote: "'" | '"' | "`" | null = null;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (quote) {
+      if (ch === "\\") { buf += ch + (cmd[i + 1] ?? ""); i += 1; continue; }
+      if (ch === quote) quote = null;
+      buf += ch;
+      continue;
+    }
+    if (ch === "\'" || ch === '"' || ch === "`") { quote = ch as "\'" | '"' | "`"; buf += ch; continue; }
+    if (ch === "\\") { buf += ch + (cmd[i + 1] ?? ""); i += 1; continue; }
+    const two = cmd.slice(i, i + 2);
+    if (two === "||" || two === "&&") { out.push(buf); buf = ""; i += 1; continue; }
+    if (ch === ";" || ch === "|" || ch === "\n" || ch === "&") { out.push(buf); buf = ""; continue; }
+    buf += ch;
+  }
+  out.push(buf);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
 /** Static policy check — pure, tested. Returns a reason when the command is refused. */
 export function policyCheck(cmd: string): string | null {
   if (!cmd.trim()) return "empty command";
@@ -33,7 +61,7 @@ export function policyCheck(cmd: string): string | null {
   if (/(^|\s)\/(etc|proc|sys|dev|root|home|usr|var|boot|bin|sbin|lib|opt)\b/.test(cmd) || /(^|[\s"'=])~\//.test(cmd) || /\.\.\//.test(cmd)) return "paths outside the sandbox workspace are not allowed";
   // first token of every pipeline segment must be an allowed binary (or a variable assignment / subshell)
   if (/\|\s*(ba|z|da)?sh\b/.test(cmd) || /\b(curl|wget)\b[^|;&]*\|\s*(python3?|node|perl)\b/.test(cmd)) return "piping downloaded content into an interpreter is not allowed";
-  const segs = cmd.split(/\|\||&&|;|\||\n/).map((s) => s.trim()).filter(Boolean);
+  const segs = splitSegments(cmd);
   for (const seg of segs) {
     const m = /^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*\(?\s*([^\s()]+)/.exec(seg); const bin = m?.[1]?.split("/").pop() ?? "";
     if (bin && !ALLOWED_BIN.has(bin) && !/^\.\//.test(m?.[1] ?? "")) return `binary not allowed: ${bin}`;

@@ -1,0 +1,90 @@
+name: Build the Aetheris desktop app
+
+# Composite action shared by ci/release.yml and ci/release-desktop.yml so the macOS, Linux and
+# Windows legs build in exactly the same way.
+#
+# Inputs
+#   version       the CalVer being released (used for the upload path)
+#   publish_tag   when set, artefacts are attached to that GitHub Release (needs contents: write)
+#
+# Why ELECTRON_SKIP_BINARY_DOWNLOAD is *not* set here: packaging needs the real Electron binaries.
+# It is set in the typecheck/CI job, which only compiles TypeScript.
+
+inputs:
+  version:
+    description: "CalVer being released"
+    required: true
+  publish_tag:
+    description: "GitHub Release tag to upload to (empty = upload as workflow artefacts only)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Restore npm caches
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          ~/AppData/npm-cache
+        key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', 'desktop/package-lock.json') }}
+
+    - name: Install (skip the Electron binary for the web install)
+      shell: bash
+      run: |
+        set -euo pipefail
+        ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
+        cd desktop && npm ci
+
+    - name: Build the embedded server (Next.js standalone)
+      shell: bash
+      env:
+        AETHERIS_STANDALONE: "1"
+        NEXT_TELEMETRY_DISABLED: "1"
+      run: npm run build
+
+    - name: Assemble desktop/resources/server
+      shell: bash
+      run: npm run desktop:prepare
+
+    - name: Package
+      shell: bash
+      working-directory: desktop
+      run: npx electron-builder --publish never
+
+    - name: List artefacts
+      shell: bash
+      run: ls -lh desktop/release/*.{dmg,zip,AppImage,deb,rpm,exe} 2>/dev/null || ls -lh desktop/release
+
+    - name: Attach to the GitHub Release
+      if: inputs.publish_tag != ''
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.publish_tag }}
+        files: |
+          desktop/release/*.dmg
+          desktop/release/*.zip
+          desktop/release/*.AppImage
+          desktop/release/*.deb
+          desktop/release/*.rpm
+          desktop/release/*.exe
+        fail_on_unmatched_files: false
+
+    - name: Upload as workflow artefacts
+      if: inputs.publish_tag == ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: aetheris-desktop-${{ inputs.version }}-${{ runner.os }}
+        path: |
+          desktop/release/*.dmg
+          desktop/release/*.zip
+          desktop/release/*.AppImage
+          desktop/release/*.deb
+          desktop/release/*.rpm
+          desktop/release/*.exe
+        if-no-files-found: warn

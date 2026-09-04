@@ -1,0 +1,129 @@
+name: release
+
+# The monthly release.
+#
+# Aetheris ships a new version every month on a CalVer cadence (2026.9.1 → 2026.10.1 → … →
+# 2027.1.1). On the 1st of each month at 03:30 UTC this workflow:
+#
+#   1. verifies the tree (typecheck → tests → evals → build),
+#   2. bumps VERSION + every copy of it (`tools/bump-version.mjs`),
+#   3. writes the CHANGELOG section from the commits since the previous tag (`tools/changelog.mjs`),
+#   4. commits, tags `v<version>` and pushes,
+#   5. opens the GitHub Release with that section as the body,
+#   6. builds and attaches desktop installers for macOS, Linux and Windows.
+#
+# Run it by hand any time with "Run workflow": set `version` for an exact CalVer, `patch: true` for
+# a hot-fix inside the current month, or `skip_desktop: true` for a docs-only release.
+
+on:
+  schedule:
+    - cron: "30 3 1 * *" # 03:30 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact CalVer to release (e.g. 2027.3.1). Empty = automatic monthly bump."
+        required: false
+        default: ""
+      patch:
+        description: "Bump the patch inside the current month instead of starting a new monthly version"
+        required: false
+        type: boolean
+        default: false
+      skip_desktop:
+        description: "Publish the release without building desktop installers"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # push the version commit + tag, create and upload to the release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the changelog walks the history back to the previous tag
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Typecheck only — no Electron binaries needed here.
+      - run: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run eval
+      - run: npm run build
+        env: { NEXT_TELEMETRY_DISABLED: "1" }
+
+      - name: Compute the next version
+        id: bump
+        run: |
+          set -euo pipefail
+          previous="$(node -p "require('./package.json').version")"
+          args=()
+          if [ -n "${{ inputs.version }}" ]; then args+=(--set "${{ inputs.version }}")
+          elif [ "${{ inputs.patch }}" = "true" ]; then args+=(--patch)
+          fi
+          npx tsx tools/bump-version.mjs ${args[@]+"${args[@]}"}
+          version="$(cat VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "$previous" ]; then
+            echo "::error::the version did not change ($version) — refusing to re-release it"
+            exit 1
+          fi
+
+      - name: Write the changelog and release notes
+        run: |
+          set -euo pipefail
+          npx tsx tools/changelog.mjs --version "$(cat VERSION)"
+          npx tsx tools/release-notes.mjs --version "$(cat VERSION)" --file RELEASE_NOTES.md
+
+      - name: Commit, tag and push
+        run: |
+          set -euo pipefail
+          version="$(cat VERSION)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION package.json desktop/package.json public/manifest.webmanifest CHANGELOG.md
+          git commit -m "release: $version"
+          git tag -a "v$version" -m "Aetheris $version"
+          git push origin HEAD
+          git push origin "v$version"
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: Aetheris ${{ steps.bump.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+
+  desktop:
+    needs: publish
+    if: inputs.skip_desktop != true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # .dmg + .zip, arm64 and x64
+          - os: ubuntu-latest # .AppImage + .deb + .rpm, x64 and arm64
+          - os: windows-latest # NSIS installer + .zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./ci/actions/build-desktop
+        with:
+          version: ${{ needs.publish.outputs.version }}
+          publish_tag: v${{ needs.publish.outputs.version }}

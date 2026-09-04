@@ -37,7 +37,19 @@ Facts have `validFrom`/`validTo`; `supersedes` links a new fact to the one it re
 
 ## Embeddings — honest note
 
-Default vectors come from a **local hashed n-gram embedding**: cheap, deterministic, captures word overlap — **not semantics**. That's why the eval `retrieval hit@3` threshold is 80% and "which language does the user like" cannot match "prefers TypeScript" lexically. Set `EMBEDDINGS_URL`, `EMBEDDINGS_KEY`, `EMBEDDINGS_MODEL` (any OpenAI-compatible `/embeddings`) for real semantic vectors; the fabric stores `vec_dim` per fact so mixed dimensions never compare.
+Default vectors are **semantic and fully offline**: every fact you add trains a Random Indexing model
+(`src/core/knowledge/semantic.ts`) — each word accumulates the index vectors of the words it appears
+next to, so words in similar contexts converge without sharing a single character. Measured on a
+nine-sentence corpus: `cosine("kitten","cat")` = **0.863** with the trained model vs **0.000** with a
+lexical hash. That is what lets a vector search for *"kitten blanket"* return a fact about a **cat**.
+
+The model is persisted in the knowledge SQLite file and reported by `GET /api/knowledge` (`semantic`,
+`vecSpaces`). Its honest limit: it only knows what *your* corpus taught it, so a word it has never
+seen falls back to its lexical index — on a small corpus a provider model is still better. Set
+`EMBEDDINGS_URL`, `EMBEDDINGS_KEY`, `EMBEDDINGS_MODEL` (any OpenAI-compatible `/embeddings`) to prefer
+one, or `AETHERIS_SEMANTIC=0` to stay lexical. Vectors from different spaces are not comparable, so
+every row is tagged with its `vec_space` and only like is matched with like; call `reindexEmbeddings()`
+(or add facts and let it happen) to migrate.
 
 ## API
 
@@ -58,7 +70,7 @@ Default vectors come from a **local hashed n-gram embedding**: cheap, determinis
 | Piece | Status |
 |---|---|
 | FTS5 keyword + vector + graph + temporal in SQLite, provenance everywhere | IMPLEMENTED (tested) |
-| Semantic embeddings | PARTIAL — lexical by default, real vectors via env |
+| Semantic embeddings | IMPLEMENTED — offline (Random Indexing on your corpus); provider vectors via env are preferred when set. Limit: unknown words fall back to a lexical index |
 | Entity/relation extraction | PARTIAL — heuristic, English-centric |
 | Document KB with citations | IMPLEMENTED |
 | Multi-instance / external vector DB | NOT AVAILABLE (RetrievalProvider interface exists in `src/core/providers/interfaces.ts`) |

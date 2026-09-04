@@ -5,8 +5,14 @@
  *   document   PDF/DOCX/CSV/HTML/text extraction (existing KB extractor) + summary                 IMPLEMENTED
  *   audio      speech-to-text via OpenAI-compatible /audio/transcriptions (Groq whisper-large-v3    IMPLEMENTED
  *              free tier, or STT_URL/STT_KEY); no local model → honest NOT AVAILABLE without a key
- *   video      frame sampling with ffmpeg when installed → vision on N frames + optional audio track  PARTIAL
- *              (requires ffmpeg on the host; reported in status())
+ *   video      three paths, chosen by what the host/provider actually has, and reported per call:   IMPLEMENTED
+ *                1. ffmpeg installed        → frame sampling + vision, plus the audio track if any
+ *                2. no ffmpeg, but a video-native model (GEMINI_API_KEY) → the file goes to the model
+ *                   inline; ffmpeg is not required for video understanding
+ *                3. neither                 → the container is still read in-process (pure JS):
+ *                   duration, resolution, codec, rotation, creation time, track layout, cover art.
+ *                   That is real data about the video, but it is not frame-level understanding, and
+ *                   the result says so (`frames: 0`).
  *   sensor     numeric time-series → statistics, anomalies (z-score), trend; LLM narrative optional  IMPLEMENTED
  *
  * Generation (image/audio/video) already lives in src/lib/media. Outputs never fake: if no capable
@@ -19,7 +25,9 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { route } from "@/lib/router/router";
 import { extractText } from "@/lib/kb";
-import { PROVIDERS, apiKeyFor } from "@/lib/router/providers";
+import { PROVIDERS, isConfigured } from "@/lib/router/providers";
+import { readContainer, describeContainer } from "./container";
+import { sampleFramesWithWasm, wasmFfmpegAvailable, wasmFfmpegReason, wasmFfmpegVersion } from "./wasmffmpeg";
 import { traced } from "../observability/events";
 
 const run = promisify(execFile);
@@ -28,10 +36,35 @@ export interface PerceiveInput { modality: Modality; data?: Buffer; url?: string
 export interface Perception { ok: boolean; modality: Modality; text: string; structured?: Record<string, unknown>; provider?: string; model?: string; ms: number; reason?: string }
 
 async function which(bin: string) { try { await run("which", [bin]); return true; } catch { return false; } }
+/** Providers that take video inline — the path that makes video work without ffmpeg. */
+const videoProviders = () => PROVIDERS.filter((p) => p.video && isConfigured(p)).map((p) => p.id);
+const visionProviders = () => PROVIDERS.filter((p) => p.vision && isConfigured(p)).map((p) => p.id);
 export async function status() {
-  const vision = PROVIDERS.filter((p) => p.vision && apiKeyFor(p)).map((p) => p.id);
+  const vision = visionProviders();
   const stt = process.env.STT_URL && process.env.STT_KEY ? "custom STT_URL" : process.env.GROQ_API_KEY ? "groq whisper-large-v3" : undefined;
-  return { image: { available: vision.length > 0, providers: vision }, document: { available: true, formats: "pdf docx csv html txt md code" }, audio: { available: !!stt, via: stt ?? "set GROQ_API_KEY (free) or STT_URL/STT_KEY" }, video: { available: (await which("ffmpeg")) && vision.length > 0, needs: "ffmpeg on host + vision provider" }, sensor: { available: true } };
+  const ffmpeg = await which("ffmpeg");
+  const wasm = wasmFfmpegAvailable();
+  const wasmVersion = wasm ? await wasmFfmpegVersion() : null;
+  const nativeVideo = videoProviders();
+  return {
+    image: { available: vision.length > 0, providers: vision },
+    document: { available: true, formats: "pdf docx csv html txt md code" },
+    audio: { available: !!stt, via: stt ?? "set GROQ_API_KEY (free) or STT_URL/STT_KEY" },
+    video: {
+      // Always available: the container is read in-process. Frame-level understanding needs one of
+      // the two paths below, and which one is live on this host is reported rather than assumed.
+      available: true,
+      framesVia: ffmpeg && vision.length > 0 ? "ffmpeg" : wasm && vision.length > 0 ? `ffmpeg-wasm ${wasmVersion ?? ""}`.trim() : nativeVideo.length > 0 ? `provider (${nativeVideo.join(", ")})` : "none — container facts only",
+      ffmpeg,
+      // The WASM core installs from the npm registry, so frame sampling works with no host binary.
+      wasm,
+      wasmVersion,
+      wasmReason: wasm ? undefined : wasmFfmpegReason(),
+      inlineVideoProviders: nativeVideo,
+      needs: vision.length > 0 && (ffmpeg || wasm) ? "nothing — frame sampling is available" : "a vision-capable provider key, or a video-native model key (GEMINI_API_KEY) for inline video",
+    },
+    sensor: { available: true },
+  };
 }
 
 /** Pure sensor analytics: stats, linear trend, z-score anomalies (tested). */
@@ -74,17 +107,55 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
         }
         case "video": {
           if (!input.data) return done({ ok: false, text: "", reason: "video bytes required" });
-          if (!(await which("ffmpeg"))) return done({ ok: false, text: "", reason: "ffmpeg not installed on this host — video understanding NOT AVAILABLE here" });
-          const dir = await mkdtemp(path.join(tmpdir(), "aeth-v-")); const src = path.join(dir, input.name?.replace(/[^\w.]/g, "_") ?? "in.mp4");
-          try {
-            await writeFile(src, input.data);
-            await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vf", "fps=1/5,scale=768:-1", "-frames:v", "6", path.join(dir, "f%02d.jpg")], { timeout: 60_000 });
-            const frames: string[] = []; for (let i = 1; i <= 6; i++) { try { frames.push(`data:image/jpeg;base64,${(await readFile(path.join(dir, `f${String(i).padStart(2, "0")}.jpg`))).toString("base64")}`); } catch { break; } }
-            if (!frames.length) return done({ ok: false, text: "", reason: "no frames extracted" });
-            let transcript = ""; try { await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vn", "-ac", "1", "-ar", "16000", path.join(dir, "a.mp3")], { timeout: 60_000 }); const tr = await transcribe(await readFile(path.join(dir, "a.mp3")), "a.mp3", "audio/mpeg"); if (tr.ok) transcript = tr.text; } catch { /* no audio track or STT */ }
-            const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order) and an optional transcript. Describe what happens over time; answer the question if given." }, { role: "user", content: `${input.question ?? "What happens in this video?"}${transcript ? `\n\nTranscript:\n${transcript.slice(0, 8000)}` : ""}`, images: frames }] });
-            return done({ ok: true, text: r.content, structured: { frames: frames.length, transcript: transcript || undefined }, provider: r.provider, model: r.model });
-          } finally { await rm(dir, { recursive: true, force: true }); }
+          const ffmpeg = await which("ffmpeg");
+          const container = readContainer(input.data);
+          const facts = describeContainer(container);
+          const inline = videoProviders();
+
+          // Path 2 (no ffmpeg): a video-native model takes the file inline. No host binary needed.
+          if (!ffmpeg && inline.length > 0 && !input.series) {
+            const mime = input.mime ?? "video/mp4";
+            const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You are given a video file directly. Describe what happens over time, read any on-screen text verbatim, and answer the question if given. If the video is silent or has no useful content, say so instead of inventing it." }, { role: "user", content: `${input.question ?? "What happens in this video?"}\n\nContainer facts read on the server (for orientation, do not repeat them unless asked): ${facts}`, images: [`data:${mime};base64,${input.data.toString("base64")}`] }] });
+            return done({ ok: true, text: r.content, structured: { frames: 0, via: "provider-inline-video", container: container.ok ? container : undefined, containerFacts: facts }, provider: r.provider, model: r.model });
+          }
+
+          // Path 1: ffmpeg — sample frames, plus the audio track when there is one.
+          if (ffmpeg) {
+            const dir = await mkdtemp(path.join(tmpdir(), "aeth-v-")); const src = path.join(dir, input.name?.replace(/[^\w.]/g, "_") ?? "in.mp4");
+            try {
+              await writeFile(src, input.data);
+              await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vf", "fps=1/5,scale=768:-1", "-frames:v", "6", path.join(dir, "f%02d.jpg")], { timeout: 60_000 });
+              const frames: string[] = []; for (let i = 1; i <= 6; i++) { try { frames.push(`data:image/jpeg;base64,${(await readFile(path.join(dir, `f${String(i).padStart(2, "0")}.jpg`))).toString("base64")}`); } catch { break; } }
+              if (!frames.length) return done({ ok: false, text: "", reason: `no frames extracted — ${facts}` });
+              let transcript = ""; try { await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vn", "-ac", "1", "-ar", "16000", path.join(dir, "a.mp3")], { timeout: 60_000 }); const tr = await transcribe(await readFile(path.join(dir, "a.mp3")), "a.mp3", "audio/mpeg"); if (tr.ok) transcript = tr.text; } catch { /* no audio track or STT */ }
+              const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order) and an optional transcript. Describe what happens over time; answer the question if given." }, { role: "user", content: `${input.question ?? "What happens in this video?"}${transcript ? `\n\nTranscript:\n${transcript.slice(0, 8000)}` : ""}`, images: frames }] });
+              return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg", transcript: transcript || undefined, container: container.ok ? container : undefined }, provider: r.provider, model: r.model });
+            } finally { await rm(dir, { recursive: true, force: true }); }
+          }
+
+          // Path 1b: no ffmpeg binary, but the WASM core is installed. Same frame sampling, no host
+          // dependency — ffmpeg runs in a worker thread entirely in memory.
+          if (visionProviders().length > 0 && wasmFfmpegAvailable()) {
+            const s = await sampleFramesWithWasm(input.data, input.name ?? "in.mp4", { everySeconds: 5, maxFrames: 6, width: 768 });
+            if (s.ok && s.frames.length) {
+              const frames = s.frames.map((b) => `data:image/jpeg;base64,${b.toString("base64")}`);
+              const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order). Describe what happens over time; answer the question if given. If the frames are uninformative, say so rather than inventing detail." }, { role: "user", content: `${input.question ?? "What happens in this video?"}`, images: frames }] });
+              return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg-wasm", ffmpegVersion: s.version, atSeconds: s.atSeconds, container: container.ok ? container : undefined, why: "no ffmpeg binary on this host — frames were sampled by the in-process WASM build instead" }, provider: r.provider, model: r.model });
+            }
+            // Fall through on purpose: a codec the WASM build lacks may still be handled inline.
+          }
+
+          // Path 3: neither. The container still yields real facts — return them, and say plainly
+          // that no frames were looked at. Cover art, when present, is a real image we can describe.
+          if (container.coverArt && visionProviders().length > 0) {
+            const covr = coverArtOf(input.data);
+            if (covr) {
+              const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 700, messages: [{ role: "system", content: "This is the poster image embedded in a video file. Describe it and read any text verbatim. It is not a frame from the video; do not claim otherwise." }, { role: "user", content: `${input.question ?? "Describe this video's poster image."}\n\nContainer facts: ${facts}`, images: [`data:${container.coverArt.mime};base64,${covr.toString("base64")}`] }] });
+              return done({ ok: true, text: r.content, structured: { frames: 0, via: "embedded-cover-art", container, containerFacts: facts, why: "no ffmpeg on this host and no video-native model configured — the embedded poster was analysed instead of the footage" }, provider: r.provider, model: r.model });
+            }
+          }
+          if (!container.ok) return done({ ok: false, text: "", reason: container.reason });
+          return done({ ok: true, text: facts, structured: { frames: 0, via: "container-metadata", container, containerFacts: facts, why: "no ffmpeg on this host and no video-native model configured — container metadata only, no frames were analysed" } });
         }
         case "sensor": {
           if (!input.series?.length) return done({ ok: false, text: "", reason: "series [{t,v}] required" });
@@ -96,6 +167,19 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
       }
     } catch (e) { return done({ ok: false, text: "", reason: (e as Error).message }); }
   });
+}
+
+/** Pull the embedded cover image out of an ISO media file (`moov/udta/meta/ilst/covr/data`). */
+export function coverArtOf(data: Buffer): Buffer | null {
+  const idx = data.indexOf("covr");
+  if (idx < 0) return null;
+  const d = data.indexOf("data", idx + 4);
+  if (d < 0 || d + 12 > data.length) return null;
+  const size = data.readUInt32BE(d - 4);
+  const end = d - 4 + size;
+  // box = size(4) + "data"(4) + version/flags(4) + locale(4) + payload
+  if (size < 20 || end > data.length) return null;
+  return data.subarray(d + 12, end);
 }
 
 /** OpenAI-compatible speech-to-text. Groq's free tier hosts whisper-large-v3. */

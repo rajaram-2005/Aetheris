@@ -35,6 +35,12 @@ export interface ProviderConfig {
   visionModel?: string;
   /** Whether this provider can accept images (with `visionModel` or `model`). */
   vision?: boolean;
+  /**
+   * Whether this provider accepts video *inline* in the same request (Google AI Studio does; the
+   * OpenAI-compatible endpoints do not). When a request carries video the router keeps only these,
+   * so a video never reaches a provider that would reject it with a 400.
+   */
+  video?: boolean;
   /** Lower = tried first. Ties are shuffled for load balancing. */
   priority: number;
   /** Task strengths for task-aware routing (Phase 4). Missing = general. */

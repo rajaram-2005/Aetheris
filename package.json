@@ -1,6 +1,6 @@
 {
   "name": "aetheris",
-  "version": "0.1.0",
+  "version": "2026.9.1",
   "private": false,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
@@ -10,9 +10,21 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "eval": "tsx evals/run.ts",
-    "verify:connectors": "tsx scripts/verify-connectors.ts"
+    "verify:connectors": "tsx scripts/verify-connectors.ts",
+    "desktop:dev": "node desktop/scripts/dev.mjs",
+    "desktop:build": "node tools/desktop-build.mjs",
+    "desktop:prepare": "node desktop/scripts/prepare-app.mjs",
+    "desktop:pack": "cd desktop && npm run compile && electron-builder --dir",
+    "desktop:dist": "cd desktop && npm run dist",
+    "version:bump": "tsx tools/bump-version.mjs",
+    "version:show": "tsx -e \"import('./tools/bump-version.mjs').then(m=>console.log(m.readVersion()))\"",
+    "changelog": "tsx tools/changelog.mjs",
+    "release": "bash tools/release.sh",
+    "icons": "node tools/gen-icons.mjs"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "jsdom": "^30.0.1",
     "next": "^15.5.0",
     "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.4",
@@ -20,10 +32,12 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "sharp": "^0.33.5",
     "tsx": "^4.23.13",
     "typescript": "^5.6.0"
   },

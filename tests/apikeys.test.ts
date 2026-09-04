@@ -16,7 +16,12 @@ test("api keys: gated by plan, hashed at rest, authenticate round-trip", async (
   const who = await authenticateKey(key);
   assert.equal(who?.uid, "k1");
   assert.equal(await authenticateKey("sk-aeth-nope"), null);
-  assert.equal(await authenticateKey(key.slice(0, -1) + "x"), null);
+  // Flip the last character to one that is definitely different: the key is base64url, so a blind
+  // `+ "x"` was a no-op whenever the random key already ended in "x" (the final char of 24 bytes
+  // only carries 4 bits, so that happened about 1 run in 16 and failed the suite).
+  const tampered = key.slice(0, -1) + (key.endsWith("x") ? "y" : "x");
+  assert.notEqual(tampered, key);
+  assert.equal(await authenticateKey(tampered), null);
   const raw = fs.readFileSync(path.join(process.env.AETHERIS_DATA_DIR!, "apikeys.json"), "utf8");
   assert.equal(raw.includes(key), false, "plaintext key must not be stored");
   await revokeKey("k1", record.id);

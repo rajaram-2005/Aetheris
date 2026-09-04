@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS entitlements for the hardened runtime (desktop/package.json → build.mac.entitlements).
+
+  Only what Electron and the embedded server genuinely need:
+    - allow-jit / allow-unsigned-executable-memory: V8 needs writable+executable memory
+    - disable-library-validation: the embedded Next.js server loads native addons
+      (node:sqlite is built in; sharp's libvips is a bundled dylib) that are not signed
+      by the same Team ID as the app shell
+    - allow-dyld-environment-variables: the app re-execs its own binary as Node
+      (ELECTRON_RUN_AS_NODE=1) to run resources/server/server.js
+  The network client entitlement is implicit for a non-sandboxed app; microphone/camera are
+  declared in build.mac.extendInfo with their usage strings instead.
+-->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+  </dict>
+</plist>

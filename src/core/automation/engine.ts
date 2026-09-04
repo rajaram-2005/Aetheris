@@ -20,14 +20,22 @@ import { route } from "@/lib/router/router";
 import { record, traced } from "../observability/events";
 import { evalExpr, getTwin, twinHealth } from "../twins/twins";
 import { actuate, getDevice, telemetryFor } from "../physical/devices";
+import { policyCheck } from "../execution/sandbox";
 import { authorize, principalFor } from "../policy/permissions";
 import { ssrfCheck } from "../security/guard";
 
 export type Trigger = { kind: "cron"; cron: string; tz: string } | { kind: "webhook"; secret: string } | { kind: "device"; deviceId: string; key: string; op: ">" | "<" | ">=" | "<=" | "==" | "!="; value: number; cooldownMin?: number } | { kind: "twin"; twinId: string; minScore?: number } | { kind: "job"; status?: "done" | "failed" } | { kind: "manual" };
 export type Condition = { kind: "always" } | { kind: "expr"; expr: string; description?: string };
-export type Verify = { kind: "none" } | { kind: "rubric"; rubric: string } | { kind: "expr"; expr: string };
+export type Verify =
+  | { kind: "none" }
+  | { kind: "rubric"; rubric: string }
+  | { kind: "expr"; expr: string }
+  /** The agent output must parse as JSON and satisfy this JSON-Schema subset (offline, no model). */
+  | { kind: "schema"; schema: unknown }
+  /** Run a command in the execution sandbox; failures are fed back to a revise pass, up to maxIterations. */
+  | { kind: "tests"; command: string; files?: Record<string, string>; maxIterations?: number };
 export type Action = { kind: "webhook"; url: string } | { kind: "email"; to: string } | { kind: "remember"; type: "episodic" | "semantic" | "procedural"; template: string } | { kind: "actuate"; deviceId: string; capability: string; value: number | string | boolean } | { kind: "twin_event"; twinId: string; eventKind: string; template: string } | { kind: "job"; task: string; agents?: string[] };
-export interface Automation { id: string; uid: string; name: string; enabled: boolean; trigger: Trigger; condition: Condition; agent?: { prompt: string; agents?: string[]; maxChars?: number }; verify: Verify; actions: Action[]; physicalToken?: string; createdAt: number; updatedAt: number; nextAt?: number | null; lastAt?: number; lastStatus?: string; lastFiredValue?: number; runs: number }
+export interface Automation { id: string; uid: string; name: string; enabled: boolean; trigger: Trigger; condition: Condition; agent?: { prompt: string; agents?: string[]; maxChars?: number }; verify: Verify; actions: Action[]; physicalToken?: string; /** Single-use→stored confirmation for `verify.kind:"tests"`, which executes a command. */ executionToken?: string; createdAt: number; updatedAt: number; nextAt?: number | null; lastAt?: number; lastStatus?: string; lastFiredValue?: number; runs: number }
 export interface AutomationRun { id: string; automationId: string; uid: string; startedAt: number; finishedAt?: number; trigger: string; payload: Record<string, unknown>; stages: { stage: "condition" | "agent" | "verify" | "action"; ok: boolean; detail?: string; ms: number }[]; status: "running" | "ok" | "skipped" | "blocked" | "error"; output?: string; error?: string }
 const COL = "automations"; const RUNS = "automation_runs"; const LIMITS = { perUser: 60, runsKept: 60, minCronMinutes: 5 };
 
@@ -35,6 +43,12 @@ export function validateAutomation(a: Partial<Automation>): string | null {
   if (!a.name?.trim()) return "name required"; if (!a.trigger) return "trigger required"; if (!a.actions?.length && !a.agent) return "at least one action or an agent step";
   if (a.trigger.kind === "cron") { try { parseCron(a.trigger.cron); } catch (e) { return `cron: ${(e as Error).message}`; } const n1 = nextRun(a.trigger.cron, new Date(), a.trigger.tz); const n2 = n1 && nextRun(a.trigger.cron, new Date(n1.getTime() + 60_000), a.trigger.tz); if (n1 && n2 && (n2.getTime() - n1.getTime()) / 60_000 < LIMITS.minCronMinutes) return `cron interval under ${LIMITS.minCronMinutes} minutes`; }
   if (a.condition?.kind === "expr") { try { evalExpr(a.condition.expr, new Proxy({}, { get: () => 1 }) as Record<string, number>); } catch (e) { return `condition: ${(e as Error).message}`; } }
+  if (a.verify?.kind === "schema" && (typeof a.verify.schema !== "object" || a.verify.schema === null)) return "verify.schema must be a JSON-Schema object";
+  if (a.verify?.kind === "tests") {
+    if (!a.verify.command?.trim()) return "verify.command required";
+    const refused = policyCheck(a.verify.command); if (refused) return `verify.command would be refused by the sandbox: ${refused}`;
+    if (!a.executionToken) return "verify.kind:\"tests\" runs a command, so it needs an executionToken (confirm execution:server-sandbox in /api/permissions and store the token)";
+  }
   if ((a.actions ?? []).some((x) => x.kind === "actuate") && !a.physicalToken) return "device.actuate actions need a physicalToken (confirm the capability in /api/permissions and store the token)";
   for (const x of a.actions ?? []) if (x.kind === "webhook" && !/^https:\/\//.test(x.url)) return "webhook url must be https";
   return null;
@@ -46,7 +60,7 @@ export async function saveAutomation(uid: string, input: Partial<Automation> & P
   for (const x of input.actions ?? []) if (x.kind === "webhook") { const ss = await ssrfCheck(x.url); if (!ss.ok) throw new Error(`webhook url rejected: ${ss.reason}`); }
   const cur = id ? await getAutomation(id) : undefined; if (id && (!cur || cur.uid !== uid)) throw new Error("not found");
   if (!cur && (await listAutomations(uid)).length >= LIMITS.perUser) throw new Error(`limit of ${LIMITS.perUser} automations`);
-  const a: Automation = { id: cur?.id ?? randomBytes(5).toString("hex"), uid, name: input.name.slice(0, 80), enabled: input.enabled ?? cur?.enabled ?? true, trigger: input.trigger.kind === "webhook" && !input.trigger.secret ? { kind: "webhook", secret: randomBytes(12).toString("base64url") } : input.trigger, condition: input.condition ?? { kind: "always" }, agent: input.agent, verify: input.verify ?? { kind: "none" }, actions: input.actions ?? [], physicalToken: input.physicalToken ?? cur?.physicalToken, createdAt: cur?.createdAt ?? Date.now(), updatedAt: Date.now(), runs: cur?.runs ?? 0, lastAt: cur?.lastAt, lastStatus: cur?.lastStatus, lastFiredValue: cur?.lastFiredValue };
+  const a: Automation = { id: cur?.id ?? randomBytes(5).toString("hex"), uid, name: input.name.slice(0, 80), enabled: input.enabled ?? cur?.enabled ?? true, trigger: input.trigger.kind === "webhook" && !input.trigger.secret ? { kind: "webhook", secret: randomBytes(12).toString("base64url") } : input.trigger, condition: input.condition ?? { kind: "always" }, agent: input.agent, verify: input.verify ?? { kind: "none" }, actions: input.actions ?? [], physicalToken: input.physicalToken ?? cur?.physicalToken, executionToken: input.executionToken ?? cur?.executionToken, createdAt: cur?.createdAt ?? Date.now(), updatedAt: Date.now(), runs: cur?.runs ?? 0, lastAt: cur?.lastAt, lastStatus: cur?.lastStatus, lastFiredValue: cur?.lastFiredValue };
   a.nextAt = a.enabled && a.trigger.kind === "cron" ? nextRun(a.trigger.cron, new Date(), a.trigger.tz)?.getTime() ?? null : null;
   await store.set(COL, a.id, a); return a;
 }
@@ -70,9 +84,37 @@ export async function fire(a: Automation, trigger: string, payload: Record<strin
       if (!ag.ok) { run.status = "error"; run.error = ag.detail; return; } output = ag.value;
     }
     const ver = await stage("verify", async () => {
-      if (a.verify.kind === "none") return { ok: true, detail: "no verification configured" };
-      if (a.verify.kind === "expr") return { ok: evalExpr(a.verify.expr, vars) !== 0, detail: a.verify.expr };
-      const r = await route({ messages: [{ role: "system", content: "You are a strict verifier. Reply with exactly PASS or FAIL: <reason>." }, { role: "user", content: `Rubric: ${a.verify.rubric}\n\nPayload: ${JSON.stringify(payload).slice(0, 3000)}\n\nOutput to verify:\n${output ?? "(no agent output)"}` }], allowKeyless: true, maxTokens: 120, temperature: 0 });
+      const cfg = a.verify; // narrowed once: TS loses the narrowing across the closure otherwise
+      if (cfg.kind === "none") return { ok: true, detail: "no verification configured" };
+      if (cfg.kind === "expr") return { ok: evalExpr(cfg.expr, vars) !== 0, detail: cfg.expr };
+      if (cfg.kind === "schema") {
+        const { extractJson, validateSchema } = await import("../verification/verify");
+        const { value, found, error } = extractJson(output ?? "");
+        if (!found) return { ok: false, detail: `agent output is not JSON: ${error}` };
+        const v = validateSchema(value, cfg.schema);
+        if (!v.schemaOk) return { ok: false, detail: `automation misconfigured: ${v.issues[0]?.message}` };
+        return { ok: v.valid, detail: v.valid ? "output matches the schema" : v.issues.slice(0, 3).map((i) => `${i.path || "/"} ${i.message}`).join("; ") };
+      }
+      if (cfg.kind === "tests") {
+        // Executing a command is full_workspace, so it needs the same confirmation a manual run needs.
+        const dec = authorize({ principal: principalFor(a.uid), capabilityId: "execution:server-sandbox", required: "full_workspace", requiresConfirmation: true, confirmationToken: a.executionToken });
+        if (!dec.allow) return { ok: false, detail: `blocked: ${dec.reason}` };
+        const { verifyWithTests } = await import("../verification/verify");
+        const loop = await verifyWithTests({
+          command: cfg.command,
+          files: cfg.files,
+          maxIterations: cfg.maxIterations,
+          revise: async ({ stdout, stderr, files }) => {
+            const r = await route({ messages: [{ role: "system", content: "A test command failed. Reply with ONLY the full corrected contents of the file that must change, as JSON: {\"<filename>\": \"<contents>\"}. No prose." }, { role: "user", content: `Command: ${cfg.command}\n\nstdout:\n${stdout.slice(-4000)}\n\nstderr:\n${stderr.slice(-4000)}\n\nFiles:\n${JSON.stringify(files).slice(0, 6000)}` }], allowKeyless: true, maxTokens: 1200, temperature: 0 });
+            const { extractJson } = await import("../verification/verify");
+            const parsed = extractJson(r.content);
+            return parsed.found && parsed.value && typeof parsed.value === "object" ? (parsed.value as Record<string, string>) : null;
+          },
+          meta: { uid: a.uid, capability: `automation:${a.id}` },
+        });
+        return { ok: loop.ok, detail: `${loop.stoppedBecause} after ${loop.iterations} attempt(s)${loop.finalOutput ? ` — ${loop.finalOutput.slice(-200)}` : ""}` };
+      }
+      const r = await route({ messages: [{ role: "system", content: "You are a strict verifier. Reply with exactly PASS or FAIL: <reason>." }, { role: "user", content: `Rubric: ${cfg.rubric}\n\nPayload: ${JSON.stringify(payload).slice(0, 3000)}\n\nOutput to verify:\n${output ?? "(no agent output)"}` }], allowKeyless: true, maxTokens: 120, temperature: 0 });
       return { ok: /^\s*PASS/i.test(r.content), detail: r.content.slice(0, 200) };
     });
     if (!ver.ok) { run.status = "blocked"; return; }

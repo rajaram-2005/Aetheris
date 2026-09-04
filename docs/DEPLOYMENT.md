@@ -59,18 +59,34 @@ Works for the chat, router, agents, MCP gateway and GitHub features, with two ca
 
 Fly.io / Railway / Render (persistent volume + always-on container) are the recommended managed options.
 
-## 4. Health, readiness, observability
+## 4. Desktop app
+
+For a single user on their own machine there is nothing to deploy: the desktop app runs the server
+embedded on `127.0.0.1` and keeps its state in Electron's `userData` directory. See
+[DESKTOP](DESKTOP.md) for install and build instructions.
+
+Two deployment-relevant details:
+
+* The embedded server is started with `AETHERIS_DESKTOP=1`, which turns on the loopback `Host`
+  allow-list in `src/middleware.ts`. **Do not set that variable on a hosted deployment** — behind a
+  reverse proxy the `Host` header is your public name and every request would be answered `403`.
+* `AETHERIS_STANDALONE=1 npm run build` produces `.next/standalone`, which is what the desktop app
+  ships. It is opt-in precisely because `next start` does not serve a standalone tree; a hosted
+  deployment should keep using plain `npm run build && npm start`.
+
+## 5. Health, readiness, observability
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/health` | liveness + data-dir writability (200 / 503). Unauthenticated, no secrets. |
+| `GET /api/health` | liveness + data-dir writability (200 / 503), plus `version` and `runtime` (`server` or `desktop`). Unauthenticated, no secrets. |
+| `GET /api/version` | the running CalVer, the release cadence, and whether this process is an embedded desktop server |
 | `GET /api/telemetry` | in-memory event ring buffer (size `AETHERIS_EVENT_BUFFER`, default 5000) |
 | `GET /api/telemetry/audit?format=csv` | audit export (admin) |
 | Control Center UI | `/` → Control Center area: providers, agents, executions, devices, security |
 
 Events are per-instance and in memory. For a multi-replica deployment, ship them out with a log collector; there is no built-in central store (status: **PARTIALLY IMPLEMENTED**).
 
-## 5. Environment reference (deployment-relevant subset)
+## 6. Environment reference (deployment-relevant subset)
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -85,11 +101,12 @@ Events are per-instance and in memory. For a multi-replica deployment, ship them
 | `AETHERIS_LOCALITY` | — | `local` prefers Ollama/LM Studio when reachable (offline-first) |
 | `AETHERIS_PAID_PLANS` | `0` | **leave off** — Aetheris is free for everyone |
 | `AETHERIS_EVENT_BUFFER` | `5000` | telemetry ring size |
+| `AETHERIS_DESKTOP` | — | **set only by the desktop app**; enables the loopback `Host` allow-list. Leave unset on a host |
 | `NODE_ENV` | `production` | set by `next start` |
 
 Full list with provider keys: `.env.example`.
 
-## 6. Security checklist for a public host
+## 7. Security checklist for a public host
 
 1. Set `AETHERIS_SECRET`, `AETHERIS_ADMIN_KEY`, and real admin identities.
 2. Keep `AETHERIS_ALLOW_PRIVATE_URLS` unset (SSRF guard blocks RFC1918/loopback/link-local after DNS resolution).
@@ -98,11 +115,11 @@ Full list with provider keys: `.env.example`.
 5. Physical-device and robotics adapters require explicit permission grants per user; they are never granted by env. Deploy those only on a trusted LAN.
 6. Never put provider keys in prompts, client code or the repo — env or the per-user encrypted BYOK store only.
 
-## 7. Continuous integration
+## 8. Continuous integration
 
 The workflow file lives at `ci/github-actions-ci.yml` (typecheck → tests → evals → build). Copy it to `.github/workflows/ci.yml` in your fork; it is kept outside `.github/` in this repo because the automation that maintains the branch lacks the `workflows` permission (`ci/README.md`).
 
-## 8. Upgrading
+## 9. Upgrading
 
 ```bash
 git pull && npm ci && npm run build && systemctl restart aetheris   # or docker compose up -d --build
