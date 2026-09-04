@@ -149,6 +149,11 @@ token are masked.
 the server is up. The protocol is registered on startup; on macOS `app.on("open-url")`, on
 Windows/Linux through argv.
 
+Only the `?path=` form is accepted, and the value must be a plain path on the app's own origin.
+`aetheris://docs/chat` is rejected rather than guessed at ("docs" is the host there); so are
+protocol-relative (`?path=//evil.com`), backslash, absolute-URL, encoded-`//`, control-character and
+over-500-character values. A link can come from any web page, so it is treated as hostile input.
+
 ## Release
 
 The desktop app ships on the project's monthly CalVer cadence — see [Release process](#release-process)

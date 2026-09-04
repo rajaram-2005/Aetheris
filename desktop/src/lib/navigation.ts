@@ -58,3 +58,50 @@ export function isExternallyOpenable(url: string): boolean {
   const o = originOf(url);
   return o === null ? false : url.startsWith("https:") || url.startsWith("http:");
 }
+
+/**
+ * Normalise the path out of an `aetheris://` deep link.
+ *
+ * A link is attacker-controlled (any web page can trigger one), so the result is reduced to
+ * something that can only be a path on the app's own origin: protocol-relative (`//evil.com`),
+ * backslash, absolute-URL, control-character and over-long forms are all rejected, and the value is
+ * decoded once so a `%2F%2Fevil.com` cannot slip through as a host.
+ *
+ * The supported form is `aetheris://open?path=/docs/chat`. The path-only form
+ * (`aetheris://docs/chat`) is rejected: "docs" would be the host there, so honouring it would mean
+ * guessing at what the caller meant.
+ *
+ * The query string is split by hand rather than with `new URL(...)`: `aetheris` is not a "special"
+ * scheme, so WHATWG parsing puts everything after `aetheris:` into `pathname` (and percent-encodes
+ * the slashes), which mangles `aetheris://open?path=/docs/chat`.
+ */
+export function deepLinkPath(raw: string): string | null {
+  const m = /^aetheris:(\/\/[^/?#]*)?([^?#]*)(?:\?([^#]*))?/.exec(raw.trim());
+  if (!m) return null;
+  const query = m[3] ?? "";
+  let candidate: string | null = null;
+  for (const pair of query.split("&")) {
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    if (eq < 0) continue;
+    if (pair.slice(0, eq) !== "path") continue;
+    try {
+      candidate = decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, " "));
+    } catch {
+      return null; // malformed percent-encoding
+    }
+    break;
+  }
+  if (candidate === null) {
+    // Only the `?path=` form is accepted. `aetheris://docs/chat` is ambiguous — "docs" parses as
+    // the host and "/chat" as the path — and silently navigating somewhere other than what the
+    // caller wrote is worse than not navigating at all.
+    return null;
+  }
+  if (!candidate || candidate.length > 500) return null;
+  if (!candidate.startsWith("/")) return null; // "//evil.com" also starts with "/", hence the next check
+  if (candidate.startsWith("//")) return null;
+  if (candidate.includes("\\") || /[\u0000-\u001f\u007f]/.test(candidate)) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(candidate)) return null; // "https:…" must never survive
+  return candidate.replace(/\/+$/, "") || "/";
+}

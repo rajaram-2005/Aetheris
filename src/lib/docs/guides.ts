@@ -330,6 +330,32 @@ Works with zero keys. Persistent data lives in \`data/\` (\`AETHERIS_DATA_DIR\`)
 
 Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker). Rooms use an in-process event bus; for multi-instance deployments put a sticky session in front or move the bus to Redis.
 `},
+  { slug: "desktop", section: "Developers", title: "Desktop app (macOS, Linux, Windows)", body: `
+Aetheris also runs as a native desktop app — the same code, wrapped in Electron. Download the installer for your platform from the [releases page](https://github.com/rajaram-2005/Aetheris/releases):
+
+| Platform | Artefacts |
+| --- | --- |
+| macOS | \`.dmg\` + \`.zip\` — Apple silicon and Intel. Unsigned: right-click → **Open** the first time. |
+| Linux | \`.AppImage\`, \`.deb\`, \`.rpm\` — x64 and arm64 |
+| Windows | NSIS installer + \`.zip\` — x64 |
+
+## Two ways to run it
+- **Embedded** (default) — the app starts its own Aetheris server on \`127.0.0.1\` and your data lives in \`~/Library/Application Support/Aetheris\` (macOS), \`~/.config/Aetheris\` (Linux) or \`%APPDATA%/Aetheris\` (Windows). Works offline.
+- **Remote** — a thin client for any Aetheris server you point it at (a LAN box, your VPS, a teammate's instance). The address is checked against \`/api/health\` before it is saved.
+
+Switch between them from the app menu or the tray. Provider keys for the embedded server go in \`<data dir>/.env.local\` as \`KEY=value\` — a shell export does not reach an app launched from Finder or the Start menu.
+
+## Versions
+Aetheris releases **every month** on CalVer \`YYYY.M.P\` (\`2026.9.1\` → \`2026.10.1\` → \`2027.1.1\`). The app checks for a new release at startup and once an hour, and links the download — it never installs anything by itself.
+
+## Building it yourself
+\`\`\`bash
+npm run desktop:dev      # next dev + the desktop shell, with hot reload
+npm run desktop:build    # standalone server → resources/server → an unpacked app you can run
+cd desktop && npm run dist:mac    # .dmg (macOS) · dist:linux · dist:win
+\`\`\`
+Full details, the security model and troubleshooting: [docs/DESKTOP.md](https://github.com/rajaram-2005/Aetheris/blob/main/docs/DESKTOP.md).
+`},
   { slug: "contributing", section: "Developers", title: "Contributing", body: `
 Aetheris is MIT-licensed. See \`CONTRIBUTING.md\` for the code map.
 

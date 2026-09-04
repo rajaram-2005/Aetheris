@@ -20,6 +20,9 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 - Provider keys in `<userData>/data/.env.local` are injected into the embedded server (a shell export never reaches a Finder-launched app)
 - Navigation policy extracted and unit-tested: in-app links stay in the window, everything else goes to the system browser
 - `tests/desktop.main.test.ts` runs the compiled main process against a stubbed `electron` module
+- Deep links accept only the unambiguous `?path=` form and reject protocol-relative, backslash, absolute-URL, encoded-`//` and control-character paths
+- One app menu on macOS (was duplicated by `role: "appMenu"` plus a same-named menu), and every role menu now has a label
+- In-app docs: a "Desktop app" guide under Developers
 
 ### release
 

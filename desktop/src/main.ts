@@ -19,7 +19,7 @@ import * as path from "path";
 import { createLogger, fileSink, formatLine, logFileName, type Logger } from "./lib/logging";
 import { isServerDirReady, probeHealth, serverNotBuiltMessage, startLocalServer, type LocalServer } from "./lib/local-server";
 import { applyPatch, defaultSettings, normalizeServerUrl, sanitizeSettings, type DesktopSettings, type SettingsPatch } from "./lib/settings";
-import { isAllowedNavigation, isExternallyOpenable } from "./lib/navigation";
+import { deepLinkPath, isAllowedNavigation, isExternallyOpenable } from "./lib/navigation";
 import { checkForUpdates, type UpdateCheckResult } from "./lib/update";
 
 const APP_NAME = "Aetheris";
@@ -47,7 +47,7 @@ let server: LocalServer | null = null;
 let booting = false;
 let updateTimer: NodeJS.Timeout | null = null;
 let lastUpdate: UpdateCheckResult | null = null;
-let deepLinkPath: string | null = null;
+let deepLinkPath_: string | null = null;
 
 type ViewState =
   | { view: "booting"; mode: DesktopSettings["mode"] }
@@ -226,7 +226,9 @@ async function boot() {
         return;
       }
       if (!win || win.isDestroyed()) return;
-      await win.loadURL(url);
+      const target = deepLinkPath_ ? `${url.replace(/\/+$/, "")}${deepLinkPath_}` : url;
+      deepLinkPath_ = null;
+      await win.loadURL(target);
       setState({ view: "ready", mode: "remote", url });
       return;
     }
@@ -248,9 +250,9 @@ async function boot() {
     if (!win || win.isDestroyed()) return;
     await win.loadURL(server.url);
     setState({ view: "ready", mode: "local", url: server.url });
-    if (deepLinkPath) {
-      const p = deepLinkPath;
-      deepLinkPath = null;
+    if (deepLinkPath_) {
+      const p = deepLinkPath_;
+      deepLinkPath_ = null;
       void win.loadURL(`${server.url}${p}`);
     }
   } catch (e) {
@@ -266,15 +268,12 @@ async function boot() {
 
 function buildMenu() {
   const isMac = process.platform === "darwin";
-  const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? ([{ role: "appMenu" }] as MenuItemConstructorOptions[]) : []),
-    { role: "fileMenu" },
-    { role: "editMenu" },
-    { role: "viewMenu" },
-    { role: "windowMenu" },
-    {
-      label: APP_NAME,
-      submenu: [
+  // One app menu: `role: "appMenu"` already provides About/Services/Hide/Quit under the app name, so
+  // adding a second menu with the same label would put two "Aetheris" menus in the bar on macOS.
+  const appMenu: MenuItemConstructorOptions = {
+    label: APP_NAME,
+    submenu: [
+      ...(isMac ? ([{ role: "about" }, { type: "separator" }] as MenuItemConstructorOptions[]) : []),
         { label: settings.mode === "local" ? "Restart embedded server" : "Reconnect to server", click: () => void boot() },
         {
           label: settings.mode === "local" ? "Switch to a remote server…" : "Switch to the embedded server",
@@ -293,10 +292,17 @@ function buildMenu() {
         { label: "Check for updates…", click: () => void runUpdateCheck(true) },
         { label: "Open log", click: () => void openLog() },
         { label: "Open data folder", click: () => void shell.openPath(dataDir()) },
-        { type: "separator" },
-        { role: "quit" },
-      ],
-    },
+      ...(isMac ? ([{ type: "separator" }, { role: "quit" }] as MenuItemConstructorOptions[]) : []),
+    ],
+  };
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [appMenu] : []),
+    // Role submenus need an explicit label or they render as an empty menu title.
+    ...(isMac ? [] : ([{ label: "File", submenu: [{ role: "quit" }] }] as MenuItemConstructorOptions[])),
+    { label: "Edit", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
+    { label: "View", submenu: [{ role: "reload" }, { role: "forceReload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }] },
+    { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? ([{ type: "separator" }, { role: "front" }] as MenuItemConstructorOptions[]) : ([{ role: "close" }] as MenuItemConstructorOptions[]))] },
+    ...(!isMac ? [appMenu] : []),
     {
       label: "Help",
       submenu: [
@@ -549,16 +555,22 @@ if (!gotLock) {
 }
 
 function handleDeepLink(raw: string) {
-  try {
-    const u = new URL(raw);
-    const p = u.searchParams.get("path") || u.pathname;
-    const clean = p.startsWith("/") ? p : `/${p}`;
-    deepLinkPath = clean.slice(0, 500);
-    if (state.view === "ready" && win && !win.isDestroyed()) {
-      const base = server?.url ?? (settings.mode === "remote" ? settings.serverUrl : null);
-      if (base) void win.loadURL(`${base.replace(/\/+$/, "")}${deepLinkPath}`);
-    }
-  } catch {
-    /* ignore malformed links */
+  const clean = deepLinkPath(raw);
+  if (!clean) {
+    log.warn(`ignored an unsafe deep link: ${redactForLog(raw)}`);
+    return;
   }
+  deepLinkPath_ = clean;
+  if (state.view === "ready" && win && !win.isDestroyed()) {
+    const base = server?.url ?? (settings.mode === "remote" ? normalizeServerUrl(settings.serverUrl) : null);
+    if (base) {
+      deepLinkPath_ = null;
+      void win.loadURL(`${base.replace(/\/+$/, "")}${clean}`);
+    }
+  }
+}
+
+/** Deep links can carry anything; keep the log free of both secrets and control characters. */
+function redactForLog(raw: string): string {
+  return raw.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 200);
 }

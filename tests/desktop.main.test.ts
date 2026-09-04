@@ -19,7 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-import { isAllowedNavigation, isExternallyOpenable, originOf } from "../desktop/src/lib/navigation";
+import { deepLinkPath, isAllowedNavigation, isExternallyOpenable, originOf } from "../desktop/src/lib/navigation";
 import { buildServerEnv, readEnvFile } from "../desktop/src/lib/local-server";
 
 const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
@@ -54,6 +54,29 @@ test("navigation policy: in-app links stay, everything else leaves via the syste
   assert.equal(isExternallyOpenable("file:///etc/passwd"), false, "file: must never be handed to the OS");
   assert.equal(isExternallyOpenable("javascript:alert(1)"), false);
   assert.equal(isExternallyOpenable("aetheris://open"), false);
+});
+
+test("deep links: only a plain path on our own origin survives", () => {
+  assert.equal(deepLinkPath("aetheris://open?path=/docs/chat"), "/docs/chat");
+  assert.equal(deepLinkPath("aetheris://open?path=/agents&x=1"), "/agents");
+  // The path-only form is rejected on purpose: "docs" parses as the host there, so honouring it
+  // would mean guessing. Only ?path= is supported.
+  assert.equal(deepLinkPath("aetheris://docs/chat"), null, "the ambiguous path-only form");
+  assert.equal(deepLinkPath("aetheris://open?path=/"), "/");
+  assert.equal(deepLinkPath("aetheris://open?path=/docs/"), "/docs", "trailing slash trimmed");
+
+  // A web page can trigger a deep link, so the path must not be able to escape the app origin.
+  assert.equal(deepLinkPath("aetheris://open?path=//evil.com/x"), null, "protocol-relative");
+  assert.equal(deepLinkPath("aetheris://open?path=/\\evil.com"), null, "backslash");
+  assert.equal(deepLinkPath("aetheris://open?path=https://evil.com"), null, "absolute URL");
+  assert.equal(deepLinkPath("aetheris://open?path=%2F%2Fevil.com"), null, "decoded once, so an encoded // is caught");
+  assert.equal(deepLinkPath("aetheris://open?path=%2Fdocs%2Fchat"), "/docs/chat", "an encoded path decodes");
+  assert.equal(deepLinkPath("aetheris://open?path=/a%00b"), null, "control character");
+  assert.equal(deepLinkPath("aetheris://open?path=relative"), null, "no leading slash");
+  assert.equal(deepLinkPath("aetheris://open"), null, "nothing to navigate to");
+  assert.equal(deepLinkPath("aetheris://open?path=/" + "a".repeat(600)), null, "too long");
+  assert.equal(deepLinkPath("https://evil.com/?path=/docs"), null, "wrong scheme");
+  assert.equal(deepLinkPath("not a url"), null);
 });
 
 // --------------------------------------------------------------------------- .env.local
@@ -372,7 +395,18 @@ test("main process: boots, wires every IPC channel, and boots the remote server 
   assert.ok(Array.isArray(logs.lines));
   assert.ok(logs.lines.every((l) => !/gsk_|api_key=/i.test(l)), "no credential-shaped line in the log");
 
-  // 11. The application menu was built.
-  assert.ok(stub.env.menu, "a menu was set");
+  // 11. The application menu: exactly one app menu, and no role menu without a label.
+  const menu = stub.env.menu as { template: { label?: string; role?: string; submenu?: unknown[] }[] };
+  assert.ok(menu, "a menu was set");
+  const top = menu.template;
+  assert.equal(top.filter((m) => m.label === "Aetheris").length, 1, "one app menu, not two");
+  for (const m of top) {
+    assert.ok(m.label && m.label.length > 0, `every top-level menu has a label (found ${JSON.stringify(m)})`);
+    assert.ok(Array.isArray(m.submenu) && m.submenu.length > 0, `${m.label} has a submenu`);
+  }
+  const appMenu = top.find((m) => m.label === "Aetheris")!;
+  const labels = (appMenu.submenu as { label?: string }[]).map((i) => i.label);
+  assert.ok(labels.some((l) => l === "Check for updates…"), labels.join(", "));
+  assert.ok(labels.some((l) => l === "Open log"), "the log is reachable from the menu");
   web.close();
 });
