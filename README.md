@@ -42,7 +42,12 @@ throughput. The **Providers** page in the app links straight to each provider's 
 | Pro Max | 1,500 | 4,000 | `aetheris-pro-max` | 4 (parallel) | 10 | + Video generation |
 | God Mode | 4,000 | unlimited | `aetheris-god` (Metis critique-and-revise on every answer) | 6 | 50 | + Enterprise GitHub Factory |
 
-Credits: chat = 1, agent run = 2, Deep Research = 5, Arena = 1 per lane. Payment is a UPI QR to the
+Credits: chat = 1, agent run = 2, image/speech = 2, Factory run = 3, Deep Research = 5, video = 5, Arena = 1 per lane.
+Every feature is metered through one ledger (`consumeChat(uid, cost, kind)`), which refuses over-limit
+requests *before* charging and keeps a per-feature breakdown + 30-day history (Settings → Plan & usage).
+Paid plans get **priority routing** (providers ranked by live health instead of shuffled); God Mode's
+**Enterprise Factory** unlocks custom target repos and specs over 2,000 characters. `/admin` shows
+subscribers, MRR, today's active users, and lets you change any user's plan manually. Payment is a UPI QR to the
 founder; the admin approves the UTR at `/admin` and the plan unlocks automatically.
 
 **Personal API keys** (Settings → API keys, Lite+) are OpenAI-compatible:

@@ -95,7 +95,7 @@ export async function POST(req: Request) {
   const { uid, isNew } = await getUserId();
   const plan = await planFor(uid);
   const { tier } = resolveTier(typeof body.model === "string" ? body.model : undefined, plan.id);
-  const tierOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens };
+  const tierOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens, priority: plan.features.includes("priority_routing") };
   const quota = await consumeChat(uid);
   if (!quota.allowed) {
     const res = NextResponse.json(

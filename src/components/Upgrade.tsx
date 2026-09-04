@@ -8,7 +8,11 @@ export interface Account {
   features: string[];
   chat: { used: number; limit: number | null };
   planId?: string;
+  byKind?: Record<string, number>;
+  history?: { day: string; count: number }[];
   maxModel?: string;
+  maxAgents?: number;
+  apiKeys?: number;
   plans: { id: string; name: string; priceInr: number; days: number; blurb: string; features: string[]; highlights: string[]; dailyCredits: number | null; maxModel: string; apiKeys: number; maxAgents: number }[];
   payee: { phone: string; email: string };
 }

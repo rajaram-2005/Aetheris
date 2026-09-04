@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   const plan = await planFor(key.uid);
   const { tier, downgraded } = resolveTier(body.model ?? key.model, plan.id);
-  const quota = await consumeChat(key.uid, body.agents?.length ? 2 : 1);
+  const quota = await consumeChat(key.uid, body.agents?.length ? 2 : 1, "api");
   if (!quota.allowed) return oaiErr(`Daily credit limit reached (${quota.limit}). Upgrade your Aetheris plan.`, 429, "rate_limit_error", "insufficient_quota");
 
   const toText = (c: unknown) => typeof c === "string" ? c : Array.isArray(c) ? c.map((p) => (p && typeof p === "object" && "text" in p ? String((p as { text: unknown }).text) : "")).join("") : "";
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
   const created = Math.floor(Date.now() / 1000);
   const modelLabel = tier.id + (downgraded ? " (plan-capped)" : "");
   const wantAgents = !!body.agents?.length || /^@[\w-]+/.test(msgs[msgs.length - 1]?.content ?? "");
-  const routeOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: Math.min(body.max_tokens ?? tier.maxTokens, tier.maxTokens), temperature: body.temperature };
+  const priority = plan.features.includes("priority_routing");
+  const routeOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: Math.min(body.max_tokens ?? tier.maxTokens, tier.maxTokens), temperature: body.temperature, priority };
 
   const runText = async (onDelta?: (t: string) => void): Promise<{ text: string; provider: string }> => {
     if (wantAgents) {
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       let text = ""; let provider = "";
       await orchestrate({
         messages: msgs, agents: body.agents, lessons: await getLessons(key.uid), signal: req.signal,
-        policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel, critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: routeOpts.maxTokens },
+        policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel, critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: routeOpts.maxTokens, priority },
         onEvent: (e) => { if (e.type === "delta") { text += e.text; onDelta?.(e.text); } else if (e.type === "done") provider = e.provider; },
       });
       return { text, provider };

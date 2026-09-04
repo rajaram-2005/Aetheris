@@ -575,3 +575,20 @@ button.chip { cursor: pointer; }
 .mm-flow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; }
 .mm-flow .arrow { color: var(--muted); }
 @media (max-width: 700px) { .mm-row { grid-template-columns: 1fr; } }
+
+.admin-stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
+.admin-stats div { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; min-width: 140px; background: var(--panel); }
+.admin-stats b { font-size: 20px; }
+.admin-stats span { font-size: 11px; color: var(--muted); }
+
+.usage-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.usage-bar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--border); }
+.usage-bar div { height: 100%; background: linear-gradient(90deg, var(--accent), #b98cff); transition: width .3s; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.usage-table th, .usage-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.usage-table th { color: var(--muted); font-weight: 600; font-size: 11px; }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 40px; }
+.spark span { flex: 1; background: var(--accent); opacity: .7; border-radius: 2px 2px 0 0; min-width: 3px; }
+
+.agent-starts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 14px; }
+.agent-starts .chip .meta { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-left: 4px; }

@@ -22,11 +22,11 @@ export interface OrchestrateOptions {
   signal?: AbortSignal;
   onEvent: (e: AgentEvent) => void;
   /** Plan/tier policy. */
-  policy?: { maxAgents: number; parallel: boolean; critique: boolean; allow?: string[]; allowKeyless?: boolean; maxTokens?: number };
+  policy?: { maxAgents: number; parallel: boolean; critique: boolean; allow?: string[]; allowKeyless?: boolean; maxTokens?: number; priority?: boolean };
 }
 
 const PRIME = agentById("prime")!;
-const pol = (o: OrchestrateOptions) => ({ allow: o.policy?.allow, allowKeyless: o.policy?.allowKeyless });
+const pol = (o: OrchestrateOptions) => ({ allow: o.policy?.allow, allowKeyless: o.policy?.allowKeyless, priority: o.policy?.priority });
 const HERMES = agentById("hermes")!;
 
 function extractJson<T>(s: string): T | null {

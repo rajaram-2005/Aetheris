@@ -19,6 +19,14 @@ interface HealthEntry {
 // Module-level state: persists across requests within a warm server instance.
 const health = new Map<string, HealthEntry>();
 
+/** Health score in (0, 1]: Bayesian success rate, lightly penalised by latency. Unknown providers score neutral. */
+function score(id: string): number {
+  const e = entry(id);
+  const rate = (e.successes + 1) / (e.successes + e.failures + 2);
+  const lat = e.avgLatencyMs ? Math.min(1, 1500 / e.avgLatencyMs) : 0.8;
+  return rate * 0.8 + lat * 0.2;
+}
+
 function entry(id: string): HealthEntry {
   let e = health.get(id);
   if (!e) {
@@ -71,7 +79,7 @@ function shuffle<T>(arr: T[]): T[] {
  * within each group (cheap load balancing), with cooled-down providers pushed to the end
  * as a last resort.
  */
-export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean }): ProviderConfig[] {
+export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean; priority?: boolean }): ProviderConfig[] {
   const now = Date.now();
   let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
@@ -91,7 +99,12 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
     g.push(p);
     groups.set(p.priority, g);
   }
-  const ordered = [...groups.keys()].sort((a, b) => a - b).flatMap((k) => shuffle(groups.get(k)!));
+  // Priority routing (paid plans): inside each priority group, rank by observed health
+  // (success rate, then latency) instead of shuffling — best provider first, every time.
+  const rank = (list: ProviderConfig[]) => opts?.priority
+    ? [...list].sort((a, b) => score(b.id) - score(a.id))
+    : shuffle(list);
+  const ordered = [...groups.keys()].sort((a, b) => a - b).flatMap((k) => rank(groups.get(k)!));
 
   const healthy = ordered.filter((p) => entry(p.id).cooldownUntil <= now);
   const cooling = ordered.filter((p) => entry(p.id).cooldownUntil > now);
@@ -125,11 +138,13 @@ export interface RouteOptions {
   /** Tier policy: provider allow-list (preference order) and whether keyless providers count. */
   allow?: string[];
   allowKeyless?: boolean;
+  /** Priority routing: health-ranked instead of shuffled (paid plans). */
+  priority?: boolean;
 }
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
   const vision = hasImages(opts.messages);
-  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless });
+  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless, priority: opts.priority });
   if (candidates.length === 0) {
     throw new ProviderError(
       vision

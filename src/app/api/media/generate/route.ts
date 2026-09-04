@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateMedia } from "@/lib/media/router";
 import { MediaError, type MediaKind } from "@/lib/media/types";
 import { getUserId } from "@/lib/user";
-import { hasFeature } from "@/lib/billing/entitlements";
+import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,14 +17,16 @@ export async function POST(req: Request) {
   if (!prompt) return NextResponse.json({ error: "prompt required" }, { status: 400 });
   if (prompt.length > 4000) return NextResponse.json({ error: "prompt too long" }, { status: 413 });
 
-  // Video is a Pro feature — unless the user brings their own key (their credits, their call).
+  const { uid } = await getUserId();
+  // Video is a Pro Max feature — unless the user brings their own key (their credits, their call).
   if (body.kind === "video") {
-    const { uid } = await getUserId();
     const byok = Boolean(body.keys?.luma || body.keys?.runway);
     if (!byok && !(await hasFeature(uid, "video"))) {
-      return NextResponse.json({ error: "Pro Video Generation requires Aetheris Pro (or your own Luma/Runway key).", code: "upgrade", feature: "video" }, { status: 402 });
+      return NextResponse.json({ error: "Video generation is included in Pro Max and God Mode (or bring your own Luma/Runway key).", code: "upgrade", feature: "video" }, { status: 402 });
     }
   }
+  const quota = await consumeChat(uid, body.kind === "video" ? 5 : 2, "media");
+  if (!quota.allowed) return NextResponse.json({ error: `Daily credit limit reached (${quota.limit}). Upgrade for more generations.`, code: "quota" }, { status: 402 });
 
   try {
     const r = await generateMedia({ kind: body.kind, prompt, userKeys: body.keys, preferred: body.preferred, voice: body.voice, signal: req.signal });

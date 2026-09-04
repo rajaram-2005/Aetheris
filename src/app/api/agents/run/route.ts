@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   if (!plan.features.includes("agents") && wantsMulti) {
     return NextResponse.json({ error: "Multi-agent pipelines need Lite or above. Free includes single-agent @mentions.", code: "upgrade", feature: "agents" }, { status: 402 });
   }
-  const quota = await consumeChat(uid, 2); // orchestration = 2 credits
+  const quota = await consumeChat(uid, 2, "agents"); // orchestration = 2 credits
   if (!quota.allowed) return NextResponse.json({ error: `Free tier limit reached (${quota.limit}/day). Upgrade for unlimited agents.`, code: "quota", quota }, { status: 402 });
 
   const sysParts = [SYSTEM_PROMPT, ARTIFACT_PROMPT];
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
           messages, preferred: body?.preferred, agents: body?.agents, servers: body?.servers ?? [],
           ctx: { github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens },
           searchKey: searchKeyFor(body?.searchKey), lessons, signal: req.signal,
-          policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel && plan.features.includes("parallel_agents"), critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens },
+          policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel && plan.features.includes("parallel_agents"), critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens, priority: plan.features.includes("priority_routing") },
           onEvent: async (e) => {
             send(e);
             if (e.type === "lessons") await addLessons(uid, e.lessons).catch(() => undefined);

@@ -27,6 +27,15 @@ const SUGGESTIONS = [
   "Write a React counter component with Tailwind",
   "Draw a Mermaid diagram of an OAuth 2.1 PKCE flow",
 ];
+/** Agent quick-starts shown on the empty chat screen (each is a forced @mention). */
+const AGENT_STARTS: { agent: string; icon: string; label: string; prompt: string }[] = [
+  { agent: "tutor", icon: "🎓", label: "Learn", prompt: "@tutor Explain how transformers work, at an undergraduate level, then quiz me" },
+  { agent: "coder", icon: "👩‍💻", label: "Build", prompt: "@coder @reviewer Write a rate limiter middleware for Express in TypeScript, then review it" },
+  { agent: "researcher", icon: "🔬", label: "Research", prompt: "@researcher What are the current free tiers for LLM APIs in 2026?" },
+  { agent: "strategist", icon: "♟️", label: "Plan", prompt: "@strategist @marketer Go-to-market plan for a ₹200/month AI study assistant for Indian college students" },
+  { agent: "career", icon: "🧭", label: "Career", prompt: "@career Rewrite my resume summary for a backend engineer role at a fintech" },
+  { agent: "translator", icon: "🌐", label: "Translate", prompt: "@translator Translate to Tamil, formal register: 'Your subscription renews on the 5th of every month.'" },
+];
 const FACTORY_SUGGESTIONS = [
   "A Python function that validates Indian UPI IDs, with tests",
   "A Node module that parses ISO-8601 durations into seconds",
@@ -87,6 +96,7 @@ export default function Chat() {
   const [arena, setArena] = useState(false);
   const [models, setModels] = useState<{ id: string; name: string; minPlan: string; available: boolean; description: string; agents: { max: number; parallel: boolean; critique: boolean } }[]>([]);
   const [direct, setDirect] = useState(false); // bypass agents for this model (quick chat)
+  const [factoryRepo, setFactoryRepo] = useState("");
   const [model, setModel] = useState<string>("");
   const [showModels, setShowModels] = useState(false);
   const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
@@ -158,8 +168,8 @@ export default function Chat() {
     if (taRef.current) taRef.current.style.height = "auto";
     const controller = new AbortController(); abortRef.current = controller;
     try {
-      const r = await fetch("/api/factory/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task, preferred }), signal: controller.signal });
-      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patch((f) => ({ ...f, error: j.error ?? `Request failed (${r.status})` })); return; }
+      const r = await fetch("/api/factory/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task, preferred, repo: factoryRepo.trim() || undefined }), signal: controller.signal });
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patch((f) => ({ ...f, error: j.error ?? `Request failed (${r.status})` })); if (r.status === 402) { setUpgrade(j.error); refreshAccount(); } return; }
       for await (const ev of sse(r)) {
         if (ev.type === "step") patch((f) => ({ ...f, files: (ev.data?.files as string[] | undefined) ?? f.files, steps: { ...f.steps, [ev.step as StepId]: { status: ev.status, detail: ev.detail, url: ev.data?.url } } }));
         else if (ev.type === "result") patch((f) => ({ ...f, result: ev }));
@@ -169,7 +179,7 @@ export default function Chat() {
       if ((err as Error).name !== "AbortError") patch((f) => ({ ...f, error: "Connection to Aetheris lost." }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferred, refreshMesh, active, activeProject]);
+  }, [preferred, refreshMesh, active, activeProject, factoryRepo]);
 
   // ---- deep research ------------------------------------------------------------------------
   const runResearch = useCallback(async (topic: string) => {
@@ -387,6 +397,24 @@ export default function Chat() {
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
 
+  const exportConvo = () => {
+    if (!active) return;
+    const md = [`# ${active.title}`, "", ...active.messages.filter((m) => !m.error).map((m) => `**${m.role === "user" ? "You" : `Aetheris${m.provider ? ` (${m.provider})` : ""}`}:**\n\n${m.content}`)].join("\n\n---\n\n");
+    const blob = new Blob([md], { type: "text/markdown" }); const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${active.title.replace(/[^\w\- ]+/g, "").trim() || "chat"}.md`; a.click(); URL.revokeObjectURL(url);
+  };
+  // Keyboard shortcuts: ⌘/Ctrl+K new chat · ⌘/Ctrl+/ focus composer · ⌘/Ctrl+, settings · Esc stop
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); newChat(); setMode("chat"); setTimeout(() => taRef.current?.focus(), 30); }
+      else if (mod && e.key === "/") { e.preventDefault(); taRef.current?.focus(); }
+      else if (mod && e.key === ",") { e.preventDefault(); setShowSettings(true); }
+      else if (e.key === "Escape" && abortRef.current) abortRef.current.abort();
+    };
+    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const exportAll = () => {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), conversations: convos, projects, memory, settings: { ...settings, tavilyKey: "" } }, null, 2)], { type: "application/json" });
     const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = `aetheris-export-${Date.now()}.json`; a.click(); URL.revokeObjectURL(u);
@@ -426,6 +454,7 @@ export default function Chat() {
                 {MODES.map((m) => <button key={m.id} className={mode === m.id ? "active" : ""} onClick={() => setMode(m.id)} title={m.label}>{m.icon}<span className="mt-label"> {m.label}</span></button>)}
               </div>
             )}
+            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={exportConvo} title="Download this chat as Markdown">⤓</button>}
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
@@ -446,8 +475,13 @@ export default function Chat() {
             {showMesh && mesh && <div className="mesh-inline"><MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /><div style={{ textAlign: "right" }}><button className="link" onClick={() => setMode("providers")}>open full Providers page →</button></div></div>}
             {mode === "factory" && (
               <div className="factory-bar">
-                <div><strong>Cloud Coding Factory</strong><span> — describe a program; Aetheris writes it, pushes it to a private <code>aetheris-factory</code> repo, runs the tests on GitHub Actions, and reports back.</span></div>
-                <GitHubAuth auth={auth} />
+                <div><strong>Cloud Coding Factory</strong><span> — describe a program; Aetheris writes it, pushes it to a private <code>{factoryRepo.trim() || "aetheris-factory"}</code> repo, runs the tests on GitHub Actions, and reports back.</span></div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {features.includes("factory_enterprise")
+                    ? <input className="agent-search" style={{ maxWidth: 220 }} placeholder="target repo (enterprise)" value={factoryRepo} onChange={(e) => setFactoryRepo(e.target.value)} />
+                    : <button className="chip" title="Enterprise Factory: custom target repos and long specs" onClick={() => setUpgrade("Custom target repos need the Enterprise GitHub Factory (God Mode).")}>🏢 custom repo ✦</button>}
+                  <GitHubAuth auth={auth} />
+                </div>
               </div>
             )}
             {messages.length === 0 && !busy ? (
@@ -458,6 +492,10 @@ export default function Chat() {
                   <p>{project ? (project.instructions ? project.instructions.slice(0, 160) : "Project chats share these instructions and files.") : "One chat across a mesh of free AI providers with silent failover — artifacts, vision, web search, deep research, projects and memory built in."}</p>
                   <div className="suggest-grid">
                     {SUGGESTIONS.map((s, i) => <button key={s} onClick={() => send(s)}><span className="sg-ico">{["🧱", "🌐", "⚛️", "🧭"][i]}</span><span>{s}</span></button>)}
+                  </div>
+                  <div className="agent-starts">
+                    {AGENT_STARTS.map((a) => <button key={a.agent} className="chip" title={a.prompt} onClick={() => send(a.prompt)}>{a.icon} {a.label} <span className="meta">@{a.agent}</span></button>)}
+                    <button className="chip" onClick={() => setMode("agents")}>all 29 agents →</button>
                   </div>
                 </>) : (<>
                   <div className="hero-orb" />
@@ -529,7 +567,7 @@ export default function Chat() {
         </div>
 
         {upgrade !== null && account && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
-        {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
+        {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
         {(mode === "chat" || mode === "factory") && <div className="composer">

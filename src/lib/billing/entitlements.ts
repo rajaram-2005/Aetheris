@@ -34,15 +34,24 @@ export async function grant(uid: string, planId: string, grantedBy: string): Pro
 }
 
 // ---- Metering (credits per day, plan-dependent) --------------------------------------------
-interface Usage { day: string; count: number }
+interface Usage { day: string; count: number; byKind?: Record<string, number>; history?: { day: string; count: number }[] }
 function today() { return new Date().toISOString().slice(0, 10); }
 
-export async function consumeChat(uid: string, cost = 1): Promise<{ allowed: boolean; used: number; limit: number | null }> {
+export type UsageKind = "chat" | "agents" | "research" | "arena" | "factory" | "media" | "api";
+
+export async function consumeChat(uid: string, cost = 1, kind: UsageKind = "chat"): Promise<{ allowed: boolean; used: number; limit: number | null }> {
   const plan = await planFor(uid);
+  // Check before charging so an over-limit request does not inflate the counter.
+  const cur0 = await store.get<Usage>("usage", uid);
+  const usedToday = cur0 && cur0.day === today() ? cur0.count : 0;
+  if (plan.dailyCredits !== null && usedToday + cost > plan.dailyCredits) return { allowed: false, used: usedToday, limit: plan.dailyCredits };
   const u = await store.update<Usage>("usage", uid, (cur) => {
     const d = today();
-    if (!cur || cur.day !== d) return { day: d, count: cost };
-    return { day: d, count: cur.count + cost };
+    if (!cur || cur.day !== d) {
+      const history = [...(cur?.history ?? []), ...(cur ? [{ day: cur.day, count: cur.count }] : [])].slice(-30);
+      return { day: d, count: cost, byKind: { [kind]: cost }, history };
+    }
+    return { ...cur, count: cur.count + cost, byKind: { ...(cur.byKind ?? {}), [kind]: (cur.byKind?.[kind] ?? 0) + cost } };
   });
   if (plan.dailyCredits === null) return { allowed: true, used: u.count, limit: null };
   return { allowed: u.count <= plan.dailyCredits, used: u.count, limit: plan.dailyCredits };
@@ -62,6 +71,8 @@ export async function usageSummary(uid: string) {
     maxAgents: plan.maxAgents,
     apiKeys: plan.apiKeys,
     chat: { used, limit: plan.dailyCredits },
+    byKind: u && u.day === today() ? u.byKind ?? {} : {},
+    history: u?.history ?? [],
     plans: PLANS,
   };
 }

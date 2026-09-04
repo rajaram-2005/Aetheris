@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { Settings } from "./store";
+import type { Account } from "./Upgrade";
 
-export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemory, onClearMemory, onAddMemory, onClose, onExport, onClearChats }: {
-  settings: Settings; onUpdate: (p: Partial<Settings>) => void;
+export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemory, onClearMemory, onAddMemory, onClose, onExport, onClearChats, account, onUpgrade }: {
+  settings: Settings; onUpdate: (p: Partial<Settings>) => void; account?: Account | null; onUpgrade?: () => void;
   memory: string[]; onRemoveMemory: (f: string) => void; onClearMemory: () => void; onAddMemory: (f: string) => void;
   onClose: () => void; onExport: () => void; onClearChats: () => void;
 }) {
-  const [tab, setTab] = useState<"general" | "memory" | "keys" | "data">("general");
+  const [tab, setTab] = useState<"general" | "usage" | "memory" | "keys" | "data">("general");
   const [newFact, setNewFact] = useState("");
   const [keys, setKeys] = useState<{ id: string; name: string; prefix: string; model: string; createdAt: number; calls: number; lastUsedAt?: number }[]>([]);
   const [keyLimit, setKeyLimit] = useState(0);
@@ -32,6 +33,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
         <h3 style={{ marginTop: 0 }}>Settings</h3>
         <div className="mode-toggle" style={{ marginBottom: 14 }}>
           <button className={tab === "general" ? "active" : ""} onClick={() => setTab("general")}>General</button>
+          <button className={tab === "usage" ? "active" : ""} onClick={() => setTab("usage")}>Plan & usage</button>
           <button className={tab === "memory" ? "active" : ""} onClick={() => setTab("memory")}>Memory · {memory.length}</button>
           <button className={tab === "keys" ? "active" : ""} onClick={() => setTab("keys")}>API keys</button>
           <button className={tab === "data" ? "active" : ""} onClick={() => setTab("data")}>Data</button>
@@ -56,6 +58,30 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
               <input type="checkbox" checked={settings.memoryEnabled} onChange={(e) => onUpdate({ memoryEnabled: e.target.checked })} />
               <span>Memory — remember useful facts about you across chats</span>
             </label>
+          </div>
+        )}
+
+        {tab === "usage" && account && (
+          <div className="settings">
+            <div className="usage-head">
+              <div><div className="hint" style={{ margin: 0, textAlign: "left" }}>Current plan</div><b style={{ fontSize: 18 }}>{account.plan?.name ?? "Free"}</b>{account.expiresAt && <span className="hint" style={{ marginLeft: 8 }}>renews by {new Date(account.expiresAt).toLocaleDateString("en-IN")}</span>}</div>
+              <button className="send" onClick={onUpgrade}>{account.plan ? "Change plan" : "Upgrade"}</button>
+            </div>
+            <div className="usage-bar"><div style={{ width: account.chat.limit ? `${Math.min(100, (account.chat.used / account.chat.limit) * 100)}%` : "0%" }} /></div>
+            <div className="hint" style={{ textAlign: "left", margin: 0 }}>{account.chat.used} / {account.chat.limit ?? "∞"} credits used today · model cap <code>{account.maxModel}</code> · up to {account.maxAgents} agent{(account.maxAgents ?? 1) > 1 ? "s" : ""} per run · {account.apiKeys} API key{account.apiKeys === 1 ? "" : "s"}</div>
+            <table className="usage-table">
+              <thead><tr><th>Today by feature</th><th>Credits</th></tr></thead>
+              <tbody>
+                {Object.entries(account.byKind ?? {}).length === 0 && <tr><td colSpan={2} className="hint" style={{ textAlign: "left" }}>Nothing used yet today.</td></tr>}
+                {Object.entries(account.byKind ?? {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}
+              </tbody>
+            </table>
+            {(account.history?.length ?? 0) > 0 && (
+              <div className="spark" title="Last 30 days">
+                {account.history!.slice(-30).map((h) => <span key={h.day} title={`${h.day}: ${h.count}`} style={{ height: `${Math.max(4, Math.min(100, (h.count / Math.max(1, ...account.history!.map((x) => x.count))) * 100))}%` }} />)}
+              </div>
+            )}
+            <div className="hint" style={{ textAlign: "left" }}>Credit costs — chat 1 · agent run 2 · image/speech 2 · Factory run 3 · Deep Research 5 · video 5 · Arena 1 per model.</div>
           </div>
         )}
 

@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (lanes.length < 2) return NextResponse.json({ error: "Arena needs at least two configured providers." }, { status: 400 });
 
   const { uid, isNew } = await getUserId();
-  const quota = await consumeChat(uid, lanes.length);
+  const quota = await consumeChat(uid, lanes.length, "arena");
   if (!quota.allowed) return NextResponse.json({ error: `Free tier limit reached (${quota.limit}/day).`, code: "quota" }, { status: 402 });
 
   const enc = new TextEncoder();

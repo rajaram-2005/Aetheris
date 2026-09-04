@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
   const { uid, isNew } = await getUserId();
   if (!(await hasFeature(uid, "deep_research"))) return NextResponse.json({ error: "Deep Research is included in Pro and above.", code: "upgrade", feature: "deep_research" }, { status: 402 });
-  const quota = await consumeChat(uid, 5); // research is expensive: counts as 5 messages
+  const quota = await consumeChat(uid, 5, "research"); // research is expensive: counts as 5 messages
   if (!quota.allowed) return NextResponse.json({ error: `Free tier limit reached (${quota.limit}/day). Upgrade for unlimited Deep Research.`, code: "quota" }, { status: 402 });
 
   const enc = new TextEncoder();
