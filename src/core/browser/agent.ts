@@ -15,7 +15,7 @@ import { htmlToText } from "@/lib/kb";
 import { traced } from "../observability/events";
 import { ssrfCheck } from "../security/guard";
 
-export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number }
+export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number; /** True when the page is a JS application shell: the http engine got the markup, but the content is rendered client-side, so this snapshot is not the page the user would see. */ needsJs?: boolean }
 export type Action = { type: "goto"; url: string } | { type: "follow"; n: number } | { type: "submit"; n: number; fields: Record<string, string> } | { type: "extract"; instruction: string } | { type: "finish"; answer: string };
 export interface Step { i: number; action: Action; url?: string; ok: boolean; note?: string; ms: number }
 export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engine: "http" | "playwright"; finalUrl?: string; reason?: string }
@@ -23,6 +23,18 @@ export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engi
 const DENY_DEFAULT = [/^https?:\/\/(localhost|127\.|10\.|192\.168\.|169\.254\.|\[::1\])/i, /^file:/i];
 const abs = (base: string, href: string) => { try { return new URL(href, base).toString(); } catch { return ""; } };
 const decode = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Pure: is this an application shell rather than a server-rendered page? React/Vue/Angular/Next ship
+ * an almost-empty <body> plus a bundle; the http engine cannot run it. Detecting it lets the agent say
+ * "this needs JavaScript" instead of describing an empty page as the answer.
+ */
+export function looksLikeJsShell(html: string, text: string): boolean {
+  const root = /<div[^>]+id=["\']?(root|app|__next|__nuxt|ng-app)["\']?/i.test(html) || /<body[^>]+(ng-app|data-reactroot)/i.test(html);
+  const bundle = /<script[^>]+src=["\'][^"\']+\.js/i.test(html);
+  const thin = text.replace(/\s+/g, "").length < 240;
+  return root && bundle && thin;
+}
 
 /** Pure: HTML → snapshot (tested). */
 export function snapshot(url: string, html: string, status = 200, maxText = 12_000): Snapshot {
@@ -37,10 +49,11 @@ export function snapshot(url: string, html: string, status = 200, maxText = 12_0
     for (const im of m[2].matchAll(/<(input|textarea|select)\b([^>]*)>/gi)) { const a = im[2]; const name = /name=["']([^"']+)["']/i.exec(a)?.[1]; if (!name) continue; const type = im[1] === "input" ? (/type=["']([^"']+)["']/i.exec(a)?.[1] ?? "text").toLowerCase() : im[1]; if (["hidden", "submit", "button", "image"].includes(type) && type !== "hidden") continue; fields.push({ name, type, value: /value=["']([^"']*)["']/i.exec(a)?.[1], label: /placeholder=["']([^"']*)["']/i.exec(a)?.[1] ?? /aria-label=["']([^"']*)["']/i.exec(a)?.[1] }); }
     forms.push({ n: ++f, action, method, fields }); if (f >= 20) break;
   }
-  return { url, title, text: htmlToText(body).slice(0, maxText), links, forms, status };
+  const text = htmlToText(body).slice(0, maxText);
+  return { url, title, text, links, forms, status, needsJs: looksLikeJsShell(html, text) || undefined };
 }
 export function render(s: Snapshot, maxLinks = 60): string {
-  return `URL: ${s.url}\nTITLE: ${s.title}\nSTATUS: ${s.status}\n\nTEXT:\n${s.text.slice(0, 7000)}\n\nLINKS:\n${s.links.slice(0, maxLinks).map((l) => `[${l.n}] ${l.text} → ${l.href}`).join("\n")}\n\nFORMS:\n${s.forms.map((f) => `(${f.n}) ${f.method.toUpperCase()} ${f.action} fields: ${f.fields.map((x) => `${x.name}:${x.type}${x.label ? `(${x.label})` : ""}`).join(", ")}`).join("\n") || "none"}`;
+  return `URL: ${s.url}\nTITLE: ${s.title}\nSTATUS: ${s.status}${s.needsJs ? "\nWARNING: JavaScript application shell — this page renders client-side, so the text below is the shell, not the content. Do not describe it as the answer; report that the page needs JavaScript." : ""}\n\nTEXT:\n${s.text.slice(0, 7000)}\n\nLINKS:\n${s.links.slice(0, maxLinks).map((l) => `[${l.n}] ${l.text} → ${l.href}`).join("\n")}\n\nFORMS:\n${s.forms.map((f) => `(${f.n}) ${f.method.toUpperCase()} ${f.action} fields: ${f.fields.map((x) => `${x.name}:${x.type}${x.label ? `(${x.label})` : ""}`).join(", ")}`).join("\n") || "none"}`;
 }
 
 const robotsCache = new Map<string, string[]>();
@@ -70,10 +83,10 @@ async function playwrightEngine(): Promise<{ kind: "playwright"; load(url: strin
   try {
     const mod = "playwright"; const pw = (await import(/* webpackIgnore: true */ mod)) as { chromium: { launch(o: { headless: boolean }): Promise<{ newPage(): Promise<{ goto(u: string, o: { waitUntil: string; timeout: number }): Promise<{ status(): number } | null>; content(): Promise<string>; url(): string; close(): Promise<void> }>; close(): Promise<void> }> } };
     const browser = await pw.chromium.launch({ headless: true });
-    return { kind: "playwright", async load(url, init) { if (init?.body) { const h = new HttpEngine(); return h.load(url, init); } const page = await browser.newPage(); try { const res = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 }); return snapshot(page.url(), await page.content(), res?.status() ?? 200); } finally { await page.close(); } }, close: () => browser.close() };
+    return { kind: "playwright", async load(url, init) { if (init?.body) { const h = new HttpEngine(); return h.load(url, init); } const page = await browser.newPage(); try { const res = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 }); /* the JS already ran here, so a thin page is really thin, not an unrendered shell */ const snap = snapshot(page.url(), await page.content(), res?.status() ?? 200); snap.needsJs = undefined; return snap; } finally { await page.close(); } }, close: () => browser.close() };
   } catch { return null; }
 }
-export async function browserStatus() { const pw = await playwrightEngine(); if (pw) await pw.close(); return { http: { available: true, note: "static HTML only, no JavaScript" }, playwright: { available: !!pw, note: pw ? "chromium launches" : "install with: npm i playwright && npx playwright install chromium" } }; }
+export async function browserStatus() { const pw = await playwrightEngine(); if (pw) await pw.close(); return { http: { available: true, note: "static HTML only, no JavaScript — JS application shells are detected and reported as needsJs rather than described as content" }, playwright: { available: !!pw, note: pw ? "chromium launches" : "install with: npm i playwright && npx playwright install chromium" } }; }
 
 /** Pure: parse the model's action JSON (tested). */
 export function parseAction(text: string): Action | null {
@@ -94,7 +107,7 @@ export async function browse(opts: { goal: string; startUrl: string; maxSteps?: 
           if (action.type === "goto") url = action.url; else if (action.type === "follow") { const l = snap?.links.find((x) => x.n === action.n); if (!l) throw new Error(`no link [${action.n}]`); url = l.href; } else { const f = snap?.forms.find((x) => x.n === action.n); if (!f) throw new Error(`no form (${action.n})`); if (!opts.allowSubmit) throw new Error("form submission not permitted for this run (needs safe_write)"); const body = new URLSearchParams(); for (const fld of f.fields) { const v = action.fields[fld.name] ?? fld.value; if (v !== undefined) body.set(fld.name, v); } if (f.method === "post") { url = f.action; init = { method: "POST", body }; } else { const u = new URL(f.action); body.forEach((v, k) => u.searchParams.set(k, v)); url = u.toString(); } }
           const p = policyOk(url, opts); if (p) throw new Error(p);
           const ss = await ssrfCheck(url, { allowHttp: true }); if (!ss.ok) throw new Error(`blocked: ${ss.reason}`);
-          snap = await engine.load(url, init); s.url = snap.url; s.note = `${snap.status} · ${snap.title || "(no title)"} · ${snap.links.length} links`; last = snap.url;
+          snap = await engine.load(url, init); s.url = snap.url; s.note = `${snap.status} · ${snap.title || "(no title)"} · ${snap.links.length} links${snap.needsJs ? " · JS shell (content is client-rendered)" : ""}`; last = snap.url;
         } else if (action.type === "extract") { if (!snap) throw new Error("no page loaded"); const r = await route({ preferred: opts.preferred, temperature: 0, maxTokens: 800, messages: [{ role: "system", content: "Extract exactly what is asked from the page text. Quote verbatim where possible. Say 'not found' if absent." }, { role: "user", content: `${action.instruction}\n\n${snap.text.slice(0, 14_000)}` }] }); s.note = r.content.slice(0, 1500); history.push(`extracted: ${s.note}`); }
       } catch (e) { s.ok = false; s.note = (e as Error).message; }
       s.ms = Date.now() - t0; steps.push(s); opts.onStep?.(s); return s;

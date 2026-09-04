@@ -1,5 +1,5 @@
 import { record } from "@/core/observability/events";
-import { callProvider, hasImages } from "./adapters";
+import { callProvider, hasImages, hasVideo } from "./adapters";
 import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
 
@@ -88,6 +88,14 @@ export interface ModelPolicy {
   /** Approx prompt tokens; providers with a smaller declared context are dropped. */
   minContext?: number;
   needsTools?: boolean;
+  /**
+   * Drop providers serving these model names. Used by the verification engine so a reviewer is
+   * routed to a *different* model than the one that produced the answer — independence becomes a
+   * routing property, not a hope. Providers that survive are preferred; if every candidate is
+   * avoided the filter is not applied (a same-model review is better than no review, and the
+   * caller sees `independent:false`).
+   */
+  avoidModels?: string[];
 }
 export const approxTokens = (msgs: { content: string }[]) => Math.ceil(msgs.reduce((n, m) => n + m.content.length, 0) / 3.5);
 
@@ -98,6 +106,7 @@ export function applyPolicy(list: ProviderConfig[], pol?: ModelPolicy): Provider
   if (pol.locality === "local") out = out.filter((p) => p.local);
   else if (pol.locality === "remote") out = out.filter((p) => !p.local);
   if (pol.minContext) { const fit = out.filter((p) => !p.contextTokens || p.contextTokens >= pol.minContext!); if (fit.length) out = fit; }
+  if (pol.avoidModels?.length) { const kept = out.filter((p) => !pol.avoidModels!.includes(p.model ?? "")); if (kept.length) out = kept; }
   const fit = (p: ProviderConfig) => {
     let f = 0;
     if (pol.task && p.strengths?.includes(pol.task as never)) f += 2;
@@ -110,9 +119,11 @@ export function applyPolicy(list: ProviderConfig[], pol?: ModelPolicy): Provider
   return out.map((p, i) => ({ p, i, f: fit(p) })).sort((a, b) => b.f - a.f || a.i - b.i).map((x) => x.p);
 }
 
-export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean; priority?: boolean; policy?: ModelPolicy }): ProviderConfig[] {
+export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; video?: boolean; allow?: string[]; allowKeyless?: boolean; priority?: boolean; policy?: ModelPolicy }): ProviderConfig[] {
   const now = Date.now();
-  let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
+  // Video is a stricter requirement than vision: only providers that take video inline qualify, and
+  // the fallback is nothing (a video sent to an image-only provider is a guaranteed 400).
+  let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
   // leave the user with nothing: fall back to the full configured set if the policy empties it.
   if (opts?.allow?.length) {
@@ -192,13 +203,16 @@ export interface RouteOptions {
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
   const vision = hasImages(opts.messages);
+  const video = vision && hasVideo(opts.messages);
   const policy = opts.policy ?? inferPolicy(opts.messages);
-  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless, priority: opts.priority, policy });
+  const candidates = orderedCandidates({ preferred: opts.preferred, vision, video, allow: opts.allow, allowKeyless: opts.allowKeyless, priority: opts.priority, policy });
   if (candidates.length === 0) {
     throw new ProviderError(
-      vision
-        ? "No vision-capable provider configured (Groq, Gemini, GitHub Models, OpenRouter, Mistral, Together, SambaNova or NVIDIA)."
-        : "No providers configured. Add at least one API key to .env.local (see .env.example).",
+      video
+        ? "No provider configured that accepts inline video (set GEMINI_API_KEY — free — or install ffmpeg so frames can be sampled instead)."
+        : vision
+          ? "No vision-capable provider configured (Groq, Gemini, GitHub Models, OpenRouter, Mistral, Together, SambaNova or NVIDIA)."
+          : "No providers configured. Add at least one API key to .env.local (see .env.example).",
       503,
       false,
     );

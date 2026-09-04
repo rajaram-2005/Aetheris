@@ -13,6 +13,36 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## 2026.9.1 — 2026-09-04
 
+### verification
+
+- Verification engine (`src/core/verification/verify.ts`): JSON-schema validator (no dependency, malformed schemas reported as `schemaOk:false`), independent reviewer gate, and a test loop that runs a command in the execution sandbox and feeds the failure back to a revise pass
+- The reviewer is routed away from the generator's provider (`ModelPolicy.avoidModels` / candidate filtering) and reports `independent:false` when a second provider could not be found, instead of claiming independence
+- `GET/POST /api/verify` — `kind: "schema" | "review" | "tests"`; the test loop is `full_workspace` and needs a confirmation token, exactly like `/api/executions`
+- Automations gained `verify.kind: "schema"` and `verify.kind: "tests"` (with a stored `executionToken`), so a run can be gated on a real command rather than a model saying PASS
+- The sandbox command splitter is now quote-aware: `node -e "a(); b()"` was being refused as `binary not allowed: b()`
+
+### workspaces
+
+- Workspace sharing: owner adds other accounts as `editor` or `viewer` (`/api/workspaces/:id/members`, 25 max, every change audited as a `permission` event)
+- `readableScopes()` is the single place read access is decided; `/api/knowledge?workspace=…` resolves through it, so a member reads the owner's scope and an unshared scope is a 404
+- Sharing is read-only by design and the default workspace cannot be shared (it holds the user's unscoped data)
+
+### multimodal
+
+- Video no longer requires ffmpeg: an inline-video model (Google AI Studio) takes the file directly, and `ProviderConfig.video` keeps video off providers that would 400 on it
+- New pure-JS ISO-BMFF reader (`src/core/multimodal/container.ts`): duration, resolution, codec, rotation, creation time, track layout and embedded cover art — no binary, exercised against a hand-built box tree
+- With neither path available the container facts are still returned, with `frames: 0` and an explicit reason
+
+### browser
+
+- JS application shells are detected (`needsJs`) and reported to the agent, so a client-rendered page is no longer described as if its empty shell were the content
+
+### tests
+
+- `tests/verification.test.ts` (15) and `tests/multimodal.test.ts` (8); suite is 160 tests
+- Fixed a flaky assertion in `tests/apikeys.test.ts`: tampering with a key by appending `"x"` was a no-op whenever the random base64url key already ended in `x` (roughly 1 run in 16), which failed the whole suite
+- Sharing only accepts a real 32-hex user id, and a missing workspace id is a 404 rather than a crash
+
 ### desktop
 
 - Aetheris desktop app (Electron): embedded loopback server or remote server, macOS/Linux/Windows packaging

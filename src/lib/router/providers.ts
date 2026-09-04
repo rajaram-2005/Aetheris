@@ -62,7 +62,8 @@ export const PROVIDERS: ProviderConfig[] = [
     keyUrl: "https://aistudio.google.com/app/apikey",
     freeTier: "15 RPM · 1,500 RPD · no card",
     vision: true,
-    notes: "Gemini Flash; generous free tier.",
+    video: true,
+    notes: "Gemini Flash; generous free tier. Accepts inline video (mp4), so `perceive({modality:\"video\"})` works with no ffmpeg on the host.",
   },
 
   // ---- Tier 2: solid free tiers -----------------------------------------------------

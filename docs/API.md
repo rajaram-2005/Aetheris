@@ -38,6 +38,7 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | `POST /api/agents/run` | synchronous orchestrated run (SSE events) |
 | `GET/POST /api/jobs` · `GET /api/jobs/:id[?stream=1]` · `DELETE` (cancel) · `POST` (retry) | background agent jobs with budgets/checkpoints |
 | `GET /api/executions` · `POST {command, files?, timeoutMs?, network?, confirmationToken}` ⚠ | server sandbox status · run |
+| `GET /api/verify` · `POST {kind:"schema", value, schema}` · `POST {kind:"review", question, answer, generator?, minScore?}` · `POST {kind:"tests", command, files?, maxIterations?, confirmationToken}` ⚠ | verification engine: JSON-schema validation (free, offline) · independent reviewer routed off the generator's model · test loop in the sandbox that feeds failures back to a revise pass (needs a confirmation token, like `/api/executions`) |
 | `GET/POST /api/workflows` · `POST /api/workflows/:id/run` | saved multi-agent workflows |
 
 ## Knowledge, memory, research
@@ -49,6 +50,7 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | `GET/POST /api/memory` · `DELETE /api/memory/:id` · `POST /api/memory/extract` | typed memory |
 | `POST /api/research` · `POST /api/research/academic` | web deep research · academic engine |
 | `GET/POST /api/workspaces` · `GET/PATCH/DELETE /api/workspaces/:id` | scopes with computed stats |
+| `GET/POST /api/workspaces/:id/members` · `PATCH/DELETE /api/workspaces/:id/members/:member` | share a workspace: `POST {member, role:"editor"\|"viewer"}` (owner only, 25 max), list, re-role, remove or leave. Members read the shared scope via `GET /api/knowledge?workspace=…`; writes stay their own. The default workspace cannot be shared. |
 
 ## Tools & MCP
 

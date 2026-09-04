@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-135%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen.svg)](tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
@@ -34,31 +34,31 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](docs/MODELS.md) |
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
-| Verification engine | PARTIAL | critique/explain/automation-verify; no default test loop |
+| Verification engine — schema validation, independent reviewer, test loop | IMPLEMENTED | `GET/POST /api/verify`, [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Capability Registry (387 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](docs/SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](docs/SECURITY.md) |
 | MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](docs/MCP.md) |
 | MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](docs/MCP.md) |
-| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (lexical embeddings by default) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
+| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (hashed local embeddings by default; set `EMBEDDINGS_URL` for semantic vectors) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](docs/MEMORY.md) |
 | Research engine — arXiv/Crossref/OpenAlex/S2, claims, contradictions | IMPLEMENTED (network) | [RESEARCH](docs/RESEARCH.md) |
 | GitHub repository intelligence + coding factory | IMPLEMENTED (untestable offline) | [AGENTS](docs/AGENTS.md) |
-| Multimodal perception (image/doc/audio/sensor; video needs ffmpeg) | PARTIAL | `GET /api/multimodal` |
-| Browser agent (http engine; Playwright optional) | PARTIAL | `GET /api/browser` |
+| Multimodal perception — image/doc/audio/sensor, plus video (ffmpeg, inline-video model, or container read) | IMPLEMENTED (frame sampling needs ffmpeg or a video-native model key) | `GET /api/multimodal` |
+| Browser agent — goal-driven navigation, robots/SSRF gates, JS-shell detection | IMPLEMENTED (http engine); JS rendering needs Playwright | `GET /api/browser` |
 | Physical AI — http/mqtt/modbus adapters, safety loop, e-stop, telemetry | IMPLEMENTED (mqtt/modbus verified on mocks only); serial via bridge; opcua/can NOT AVAILABLE | [HARDWARE](docs/HARDWARE.md) |
 | Robotics — ROS 2 via rosbridge, governor, watchdog, e-stop | IMPLEMENTED (verified on mock rosbridge) | [ROBOTICS](docs/ROBOTICS.md) |
 | Digital twins — sync, rule simulation, health | IMPLEMENTED | [ROBOTICS](docs/ROBOTICS.md) |
 | Automation engine — trigger → condition → agent → verify → action | IMPLEMENTED | [API](docs/API.md) |
-| Workspaces | IMPLEMENTED (no sharing) | [API](docs/API.md) |
+| Workspaces — scopes, computed stats, sharing with editor/viewer roles | IMPLEMENTED (sharing is read-only) | [API](docs/API.md) |
 | Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](docs/SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
-| Evals (intent, policy, sandbox, retrieval) + 106 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Evals (intent, policy, sandbox, retrieval) + 160 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
 | Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](docs/DESKTOP.md) |
 | Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](CHANGELOG.md) |
-| Horizontal scaling, persistent telemetry store, semantic embeddings offline | NOT AVAILABLE / PARTIAL | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Horizontal scaling, persistent telemetry store | NOT AVAILABLE (single-instance JSON store, in-memory ring buffer) | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
 
 Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [DESKTOP](docs/DESKTOP.md) · [CHANGELOG](CHANGELOG.md)
 
