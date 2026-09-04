@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isLoopbackHost } from "./lib/loopback";
 
 /**
  * Edge middleware (Phase 17): security headers on every response + coarse per-IP rate limiting for
@@ -14,6 +15,17 @@ const RULES: { test: RegExp; limit: number; windowMs: number }[] = [
 ];
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  /**
+   * Desktop guard: when this instance is the one embedded in the Aetheris desktop app
+   * (`AETHERIS_DESKTOP=1`, set by `desktop/src/lib/local-server.ts`), the server is reachable on
+   * 127.0.0.1 only, and we additionally require a loopback `Host` header. That blocks the
+   * DNS-rebinding trick where a web page the user visits resolves a public name to 127.0.0.1 and
+   * reads the local Aetheris API through the browser. Off by default: it would break any
+   * reverse-proxy or container deployment that forwards a public host name.
+   */
+  if (process.env.AETHERIS_DESKTOP === "1" && !isLoopbackHost(req.headers.get("host"))) {
+    return new NextResponse(JSON.stringify({ error: "forbidden", detail: "this instance only accepts loopback Host headers" }), { status: 403, headers: { "content-type": "application/json" } });
+  }
   if (req.method !== "GET" && req.method !== "HEAD") {
     const rule = RULES.find((r) => r.test.test(path));
     if (rule) {

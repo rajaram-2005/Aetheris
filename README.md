@@ -4,7 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen.svg)](tests)
+[![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
@@ -54,9 +56,11 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
 | Evals (intent, policy, sandbox, retrieval) + 106 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
+| Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](docs/DESKTOP.md) |
+| Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](CHANGELOG.md) |
 | Horizontal scaling, persistent telemetry store, semantic embeddings offline | NOT AVAILABLE / PARTIAL | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
 
-Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md)
+Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [DESKTOP](docs/DESKTOP.md) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
@@ -86,6 +90,47 @@ Any subset of keys works — the router only uses providers whose key is set.
 **Zero keys also works:** Pollinations and LLM7.io are keyless community endpoints, so a fresh
 deployment answers immediately (at low rate limits) and every key you add raises quality and
 throughput. The **Providers** page in the app links straight to each provider's free-key page.
+
+## Desktop app — macOS, Linux, Windows
+
+Aetheris also ships as a desktop app (`desktop/`, Electron) around the same code — not a second
+product. It either runs the server **embedded** on `127.0.0.1` (a self-contained, offline app whose
+data lives in `~/Library/Application Support/Aetheris`, `~/.config/Aetheris` or `%APPDATA%/Aetheris`),
+or acts as a thin client for **any** Aetheris server you point it at — switchable in
+Settings → Connection. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
+check come with it. See [docs/DESKTOP.md](docs/DESKTOP.md).
+
+| Platform | Artefacts |
+|---|---|
+| macOS | `.dmg` + `.zip` — Apple silicon and Intel (unsigned: right-click → Open the first time) |
+| Linux | `.AppImage`, `.deb`, `.rpm` — x64 and arm64 |
+| Windows | NSIS installer + `.zip` — x64 |
+
+```bash
+npm run desktop:dev      # next dev + the desktop shell, with hot reload
+npm run desktop:build    # standalone server → resources/server → unpacked app you can run
+```
+
+## Versioning — a new release every month
+
+Aetheris releases on **CalVer `YYYY.M.P`**, once a month, and the schedule is enforced by CI rather
+than by memory:
+
+```
+2026.9.1  →  2026.10.1  →  2026.11.1  →  2026.12.1  →  2027.1.1     monthly (the patch resets)
+2026.9.1  →  2026.9.2                                               hot-fix inside a month
+```
+
+At 03:30 UTC on the 1st of every month `ci/release.yml` verifies the tree, bumps the version,
+writes the CHANGELOG from the commits since the previous tag, pushes the tag, opens the GitHub
+Release, and attaches desktop installers built on macOS, Linux and Windows runners. To do it by
+hand: `bash tools/release.sh` (`--patch` for a hot-fix, `--set 2027.3.1` for an exact version,
+`--no-push` to stop before pushing).
+
+`VERSION` at the repository root is the single source of truth; the release tooling copies it into
+`package.json`, `desktop/package.json` and `public/manifest.webmanifest`, and `GET /api/version`
+serves it. `tests/desktop.test.ts` fails if those copies drift apart or if the schedule stops being
+monthly.
 
 ## 100% free — for everyone
 

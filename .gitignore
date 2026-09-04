@@ -9,3 +9,8 @@ dist/
 .DS_Store
 tsconfig.tsbuildinfo
 data/
+# desktop app build artefacts
+desktop/dist/
+desktop/release/
+desktop/resources/server/
+desktop/node_modules/

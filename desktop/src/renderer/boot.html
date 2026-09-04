@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;" />
+    <title>Aetheris One</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12;
+        --panel: #12151d;
+        --line: #1e2430;
+        --fg: #e7ecf3;
+        --muted: #8b96a8;
+        --accent: #6ea8fe;
+        --ok: #4ade80;
+        --err: #f87171;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .card {
+        width: min(560px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 26px 26px 22px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+      h1 { font-size: 17px; margin: 0 0 6px; letter-spacing: 0.2px; }
+      .sub { color: var(--muted); margin: 0 0 18px; font-size: 13px; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .grow { flex: 1 1 auto; }
+      input[type="text"] {
+        width: 100%;
+        background: #0d1017;
+        color: var(--fg);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 10px 12px;
+        font: inherit;
+        outline: none;
+      }
+      input[type="text"]:focus { border-color: var(--accent); }
+      button {
+        background: #1a2130;
+        color: var(--fg);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 9px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover { border-color: #2d3a4f; background: #202a3c; }
+      button.primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+      button.primary:hover { background: #2563eb; }
+      button:disabled { opacity: 0.55; cursor: default; }
+      .spinner {
+        width: 15px; height: 15px; border-radius: 50%;
+        border: 2px solid #2a3448; border-top-color: var(--accent);
+        animation: spin 0.8s linear infinite; display: inline-block; vertical-align: -2px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      pre {
+        background: #0d1017; border: 1px solid var(--line); border-radius: 9px;
+        padding: 12px; margin: 14px 0 0; max-height: 220px; overflow: auto;
+        white-space: pre-wrap; word-break: break-word; font-size: 12px; color: #b9c3d3;
+        -webkit-user-select: text; user-select: text;
+      }
+      .meta { color: var(--muted); font-size: 12px; margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+      .pill { border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+      .err { color: var(--err); }
+      .ok { color: var(--ok); }
+      .banner {
+        border: 1px solid #33415e; background: #131a2b; color: #cfe0ff;
+        border-radius: 9px; padding: 10px 12px; margin-bottom: 16px; font-size: 13px;
+      }
+      hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+      label { display: block; color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+      .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+      code { background: #0d1017; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1 id="title">Starting Aetheris…</h1>
+      <p class="sub" id="subtitle">Booting the embedded Intelligence OS on this machine.</p>
+
+      <div id="banner" class="banner" hidden></div>
+
+      <section id="pane-booting" class="row" hidden>
+        <span class="spinner"></span>
+        <span id="booting-text" class="grow">Starting the embedded server on 127.0.0.1…</span>
+      </section>
+
+      <section id="pane-error" hidden>
+        <pre id="error-text"></pre>
+        <div class="hint" id="error-hint"></div>
+        <div class="row" style="margin-top: 16px">
+          <button class="primary" id="retry">Try again</button>
+          <button id="show-logs">Open log</button>
+          <button id="show-data">Open data folder</button>
+          <button id="to-connect" class="grow" style="text-align: right">Connect to a server…</button>
+        </div>
+      </section>
+
+      <section id="pane-connect" hidden>
+        <label for="url">Aetheris server address</label>
+        <input id="url" type="text" placeholder="https://aetheris.example.com or http://192.168.1.20:3000" spellcheck="false" />
+        <div class="row" style="margin-top: 12px">
+          <button class="primary" id="connect">Connect</button>
+          <button id="probe">Test</button>
+          <button id="use-local" class="grow" style="text-align: right">Use the embedded server</button>
+        </div>
+        <div class="hint" id="probe-result">The address must answer <code>GET /api/health</code>.</div>
+      </section>
+
+      <div class="meta">
+        <span class="pill" id="version">—</span>
+        <span class="pill" id="mode">—</span>
+        <span class="pill" id="runtime">—</span>
+        <span class="pill" id="update">monthly release channel</span>
+      </div>
+    </main>
+
+    <script>
+      const api = window.aetherisDesktop;
+      const $ = (id) => document.getElementById(id);
+      const panes = ["booting", "error", "connect"];
+
+      function show(name) {
+        for (const p of panes) $("pane-" + p).hidden = p !== name;
+      }
+
+      function render(state) {
+        if (!state) return;
+        $("mode").textContent = state.mode === "remote" ? "remote server" : "embedded server";
+        if (state.view === "booting") {
+          $("title").textContent = "Starting Aetheris…";
+          $("subtitle").textContent =
+            state.mode === "remote" ? "Connecting to your Aetheris server." : "Booting the embedded Intelligence OS on this machine.";
+          $("booting-text").textContent =
+            state.mode === "remote" ? "Checking " + (state.serverUrl || "the server") + "…" : "Starting the embedded server on 127.0.0.1…";
+          show("booting");
+        } else if (state.view === "error") {
+          $("title").textContent = "Aetheris could not start";
+          $("subtitle").textContent = state.mode === "remote" ? "The remote server did not answer." : "The embedded server did not become healthy.";
+          $("error-text").textContent = state.error || "Unknown error.";
+          $("error-hint").textContent = state.hint || "";
+          show("error");
+        } else if (state.view === "connect") {
+          $("title").textContent = "Connect to an Aetheris server";
+          $("subtitle").textContent = "Point the desktop app at any Aetheris instance — a LAN box, your VPS, or a teammate's.";
+          show("connect");
+        }
+        if (state.update && state.update.state === "update_available") {
+          $("banner").hidden = false;
+          $("banner").innerHTML = "";
+          const b = $("banner");
+          b.append("A new version is available: " + state.update.latest + " (you are on " + state.update.current + "). ");
+          const link = document.createElement("a");
+          link.href = "#";
+          link.textContent = "Open the release";
+          link.style.color = "#9cc0ff";
+          link.onclick = (e) => {
+            e.preventDefault();
+            const asset = state.update.asset;
+            api.openExternal(asset ? asset.url : state.update.release.htmlUrl);
+          };
+          b.append(link);
+          $("update").textContent = "update available: " + state.update.latest;
+        } else {
+          $("banner").hidden = true;
+        }
+      }
+
+      async function refresh() {
+        if (!api) return;
+        const [info, st] = [await api.info(), await api.serverStatus()];
+        $("version").textContent = "Aetheris " + info.appVersion;
+        $("runtime").textContent = "Electron " + info.electron + " · Node " + info.node;
+        if (info.mode === "remote" && info.serverUrl) $("url").value = info.serverUrl;
+        void st;
+      }
+
+      $("retry").onclick = () => { show("booting"); api.restart(); };
+      $("show-logs").onclick = async () => { const l = await api.logs(); api.showItemInFolder(l.path); };
+      $("show-data").onclick = () => api.openDataDir();
+      $("to-connect").onclick = () => {
+        api.setSettings({ mode: "remote" });
+        show("connect");
+      };
+      $("use-local").onclick = () => { show("booting"); api.setSettings({ mode: "local" }); };
+      $("connect").onclick = async () => {
+        const url = $("url").value.trim();
+        if (!url) return;
+        $("probe-result").textContent = "Testing…";
+        const r = await api.probe(url);
+        if (!r.ok) {
+          $("probe-result").innerHTML = '<span class="err">Not reachable: ' + (r.error || "HTTP " + r.status) + "</span>";
+          return;
+        }
+        $("probe-result").innerHTML = '<span class="ok">Reachable.</span> Connecting…';
+        show("booting");
+        await api.setSettings({ mode: "remote", serverUrl: url });
+        await api.restart();
+      };
+      $("probe").onclick = async () => {
+        const url = $("url").value.trim();
+        if (!url) return;
+        $("probe-result").textContent = "Testing…";
+        const r = await api.probe(url);
+        $("probe-result").innerHTML = r.ok
+          ? '<span class="ok">Reachable' + (r.version ? " · Aetheris " + r.version : "") + "</span>"
+          : '<span class="err">Not reachable: ' + (r.error || "HTTP " + r.status) + "</span>";
+      };
+      $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("connect").click(); });
+
+      if (api) {
+        api.onState(render);
+        void refresh();
+      } else {
+        $("title").textContent = "Desktop bridge unavailable";
+        $("subtitle").textContent = "This page must run inside the Aetheris desktop app.";
+        show("error");
+        $("error-text").textContent = "window.aetherisDesktop is not exposed. Open this app from the packaged build, not from a browser.";
+      }
+    </script>
+  </body>
+</html>

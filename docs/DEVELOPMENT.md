@@ -19,8 +19,17 @@ npm run dev                 # http://localhost:3000 (binds 0.0.0.0)
 | `npm test` | `tsx --test tests/*.test.ts` — node:test + node:assert/strict (103 tests, ≈15 s) |
 | `npm run eval` | `evals/run.ts` — intent routing, policy, sandbox policy, retrieval; thresholds enforced |
 | `npm run verify:connectors` | probes connector endpoints (needs egress) |
+| `npm run desktop:dev` | `next dev` + the Electron shell pointed at it (hot reload) |
+| `npm run desktop:build` | standalone server → `desktop/resources/server` → unpacked desktop app |
+| `npm run desktop:dist` | installer artefacts for the current OS (`.dmg` / `.AppImage`+`.deb`+`.rpm` / `.exe`) |
+| `npm run icons` | regenerate the desktop icons from `public/icon.svg` (needs `sharp`) |
+| `npm run version:bump` | next CalVer (`-- --patch`, `-- --set 2027.3.1`, `-- --dry-run`) |
+| `npm run changelog` | write the CHANGELOG section for the version in `VERSION` |
+| `bash tools/release.sh` | verify → bump → changelog → commit → tag → push (`--no-push` to stop early) |
 
-CI (`ci/github-actions-ci.yml`): typecheck → test → eval → build. Copy to `.github/workflows/ci.yml` in your fork (see `ci/README.md`).
+CI (`ci/github-actions-ci.yml`): typecheck → test → eval → build. The monthly release lives in
+`ci/release.yml` (cron `30 3 1 * *`). Copy them to `.github/workflows/` in your fork — see
+`ci/README.md`, which explains why they are not already there.
 
 ## Layout
 
@@ -46,8 +55,19 @@ src/
 tests/                  node:test suites (+ fixtures, helpers, mock servers)
 evals/                  cases.json + run.ts
 bridge/                 aetheris-bridge serial daemon
+desktop/                Electron app: src/main.ts, src/preload.ts, src/lib/* (all unit-tested),
+                        src/renderer/boot.html, scripts/, buildResources/, package.json (electron-builder config)
+tools/                  release tooling: bump-version.mjs, changelog.mjs, release-notes.mjs,
+                        gen-icons.mjs, desktop-build.mjs, release.sh
+ci/                     GitHub Actions: ci, the monthly release, the desktop build action
 docs/                   this documentation set
 ```
+
+The desktop app keeps its decision logic in `desktop/src/lib/*` — CalVer, settings sanitising, the
+embedded-server supervisor, update checking, log redaction — and `desktop/src/main.ts` is thin glue
+over Electron. That is what makes it testable: `tests/desktop.test.ts` exercises every one of those
+modules without launching Electron, and `tests/desktop.embedded.test.ts` boots the real standalone
+bundle the way the app does (it skips itself when `desktop/resources/server` has not been built).
 
 Dependency rule: `core/*` may import `lib/*` and other `core/*`; `lib/*` must not import `core/*` except through `core/security/guard` and `core/observability/events` (leaf modules). UI imports neither directly — it calls `/api`.
 

@@ -16,7 +16,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
-        <script dangerouslySetInnerHTML={{ __html: `if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}` }} />
+        {/* The desktop app (desktop/) injects window.aetherisDesktop through its preload; it must
+            not register the service worker, or a stale cached shell would outlive an app update. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if(!window.aetherisDesktop&&"serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}`,
+          }}
+        />
       </body>
     </html>
   );

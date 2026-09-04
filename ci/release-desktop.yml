@@ -1,0 +1,48 @@
+name: release-desktop
+
+# Rebuild the desktop installers for a release that already exists.
+#
+# The monthly release (ci/release.yml) builds them itself; use this when an upload failed, when a
+# runner produced a broken artefact, or when you want installers for a commit that was never
+# released. Leave `publish_tag` empty to get workflow artefacts instead of touching a release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "CalVer to build (defaults to the version in VERSION)"
+        required: false
+        default: ""
+      publish_tag:
+        description: "Release tag to upload to, e.g. v2026.10.1 (empty = workflow artefacts only)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # .dmg + .zip, arm64 and x64
+          - os: ubuntu-latest # .AppImage + .deb + .rpm, x64 and arm64
+          - os: windows-latest # NSIS installer + .zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the version
+        id: v
+        run: |
+          set -euo pipefail
+          version="${{ inputs.version }}"
+          [ -n "$version" ] || version="$(cat VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: ./ci/actions/build-desktop
+        with:
+          version: ${{ steps.v.outputs.version }}
+          publish_tag: ${{ inputs.publish_tag }}
