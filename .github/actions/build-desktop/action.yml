@@ -1,15 +1,25 @@
 name: Build the Aetheris desktop app
 
 # Composite action shared by .github/workflows/release.yml and .github/workflows/release-desktop.yml
-# so the macOS, Linux and
-# Windows legs build in exactly the same way.
+# so the macOS, Linux and Windows legs build in exactly the same way.
 #
 # Inputs
-#   version       the CalVer being released (used for the upload path)
+#   version       the CalVer being released (stamped into desktop/package.json, so the installers
+#                 are named after the release they belong to)
 #   publish_tag   when set, artefacts are attached to that GitHub Release (needs contents: write)
 #
-# Why ELECTRON_SKIP_BINARY_DOWNLOAD is *not* set here: packaging needs the real Electron binaries.
-# It is set in the typecheck/CI job, which only compiles TypeScript.
+# The order of the steps matters:
+#   install → next build (standalone) → stamp the version → desktop/resources/server →
+#   tsc (desktop/src → desktop/dist) → electron-builder.
+# `npm run compile` is not optional: desktop/package.json declares `"main": "dist/main.js"` and
+# `"files": ["dist/**/*", …]`, and `desktop/dist` is git-ignored, so without it electron-builder
+# dies with `Application entry file "dist/main.js" … does not exist`.
+#
+# ELECTRON_SKIP_BINARY_DOWNLOAD=1 is set for *both* installs on purpose. It only stops `electron`'s
+# own postinstall from downloading a ~100 MB binary that nothing here uses — electron-builder
+# downloads the Electron distribution it packages itself, so packaging still gets real binaries.
+# (Note: the `config` block in a package.json does *not* set that variable; `electron`'s install.js
+# reads `process.env.ELECTRON_SKIP_BINARY_DOWNLOAD` directly, so it has to be a real env var.)
 
 inputs:
   version:
@@ -26,21 +36,33 @@ runs:
     - uses: actions/setup-node@v7
       with:
         node-version: 22
+        # setup-node knows where npm keeps its cache on each OS; a hand-written actions/cache path
+        # list does not (on Windows npm caches in %LocalAppData%\npm-cache, not ~/.npm).
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          desktop/package-lock.json
 
-    - name: Restore npm caches
-      uses: actions/cache@v6
-      with:
-        path: |
-          ~/.npm
-          ~/AppData/npm-cache
-        key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json', 'desktop/package-lock.json') }}
-
-    - name: Install (skip the Electron binary for the web install)
+    - name: Install
       shell: bash
+      env:
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       run: |
         set -euo pipefail
-        ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
+        npm ci
         cd desktop && npm ci
+
+    - name: Stamp the version into the desktop package
+      shell: bash
+      env:
+        VERSION_INPUT: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        [ -n "$VERSION_INPUT" ] || exit 0
+        current="$(node -p "require('./desktop/package.json').version")"
+        [ "$VERSION_INPUT" != "$current" ] || exit 0
+        echo "desktop/package.json version $current → $VERSION_INPUT"
+        cd desktop && npm version "$VERSION_INPUT" --no-git-tag-version --allow-same-version
 
     - name: Build the embedded server (Next.js standalone)
       shell: bash
@@ -52,6 +74,11 @@ runs:
     - name: Assemble desktop/resources/server
       shell: bash
       run: npm run desktop:prepare
+
+    - name: Compile the Electron shell (desktop/src → desktop/dist)
+      shell: bash
+      working-directory: desktop
+      run: npm run compile
 
     - name: Package
       shell: bash

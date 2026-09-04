@@ -14,6 +14,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { isCalVer } from "../desktop/src/lib/calver";
 import { lastTag, readVersion, ROOT } from "./bump-version.mjs";
@@ -132,6 +133,7 @@ export function main(argv) {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL(argv[1]): on Windows `file://${argv[1]}` never equals import.meta.url.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   process.exit(main(process.argv));
 }

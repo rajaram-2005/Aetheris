@@ -8,12 +8,14 @@
  *
  * Step 3 produces an *unpacked* app, which is the fastest way to smoke-test a real build locally.
  * `npm run desktop:dist` goes all the way to signed installer artefacts (.dmg / .AppImage / .deb /
- * .rpm / .exe) — that needs the matching OS (macOS for .dmg) and lives in ci/release-desktop.yml.
+ * .rpm / .exe) — that needs the matching OS (macOS for .dmg) and lives in .github/workflows/release-desktop.yml.
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const TOOLS = path.resolve(new URL("..", import.meta.url).pathname);
+// fileURLToPath: `new URL(…).pathname` is `/C:/…` on Windows, which path.resolve mangles.
+const TOOLS = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const ROOT = path.resolve(TOOLS, "..");
 const DESKTOP = path.join(ROOT, "desktop");
 const shell = process.platform === "win32";

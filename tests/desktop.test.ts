@@ -708,16 +708,37 @@ test("release workflow: a monthly schedule that bumps, tags and publishes; a per
   assert.match(wf, /refusing to re-release/, "never re-publishes the same version");
   for (const runner of ["macos-latest", "ubuntu-latest", "windows-latest"]) assert.ok(wf.includes(runner), `desktop matrix runs on ${runner}`);
   assert.match(wf, /ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci/, "the verify job does not download Electron");
+  // The publish job pushes a new commit; the desktop legs must build *that*, not the pre-bump sha.
+  assert.match(
+    wf,
+    /ref: v\$\{\{ needs\.publish\.outputs\.version \}\}/,
+    "the desktop legs check out the release commit, so the installers carry the released version",
+  );
 
   const action = read(".github/actions/build-desktop/action.yml");
   assert.match(action, /using: composite/);
   assert.match(action, /AETHERIS_STANDALONE: "1"/, "builds the embeddable server");
   assert.match(action, /electron-builder --publish never/);
+  // desktop/dist is git-ignored and desktop/package.json declares `main: dist/main.js`, so packaging
+  // without compiling dies with `Application entry file "dist/main.js" … does not exist`.
+  assert.match(action, /npm run compile/, "the Electron shell is compiled before electron-builder");
+  assert.ok(
+    action.indexOf("npm run compile") < action.indexOf("electron-builder --publish never"),
+    "and compiled *before* the package step",
+  );
+  assert.equal(
+    /actions\/cache@/.test(action),
+    false,
+    "no hand-written cache paths — setup-node's `cache: npm` knows each runner's cache dir",
+  );
+  assert.match(action, /cache: npm/, "the npm cache is restored through setup-node");
 
   const dw = read(".github/workflows/release-desktop.yml");
   assert.match(dw, /workflow_dispatch/);
   for (const runner of ["macos-latest", "ubuntu-latest", "windows-latest"]) assert.ok(dw.includes(runner), runner);
   assert.match(dw, /build-desktop/, "shares the same build steps as the monthly release");
+  // windows-latest runs `run:` steps in pwsh, where `set -euo pipefail` is not a command.
+  assert.match(dw, /shell: bash/, "the version step pins bash, so it works on windows-latest too");
 
   // Both release workflows must call the composite action by its real path, not a stale one.
   assert.match(wf, /uses: \.\/\.github\/actions\/build-desktop/, "release.yml calls the action by path");
