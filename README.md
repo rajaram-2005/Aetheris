@@ -15,7 +15,7 @@ Aetheris silently reroutes to the next — no local GPU, no paid API required.
 | 1 | **One Chat + Omni-Router** (15 providers, failover, cooldowns, provider pinning) | ✅ this repo |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
-| 6 | **One Chat flagship UX** (streaming, sidebar, vision, artifacts, web search, Deep Research, projects, memory) | ✅ this repo |
+| 6 | **One Chat flagship UX** (streaming, sidebar, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ this repo |
 | 4 | **Cloud MCP App Store** (107 connectors: 58 vendor MCP servers w/ OAuth + 49 via built-in REST→MCP gateway) | ✅ this repo |
 | 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
 
@@ -120,6 +120,9 @@ Everything people expect from Claude / ChatGPT / Gemini, on top of the free-prov
 | **Deep Research** | `/api/research` (SSE): plan 3–8 sub-questions → parallel advanced searches → cited notes per question → streamed long-form report with a deduplicated bibliography. Costs 5 message credits. |
 | **Projects** | Folders with custom instructions and knowledge files (text/code/CSV/JSON, ≤2 MB, ≤20). Instructions + ~40k chars of files are prepended to every chat in the project. |
 | **Memory** | After each exchange `/api/memory/extract` asks the router for ≤3 durable third-person facts; they are stored locally, shown/edited in Settings → Memory and injected into future chats. Toggle off any time. |
+| **Model Arena** | ⚔️ toggle: one prompt → 2–4 providers streamed side-by-side on a single SSE connection (`/api/arena`), blind labels until finished, vote 👍 Best (local leaderboard), "Continue with this" adopts that answer and pins the provider. Costs one credit per lane. |
+| **Voice mode** | 🎙 toggle: browser speech recognition for input (auto-sends on pause), replies spoken via the Studio TTS mesh (ElevenLabs/Kokoro, BYOK-aware) with `speechSynthesis` fallback. Mute / stop any time. |
+| **Code interpreter** | Every Python / JavaScript block in a reply gets a **▶ Run** button. Runs entirely in the browser: Python via Pyodide (numpy/pandas/matplotlib auto-loaded; figures rendered inline), JS in a sandboxed iframe. Errors get a 🛠 "Ask to fix" button that feeds code + traceback back to the model. |
 | Also | Regenerate, copy, per-message provider/model/latency/failover meta, richer Markdown (tables, ordered lists, quotes), mobile layout (sidebar/artifacts become overlays). |
 
 ## Cloud MCP App Store (Phase 4)

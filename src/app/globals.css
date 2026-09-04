@@ -417,3 +417,30 @@ button.chip { cursor: pointer; }
 .app-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
 .custom-mcp summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-bottom: 8px; }
 .connect-box { display: flex; flex-direction: column; gap: 6px; }
+
+/* Arena ------------------------------------------------------------------- */
+.arena { width: 100%; max-width: 100%; }
+.msg:has(.arena) { max-width: 100%; }
+.arena-grid { display: grid; gap: 10px; }
+.lane { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); display: flex; flex-direction: column; min-width: 0; }
+.lane.winner { border-color: var(--ok); box-shadow: 0 0 0 2px rgba(62,207,142,0.2); }
+.lane.error { border-color: var(--err); }
+.lane-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; flex-wrap: wrap; }
+.lane-body.bubble { border: 0; background: transparent; max-height: 420px; overflow: auto; font-size: 13.5px; }
+.lane-foot { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border); align-items: center; }
+.lane-foot .send, .lane-foot .ghost { padding: 5px 10px; font-size: 12px; }
+.arena-picker { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+@media (max-width: 900px) { .arena-grid { grid-template-columns: 1fr !important; } }
+
+/* Code interpreter ------------------------------------------------------- */
+.run-list { display: flex; flex-direction: column; gap: 6px; }
+.run-out { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 8px 10px; font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
+.run-out.bad { border-color: var(--err); }
+.run-head { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; }
+.run-out pre { margin: 0; white-space: pre-wrap; font-family: var(--mono); max-height: 320px; overflow: auto; }
+.run-err { color: var(--err); }
+.run-out img { max-width: 100%; border-radius: 8px; background: #fff; }
+
+/* Voice ------------------------------------------------------------------- */
+.icon-btn.mic.live { color: var(--err); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.4; } }

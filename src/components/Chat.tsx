@@ -12,6 +12,9 @@ import Sidebar from "./Sidebar";
 import SettingsModal from "./SettingsModal";
 import ProjectModal from "./ProjectModal";
 import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from "./Artifacts";
+import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
+import { RunOutput, runnableLang, useInterpreter, type RunResult } from "./Interpreter";
+import { useVoice } from "./Voice";
 import { imageToDataUrl, titleFrom, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
@@ -30,6 +33,13 @@ const FACTORY_SUGGESTIONS = [
   "A Java class implementing an LRU cache with JUnit tests",
   "A Python CLI that converts CSV to JSON with edge-case tests",
 ];
+
+function codeBlocks(text: string): { lang: "python" | "javascript"; code: string }[] {
+  const out: { lang: "python" | "javascript"; code: string }[] = [];
+  const re = /```([\w+-]*)[^\n]*\n([\s\S]*?)```/g; let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) { const lang = runnableLang(m[1] || ""); if (lang && m[2].trim().split("\n").length >= 1) out.push({ lang, code: m[2] }); }
+  return out;
+}
 
 async function* sse(r: Response) {
   const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
@@ -74,6 +84,12 @@ export default function Chat() {
   const [artifactId, setArtifactId] = useState<string | null>(null);
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [arena, setArena] = useState(false);
+  const [arenaPick, setArenaPick] = useState<string[]>([]);
+  const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [interim, setInterim] = useState("");
+  const interp = useInterpreter();
   const auth = useGitHubAuth();
   const { account, refresh: refreshAccount } = useAccount();
   const [upgrade, setUpgrade] = useState<string | null>(null);
@@ -172,12 +188,14 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.tavilyKey, preferred, active, activeProject]);
 
+  const runArenaRef = useRef<(c: string, i: string[]) => Promise<void>>(async () => undefined);
   // ---- chat -----------------------------------------------------------------------------------
   const send = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if ((!content && images.length === 0) || busy) return;
     if (mode === "factory") return runFactory(content);
     if (research) return runResearch(content);
+    if (arena) return runArenaRef.current(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
     const c = startConvo(userMsg);
     const aid = crypto.randomUUID();
@@ -185,7 +203,7 @@ export default function Chat() {
     setInput(""); setImages([]); setBusy(true);
     if (taRef.current) taRef.current.style.height = "auto";
     const controller = new AbortController(); abortRef.current = controller;
-    const history = c.messages.filter((m) => !m.error && !m.factory).map(({ role, content, images }) => ({ role, content, images }));
+    const history = c.messages.filter((m) => !m.error && !m.factory && !m.arena).map(({ role, content, images }) => ({ role, content, images }));
     try {
       const r = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -232,7 +250,7 @@ export default function Chat() {
       else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, images, busy, mode, research, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch]);
+  }, [input, images, busy, mode, research, arena, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch]);
 
   const regenerate = () => {
     if (!active || busy) return;
@@ -242,6 +260,57 @@ export default function Chat() {
     commit({ ...active, messages: active.messages.slice(0, lastUserIdx) });
     setTimeout(() => { setImages(u.images ?? []); send(u.content); }, 0);
   };
+
+  const voice = useVoice({
+    onInterim: setInterim,
+    onFinal: (t) => { setInterim(""); setInput(""); send(t); },
+  });
+  // In voice mode, speak each finished assistant reply.
+  const spokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!voiceMode || busy) return;
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant" && !last.error && !last.streaming && last.content && spokenRef.current !== last.id) {
+      spokenRef.current = last.id; voice.speak(last.content);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, busy, voiceMode]);
+
+  const runCode = async (msgId: string, idx: number, lang: "python" | "javascript", code: string) => {
+    const key = `${msgId}:${idx}`;
+    setRuns((r) => ({ ...r, [key]: "running" }));
+    const res = await interp.run(lang, code);
+    setRuns((r) => ({ ...r, [key]: res }));
+  };
+  const fixError = (code: string, r: RunResult) => { setInput(`This code failed:\n\n\`\`\`\n${code.slice(0, 3000)}\n\`\`\`\n\nError:\n${r.error?.slice(0, 1500)}\n\nFix it and return the full corrected code.`); taRef.current?.focus(); };
+
+  const runArena = useCallback(async (content: string, imgs: string[]) => {
+    const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: imgs.length ? imgs : undefined };
+    const c = startConvo(userMsg);
+    const aid = crypto.randomUUID();
+    const run: ArenaRun = { id: aid, prompt: content, lanes: [], running: true };
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true, arena: run }] });
+    setInput(""); setImages([]); setBusy(true);
+    const controller = new AbortController(); abortRef.current = controller;
+    const history = c.messages.filter((m) => !m.error && !m.factory && !m.arena).map(({ role, content, images }) => ({ role, content, images }));
+    const patch = (fn: (r: ArenaRun) => ArenaRun) => patchMsg(c.id, aid, (m) => (m.arena ? { ...m, arena: fn(m.arena) } : m));
+    try {
+      const r = await fetch("/api/arena", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: history, providers: arenaPick }), signal: controller.signal });
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, arena: undefined, content: j.error ?? `Request failed (${r.status})` })); if (r.status === 402) { setUpgrade(j.error); refreshAccount(); } return; }
+      for await (const ev of sse(r)) {
+        if (ev.type === "lanes") patch((a) => ({ ...a, lanes: ev.lanes.map((l: { i: number; provider: string; name: string; model: string }) => ({ ...l, content: "" })) }));
+        else if (ev.type === "delta") patch((a) => ({ ...a, lanes: a.lanes.map((l) => (l.i === ev.i ? { ...l, content: l.content + ev.text } : l)) }));
+        else if (ev.type === "done") patch((a) => ({ ...a, lanes: a.lanes.map((l) => (l.i === ev.i ? { ...l, done: true, latencyMs: ev.latencyMs } : l)) }));
+        else if (ev.type === "error") patch((a) => ({ ...a, lanes: a.lanes.map((l) => (l.i === ev.i ? { ...l, done: true, error: ev.error } : l)) }));
+        else if (ev.type === "end") { patch((a) => ({ ...a, running: false })); patchMsg(c.id, aid, (m) => ({ ...m, streaming: false })); refreshAccount(); }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patch((a) => ({ ...a, running: false }));
+      patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, arena: m.arena ? { ...m.arena, running: false } : undefined }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arenaPick, active, activeProject]);
+  runArenaRef.current = runArena;
 
   const addImages = async (files: FileList | File[] | null) => {
     if (!files) return;
@@ -263,7 +332,7 @@ export default function Chat() {
   const preferredName = mesh?.providers.find((p) => p.id === preferred)?.name;
   const webOn = (webOverride ?? settings.web) !== "off" && !!settings.tavilyKey;
   const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
-    : research ? "What should I research in depth?" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
+    : research ? "What should I research in depth?" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
     <div className={`shell ${sidebar ? "with-sb" : ""} ${artifactsOpen && artifacts.length ? "with-art" : ""}`}>
@@ -332,12 +401,32 @@ export default function Chat() {
                     {m.research.questions.length > 0 && <ul>{m.research.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
                   </div>
                 )}
+                {m.arena && (
+                  <ArenaResult run={m.arena} onVote={(i) => { recordVote(m.arena!.lanes, i); patchMsg(active!.id, m.id, (x) => ({ ...x, arena: { ...x.arena!, winner: i } })); }}
+                    onContinue={(i) => { const lane = m.arena!.lanes.find((l) => l.i === i)!; patchMsg(active!.id, m.id, (x) => ({ ...x, arena: undefined, content: lane.content, provider: lane.provider, model: lane.model, latencyMs: lane.latencyMs })); setPreferred(lane.provider); }} />
+                )}
                 {m.factory
                   ? <div className="bubble"><FactoryRun state={m.factory} /></div>
                   : m.role === "assistant" && !m.error
                     ? (m.content || !m.streaming) && <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripArtifacts(m.content)) + (m.streaming ? '<span class="caret"/>' : "") }} onClick={(e) => { const t = e.target as HTMLElement; if (t.closest("blockquote") && artifacts.some((a) => a.messageId === m.id)) { setArtifactId(artifacts.filter((a) => a.messageId === m.id)[0].id); setArtifactsOpen(true); } }} />
                     : m.content && <div className="bubble">{m.content}</div>}
                 {m.streaming && !m.content && !m.research && <div className="bubble"><span className="typing"><i /><i /><i /></span>{servers.length ? <span className="hint" style={{ marginLeft: 8 }}>may call {servers.length} app{servers.length > 1 ? "s" : ""}</span> : null}</div>}
+                {m.role === "assistant" && !m.error && !m.streaming && codeBlocks(m.content).length > 0 && (
+                  <div className="run-list">
+                    {codeBlocks(m.content).map((b, i) => {
+                      const key = `${m.id}:${i}`; const r = runs[key];
+                      return (
+                        <div key={key}>
+                          <div className="tool-trail">
+                            <button className="chip" disabled={r === "running"} onClick={() => runCode(m.id, i, b.lang, b.code)}>▶ Run {b.lang === "python" ? "Python" : "JavaScript"}{codeBlocks(m.content).length > 1 ? ` #${i + 1}` : ""}</button>
+                            {r && r !== "running" && r.error && <button className="chip bad" onClick={() => fixError(b.code, r)}>🛠 Ask to fix</button>}
+                          </div>
+                          {r && <RunOutput r={r} lang={b.lang} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {m.toolEvents && m.toolEvents.length > 0 && (
                   <div className="tool-trail">{m.toolEvents.filter((t) => t.type !== "tool_result").map((t, i) => <span key={i} className={`chip ${t.type === "tool_error" ? "bad" : "on"}`}>⚙ {t.server}.{t.tool}{t.error ? ` — ${t.error.slice(0, 60)}` : ""}</span>)}</div>
                 )}
@@ -347,7 +436,7 @@ export default function Chat() {
                 {artifacts.some((a) => a.messageId === m.id) && (
                   <div className="tool-trail">{artifacts.filter((a) => a.messageId === m.id).map((a) => <button key={a.id} className={`chip art-chip ${a.id === artifactId && artifactsOpen ? "on" : ""}`} onClick={() => { setArtifactId(a.id); setArtifactsOpen(true); }}>📎 {a.title}</button>)}</div>
                 )}
-                {m.provider && !m.streaming && (
+                {m.provider && !m.streaming && !m.arena && (
                   <div className="meta-line">
                     <span className="via">via {m.provider}</span><span>{m.model}</span><span>{m.latencyMs} ms</span>
                     {m.failovers ? <span className="failover">↻ {m.failovers} failover{m.failovers > 1 ? "s" : ""}</span> : null}
@@ -370,15 +459,22 @@ export default function Chat() {
           <div className="composer-box">
             {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-            <textarea ref={taRef} rows={1} value={input} placeholder={placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} disabled={busy || (mode === "factory" && !auth.user)} />
+            <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} disabled={busy || (mode === "factory" && !auth.user)} />
+            {mode === "chat" && voiceMode && !busy && (
+              <button className={`icon-btn mic ${voice.listening ? "live" : ""}`} title={voice.listening ? "Stop listening" : "Speak"} onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}>{voice.listening ? "◼" : "🎙"}</button>
+            )}
+            {voice.speaking && <button className="ghost" onClick={voice.stopSpeaking}>Mute</button>}
             {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
-              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : research ? "Research" : "Send"}</button>}
+              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : research ? "Research" : arena ? "Compare" : "Send"}</button>}
           </div>
+          {mode === "chat" && arena && mesh && <ArenaPicker providers={mesh.providers} selected={arenaPick} onChange={setArenaPick} />}
           {mode === "chat" && (
             <div className="composer-tools">
               <button className={`chip ${webOn ? "on" : ""}`} title={settings.tavilyKey ? `Web search: ${webOverride ?? settings.web}` : "Add a Tavily key in Settings to enable web search"} onClick={() => settings.tavilyKey ? setWebOverride((w) => (w ? null : "on")) : setShowSettings(true)}>🌐 {settings.tavilyKey ? (webOverride === "on" ? "Search: on" : `Search: ${settings.web}`) : "Search"}</button>
               <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
+              <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>
+              {voice.supported && <button className={`chip ${voiceMode ? "on" : ""}`} title="Voice mode: speak, and hear replies" onClick={() => { setVoiceMode((v) => !v); if (voiceMode) { voice.stopListening(); voice.stopSpeaking(); } }}>🎙 Voice</button>}
               <span className="hint" style={{ margin: 0, marginLeft: "auto" }}>Enter to send · Shift+Enter newline</span>
             </div>
           )}

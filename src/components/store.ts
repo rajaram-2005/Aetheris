@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import type { FactoryState } from "./FactoryRun";
+import type { ArenaRun } from "./Arena";
 
 export interface Source { title: string; url: string; content?: string }
 export interface UiMessage {
@@ -18,6 +19,7 @@ export interface UiMessage {
   toolEvents?: { type: string; server: string; tool: string; error?: string }[];
   sources?: Source[];
   research?: { questions: string[]; searched: number; status: string; done?: boolean };
+  arena?: ArenaRun;
   error?: boolean;
   provider?: string;
   model?: string;
