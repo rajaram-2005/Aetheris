@@ -23,12 +23,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: 22
 
     - name: Restore npm caches
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/.npm
@@ -64,7 +64,7 @@ runs:
 
     - name: Attach to the GitHub Release
       if: inputs.publish_tag != ''
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ inputs.publish_tag }}
         files: |
