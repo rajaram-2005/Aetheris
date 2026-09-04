@@ -11,6 +11,11 @@ import { legal } from "./seeds/legal";
 import { health } from "./seeds/health";
 import { science } from "./seeds/science";
 import { design } from "./seeds/design";
+import { career } from "./seeds/career";
+import { language } from "./seeds/language";
+import { productivity } from "./seeds/productivity";
+import { creative } from "./seeds/creative";
+import { data } from "./seeds/data";
 
 const sys = { uid: "aetheris", name: "Aetheris" };
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
@@ -40,4 +45,9 @@ export const SEED: GalleryItem[] = [
   ...expand(health, "health"),
   ...expand(science, "science"),
   ...expand(design, "design"),
+  ...expand(career, "career"),
+  ...expand(language, "language"),
+  ...expand(productivity, "productivity"),
+  ...expand(creative, "creative"),
+  ...expand(data, "data"),
 ];
