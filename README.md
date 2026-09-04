@@ -303,3 +303,20 @@ scripts/         verify-connectors.ts — live probe of every connector endpoint
 - `npm test` — router failover tests (no API keys needed)
 - `npm run typecheck` — TypeScript
 - `npm run build && npm start` — production
+
+## Sign in — one account, every device
+
+`/login` offers **Continue with Google**, **Continue with GitHub**, **Email code** and **Phone (SMS) code**.
+All methods *join* into a single Aetheris account: a verified email or phone seen via any provider links to the
+same account (Google login with `you@x.com` + later email-OTP with `you@x.com` → one account), and signing in
+while already signed in links the new method to the current account. Your anonymous usage (plan, credits,
+memory, API keys) is adopted by the account on first sign-in.
+
+| Method | Env vars | Without config |
+| --- | --- | --- |
+| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (redirect `…/api/auth/google/callback`) | button disabled |
+| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (redirect `…/api/auth/github/callback`) | button disabled |
+| Email  | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | dev code shown on the page (non-production only) |
+| Phone  | `TWILIO_*` or `MSG91_AUTH_KEY` + `MSG91_TEMPLATE_ID` | dev code shown on the page (non-production only) |
+
+Bare 10-digit numbers default to `+91`. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out.

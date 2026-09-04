@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 
 export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "providers";
@@ -97,8 +97,26 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
         ))}
       </div>
       <div className="sb-bottom">
+        <AccountChip />
         <button className="sb-item sb-item-main" onClick={onSettings}>⚙ Settings, memory & keys</button>
       </div>
     </nav>
+  );
+}
+
+function AccountChip() {
+  const [acc, setAcc] = useState<{ name?: string; email?: string; phone?: string; avatar?: string; providers: string[] } | null | undefined>(undefined);
+  useEffect(() => {
+    fetch("/api/auth/session").then((r) => r.json()).then((j) => setAcc(j.account ?? null)).catch(() => setAcc(null));
+  }, []);
+  if (acc === undefined) return null;
+  if (!acc) return <a className="sb-item" href="/login">👤 Sign in / Create account</a>;
+  const label = acc.name || acc.email || acc.phone || "Account";
+  return (
+    <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>
+      {acc.avatar ? <img src={acc.avatar} alt="" /> : <span className="av">{label[0]?.toUpperCase()}</span>}
+      <span className="who">{label}</span>
+      <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
+    </div>
   );
 }
