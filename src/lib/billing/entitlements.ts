@@ -15,7 +15,15 @@ export async function getEntitlement(uid: string): Promise<Entitlement | null> {
 }
 
 /** Effective plan (falls back to Free). */
+const GOD = PLANS.find((p) => p.id === "god-mode")!;
+/** Admins get God Mode everywhere, with no expiry and no metering. */
+export async function isAdminUser(uid: string): Promise<boolean> {
+  const { isAdminUid } = await import("./admin");
+  return isAdminUid(uid);
+}
+
 export async function planFor(uid: string): Promise<Plan> {
+  if (await isAdminUser(uid)) return GOD;
   const e = await getEntitlement(uid);
   return (e && planById(e.planId)) || FREE_PLAN;
 }

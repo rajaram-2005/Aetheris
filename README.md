@@ -320,3 +320,9 @@ memory, API keys) is adopted by the account on first sign-in.
 | Phone  | `TWILIO_*` or `MSG91_AUTH_KEY` + `MSG91_TEMPLATE_ID` | dev code shown on the page (non-production only) |
 
 Bare 10-digit numbers default to `+91`. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out.
+
+### Admin accounts
+Sign in with an address listed in `AETHERIS_ADMIN_EMAILS` / `AETHERIS_ADMIN_PHONES` (defaults: the founder's
+`ramkpraja175@gmail.com` and `+91 9488407998`) and you get **everything**: God Mode features, no credit metering,
+unlimited agents/API keys, and `/admin` (payments, users, plan changes) without typing `AETHERIS_ADMIN_KEY`.
+The key still works for scripts (`Authorization: Bearer …`).

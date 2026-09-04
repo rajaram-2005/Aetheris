@@ -9,6 +9,7 @@ interface Payment {
 
 export default function AdminPage() {
   const [key, setKey] = useState("");
+  const [sessionAdmin, setSessionAdmin] = useState(false);
   const [payments, setPayments] = useState<Payment[] | null>(null);
   const [filter, setFilter] = useState("submitted");
   const [err, setErr] = useState<string | null>(null);
@@ -35,7 +36,11 @@ export default function AdminPage() {
     loadUsers(k);
   }, [key, filter]);
 
-  useEffect(() => { if (key) load(key, filter); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Signed-in admin accounts (founder email/phone) need no key: cookie session authorises the API.
+    fetch("/api/auth/session").then((r) => r.json()).then((j) => { if (j.admin) { setSessionAdmin(true); load("", filter); loadUsers(""); } }).catch(() => undefined);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (key || sessionAdmin) load(key, filter); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = async (id: string, approve: boolean) => {
     const note = approve ? undefined : prompt("Reason for rejection (optional)") ?? undefined;
@@ -57,6 +62,7 @@ export default function AdminPage() {
         </div>
       )}
       <form className="admin-key" onSubmit={(e) => { e.preventDefault(); load(); }}>
+        {sessionAdmin && <span className="hint" style={{ marginRight: 8 }}>✓ signed in as admin</span>}
         <input type="password" placeholder="AETHERIS_ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} />
         <button className="send">Load</button>
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>

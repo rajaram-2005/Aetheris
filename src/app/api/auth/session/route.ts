@@ -4,6 +4,7 @@ import { emailConfigured, googleConfigured, smsConfigured } from "@/lib/auth/del
 import { oauthConfigured as githubConfigured } from "@/lib/github/auth";
 import { usageSummary } from "@/lib/billing/entitlements";
 import { getUserId } from "@/lib/user";
+import { isAdminAccount, markAdminUid } from "@/lib/billing/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +13,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const acc = await getSessionAccount();
   const { uid } = await getUserId();
+  const admin = isAdminAccount(acc);
+  if (admin) markAdminUid(uid, true);
   const usage = await usageSummary(uid);
   return NextResponse.json({
-    account: acc ? publicAccount(acc) : null,
+    account: acc ? { ...publicAccount(acc), admin } : null,
+    admin,
     plan: usage.planId,
     methods: { google: googleConfigured(), github: githubConfigured(), email: true, phone: true, emailLive: emailConfigured(), smsLive: smsConfigured() },
   });

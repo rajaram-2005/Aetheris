@@ -52,8 +52,21 @@ test("checkout → UTR → admin approve grants entitlement; quota respected", a
 test("admin key check is constant-time-ish and rejects bad keys", async () => {
   process.env.AETHERIS_ADMIN_KEY = "secret-key";
   const { isAdmin } = await import("../src/lib/billing/admin");
-  assert.equal(isAdmin(new Request("http://x/", { headers: { authorization: "Bearer secret-key" } })), true);
-  assert.equal(isAdmin(new Request("http://x/?key=secret-key")), true);
-  assert.equal(isAdmin(new Request("http://x/", { headers: { authorization: "Bearer nope" } })), false);
-  assert.equal(isAdmin(new Request("http://x/")), false);
+  assert.equal(await isAdmin(new Request("http://x/", { headers: { authorization: "Bearer secret-key" } })), true);
+  assert.equal(await isAdmin(new Request("http://x/?key=secret-key")), true);
+  assert.equal(await isAdmin(new Request("http://x/", { headers: { authorization: "Bearer nope" } })), false);
+  assert.equal(await isAdmin(new Request("http://x/")), false);
+});
+
+test("admin accounts (founder email/phone) get God Mode and unlimited credits", async () => {
+  const { resolveAccount } = await import("../src/lib/auth/accounts");
+  const { planFor, consumeChat } = await import("../src/lib/billing/entitlements");
+  const { isAdminAccount } = await import("../src/lib/billing/admin");
+  const acc = await resolveAccount({ provider: "phone", subject: "+919488407998", phone: "+919488407998" }, "founder-uid");
+  assert.equal(isAdminAccount(acc), true);
+  assert.equal((await planFor("founder-uid")).id, "god-mode");
+  assert.equal((await consumeChat("founder-uid", 10_000)).allowed, true);
+  const other = await resolveAccount({ provider: "email", subject: "x@y.z", email: "x@y.z" }, "plain-uid");
+  assert.equal(isAdminAccount(other), false);
+  assert.equal((await planFor("plain-uid")).id, "free");
 });

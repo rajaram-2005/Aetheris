@@ -105,7 +105,7 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
 }
 
 function AccountChip() {
-  const [acc, setAcc] = useState<{ name?: string; email?: string; phone?: string; avatar?: string; providers: string[] } | null | undefined>(undefined);
+  const [acc, setAcc] = useState<{ name?: string; email?: string; phone?: string; avatar?: string; providers: string[]; admin?: boolean } | null | undefined>(undefined);
   useEffect(() => {
     fetch("/api/auth/session").then((r) => r.json()).then((j) => setAcc(j.account ?? null)).catch(() => setAcc(null));
   }, []);
@@ -115,7 +115,8 @@ function AccountChip() {
   return (
     <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>
       {acc.avatar ? <img src={acc.avatar} alt="" /> : <span className="av">{label[0]?.toUpperCase()}</span>}
-      <span className="who">{label}</span>
+      <span className="who">{label}{acc.admin && <span title="Admin — full access" style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
+      {acc.admin && <a className="link" href="/admin">admin</a>}
       <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
     </div>
   );

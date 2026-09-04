@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** GET → all active entitlements + today's usage; POST {uid, planId} → manual grant (or planId "free" to revoke). */
 export async function GET(req: Request) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await isAdmin(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const ents = Object.values(await store.all<Entitlement>("entitlements"));
   const usage = await store.all<{ day: string; count: number }>("usage");
   const keys = Object.values(await store.all<{ uid: string }>("apikeys"));
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await isAdmin(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { uid, planId } = (await req.json().catch(() => ({}))) as { uid?: string; planId?: string };
   if (!uid || !planId) return NextResponse.json({ error: "uid and planId required" }, { status: 400 });
   if (planId === "free") { await store.remove("entitlements", uid); return NextResponse.json({ ok: true }); }
