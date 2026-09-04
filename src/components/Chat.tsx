@@ -20,7 +20,7 @@ import ProjectModal from "./ProjectModal";
 import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from "./Artifacts";
 import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
 import { RunOutput, runnableLang, useInterpreter, type RunResult } from "./Interpreter";
-import { useVoice } from "./Voice";
+import { useVoice, VoiceOverlay, loadVoicePrefs, saveVoicePrefs, resolveVoiceLang, type VoicePrefs } from "./Voice";
 import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from "./Agents";
 import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
@@ -78,7 +78,7 @@ export default function Chat() {
   const { settings, update: updateSettings } = useSettings();
   const sync = useCloudSync({ convos, setConvos, projects, upsertProject: saveProject, memory, addMemory, settings, updateSettings, loaded });
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [caret, setCaret] = useState(0);
   const [pickerOff, setPickerOff] = useState(false);
 
@@ -117,6 +117,11 @@ export default function Chat() {
   const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
   const [voiceMode, setVoiceMode] = useState(false);
   const [interim, setInterim] = useState("");
+  const [voicePrefs, setVoicePrefsState] = useState<VoicePrefs>({ lang: "auto", engine: "browser", handsFree: true, rate: 1, voiceURI: "" });
+  useEffect(() => { setVoicePrefsState(loadVoicePrefs()); }, []);
+  const setVoicePrefs = (p: VoicePrefs) => { setVoicePrefsState(p); saveVoicePrefs(p); };
+  const voiceLang = resolveVoiceLang(voicePrefs.lang, lang);
+  const voiceModeRef = useRef(false); voiceModeRef.current = voiceMode;
   const interp = useInterpreter();
   const auth = useGitHubAuth();
   const { account, refresh: refreshAccount } = useAccount();
@@ -245,7 +250,7 @@ export default function Chat() {
       if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: "Connection to Aetheris lost." }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, active, activeProject]);
+  }, [model, active, activeProject, voiceLang]);
 
   // ---- explain (/explain → AI Explainer audits the last answer) --------------------------------
   const runExplain = useCallback(async (target?: UiMessage) => {
@@ -289,7 +294,7 @@ export default function Chat() {
     try {
       const r = await fetch("/api/agents/run", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, preferred, servers, model, searchKey: settings.tavilyKey || undefined, project: project ? { instructions: project.instructions, files: project.files } : null, memory: settings.memoryEnabled ? memory : [] }),
+        body: JSON.stringify({ messages: history, preferred, servers, model, voice: voiceModeRef.current ? voiceLang : undefined, searchKey: settings.tavilyKey || undefined, project: project ? { instructions: project.instructions, files: project.files } : null, memory: settings.memoryEnabled ? memory : [] }),
         signal: controller.signal,
       });
       if (!r.ok || !r.body) {
@@ -325,8 +330,9 @@ export default function Chat() {
 
   const runArenaRef = useRef<(c: string, i: string[]) => Promise<void>>(async () => undefined);
   // ---- chat -----------------------------------------------------------------------------------
-  const send = useCallback(async (text?: string) => {
+  const send = useCallback(async (text?: string, sendOpts?: { voice?: boolean }) => {
     const content = (text ?? input).trim();
+    const viaVoice = !!sendOpts?.voice || voiceModeRef.current;
     if ((!content && images.length === 0) || busy) return;
     if (/^\/explain\b/i.test(content)) { runExplain(); return; }
     if (/^\/ethics\s+\S/i.test(content)) { setInput(""); return runAgents(`@ai-ethics Run an AI ethics impact assessment on: ${content.replace(/^\/ethics\s+/i, "")}`, []); }
@@ -350,6 +356,7 @@ export default function Chat() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: history, preferred, servers, stream: true, model,
+          voice: viaVoice ? voiceLang : undefined,
           web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
           project: project ? { instructions: project.instructions, files: project.files } : null,
           memory: settings.memoryEnabled ? memory : [],
@@ -403,19 +410,31 @@ export default function Chat() {
   };
 
   const voice = useVoice({
+    lang: voiceLang, prefs: voicePrefs,
     onInterim: setInterim,
-    onFinal: (t) => { setInterim(""); setInput(""); send(t); },
+    onFinal: (t) => { setInterim(""); setInput(""); send(t, { voice: true }); },
   });
-  // In voice mode, speak each finished assistant reply.
+  // In voice mode: speak replies sentence-by-sentence while they stream (browser engine) or once
+  // finished (Studio engine); then, hands-free, open the mic again.
   const spokenRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!voiceMode || busy) return;
+    if (!voiceMode) return;
     const last = messages[messages.length - 1];
-    if (last && last.role === "assistant" && !last.error && !last.streaming && last.content && spokenRef.current !== last.id) {
-      spokenRef.current = last.id; voice.speak(last.content);
-    }
+    if (!last || last.role !== "assistant" || last.error || !last.content) return;
+    if (voicePrefs.engine === "browser") voice.speakStream(last.id, last.content, !last.streaming);
+    else if (!last.streaming && spokenRef.current !== last.id) { spokenRef.current = last.id; voice.speak(last.content); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, busy, voiceMode]);
+  }, [messages, voiceMode, voicePrefs.engine]);
+  const wasSpeaking = useRef(false);
+  useEffect(() => {
+    if (wasSpeaking.current && !voice.speaking && voiceModeRef.current && voicePrefs.handsFree && !busy) { const t = setTimeout(() => { if (voiceModeRef.current && !busy) voice.startListening(); }, 350); wasSpeaking.current = false; return () => clearTimeout(t); }
+    wasSpeaking.current = voice.speaking;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.speaking, busy]);
+  const exitVoice = () => { setVoiceMode(false); voice.stopListening(); voice.stopSpeaking(); setInterim(""); };
+  const enterVoice = () => { setVoiceMode(true); setMode("chat"); setTimeout(() => voice.startListening(), 200); };
+  const lastUserText = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const lastAssistantText = [...messages].reverse().find((m) => m.role === "assistant" && !m.error)?.content ?? "";
 
   const runCode = async (msgId: string, idx: number, lang: "python" | "javascript", code: string) => {
     const key = `${msgId}:${idx}`;
@@ -474,6 +493,7 @@ export default function Chat() {
     else if (id === "workflows") setMode("workflows");
     else if (id === "learn") setMode("learn");
     else if (id === "study") setMode("study");
+    else if (id === "voice") enterVoice();
     else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
     else if (id === "explain") { runExplain(); return; }
     else if (id === "ethics") { setInput("@ai-ethics Run an AI ethics impact assessment on: "); setPickerOff(true); setTimeout(() => taRef.current?.focus(), 30); return; }
@@ -702,6 +722,7 @@ export default function Chat() {
           </div>
         )}
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
+        {voiceMode && <VoiceOverlay state={busy ? "thinking" : voice.state} level={voice.level} interim={voice.listening ? interim : ""} lastUser={lastUserText} lastAssistant={lastAssistantText} error={voice.error} prefs={voicePrefs} onPrefs={setVoicePrefs} langLabel={voiceLang} voices={voice.voices} onTap={() => (voice.listening ? voice.stopListening() : voice.startListening())} onStop={() => { if (busy) abortRef.current?.abort(); voice.stopSpeaking(); if (voicePrefs.handsFree) setTimeout(() => voice.startListening(), 200); }} onClose={exitVoice} />}
         {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
@@ -716,10 +737,10 @@ export default function Chat() {
             {mode === "chat" && /(^|\s)@([\w-]*)$/.test(input) && !busy && (
               <MentionMenu agents={agentList} query={/(^|\s)@([\w-]*)$/.exec(input)![2]} onPick={(id) => { setInput((v) => v.replace(/(^|\s)@([\w-]*)$/, `$1@${id} `)); taRef.current?.focus(); }} />
             )}
-            {mode === "chat" && voiceMode && !busy && (
-              <button className={`icon-btn mic ${voice.listening ? "live" : ""}`} title={voice.listening ? "Stop listening" : "Speak"} onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}>{voice.listening ? "◼" : "🎙"}</button>
+            {mode === "chat" && !busy && voice.supported && (
+              <button className={`icon-btn mic ${voice.listening ? "live" : ""}`} title={voice.listening ? "Stop listening" : "Dictate (hold nothing — just click and speak)"} onClick={() => (voice.listening ? voice.stopListening() : voice.startListening())}>{voice.listening ? "◼" : "🎙"}</button>
             )}
-            {voice.speaking && <button className="ghost" onClick={voice.stopSpeaking}>Mute</button>}
+            {voice.speaking && !voiceMode && <button className="ghost" onClick={voice.stopSpeaking}>Mute</button>}
             {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
               : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? t("chat.build") : research ? t("chat.research") : arena ? t("chat.compare") : t("chat.send")}</button>}
           </div>
@@ -733,7 +754,7 @@ export default function Chat() {
               <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
               <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>
-              {voice.supported && <button className={`chip ${voiceMode ? "on" : ""}`} title="Voice mode: speak, and hear replies" onClick={() => { setVoiceMode((v) => !v); if (voiceMode) { voice.stopListening(); voice.stopSpeaking(); } }}>🎙 Voice</button>}
+              {voice.supported && <button className={`chip ${voiceMode ? "on" : ""}`} title="Voice mode: hands-free conversation — speak, hear replies, interrupt anytime" onClick={() => (voiceMode ? exitVoice() : enterVoice())}>🎙 Voice</button>}
               <span style={{ marginLeft: "auto", position: "relative" }}>
                 <button className="chip model-chip" title="Aetheris model tier" onClick={() => setShowModels((v) => !v)}>◈ {models.find((m) => m.id === model)?.name ?? "Model"} ▾</button>
                 {showModels && (

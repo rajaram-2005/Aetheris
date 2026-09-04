@@ -1,3 +1,4 @@
+import { voicePrompt } from "@/lib/voice";
 import { NextResponse } from "next/server";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import { addLessons, getLessons } from "@/lib/agents/lessons";
@@ -21,7 +22,7 @@ type InMsg = { role: string; content: string; images?: string[] };
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as null | {
     messages?: InMsg[]; agents?: string[]; preferred?: string; model?: string; servers?: EnabledServer[]; searchKey?: string;
-    project?: { instructions?: string; files?: { name?: string; text?: string }[] } | null; memory?: string[];
+    project?: { instructions?: string; files?: { name?: string; text?: string }[] } | null; memory?: string[]; voice?: string;
   };
   const raw = (body?.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-30);
   if (raw.length === 0 || raw[raw.length - 1].role !== "user") return NextResponse.json({ error: "messages must end with a user message" }, { status: 400 });
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
     if (docs.length) sysParts.push(`PROJECT KNOWLEDGE:\n${docs.join("\n\n")}`);
   }
   if (Array.isArray(body?.memory) && body!.memory.length) sysParts.push(`MEMORY about this user:\n${body!.memory.slice(0, 60).map((m) => `- ${m}`).join("\n")}`);
+  if (typeof body?.voice === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(body.voice)) sysParts.push(voicePrompt(body.voice));
 
   const messages: ChatMessage[] = [
     { role: "system", content: sysParts.join("\n\n") },

@@ -1,3 +1,4 @@
+import { voicePrompt } from "@/lib/voice";
 import { NextResponse } from "next/server";
 import { route } from "@/lib/router/router";
 import { ProviderError, type ChatMessage, type ProviderAttempt } from "@/lib/router/types";
@@ -56,6 +57,8 @@ interface Body {
   memory?: unknown;
   /** Aetheris model tier id (aetheris-free … aetheris-god). Capped by plan. */
   model?: unknown;
+  /** BCP-47 tag when the message came from voice mode: reply is read aloud. */
+  voice?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -129,6 +132,7 @@ export async function POST(req: Request) {
     if (mem.length) sysParts.push(`MEMORY — things you know about this user from earlier conversations:\n${mem.map((m) => `- ${m}`).join("\n")}\nUse naturally; do not recite unless asked.`);
   }
 
+  if (typeof body.voice === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(body.voice)) sysParts.push(voicePrompt(body.voice));
   const lastUser = [...kept].reverse().find((m) => m.role === "user");
   const webMode = body.web === "on" || body.web === "off" ? body.web : "auto";
   const searchKey = searchKeyFor(typeof body.searchKey === "string" ? body.searchKey : undefined);

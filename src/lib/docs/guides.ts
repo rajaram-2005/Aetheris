@@ -40,6 +40,25 @@ Paste or drop up to 4 images; vision-capable providers (Groq, Gemini, GitHub Mod
 ## Keyboard
 ⌘/Ctrl+K new chat · ⌘/Ctrl+/ focus composer · ⌘/Ctrl+, settings · Esc stop · Shift+Enter newline.
 `},
+  { slug: "voice", section: "Getting started", title: "Voice mode: talk to Aetheris", body: `
+Press **🎙 Voice** in the composer (or type \`/voice\`) for a hands-free conversation. Tap the orb, speak, and Aetheris answers out loud — then listens again.
+
+## What it does
+- **Speech in** — the browser's speech recognition (Chrome, Edge, Safari), language-aware: English (India/US/UK), Tamil, Hindi, Telugu, Kannada, Malayalam, Bengali, Marathi, Gujarati, Spanish, French, German, Portuguese, Japanese, Arabic. *Auto* follows your UI language.
+- **Speech out** — two engines: **Browser** (instant; starts speaking each sentence as it streams in) or **Studio TTS** (ElevenLabs/Kokoro via the media mesh, higher quality, waits for the whole reply). Pick a voice and speed in ⚙ Options.
+- **Interrupt** — tap the orb (or just start talking) while it speaks to cut it off and ask something else.
+- **Hands-free loop** — after each reply the mic reopens automatically (switch off in Options).
+- **Voice-tuned answers** — the model is told the reply will be read aloud: short, conversational, no markdown/lists/URLs, numbers and units spelled out, in your language. Code or tables, if truly needed, are shown on screen instead of read.
+- Works with everything else: \`@tutor quiz me on fractions\`, agents, web search, memory, projects.
+
+## Privacy
+Recognition and browser TTS run on your device. No audio is recorded, stored or sent to Aetheris — only the transcribed text is sent, like a typed message.
+
+## Tips
+- The 🎙 button in the composer also works as plain dictation without entering voice mode.
+- Say "in Tamil" / "தமிழில் சொல்" to switch reply language mid-conversation.
+- If the mic won't start, allow microphone access for the site in the browser's address bar.
+`},
   { slug: "agents", section: "Agents", title: "The agent hierarchy", body: `
 Aetheris agents are built on two base layers:
 

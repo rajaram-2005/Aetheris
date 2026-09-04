@@ -390,6 +390,10 @@ optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.
 persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 
+## 🎙 Voice mode
+
+Hands-free conversation: browser speech recognition in 18 languages/accents (English-India, Tamil, Hindi, Telugu, Kannada, Malayalam, …), spoken replies that start while the answer is still streaming (browser TTS) or via the Studio TTS mesh, barge-in interruption, automatic re-listen, and voice-tuned answers (short, no markdown, language-matched). Nothing is recorded — only the transcript is sent. `/voice` or the 🎙 chip. See `/docs/voice`.
+
 ## 🎓 Study mode
 
 Adaptive quizzes and flashcards with spaced repetition. Create a deck for any subject in any language; the matching tutor agent writes flashcards, MCQs, cloze and short-answer cards (with explanations); **adaptive generation** targets what you keep missing; sessions schedule cards with an SM-2 algorithm (Again/Hard/Good/Easy); typed answers are graded (exact match, else by the tutor); progress shows stages, retention, heatmap and streak. API under `/api/study/decks`. See `/docs/study`.
