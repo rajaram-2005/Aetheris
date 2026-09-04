@@ -12,6 +12,7 @@
     "eval": "tsx evals/run.ts",
     "verify:connectors": "tsx scripts/verify-connectors.ts",
     "desktop:dev": "node desktop/scripts/dev.mjs",
+    "desktop:typecheck": "npm --prefix desktop run typecheck",
     "desktop:build": "node tools/desktop-build.mjs",
     "desktop:prepare": "node desktop/scripts/prepare-app.mjs",
     "desktop:pack": "cd desktop && npm run compile && electron-builder --dir",

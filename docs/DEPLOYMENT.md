@@ -117,7 +117,7 @@ Full list with provider keys: `.env.example`.
 
 ## 8. Continuous integration
 
-The workflow file lives at `ci/github-actions-ci.yml` (typecheck → tests → evals → build). Copy it to `.github/workflows/ci.yml` in your fork; it is kept outside `.github/` in this repo because the automation that maintains the branch lacks the `workflows` permission (`ci/README.md`).
+The workflow lives at `.github/workflows/ci.yml`: typecheck → tests → evals → build, plus a `desktop/` typecheck against the real Electron types (`ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci` — compiling needs no binary). Forks inherit it as-is; the full pipeline map is in `ci/README.md`.
 
 ## 9. Upgrading
 

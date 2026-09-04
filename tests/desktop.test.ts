@@ -694,7 +694,7 @@ test("release notes: the GitHub Release body is that version's CHANGELOG section
 });
 
 test("release workflow: a monthly schedule that bumps, tags and publishes; a per-OS desktop build", () => {
-  const wf = read("ci/release.yml");
+  const wf = read(".github/workflows/release.yml");
   assert.match(wf, /schedule:/);
   assert.match(wf, /cron: "30 3 1 \* \*"/, "runs on the 1st of every month");
   assert.match(wf, /workflow_dispatch/);
@@ -709,15 +709,31 @@ test("release workflow: a monthly schedule that bumps, tags and publishes; a per
   for (const runner of ["macos-latest", "ubuntu-latest", "windows-latest"]) assert.ok(wf.includes(runner), `desktop matrix runs on ${runner}`);
   assert.match(wf, /ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci/, "the verify job does not download Electron");
 
-  const action = read("ci/actions/build-desktop/action.yml");
+  const action = read(".github/actions/build-desktop/action.yml");
   assert.match(action, /using: composite/);
   assert.match(action, /AETHERIS_STANDALONE: "1"/, "builds the embeddable server");
   assert.match(action, /electron-builder --publish never/);
 
-  const dw = read("ci/release-desktop.yml");
+  const dw = read(".github/workflows/release-desktop.yml");
   assert.match(dw, /workflow_dispatch/);
   for (const runner of ["macos-latest", "ubuntu-latest", "windows-latest"]) assert.ok(dw.includes(runner), runner);
   assert.match(dw, /build-desktop/, "shares the same build steps as the monthly release");
+
+  // Both release workflows must call the composite action by its real path, not a stale one.
+  assert.match(wf, /uses: \.\/\.github\/actions\/build-desktop/, "release.yml calls the action by path");
+  assert.match(dw, /uses: \.\/\.github\/actions\/build-desktop/, "release-desktop.yml calls the action by path");
+
+  // The CI workflow typechecks the Electron shell with the real electron types installed; without
+  // that step desktop/src/main.ts silently drops out of every check (the root program excludes desktop/).
+  const ci = read(".github/workflows/ci.yml");
+  assert.match(ci, /working-directory: desktop/, "the desktop project is verified in CI, not just excluded from the root tsc program");
+  assert.match(ci, /ELECTRON_SKIP_BINARY_DOWNLOAD/, "CI installs Electron's types without downloading the binary");
+  assert.match(ci, /npm run typecheck/, "the desktop app is typechecked");
+
+  // The workflows live in .github/ now — nothing is stashed in ci/ anymore.
+  for (const stale of ["ci/release.yml", "ci/release-desktop.yml", "ci/github-actions-ci.yml"]) {
+    assert.equal(fs.existsSync(path.join(ROOT, stale)), false, `${stale} is gone; .github/workflows is the live location`);
+  }
 
   const sh = read("tools/release.sh");
   assert.match(sh, /set -euo pipefail/);

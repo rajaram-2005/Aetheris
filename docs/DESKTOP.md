@@ -5,7 +5,7 @@ shell in `desktop/` around the same Next.js application that runs on a server. N
 codebase: the desktop app *is* Aetheris, either embedded or connected.
 
 Status: **IMPLEMENTED** for the shell, packaging and the embedded server; installer artefacts are
-produced by `ci/release.yml` on the matching runners (see [Release](#release) — a `.dmg` can only be
+produced by `.github/workflows/release.yml` on the matching runners (see [Release](#release) — a `.dmg` can only be
 built on macOS).
 
 ## Two run modes
@@ -157,9 +157,9 @@ over-500-character values. A link can come from any web page, so it is treated a
 ## Release
 
 The desktop app ships on the project's monthly CalVer cadence — see [Release process](#release-process)
-below and [ci/README.md](../ci/README.md). `ci/release.yml` builds all three platforms on
+below and [ci/README.md](../ci/README.md). `.github/workflows/release.yml` builds all three platforms on
 `macos-latest`, `ubuntu-latest` and `windows-latest` through one composite action
-(`ci/actions/build-desktop/`) and attaches the artefacts to the GitHub Release.
+(`.github/actions/build-desktop/`) and attaches the artefacts to the GitHub Release.
 
 ## Troubleshooting
 

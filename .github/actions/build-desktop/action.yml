@@ -1,6 +1,7 @@
 name: Build the Aetheris desktop app
 
-# Composite action shared by ci/release.yml and ci/release-desktop.yml so the macOS, Linux and
+# Composite action shared by .github/workflows/release.yml and .github/workflows/release-desktop.yml
+# so the macOS, Linux and
 # Windows legs build in exactly the same way.
 #
 # Inputs
