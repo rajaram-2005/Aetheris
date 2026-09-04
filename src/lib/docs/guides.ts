@@ -61,6 +61,24 @@ Aetheris agents are built on two base layers:
 ## Where to look
 Agents mode lists everyone by domain with skills and aliases, plus the lessons Metis has learned for you (editable). See **Reference → Agents** for the full roster.
 `},
+  { slug: "study", section: "Agents", title: "Study mode: quizzes & spaced repetition", body: `
+**🎓 Study** turns any subject into a living deck of cards written by the right tutor agent and scheduled by spaced repetition.
+
+## How it works
+1. **Create a deck** — subject (e.g. *Class 12 Physics: Electrostatics*, *GST for CA Inter*, *Spanish A2 verbs*, *OWASP Top 10*), optional scope (paste a syllabus or notes), language (English, Tamil, Hindi, bilingual…). The tutor is auto-picked by subject (\`@physics\`, \`@accountant\`, \`@polyglot\`, \`@security\`…) or choose one.
+2. **Generate cards** — flashcards, multiple-choice, fill-the-blank (cloze) and short-answer, each atomic and exam-relevant, with an explanation and difficulty. Buttons: **+12 cards**, **+10 MCQ (exam style)**, **+ focused…** (a chapter or weakness), and **+10 adaptive** — which looks at the cards you keep failing and writes new ones that approach the same ideas differently.
+3. **Study sessions** — the queue puts overdue cards first, then up to 10 new ones. Flashcards: reveal (\`space\`) then grade **Again / Hard / Good / Easy** (\`1–4\`), with the next interval shown. MCQ/cloze/short-answer: answer and get graded — exact matches instantly, paraphrases by the tutor. **Explain in chat** hands a missed card to the tutor.
+4. **Progress** — per-deck stage bar (new → learning → young → mature), due count, retention %, a 56-day heatmap and streak.
+
+## The scheduling (SM-2)
+Same family of algorithm as Anki: *Again* resets a card and brings it back in 10 minutes; *Good* moves 1 → 6 → ~15 days and onward by an ease factor; *Hard* shortens and lowers ease; *Easy* lengthens and raises it. Ease never drops below 1.3; intervals cap at a year. Pure functions in \`src/lib/study/srs.ts\` with tests.
+
+## API
+\`GET/POST /api/study/decks\` · \`GET/PATCH/DELETE /api/study/decks/:id\` · \`POST …/:id/generate {count, kinds, focus, adaptive}\` · \`POST …/:id/review {cardId, grade}\` · \`POST …/:id/quiz {cardId, answer}\`. Decks are private to the account/device cookie.
+
+## Ethical note
+Study mode is built for *learning*, not shortcuts: it quizzes rather than answers, explains after you try, and tracks retention honestly. Use **Explain in chat** and the Socratic recipes in the gallery when you're stuck.
+`},
   { slug: "ethics", section: "Agents", title: "AI ethics, explainability & transparency", body: `
 Aetheris is built so you can always ask **"why?"** and **"should we?"** of the AI.
 

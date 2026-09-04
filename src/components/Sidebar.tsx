@@ -4,7 +4,7 @@ import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
-export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "providers";
+export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
@@ -13,6 +13,7 @@ export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] =
   { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },
   { id: "gallery", label: "Gallery", icon: "🗂️", blurb: "Community prompts & agent recipes" },
   { id: "workflows", label: "Workflows", icon: "⛓️", blurb: "Chain agents into automations" },
+  { id: "study", label: "Study", icon: "🎓", blurb: "Quizzes & flashcards, spaced repetition" },
   { id: "learn", label: "Learn", icon: "📚", blurb: "Explained AI: concepts & ethics" },
   { id: "providers", label: "Providers", icon: "🛰️", blurb: "AI mesh status & keys" },
 ];

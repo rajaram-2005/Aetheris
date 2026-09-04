@@ -718,3 +718,36 @@ button.chip { cursor: pointer; }
 .learn-item span { font-size: 12px; color: var(--muted); }
 .learn-item.on, .learn-item:hover { border-color: var(--accent); background: var(--panel-2); }
 .learn-detail { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; min-height: 300px; }
+
+/* ── Study ──────────────────────────────────────────────── */
+.study { padding: 18px 22px 40px; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.study-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.study-card { text-align: left; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
+.study-card:hover { border-color: var(--accent); }
+.stagebar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--panel-2); }
+.stagebar i { display: block; height: 100%; }
+.st-new { background: #64748b; } .st-learning { background: #f59e0b; } .st-young { background: #38bdf8; } .st-mature { background: #22c55e; }
+.study-deck { display: flex; flex-direction: column; gap: 12px; }
+.study-summary { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.study-kpis { display: flex; gap: 18px; flex-wrap: wrap; }
+.study-kpis div { display: flex; flex-direction: column; } .study-kpis b { font-size: 20px; } .study-kpis span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.heatmap { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; max-width: 520px; }
+.heatmap i { aspect-ratio: 1; border-radius: 2px; background: var(--panel-2); display: block; }
+.hm1 { background: #86efac !important; } .hm2 { background: #22c55e !important; } .hm3 { background: #15803d !important; }
+.study-cards { display: flex; flex-direction: column; gap: 6px; }
+.study-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 90px auto; gap: 10px; align-items: start; background: var(--panel); border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+.study-row.stage-new { border-left-color: #64748b; } .study-row.stage-learning { border-left-color: #f59e0b; } .study-row.stage-young { border-left-color: #38bdf8; } .study-row.stage-mature { border-left-color: #22c55e; }
+.study-row-main p { margin: 0; }
+.progress { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; } .progress i { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
+.study-stage { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; min-height: 320px; }
+.study-q { font-size: 18px; line-height: 1.5; } .study-q p { margin: 0; }
+.study-a { padding: 12px 14px; }
+.study-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.study-opt { text-align: left; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text); cursor: pointer; font-size: 14px; }
+.study-opt:hover { border-color: var(--accent); } .study-opt.ok { border-color: #22c55e; background: rgba(34,197,94,0.12); } .study-opt.bad { border-color: #ef4444; background: rgba(239,68,68,0.12); }
+.study-grades { display: flex; gap: 8px; flex-wrap: wrap; }
+.study-grades .chip { display: flex; flex-direction: column; align-items: center; padding: 8px 14px; min-width: 90px; } .study-grades small { color: var(--muted); font-size: 11px; }
+.g0 { border-color: #ef4444 !important; } .g1 { border-color: #f59e0b !important; } .g2 { border-color: #38bdf8 !important; } .g3 { border-color: #22c55e !important; }
+.study-result { padding: 10px 12px; border-radius: 10px; font-size: 14px; } .study-result.ok { background: rgba(34,197,94,0.12); } .study-result.bad { background: rgba(239,68,68,0.12); }
+.study kbd { font-size: 10px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 6px; color: var(--muted); }
+.err-box { background: rgba(239,68,68,0.12); border: 1px solid #ef4444; border-radius: 10px; padding: 8px 12px; font-size: 13px; }
