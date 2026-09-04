@@ -93,7 +93,7 @@ Full list with provider keys: `.env.example`.
 
 1. Set `AETHERIS_SECRET`, `AETHERIS_ADMIN_KEY`, and real admin identities.
 2. Keep `AETHERIS_ALLOW_PRIVATE_URLS` unset (SSRF guard blocks RFC1918/loopback/link-local after DNS resolution).
-3. Terminate TLS at a reverse proxy; the app sets security headers (`X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, nosniff) in `src/middleware.ts`.
+3. Terminate TLS at a reverse proxy; the app sets security headers (`Referrer-Policy`, `Permissions-Policy`, nosniff; add `frame-ancestors` at the proxy if you need click-jacking protection) in `src/middleware.ts`.
 4. Rate limits are per-instance in-memory counters (see `docs/SECURITY.md`); put a WAF / proxy limit in front for real DDoS protection.
 5. Physical-device and robotics adapters require explicit permission grants per user; they are never granted by env. Deploy those only on a trusted LAN.
 6. Never put provider keys in prompts, client code or the repo — env or the per-user encrypted BYOK store only.

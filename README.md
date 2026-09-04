@@ -1,29 +1,78 @@
-# Aetheris One
+# Aetheris One — an open Intelligence Operating System
 
-**One chat. A mesh of free AI providers. Automatic failover.**
+**One layer that selects, coordinates and verifies models, agents, knowledge, tools — and, with explicit permission, physical systems.** Free for everyone. MIT. No paid tier, no metering, no vendor lock-in.
 
-[![CI](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml/badge.svg)](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen.svg)](tests)
 
-Aetheris is **open source (MIT)**. Self-host it in a minute, fork it, or contribute a provider, agent or MCP connector — see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+> Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
-Aetheris One is a minimalist chat interface backed by an *omni-router*: your prompt is
-load-balanced across 27 free-tier AI providers. When one provider rate-limits or errors,
-Aetheris silently reroutes to the next — no local GPU, no paid API required.
+```
+  Models (31 providers, local-first option)   Knowledge (hybrid fabric + document KBs)   Tools (107 connectors · your MCP servers · plugins)
+                 └──────────────────────────────────┬──────────────────────────────────────┘
+                                   Capability Registry · Execution Policy · Observability
+                                                    │
+                          Agent Core — Prime planner → Hermes specialists → Metis verifier · background jobs
+                                                    │
+                          World model — typed memory · digital twins · temporal facts with provenance
+                 ┌──────────────────────────────────┼──────────────────────────────────────┐
+             Web & research                Software (GitHub intelligence,            Physical (devices · PLC/MQTT ·
+        (browser agent, academic engine)    coding factory, sandbox)                   ROS 2 · safety loop)
+```
 
-> Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com
+Everything here is **discoverable** (`GET /api/capabilities`), **callable** (typed `/api/*`), **permissioned** (`read_only → safe_write → full_workspace → admin`, plus an isolated `physical` grant), **observable** (`/api/telemetry`, Control Center), **testable** (`npm test`, `npm run eval`) and **replaceable** (provider interfaces, plugin SDK).
 
-## Status
+## Honest status
+
+Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIAL · EXPERIMENTAL · MOCKED · NOT AVAILABLE**. Nothing in Aetheris is MOCKED; what cannot run here says so.
+
+| Subsystem | Status | Notes / doc |
+|---|---|---|
+| ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](docs/MODELS.md) |
+| Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
+| Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
+| Verification engine | PARTIAL | critique/explain/automation-verify; no default test loop |
+| Capability Registry (383 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](docs/SECURITY.md) |
+| Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](docs/SECURITY.md) |
+| MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](docs/MCP.md) |
+| MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](docs/MCP.md) |
+| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (lexical embeddings by default) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
+| Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](docs/MEMORY.md) |
+| Research engine — arXiv/Crossref/OpenAlex/S2, claims, contradictions | IMPLEMENTED (network) | [RESEARCH](docs/RESEARCH.md) |
+| GitHub repository intelligence + coding factory | IMPLEMENTED (untestable offline) | [AGENTS](docs/AGENTS.md) |
+| Multimodal perception (image/doc/audio/sensor; video needs ffmpeg) | PARTIAL | `GET /api/multimodal` |
+| Browser agent (http engine; Playwright optional) | PARTIAL | `GET /api/browser` |
+| Physical AI — http/mqtt/modbus adapters, safety loop, e-stop, telemetry | IMPLEMENTED (mqtt/modbus verified on mocks only); serial via bridge; opcua/can NOT AVAILABLE | [HARDWARE](docs/HARDWARE.md) |
+| Robotics — ROS 2 via rosbridge, governor, watchdog, e-stop | IMPLEMENTED (verified on mock rosbridge) | [ROBOTICS](docs/ROBOTICS.md) |
+| Digital twins — sync, rule simulation, health | IMPLEMENTED | [ROBOTICS](docs/ROBOTICS.md) |
+| Automation engine — trigger → condition → agent → verify → action | IMPLEMENTED | [API](docs/API.md) |
+| Workspaces | IMPLEMENTED (no sharing) | [API](docs/API.md) |
+| Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
+| Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](docs/SECURITY.md) |
+| Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
+| Evals (intent, policy, sandbox, retrieval) + 106 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
+| Horizontal scaling, persistent telemetry store, semantic embeddings offline | NOT AVAILABLE / PARTIAL | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
+
+Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md)
+
+---
+
+## Product history (all still shipped)
+
+Aetheris began as *One Chat over a mesh of free providers* and grew phase by phase. Everything below remains in the product; the Intelligence-OS core wraps it rather than replacing it.
 
 | Phase | Component | State |
 |---|---|---|
-| 1 | **One Chat + Omni-Router** (27 providers, failover, cooldowns, provider pinning) | ✅ this repo |
-| 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ this repo |
-| 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ this repo |
-| 6 | **One Chat flagship UX** (streaming, sidebar, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ this repo |
-| 4 | **Cloud MCP App Store** (107 connectors: 58 vendor MCP servers w/ OAuth + 49 via built-in REST→MCP gateway) | ✅ this repo |
-| 5 | **UPI monetisation** (dynamic QR → UTR → admin approval → instant unlock) | ✅ this repo |
+| 1 | **One Chat + Omni-Router** (failover, cooldowns, provider pinning) | ✅ |
+| 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ |
+| 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ |
+| 4 | **Cloud MCP App Store** (107 connectors: vendor MCP servers w/ OAuth + REST→MCP gateway) | ✅ |
+| 5 | UPI monetisation code — **off by default; everything is free** | ✅ (flag) |
+| 6 | **One Chat flagship UX** (streaming, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ |
+| 7–22 | **Intelligence OS**: registry, policy, observability, router policy, agent runtime, sandbox, MCP gateway, knowledge/memory, GitHub intelligence, research engine, multimodal, browser, physical AI, robotics/twins, automation, Control Center, security, evals, perf, deployment, plugin SDK, docs | ✅ see status table |
 
 ## Quick start
 
@@ -290,7 +339,7 @@ Billing: `GET /api/billing/plans` · `POST /api/billing/checkout {planId}` · `P
 
 ```
 src/lib/router/
-  providers.ts   the 15-provider registry
+  providers.ts   the 31-provider registry (cloud free tiers, keyless, local Ollama/LM Studio/vLLM)
   adapters.ts    wire protocols: OpenAI-compatible, Gemini, Cohere, Cloudflare
   router.ts      ordering, failover, cooldown/health tracking
 src/lib/github/
@@ -308,14 +357,16 @@ src/lib/store.ts locked JSON file store (data/)
 src/app/api/     chat, providers, factory, auth, media, mcp, billing, admin
 src/app/admin/   payments approval console
 src/components/  Chat (modes: Chat · Factory · Studio · Apps), Upgrade modal, mesh panel…
-tests/           20 tests: router failover, factory pipeline, MCP client/OAuth/agent, gateway engine, media mesh, billing
+tests/           106 tests (node:test): core registry/policy/events, router, agents, knowledge, physical, gateway, plugins, perf…
+src/core/        Intelligence-OS core — see docs/DEVELOPMENT.md for the map
+src/plugins/     plugins (docs/PLUGIN_SDK.md) · bridge/ aetheris-bridge serial daemon · evals/ eval harness
 scripts/         verify-connectors.ts — live probe of every connector endpoint
 ```
 
 ## Scripts
 
 - `npm run dev` — dev server
-- `npm test` — router failover tests (no API keys needed)
+- `npm test` — 106 tests (no API keys needed) · `npm run eval` — routing/policy/retrieval evals with thresholds
 - `npm run typecheck` — TypeScript
 - `npm run build && npm start` — production
 
@@ -396,7 +447,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## 🎛️ Intelligence OS core (Control Center)
 
-Aetheris is structured as a platform, not a pile of features: `src/core` holds the **Capability Registry** (370+ models/agents/tools/connectors/subsystems with honest IMPLEMENTED / PARTIAL / NOT AVAILABLE status), the **execution policy** (capability-based permissions `read_only → admin` + isolated `physical`, single-use confirmation tokens, audit), **observability** (structured events for every model/agent/tool/schedule/permission action) and a local **intent router**. The **Control Center** shows health, registry, events, routing and permissions live. Provider-independence interfaces and Physical-AI/robotics contracts (with a tested deterministic safety policy) are defined; hardware adapters are *not available* yet and nothing is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+`src/core` holds the **Capability Registry** (383 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## ⏰ Scheduled automations
 

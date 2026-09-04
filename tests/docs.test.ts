@@ -60,3 +60,18 @@ test("gallery world seed: native-script prompts are searchable by language tag a
   assert.ok(rankItems(SEED, "日本語", () => 0).length >= 2, "CJK substring search");
   assert.ok(rankItems(SEED, "español", () => 0)[0].tags.includes("spanish"));
 });
+
+test("docs set: all 15 documents exist, carry status tables, and referenced API routes exist", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path");
+  const root = path.join(__dirname, "..");
+  const required = ["ARCHITECTURE", "DEVELOPMENT", "API", "AGENTS", "MCP", "MODELS", "KNOWLEDGE", "MEMORY", "SECURITY", "HARDWARE", "ROBOTICS", "RESEARCH", "DEPLOYMENT", "PLUGIN_SDK"];
+  for (const d of required) { const body = fs.readFileSync(path.join(root, "docs", `${d}.md`), "utf8"); assert.ok(body.length > 1500, d); if (!["DEVELOPMENT", "API"].includes(d)) assert.ok(/IMPLEMENTED|PARTIAL|NOT AVAILABLE/.test(body), `${d} lacks status vocabulary`); }
+  assert.ok(fs.existsSync(path.join(root, "CONTRIBUTING.md")));
+  // every /api/<path> mentioned in API.md must have a route file (dynamic segments normalised)
+  const api = fs.readFileSync(path.join(root, "docs", "API.md"), "utf8");
+  const routes = new Set<string>(); const walk = (d: string, pre: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.isDirectory()) walk(path.join(d, e.name), `${pre}/${e.name}`); else if (e.name === "route.ts") routes.add(pre.replace(/\[[^\]]+\]/g, ":x")); } };
+  walk(path.join(root, "src/app/api"), "/api");
+  const mentioned = [...new Set([...api.matchAll(/`(?:GET|POST|PATCH|PUT|DELETE|GET\/POST|GET\/PATCH\/DELETE|GET\/POST\/PATCH\/DELETE|GET\/DELETE)? ?(\/api\/[a-z0-9\/:_\-*]+)/gi)].map((m) => m[1].replace(/:[a-z]+/g, ":x").replace(/\/$/, "")))].filter((r) => !r.includes("*"));
+  const missing = mentioned.filter((r) => !routes.has(r) && !routes.has(r + "/:x"));
+  assert.deepEqual(missing, [], `API.md mentions routes that do not exist: ${missing.join(", ")}`);
+});

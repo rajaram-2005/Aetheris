@@ -28,34 +28,42 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 | Physical AI / robotics / twins | Nothing existed. | Interfaces + deterministic safety policy defined; `NOT AVAILABLE`; no fake telemetry. |
 | Dead/duplicated code | `Upgrade.tsx` & billing UI unused in free mode (kept behind flag). Two "🛰️" icons (Providers) — Control Center uses 🎛️. Legacy `api/mcp/tools` overlaps hub (kept for compatibility). | Noted; no destructive removals. |
 | Dependencies | `pdf-parse@1.1.1` imported via internal path to avoid its debug side-effect. `next build` corrupts `.next` if dev server runs concurrently (dev-only). | Documented. |
-| Deployment | CI is in `docs/ci.yml` (cannot push `.github/workflows` from this environment). Schedules need external cron on serverless. | Documented in `/docs/schedules`, `/docs/self-host`. |
+| Deployment | CI workflow is in `ci/github-actions-ci.yml` (the automation cannot push `.github/workflows`). Schedules need external cron on serverless. | `docs/DEPLOYMENT.md`. |
 
 ---
 
-## 2. Logical architecture (as built)
+## 2. Logical architecture (as built, Phase 22)
 
 ```
-                              AETHERIS CORE  (src/core)
-        ┌──────────────────────────────┼──────────────────────────────┐
-  Capability Registry          Execution Policy               Observability
-  (types, registry, sources)   (permissions, confirm, audit)  (events, summary)
-        └──────────────────────────────┼──────────────────────────────┘
-                                 Intent Router
-                                       │
-   ┌───────────────┬───────────────────┼─────────────────────┬────────────────┐
- MODELS          AGENTS             KNOWLEDGE              TOOLS           AUTOMATION
- lib/router      lib/agents         lib/kb, lib/research   lib/mcp         lib/workflows
- 27 providers    Prime/Metis/102    BM25 + citations       hub 107/115     lib/schedules
-   │               │                   │                     │                │
-   └───────────────┴───────────────────┴─────────────────────┴────────────────┘
-                                       │
-                            SURFACES (src/components)
-   Chat · Agents · Factory · Studio · Apps · Docs · Study · Learn · Workflows · Schedules · Control Center
-                                       │
-                         PHYSICAL (src/core/physical) — interfaces + safety policy only
+                                   SURFACES  (src/components · /api)
+   Command · Chat · Agents · Models · Knowledge · Research · Code/Factory · GitHub · Tools · MCP · Devices · Robotics
+   Digital Twins · Automations · Workspaces · Study · Studio · Control Center (16 panels)
+                                                    │
+                     ┌──────────────────────────────┼──────────────────────────────┐
+              Capability Registry           Execution Policy                  Observability
+              383 entries, honest status    levels + physical + confirm       events (redacted) · audit
+              plugins register here         authorize() on every action       Control Center feed
+                     └──────────────────────────────┼──────────────────────────────┘
+                                             Intent Router
+                                                    │
+        ┌──────────────┬───────────────┬────────────┼─────────────┬───────────────┬────────────────┐
+     MODELS          AGENT CORE       KNOWLEDGE      TOOLS         WORLD MODEL     AUTOMATION
+   lib/router      core/agents       core/knowledge  lib/mcp hub   core/memory     core/automation
+   31 providers    Prime→Hermes      fabric SQLite   core/mcp gw   core/twins      trigger→condition
+   policy/health   specialists       FTS5+vec+graph  core/plugins  temporal facts  →agent→verify→action
+   local-first     →Metis · jobs     +temporal, prov core/execution provenance      core/workspaces
+        └──────────────┴───────────────┴────────────┼─────────────┴───────────────┴────────────────┘
+                                                    │
+              ┌─────────────────────────────────────┼──────────────────────────────────────┐
+           WEB                                  SOFTWARE                               PHYSICAL
+   core/browser (http/playwright)       core/github (map, review, triage, patch)   core/physical (http/mqtt/modbus,
+   core/research (academic+web)         lib/factory (generate→CI→iterate)          safety loop, e-stop, telemetry)
+   core/multimodal (perceive)           core/execution (sandbox)                   core/robotics (rosbridge governor)
+                                                                                    bridge/ (serial daemon)
+                                        core/security/guard — SSRF · rate limits · redaction · audit export
 ```
 
-Every subsystem talks to Core through three things only: it **registers capabilities**, it **asks the policy** before acting, and it **records events**.
+Every subsystem talks to Core through three things only: it **registers capabilities**, it **asks the policy** before acting, and it **records events**. Provider-independence contracts live in `src/core/providers/interfaces.ts`; the Plugin SDK (`src/core/plugins/sdk.ts`) is the same contract for third parties.
 
 ---
 
@@ -82,35 +90,39 @@ Deterministic, local classifier (no model call) → `{task, mode, agents, connec
 
 `ModelProvider` · `StorageProvider` · `RetrievalProvider` · `SearchProvider` · `ToolProvider` · `BrowserProvider` · `ExecutionProvider` · `AuthenticationProvider` (+ `DeviceProvider`, `RobotProvider` in physical). Each lists its current binding or **NOT BOUND**.
 
-## 8. Physical AI (`src/core/physical/interfaces.ts`) — NOT AVAILABLE
+## 8. Physical AI (`src/core/physical`) — IMPLEMENTED with honest limits
 
-Contracts for sensors/actuators/transports (MQTT, serial, Modbus, OPC-UA, CAN, ROS 2, simulated), `DeviceProvider`, `RobotProvider`, `DigitalTwin`, and a **deterministic safety policy** (`checkSafety`) that every command must pass: known device/actuator, params within declared limits, fresh telemetry (<5 min), explicit confirmation. Tested. No adapter is implemented and no telemetry is fabricated; the loop `Sensor → Gateway → Telemetry → World Model → Reasoning → Safety → Command → Actuator` is the target design.
+Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verified on in-repo protocol mocks, unverified on real hardware from this sandbox), simulated (every reading tagged `_simulated`), serial via `bridge/aetheris-bridge.mjs`; opcua/can NOT AVAILABLE. Deterministic safety loop (limits, interlocks, rate, latch, confirmation, read-back, audit) is tested. ROS 2 via rosbridge with a governor (clamp, geofence, watchdog, e-stop). Twins with rule-based simulation. See `docs/HARDWARE.md`, `docs/ROBOTICS.md`.
 
 ---
 
-## 9. Roadmap (phased; each phase lands behind a registry status)
+## 9. Phase ledger (1–22) and what remains
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 Audit | this document | done |
-| 2 Cleanup | remove paid-plan UI when flag off; unify MCP routes | partial |
+| 1 Audit | this document §1 | **done** |
+| 2 Cleanup | paid UI behind flag, MCP routes unified under gateway + hub | **done** |
 | 3 Core interfaces | registry, policy, events, providers | **done** |
-| 4 Model router | task-aware selection (coding/reasoning/vision), local providers, cost metadata | partial (health/vision/tier only) |
-| 5 Agent runtime | budgets, timeouts, checkpoints, cancellation, background jobs, agent memory | partial |
-| 6 Execution/sandbox | server-side container sandbox behind `ExecutionProvider` + policy | not started |
-| 7 MCP gateway | user-added servers, health, versioning, schema validation, tool ranking | partial |
-| 8 Knowledge + memory | vector adapter (hybrid), entities/graph, temporal store, memory types & provenance | partial |
-| 9 GitHub intelligence | repository map, PR review, issue → PR automation | partial |
-| 10 Research engine | academic sources, evidence graph, citation graph | partial |
-| 11 Multimodal | video/audio understanding, sensor streams | partial |
-| 12 Browser agent | `BrowserProvider` with observable steps | not started |
-| 13 Physical AI | MQTT + serial adapters, telemetry pipeline, twin store, safety UI | interfaces only |
-| 14 Robotics/twins | ROS 2 bridge, simulation | interfaces only |
-| 15 Automation engine | event triggers (GitHub issue, sensor anomaly), conditions | partial (cron only) |
-| 16 Control Center | live health/registry/events/permissions | **done (v1)** |
-| 17 Security hardening | rate limits per capability, network policy for gateway, secret vault | partial |
-| 18 Testing/evaluation | 84 unit tests; evaluation harness for routing/RAG/agents | partial |
-| 19 Performance | caching, parallel agents, incremental indexing | partial |
-| 20 Production | Postgres `StorageProvider`, multi-instance, external cron | partial |
+| 4 Model router | task/locality policy, local providers, costClass, health | **done** |
+| 5 Agent runtime | jobs, budgets, checkpoints, cancel/retry, SSE, working memory | **done** |
+| 6 Execution/sandbox | process-isolated server sandbox behind policy | **done** (not a VM) |
+| 7 MCP gateway | user servers, health, versions, schema validation, permission classification | **done** |
+| 8 Knowledge + memory | SQLite fabric (FTS5+vector+graph+temporal), typed memory, provenance | **done** (lexical embeddings by default) |
+| 9 GitHub intelligence | repo map, analyze, PR review, triage, patch→PR | **done** (untestable offline) |
+| 10 Research engine | arXiv/Crossref/OpenAlex/S2, citation graph, claims, contradictions | **done** (network) |
+| 11 Multimodal | image/doc/audio/sensor; video needs ffmpeg | partial |
+| 12 Browser agent | http engine; Playwright optional | partial |
+| 13 Physical AI | http/mqtt/modbus adapters, safety loop, telemetry, bridge | **done** (hardware unverified here) |
+| 14 Robotics/twins | rosbridge governor, twins with simulation | **done** (mock-verified) |
+| 15 Automation engine | 6 triggers, conditions, agent, verify, 6 actions | **done** |
+| 16 Control Center | 16 panels, live events | **done** |
+| 17 Security | guard (SSRF, limits, redaction), middleware, audit export | **done** (per-instance limits) |
+| 18 Testing/evals | 106 tests, eval harness with thresholds, CI workflow file | **done** |
+| 19 Performance | store read cache, perf budget tests | **done** |
+| 20 Deployment | Dockerfile, compose, health, DEPLOYMENT.md | **done** |
+| 21 API-first + plugin SDK | /api/workspaces, /api/tools, /api/plugins, definePlugin | **done** |
+| 22 Docs | 15 documents with diagrams and status tables | **done** |
+
+**Still open (honest):** semantic embeddings without an external endpoint; persistent event/audit store; multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; Playwright hardening; automatic verification loops on every code generation; UI panels from plugins.
 
 Principle for every phase: *"Reasoning is not completion. Verified execution is completion."* A capability is only marked `IMPLEMENTED` when it is exercised by a test or a live call.

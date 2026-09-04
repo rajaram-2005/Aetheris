@@ -1,5 +1,7 @@
 # Security Policy
 
+The full security architecture (permission levels, physical grant, SSRF guard, rate limits, sandbox, audit, honest limits) is documented in [docs/SECURITY.md](docs/SECURITY.md).
+
 ## Supported versions
 The `main` branch. Deployments should track the latest release.
 
