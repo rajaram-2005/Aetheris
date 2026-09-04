@@ -161,3 +161,84 @@ export function imageToDataUrl(file: File, maxDim = 1536): Promise<string> {
     img.src = url;
   });
 }
+
+// ---- Cloud sync (signed-in accounts) ------------------------------------------------------
+interface SyncBlob { convos: Record<string, Conversation & { deleted?: boolean }>; projects: Record<string, Project>; memory: string[]; settings: Partial<Settings>; rev: number; at: number }
+
+/**
+ * Keeps localStorage and the account's cloud copy in step. On mount (and whenever the user
+ * signs in) it pulls the cloud blob and merges by updatedAt; afterwards every local change is
+ * pushed after a short debounce. Deleted chats leave a tombstone so they vanish on other devices.
+ */
+export function useCloudSync(args: {
+  convos: Conversation[]; setConvos: (f: (l: Conversation[]) => Conversation[]) => void;
+  projects: Project[]; upsertProject: (p: Project) => void;
+  memory: string[]; addMemory: (f: string[]) => void;
+  settings: Settings; updateSettings: (p: Partial<Settings>) => void; loaded: boolean;
+}) {
+  const { convos, setConvos, projects, upsertProject, memory, addMemory, settings, updateSettings, loaded } = args;
+  const [status, setStatus] = useState<"off" | "syncing" | "on" | "error">("off");
+  const [signedIn, setSignedIn] = useState(false);
+  const [pulled, setPulled] = useState(false);
+  const tombstones = read<Record<string, number>>("aetheris.tombstones.v1", {});
+
+  // 1. pull + merge once we know who we are
+  useEffect(() => {
+    if (!loaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetch("/api/auth/session").then((r) => r.json());
+        if (!s.account) { setSignedIn(false); setStatus("off"); return; }
+        setSignedIn(true); setStatus("syncing");
+        const r = await fetch("/api/sync", { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        const blob = (await r.json()) as SyncBlob;
+        if (cancelled) return;
+        setConvos((local) => {
+          const byId = new Map(local.map((c) => [c.id, c]));
+          for (const [id, c] of Object.entries(blob.convos ?? {})) {
+            if (c.deleted) { if (byId.has(id) && (byId.get(id)!.updatedAt <= c.updatedAt)) byId.delete(id); continue; }
+            if (tombstones[id] && tombstones[id] >= c.updatedAt) continue;
+            const l = byId.get(id);
+            if (!l || c.updatedAt > l.updatedAt) byId.set(id, { ...c, deleted: undefined } as Conversation);
+          }
+          return Array.from(byId.values()).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt - a.updatedAt);
+        });
+        for (const p of Object.values(blob.projects ?? {})) if (!projects.some((x) => x.id === p.id)) upsertProject(p);
+        if (blob.memory?.length) addMemory(blob.memory);
+        if (blob.settings && Object.keys(blob.settings).length) updateSettings({ ...blob.settings, ...(settings.tavilyKey ? { tavilyKey: settings.tavilyKey } : {}) });
+        setPulled(true); setStatus("on");
+      } catch { if (!cancelled) setStatus("error"); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
+  // 2. debounced push of local state
+  useEffect(() => {
+    if (!signedIn || !pulled) return;
+    const t = setTimeout(async () => {
+      try {
+        setStatus("syncing");
+        const cv: SyncBlob["convos"] = {};
+        for (const c of convos) cv[c.id] = slim(c);
+        for (const [id, at] of Object.entries(read<Record<string, number>>("aetheris.tombstones.v1", {}))) if (!cv[id]) cv[id] = { id, title: "", createdAt: at, updatedAt: at, messages: [], deleted: true };
+        const pr: Record<string, Project> = {}; for (const p of projects) pr[p.id] = p;
+        const r = await fetch("/api/sync", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ convos: cv, projects: pr, memory, settings: { web: settings.web, memoryEnabled: settings.memoryEnabled } }) });
+        setStatus(r.ok ? "on" : "error");
+      } catch { setStatus("error"); }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [convos, projects, memory, settings, signedIn, pulled]);
+
+  return { status, signedIn };
+}
+
+/** Record a deletion so sync propagates it instead of resurrecting the chat from the cloud. */
+export function markDeleted(id: string) {
+  const t = read<Record<string, number>>("aetheris.tombstones.v1", {});
+  t[id] = Date.now();
+  const entries = Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 500);
+  write("aetheris.tombstones.v1", Object.fromEntries(entries));
+}

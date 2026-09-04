@@ -16,7 +16,7 @@ import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
 import { RunOutput, runnableLang, useInterpreter, type RunResult } from "./Interpreter";
 import { useVoice } from "./Voice";
 import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from "./Agents";
-import { imageToDataUrl, titleFrom, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
+import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
@@ -66,10 +66,12 @@ async function* sse(r: Response) {
 
 export default function Chat() {
   // ---- persistence ------------------------------------------------------------------------
-  const { convos, loaded, upsert, remove, clearAll } = useConversations();
+  const { convos, loaded, upsert, remove, clearAll, setConvos } = useConversations();
   const { projects, upsert: saveProject, remove: removeProject } = useProjects();
   const { memory, add: addMemory, remove: forget, clear: clearMemory } = useMemory();
   const { settings, update: updateSettings } = useSettings();
+  const sync = useCloudSync({ convos, setConvos, projects, upsertProject: saveProject, memory, addMemory, settings, updateSettings, loaded });
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<string | null>(null);
@@ -397,6 +399,28 @@ export default function Chat() {
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
 
+  const shareConvo = async () => {
+    if (!active) return;
+    const r = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: active.title, messages: active.messages.filter((m) => !m.error && m.content).map((m) => ({ role: m.role, content: m.content, provider: m.provider, model: m.model })) }) });
+    const j = await r.json();
+    if (!r.ok) return;
+    const url = `${location.origin}${j.url}`;
+    setShareUrl(url);
+    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+  };
+  // ?continue=<shareId> → import a shared chat as a new conversation
+  useEffect(() => {
+    if (!loaded) return;
+    const id = new URLSearchParams(location.search).get("continue");
+    if (!id) return;
+    fetch(`/api/share/${id}`).then((r) => r.ok ? r.json() : null).then((sh) => {
+      if (!sh) return;
+      const c: Conversation = { id: crypto.randomUUID(), title: sh.title, createdAt: Date.now(), updatedAt: Date.now(), messages: sh.messages.map((m: { role: "user" | "assistant"; content: string; provider?: string; model?: string }) => ({ id: crypto.randomUUID(), ...m })) };
+      upsert(c); setActiveId(c.id); convoRef.current = c; setMode("chat");
+      history.replaceState(null, "", "/");
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
   const exportConvo = () => {
     if (!active) return;
     const md = [`# ${active.title}`, "", ...active.messages.filter((m) => !m.error).map((m) => `**${m.role === "user" ? "You" : `Aetheris${m.provider ? ` (${m.provider})` : ""}`}:**\n\n${m.content}`)].join("\n\n---\n\n");
@@ -434,7 +458,7 @@ export default function Chat() {
         onMode={(m) => { setMode(m); if (window.innerWidth < 1000) setSidebar(false); }}
         onOpen={() => setSidebar(true)} onClose={() => setSidebar(false)} onNew={newChat}
         onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 1000) setSidebar(false); }}
-        onDelete={(id) => { remove(id); if (id === activeId) newChat(); }}
+        onDelete={(id) => { markDeleted(id); remove(id); if (id === activeId) newChat(); }}
         onPin={(id) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, pinned: !c.pinned }); }}
         onRename={(id, t) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, title: t }); }}
         onProject={(id) => { setActiveProject(id); newChat(); }} onNewProject={() => setEditProject("new")}
@@ -455,6 +479,8 @@ export default function Chat() {
               </div>
             )}
             {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={exportConvo} title="Download this chat as Markdown">⤓</button>}
+            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={shareConvo} title="Create a public read-only link to this chat">🔗</button>}
+            {sync.signedIn && <span className={`sync-dot ${sync.status === "on" ? "on" : ""}`} title={`Cloud sync: ${sync.status}`}>{sync.status === "syncing" ? "⟳" : sync.status === "error" ? "⚠ sync" : "☁ synced"}</span>}
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
@@ -566,6 +592,20 @@ export default function Chat() {
           </>}
         </div>
 
+        {shareUrl && (
+          <div className="modal-backdrop" onClick={() => setShareUrl(null)}>
+            <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+              <h2 style={{ marginTop: 0 }}>🔗 Public link created</h2>
+              <p className="hint" style={{ textAlign: "left" }}>Anyone with this link can read a snapshot of this chat (copied to clipboard). Future messages are not included.</p>
+              <input readOnly value={shareUrl} onFocus={(e) => e.currentTarget.select()} style={{ width: "100%" }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+                <a className="link" href={shareUrl} target="_blank" rel="noreferrer">open ↗</a>
+                <button className="link" onClick={async () => { await fetch(`/api/share?id=${shareUrl.split("/").pop()}`, { method: "DELETE" }); setShareUrl(null); }}>revoke</button>
+                <button className="send" onClick={() => setShareUrl(null)}>Done</button>
+              </div>
+            </div>
+          </div>
+        )}
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
         {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}

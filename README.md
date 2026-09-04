@@ -342,6 +342,15 @@ Sign in with an address listed in `AETHERIS_ADMIN_EMAILS` / `AETHERIS_ADMIN_PHON
 unlimited agents/API keys, and `/admin` (payments, users, plan changes) without typing `AETHERIS_ADMIN_KEY`.
 The key still works for scripts (`Authorization: Bearer …`).
 
+## Sync, share, install
+
+- **Cloud sync** — sign in and your chats, projects, memory and settings follow you to every device (`/api/sync`,
+  merge by `updatedAt`, deletions propagate via tombstones). Guests stay local-only.
+- **Share a chat** — 🔗 in the header creates a public read-only snapshot at `/s/<id>` (revocable). Readers can
+  "Continue this chat in Aetheris", which imports it as a new conversation.
+- **Install as an app** — PWA manifest + service worker: "Add to Home Screen" on Android/iOS or Install in Chrome/Edge.
+  The shell loads offline; API calls always go to the network.
+
 ## Self-hosting
 
 ```bash

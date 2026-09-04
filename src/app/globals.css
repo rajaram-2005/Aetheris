@@ -617,3 +617,12 @@ button.chip { cursor: pointer; }
 .sb-account img, .sb-account .av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; color: #0b0d12; font-weight: 800; flex: none; }
 .sb-account .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); font-weight: 600; }
 .sb-account .link { font-size: 11px; }
+
+/* ── Shared chat page ──────────────────────────────────── */
+.share-wrap { max-width: var(--measure, 760px); margin: 0 auto; padding: 24px 16px 60px; display: flex; flex-direction: column; gap: 18px; }
+.share-head h1 { margin: 10px 0 4px; font-size: 22px; }
+.share-msgs { display: flex; flex-direction: column; gap: 18px; }
+.share-foot { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.share-foot .send { text-decoration: none; padding: 8px 14px; border-radius: 12px; }
+.sync-dot { font-size: 11px; color: var(--muted); }
+.sync-dot.on { color: #3ecf8e; }

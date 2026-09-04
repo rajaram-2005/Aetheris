@@ -1,0 +1,12 @@
+{
+  "name": "Aetheris One",
+  "short_name": "Aetheris",
+  "description": "One chat. 27 free AI providers. Agents, coding factory, studio, 100+ apps. Free for everyone.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
