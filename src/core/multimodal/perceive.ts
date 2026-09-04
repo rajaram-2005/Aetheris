@@ -27,6 +27,7 @@ import { route } from "@/lib/router/router";
 import { extractText } from "@/lib/kb";
 import { PROVIDERS, isConfigured } from "@/lib/router/providers";
 import { readContainer, describeContainer } from "./container";
+import { sampleFramesWithWasm, wasmFfmpegAvailable, wasmFfmpegReason, wasmFfmpegVersion } from "./wasmffmpeg";
 import { traced } from "../observability/events";
 
 const run = promisify(execFile);
@@ -42,6 +43,8 @@ export async function status() {
   const vision = visionProviders();
   const stt = process.env.STT_URL && process.env.STT_KEY ? "custom STT_URL" : process.env.GROQ_API_KEY ? "groq whisper-large-v3" : undefined;
   const ffmpeg = await which("ffmpeg");
+  const wasm = wasmFfmpegAvailable();
+  const wasmVersion = wasm ? await wasmFfmpegVersion() : null;
   const nativeVideo = videoProviders();
   return {
     image: { available: vision.length > 0, providers: vision },
@@ -51,10 +54,14 @@ export async function status() {
       // Always available: the container is read in-process. Frame-level understanding needs one of
       // the two paths below, and which one is live on this host is reported rather than assumed.
       available: true,
-      framesVia: ffmpeg && vision.length > 0 ? "ffmpeg" : nativeVideo.length > 0 ? `provider (${nativeVideo.join(", ")})` : "none — container facts only",
+      framesVia: ffmpeg && vision.length > 0 ? "ffmpeg" : wasm && vision.length > 0 ? `ffmpeg-wasm ${wasmVersion ?? ""}`.trim() : nativeVideo.length > 0 ? `provider (${nativeVideo.join(", ")})` : "none — container facts only",
       ffmpeg,
+      // The WASM core installs from the npm registry, so frame sampling works with no host binary.
+      wasm,
+      wasmVersion,
+      wasmReason: wasm ? undefined : wasmFfmpegReason(),
       inlineVideoProviders: nativeVideo,
-      needs: "ffmpeg on host (frame sampling) or a video-native model key (GEMINI_API_KEY) for inline video",
+      needs: vision.length > 0 && (ffmpeg || wasm) ? "nothing — frame sampling is available" : "a vision-capable provider key, or a video-native model key (GEMINI_API_KEY) for inline video",
     },
     sensor: { available: true },
   };
@@ -124,6 +131,18 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
               const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order) and an optional transcript. Describe what happens over time; answer the question if given." }, { role: "user", content: `${input.question ?? "What happens in this video?"}${transcript ? `\n\nTranscript:\n${transcript.slice(0, 8000)}` : ""}`, images: frames }] });
               return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg", transcript: transcript || undefined, container: container.ok ? container : undefined }, provider: r.provider, model: r.model });
             } finally { await rm(dir, { recursive: true, force: true }); }
+          }
+
+          // Path 1b: no ffmpeg binary, but the WASM core is installed. Same frame sampling, no host
+          // dependency — ffmpeg runs in a worker thread entirely in memory.
+          if (visionProviders().length > 0 && wasmFfmpegAvailable()) {
+            const s = await sampleFramesWithWasm(input.data, input.name ?? "in.mp4", { everySeconds: 5, maxFrames: 6, width: 768 });
+            if (s.ok && s.frames.length) {
+              const frames = s.frames.map((b) => `data:image/jpeg;base64,${b.toString("base64")}`);
+              const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order). Describe what happens over time; answer the question if given. If the frames are uninformative, say so rather than inventing detail." }, { role: "user", content: `${input.question ?? "What happens in this video?"}`, images: frames }] });
+              return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg-wasm", ffmpegVersion: s.version, atSeconds: s.atSeconds, container: container.ok ? container : undefined, why: "no ffmpeg binary on this host — frames were sampled by the in-process WASM build instead" }, provider: r.provider, model: r.model });
+            }
+            // Fall through on purpose: a codec the WASM build lacks may still be handled inline.
           }
 
           // Path 3: neither. The container still yields real facts — return them, and say plainly

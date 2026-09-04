@@ -13,6 +13,36 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## 2026.9.1 — 2026-09-04
 
+### javascript & video without a host binary
+
+Two features previously reported as impossible on a host with no downloadable binaries now run
+in-process. The earlier audit was wrong about both, and the correction is recorded in
+`docs/ARCHITECTURE.md` with the measurements that overturned it.
+
+- **Page JavaScript executes.** `jsdom` (38 packages, 8.4 MB, no binary download) is a third browser
+  engine, chosen automatically between `playwright` and `http`. A shell containing only
+  `<div id="root">` plus an inline script now yields the rendered document rather than an empty one,
+  and `Snapshot.jsExecuted` records that the scripts actually ran
+- jsdom's script sandbox is a `vm` context — isolation for accidents, **not** a security boundary.
+  So every subresource passes the same SSRF gate as navigation (`subresourceAllowed()`, unit-tested
+  against cloud metadata, loopback and RFC1918), and cross-origin scripts are refused unless
+  explicitly allowed. `js: false` reads markup only
+- `snapshot()` takes a `jsRan` flag. The shell heuristic is a guess over markup and still matches a
+  genuinely short page after rendering, so the flag — not the shape of the HTML — decides whether the
+  text is the shell or the content
+- **Video frames are sampled by ffmpeg-as-WASM.** `@ffmpeg/core` (ffmpeg 5.1.4, Emscripten) ships
+  entirely in an npm tarball. Three shims make it load in Node: `self` *and* `location.href` (the
+  glue reads `self.location.href` for `scriptDirectory`), `wasmBinary` from `fs` (otherwise it tries
+  to `fetch` the wasm and fails offline), and one worker per invocation (a real transcode ends in
+  `exit()`, after which every later `exec()` throws `Aborted()`)
+- Each job runs in a `worker_thread`, is killed at a timeout, and never touches the real filesystem —
+  bytes in, bytes out. Video now has four paths, best available first, reported as `via`: host
+  `ffmpeg` → `ffmpeg-wasm` → provider inline video → container metadata
+- The package specifier is assembled at runtime; webpack otherwise resolves
+  `require.resolve("@ffmpeg/core/wasm")` statically and tries to bundle the 62 MB wasm as JavaScript
+- `GET /api/multimodal` status reports `wasm`/`wasmVersion`, and `GET /api/browser` reports `jsdom`
+  plus the engine actually in use. Tests: **182**
+
 ### telemetry
 
 - Events are written to a durable SQLite log (`data/telemetry.sqlite`, `node:sqlite`, zero deps) as

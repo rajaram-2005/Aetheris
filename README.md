@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-174%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-182%20passing-brightgreen.svg)](tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
@@ -44,8 +44,8 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](docs/MEMORY.md) |
 | Research engine — arXiv/Crossref/OpenAlex/S2, claims, contradictions | IMPLEMENTED (network) | [RESEARCH](docs/RESEARCH.md) |
 | GitHub repository intelligence + coding factory | IMPLEMENTED (untestable offline) | [AGENTS](docs/AGENTS.md) |
-| Multimodal perception — image/doc/audio/sensor, plus video (ffmpeg, inline-video model, or container read) | IMPLEMENTED (frame sampling needs ffmpeg or a video-native model key) | `GET /api/multimodal` |
-| Browser agent — goal-driven navigation, robots/SSRF gates, JS-shell detection, SSR payload recovery (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD) | IMPLEMENTED (http engine); executing page JS still needs Playwright | `GET /api/browser` |
+| Multimodal perception — image/doc/audio/sensor, plus video via host ffmpeg, **ffmpeg-as-WASM**, an inline-video model, or a pure-JS container read | IMPLEMENTED (frame sampling needs no host binary — a vision key is enough) | `GET /api/multimodal` |
+| Browser agent — goal-driven navigation, robots/SSRF gates, JS-shell detection, SSR payload recovery (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD) | IMPLEMENTED (3 engines: playwright → **jsdom, which executes page JS with no browser binary** → http) | `GET /api/browser` |
 | Physical AI — http/mqtt/modbus adapters, safety loop, e-stop, telemetry | IMPLEMENTED (mqtt/modbus verified on mocks only); serial via bridge; opcua/can NOT AVAILABLE | [HARDWARE](docs/HARDWARE.md) |
 | Robotics — ROS 2 via rosbridge, governor, watchdog, e-stop | IMPLEMENTED (verified on mock rosbridge) | [ROBOTICS](docs/ROBOTICS.md) |
 | Digital twins — sync, rule simulation, health | IMPLEMENTED | [ROBOTICS](docs/ROBOTICS.md) |
@@ -54,7 +54,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](docs/SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
-| Evals (intent, policy, sandbox, retrieval) + 174 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Evals (intent, policy, sandbox, retrieval) + 182 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
 | Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](docs/DESKTOP.md) |
 | Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](CHANGELOG.md) |

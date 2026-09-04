@@ -10,17 +10,18 @@
  * Safety: domain allow/deny lists, robots.txt respected for the http engine, max steps, no credentials in
  * prompts, POST/submit requires safe_write (caller enforces via /api/browser), full trace of every step.
  */
+import { createRequire } from "node:module";
 import { route } from "@/lib/router/router";
 import { htmlToText } from "@/lib/kb";
 import { extractJson } from "../verification/verify";
 import { traced } from "../observability/events";
 import { ssrfCheck } from "../security/guard";
 
-export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number; /** True when the page is a JS application shell: the http engine got the markup, but the content is rendered client-side, so this snapshot is not the page the user would see. */ needsJs?: boolean;
+export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number; /** True when the page is a JS application shell: the http engine got the markup, but the content is rendered client-side, so this snapshot is not the page the user would see. */ needsJs?: boolean; /** True when a JavaScript engine actually ran the page's own scripts, so the text is the rendered result rather than the shell. */ jsExecuted?: boolean;
   /** Server-rendered hydration payloads recovered from `<script>` tags (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD). */ embedded?: { source: EmbeddedSource; label: string; chars: number }[] }
 export type Action = { type: "goto"; url: string } | { type: "follow"; n: number } | { type: "submit"; n: number; fields: Record<string, string> } | { type: "extract"; instruction: string } | { type: "finish"; answer: string };
 export interface Step { i: number; action: Action; url?: string; ok: boolean; note?: string; ms: number }
-export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engine: "http" | "playwright"; finalUrl?: string; reason?: string }
+export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engine: "http" | "jsdom" | "playwright"; finalUrl?: string; reason?: string }
 
 const DENY_DEFAULT = [/^https?:\/\/(localhost|127\.|10\.|192\.168\.|169\.254\.|\[::1\])/i, /^file:/i];
 const abs = (base: string, href: string) => { try { return new URL(href, base).toString(); } catch { return ""; } };
@@ -135,7 +136,15 @@ export function looksLikeJsShell(html: string, text: string): boolean {
 }
 
 /** Pure: HTML → snapshot (tested). */
-export function snapshot(url: string, html: string, status = 200, maxText = 12_000): Snapshot {
+/**
+ * Turn raw markup into a Snapshot.
+ *
+ * `jsRan` says a JavaScript engine already executed the page's own scripts. It matters because
+ * `looksLikeJsShell` is a heuristic over markup: a page that really is short and really does load a
+ * bundle still matches after rendering, so the flag — not the shape of the HTML — is what decides
+ * whether the text below is the shell or the content.
+ */
+export function snapshot(url: string, html: string, status = 200, maxText = 12_000, jsRan = false): Snapshot {
   const title = decode(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
   const noscript = [...html.matchAll(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gi)].map((m) => htmlToText(m[1])).filter(Boolean).join(" ");
   const body = html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, "");
@@ -154,7 +163,7 @@ export function snapshot(url: string, html: string, status = 200, maxText = 12_0
   const extra = [noscript, ...embedded.map((e) => `— ${e.label} —\n${e.text}`)].filter(Boolean).join("\n");
   return {
     url, title, text: extra ? `${text}\n\n[recovered from the page\'s embedded data]\n${extra}`.slice(0, maxText + 12_000) : text,
-    links, forms, status, needsJs: looksLikeJsShell(html, text) || undefined,
+    links, forms, status, needsJs: jsRan ? undefined : looksLikeJsShell(html, text) || undefined, jsExecuted: jsRan || undefined,
     embedded: embedded.map((e) => ({ source: e.source, label: e.label, chars: e.text.length })),
   };
 }
@@ -173,26 +182,173 @@ export function policyOk(url: string, opts: { allow?: RegExp[]; deny?: RegExp[] 
   return null;
 }
 
+/** Fetch a page as raw text. Shared by the http and jsdom engines so the gates live in one place. */
+async function fetchPage(url: string, jar: Map<string, string>, init?: { method?: string; body?: URLSearchParams }): Promise<{ url: string; status: number; contentType: string; text: string }> {
+  if (!(await robotsAllows(url))) throw new Error("robots.txt disallows this path");
+  const host = new URL(url).host;
+  const r = await fetch(url, { method: init?.method ?? "GET", body: init?.body, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 AetherisBot/1.0 (+https://github.com/rajaram-2005/Aetheris)", Accept: "text/html,*/*;q=0.8", ...(jar.get(host) ? { Cookie: jar.get(host)! } : {}), ...(init?.body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) }, signal: AbortSignal.timeout(20_000) });
+  const sc = r.headers.get("set-cookie"); if (sc) jar.set(host, sc.split(/,(?=[^;]+=)/).map((c) => c.split(";")[0]).join("; "));
+  return { url: r.url, status: r.status, contentType: r.headers.get("content-type") ?? "", text: await r.text() };
+}
+
 class HttpEngine {
   readonly kind = "http" as const; private jar = new Map<string, string>();
   async load(url: string, init?: { method?: string; body?: URLSearchParams }): Promise<Snapshot> {
-    if (!(await robotsAllows(url))) throw new Error("robots.txt disallows this path");
-    const host = new URL(url).host;
-    const r = await fetch(url, { method: init?.method ?? "GET", body: init?.body, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 AetherisBot/1.0 (+https://github.com/rajaram-2005/Aetheris)", Accept: "text/html,*/*;q=0.8", ...(this.jar.get(host) ? { Cookie: this.jar.get(host)! } : {}), ...(init?.body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) }, signal: AbortSignal.timeout(20_000) });
-    const sc = r.headers.get("set-cookie"); if (sc) this.jar.set(host, sc.split(/,(?=[^;]+=)/).map((c) => c.split(";")[0]).join("; "));
-    const ct = r.headers.get("content-type") ?? ""; const txt = await r.text();
-    return ct.includes("html") ? snapshot(r.url, txt, r.status) : { url: r.url, title: "", text: txt.slice(0, 12_000), links: [], forms: [], status: r.status };
+    const p = await fetchPage(url, this.jar, init);
+    return p.contentType.includes("html") ? snapshot(p.url, p.text, p.status) : { url: p.url, title: "", text: p.text.slice(0, 12_000), links: [], forms: [], status: p.status };
   }
 }
+
+/** True when `jsdom` is installed, so page JavaScript can be executed without a browser binary. */
+let jsdomPresent: boolean | undefined;
+export function jsdomAvailable(): boolean {
+  if (jsdomPresent !== undefined) return jsdomPresent;
+  try {
+    createRequire(typeof __filename === "string" ? __filename : `${process.cwd()}/`).resolve("jsdom");
+    jsdomPresent = true;
+  } catch { jsdomPresent = false; }
+  return jsdomPresent;
+}
+
+type JsdomModule = {
+  JSDOM: new (html: string, opts: Record<string, unknown>) => {
+    window: {
+      document: Document;
+      location: { href: string };
+      close(): void;
+      addEventListener(t: "load", fn: () => void): void;
+      readyState: string;
+    };
+    serialize(): string;
+  };
+  /**
+   * jsdom 30's request hook. It replaced the old `ResourceLoader` class: an interceptor returns a
+   * `Response` to short-circuit a fetch, or `undefined` to let it proceed to the network.
+   */
+  requestInterceptor?: (fn: (request: { url: string }, context: unknown) => unknown) => unknown;
+};
+
+/**
+ * jsdom engine — executes the page's own JavaScript in-process, with no browser binary.
+ *
+ * This closes the gap the http engine leaves: an application shell whose content is built by a script
+ * becomes real text here. It is not a real browser — there is no layout, no CSS cascade and no
+ * painting — but for reading what a page says, running its scripts is what matters.
+ *
+ * Two things are deliberate:
+ *   - Subresources are filtered through the same SSRF gate as navigation, and cross-origin scripts are
+ *     refused by default. jsdom's script sandbox is a `vm` context, which is an isolation boundary for
+ *     accidents and NOT a security boundary for a hostile page; keeping the fetched code to
+ *     same-origin, gate-checked URLs bounds what can be pulled in.
+ *   - Every window is closed and every job is time-boxed, so a page with a runaway timer cannot pin
+ *     the process.
+ */
+export class JsdomEngine {
+  readonly kind = "jsdom" as const;
+  private jar = new Map<string, string>();
+  constructor(private opts: { settleMs?: number; crossOrigin?: boolean } = {}) {}
+  async load(url: string, init?: { method?: string; body?: URLSearchParams }): Promise<Snapshot> {
+    const p = await fetchPage(url, this.jar, init);
+    if (!p.contentType.includes("html")) return { url: p.url, title: "", text: p.text.slice(0, 12_000), links: [], forms: [], status: p.status };
+    const rendered = await renderWithJsdom(p.text, p.url, this.opts);
+    // The scripts ran, so the text is the rendered result rather than the shell. On failure fall
+    // back to the raw markup, which is still worth reading — and is correctly flagged as a shell.
+    return rendered.ok
+      ? snapshot(rendered.url, rendered.html, p.status, 12_000, true)
+      : snapshot(p.url, p.text, p.status);
+  }
+}
+
+/**
+ * Decide whether the jsdom engine may fetch a subresource (script, stylesheet, image, xhr).
+ *
+ * Pure, so the boundary is testable without a network. Two rules, both applied:
+ *   1. The same gate that governs navigation (`policyOk`) — private and link-local ranges are never
+ *      fetched, so a page cannot use a <script src> to reach 169.254.169.254 or the host's own ports.
+ *   2. Same-origin only, unless `crossOrigin` is explicitly allowed. Third-party CDNs are the common
+ *      way a page pulls in arbitrary code, so they are off by default.
+ * Returns true when the fetch may proceed.
+ */
+export function subresourceAllowed(target: string, origin: string, crossOrigin = false): boolean {
+  if (policyOk(target, {})) return false;
+  try { return crossOrigin || new URL(target).origin === origin; } catch { return false; }
+}
+
+/**
+ * Run a page's JavaScript and return the resulting markup.
+ *
+ * Pure with respect to the network unless the document references subresources: `crossOrigin` decides
+ * whether those are fetched at all, and every URL that is fetched passes `policyOk` first.
+ */
+export async function renderWithJsdom(html: string, url: string, opts: { settleMs?: number; crossOrigin?: boolean } = {}): Promise<{ ok: boolean; html: string; url: string; reason?: string }> {
+  let mod: JsdomModule;
+  try {
+    const name = "jsdom";
+    const raw = (await import(/* webpackIgnore: true */ name)) as unknown as Partial<JsdomModule> & { default?: unknown };
+    // jsdom is CommonJS, so a dynamic import may hand back the namespace wrapper rather than the
+    // exports themselves. Take whichever one actually carries the classes.
+    const cand = (raw.JSDOM ? raw : (raw.default as Partial<JsdomModule>)) ?? raw;
+    if (!cand.JSDOM) return { ok: false, html, url, reason: "jsdom loaded but exposed no JSDOM constructor" };
+    mod = cand as JsdomModule;
+  } catch { return { ok: false, html, url, reason: "jsdom is not installed" }; }
+
+  const origin = (() => { try { return new URL(url).origin; } catch { return null; } })();
+  const loaderOpts: Record<string, unknown> = {};
+  // Only opt into subresource loading when we can gate it. Without a usable hook or a parseable
+  // origin, `resources` is left unset, which makes jsdom fetch nothing at all — the safe default.
+  if (origin && mod.requestInterceptor) {
+    const intercept = mod.requestInterceptor((request: { url: string }) => {
+      if (!subresourceAllowed(request.url, origin, opts.crossOrigin === true)) {
+        // A 403 short-circuits the fetch: the request never reaches the network.
+        return new Response("blocked by Aetheris resource policy", { status: 403, headers: { "Content-Type": "text/plain" } });
+      }
+      return undefined;
+    });
+    loaderOpts.resources = { interceptors: [intercept] };
+  }
+
+  const settleMs = Math.min(4000, opts.settleMs ?? 500);
+  const dom = new mod.JSDOM(html, {
+    url,
+    runScripts: "dangerously",
+    pretendToBeVisual: false, // no rAF loop churning while we wait
+    ...loaderOpts,
+  });
+  try {
+    const w = dom.window;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 15_000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      if (w.readyState === "complete") setTimeout(done, settleMs);
+      else w.addEventListener("load", () => setTimeout(done, settleMs));
+    });
+    return { ok: true, html: dom.serialize(), url: w.location.href || url };
+  } catch (e) {
+    return { ok: false, html, url, reason: String((e as Error)?.message ?? e).slice(0, 200) };
+  } finally {
+    try { dom.window.close(); } catch { /* already closed */ }
+  }
+}
+
 /** Playwright engine, loaded only if installed; probes a browser launch. */
 async function playwrightEngine(): Promise<{ kind: "playwright"; load(url: string, init?: { method?: string; body?: URLSearchParams }): Promise<Snapshot>; close(): Promise<void> } | null> {
   try {
     const mod = "playwright"; const pw = (await import(/* webpackIgnore: true */ mod)) as { chromium: { launch(o: { headless: boolean }): Promise<{ newPage(): Promise<{ goto(u: string, o: { waitUntil: string; timeout: number }): Promise<{ status(): number } | null>; content(): Promise<string>; url(): string; close(): Promise<void> }>; close(): Promise<void> }> } };
     const browser = await pw.chromium.launch({ headless: true });
-    return { kind: "playwright", async load(url, init) { if (init?.body) { const h = new HttpEngine(); return h.load(url, init); } const page = await browser.newPage(); try { const res = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 }); /* the JS already ran here, so a thin page is really thin, not an unrendered shell */ const snap = snapshot(page.url(), await page.content(), res?.status() ?? 200); snap.needsJs = undefined; return snap; } finally { await page.close(); } }, close: () => browser.close() };
+    return { kind: "playwright", async load(url, init) { if (init?.body) { const h = new HttpEngine(); return h.load(url, init); } const page = await browser.newPage(); try { const res = await page.goto(url, { waitUntil: "networkidle", timeout: 25_000 }); /* the JS already ran here, so a thin page is really thin, not an unrendered shell */ return snapshot(page.url(), await page.content(), res?.status() ?? 200, 12_000, true); } finally { await page.close(); } }, close: () => browser.close() };
   } catch { return null; }
 }
-export async function browserStatus() { const pw = await playwrightEngine(); if (pw) await pw.close(); return { http: { available: true, note: "static HTML only, no JavaScript — JS application shells are detected and reported as needsJs rather than described as content" }, playwright: { available: !!pw, note: pw ? "chromium launches" : "install with: npm i playwright && npx playwright install chromium" } }; }
+export async function browserStatus() {
+  const pw = await playwrightEngine(); if (pw) await pw.close();
+  const js = jsdomAvailable();
+  return {
+    http: { available: true, note: "static HTML only, no JavaScript — JS application shells are detected and reported as needsJs rather than described as content" },
+    jsdom: { available: js, note: js ? "executes the page's own JavaScript in-process; same-origin subresources only, every URL passes the SSRF gate" : "install with: npm i jsdom" },
+    playwright: { available: !!pw, note: pw ? "chromium launches" : "install with: npm i playwright && npx playwright install chromium" },
+    // The engine actually used, in preference order.
+    engine: pw ? "playwright" : js ? "jsdom" : "http",
+  };
+}
 
 /** Pure: parse the model's action JSON (tested). */
 export function parseAction(text: string): Action | null {
@@ -200,10 +356,13 @@ export function parseAction(text: string): Action | null {
   try { const a = JSON.parse(m[0]) as Partial<Action> & { url?: string; n?: number; fields?: Record<string, string>; instruction?: string; answer?: string }; switch (a.type) { case "goto": return a.url ? { type: "goto", url: a.url } : null; case "follow": return typeof a.n === "number" ? { type: "follow", n: a.n } : null; case "submit": return typeof a.n === "number" ? { type: "submit", n: a.n, fields: a.fields ?? {} } : null; case "extract": return { type: "extract", instruction: a.instruction ?? "" }; case "finish": return { type: "finish", answer: a.answer ?? "" }; default: return null; } } catch { return null; }
 }
 
-export async function browse(opts: { goal: string; startUrl: string; maxSteps?: number; allowSubmit?: boolean; allow?: RegExp[]; deny?: RegExp[]; preferred?: string; preferPlaywright?: boolean; onStep?: (s: Step) => void }): Promise<BrowseResult> {
+export async function browse(opts: { goal: string; startUrl: string; maxSteps?: number; allowSubmit?: boolean; allow?: RegExp[]; deny?: RegExp[]; preferred?: string; preferPlaywright?: boolean; /** Set false to refuse to execute page JavaScript and read the markup only. */ js?: boolean; onStep?: (s: Step) => void }): Promise<BrowseResult> {
   return traced({ type: "tool", capability: "browser:agent", detail: opts.goal.slice(0, 80) }, async () => {
     const steps: Step[] = []; const max = Math.min(opts.maxSteps ?? 8, 20);
-    const pw = opts.preferPlaywright ? await playwrightEngine() : null; const engine = pw ?? new HttpEngine();
+    // Best engine first: a real browser, then in-process JavaScript, then plain markup. A page that
+    // only ships a shell is still readable two of those three ways.
+    const pw = opts.preferPlaywright ? await playwrightEngine() : null;
+    const engine = pw ?? (opts.js === false ? null : jsdomAvailable() ? new JsdomEngine() : null) ?? new HttpEngine();
     const history: string[] = []; let snap: Snapshot | undefined; let last: string | undefined;
     const doStep = async (action: Action): Promise<Step> => {
       const t0 = Date.now(); const s: Step = { i: steps.length + 1, action, ok: true, ms: 0 };

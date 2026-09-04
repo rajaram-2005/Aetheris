@@ -56,7 +56,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
                                                     │
               ┌─────────────────────────────────────┼──────────────────────────────────────┐
            WEB                                  SOFTWARE                               PHYSICAL
-   core/browser (http/playwright)       core/github (map, review, triage, patch)   core/physical (http/mqtt/modbus,
+   core/browser (http/jsdom/playwright)       core/github (map, review, triage, patch)   core/physical (http/mqtt/modbus,
    core/research (academic+web)         lib/factory (generate→CI→iterate)          safety loop, e-stop, telemetry)
    core/multimodal (perceive)           core/execution (sandbox)                   core/robotics (rosbridge governor)
                                                                                     bridge/ (serial daemon)
@@ -122,7 +122,7 @@ Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verifi
 | 8 Knowledge + memory | SQLite fabric (FTS5+vector+graph+temporal), typed memory, provenance | **done** (lexical embeddings by default) |
 | 9 GitHub intelligence | repo map, analyze, PR review, triage, patch→PR | **done** (untestable offline) |
 | 10 Research engine | arXiv/Crossref/OpenAlex/S2, citation graph, claims, contradictions | **done** (network) |
-| 11 Multimodal | image/doc/audio/sensor; video via ffmpeg **or** an inline-video model **or** an in-process container read | **done** (frame sampling needs ffmpeg or a video-native key) |
+| 11 Multimodal | image/doc/audio/sensor; video via host ffmpeg **or** ffmpeg-as-WASM **or** an inline-video model **or** an in-process container read | **done** (frame sampling needs no host binary; a vision key is enough) |
 | 12 Browser agent | http engine with robots/SSRF gates, JS-shell detection and SSR hydration-payload recovery (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD, JSON.parse only — never eval); Playwright when installed | **done** (http engine); executing page JS needs Playwright |
 | 13 Physical AI | http/mqtt/modbus adapters, safety loop, telemetry, bridge | **done** (hardware unverified here) |
 | 14 Robotics/twins | rosbridge governor, twins with simulation | **done** (mock-verified) |
@@ -136,17 +136,49 @@ Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verifi
 | 22 Docs | 15 documents with diagrams and status tables | **done** |
 | 23 Verification engine | JSON-schema validation, independent reviewer gate (routed off the generator's model), test loop through the execution sandbox; wired into `/api/verify` and the automation verify stage | **done** (sandbox is process-level, not a container) |
 
-**Still open (honest):** the offline semantic embedder only knows what your own corpus taught it — unseen words fall back to their lexical index, so it is weaker than a provider model on a small corpus (set `EMBEDDINGS_URL` when you have one); multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; executing page JavaScript (needs a browser binary — Playwright hardening); the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
+**Still open (honest):** the offline semantic embedder only knows what your own corpus taught it — unseen words fall back to their lexical index, so it is weaker than a provider model on a small corpus (set `EMBEDDINGS_URL` when you have one); multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
 
-**Why the video/browser binaries stay optional rather than bundled** (checked, not assumed): every
-npm route to them downloads from a host this build environment cannot reach — `ffmpeg-static` and
-`@sparticuz/chromium` fetch GitHub *release assets*, and `release-assets.githubusercontent.com:443`
-fails at `SSL_connect`, while `registry.npmjs.org`, `github.com` and `codeload.github.com` are fine.
-`@ffmpeg/core` does install from the registry (its 32 MB wasm ships in the tarball), but
-`@ffmpeg/ffmpeg` throws `"ffmpeg.wasm does not support nodejs"` and the Emscripten glue fails to load
-in Node on its own, so there is no honest way to run it server-side here. Debian/Ubuntu mirrors are
-unreachable too, so `apt` cannot supply ffmpeg. Both features therefore detect the binary at runtime
-and report what is actually available.
+**Running the two "needs a binary" features without one** (measured, not assumed). An earlier audit
+here concluded that executing page JavaScript and sampling video frames were both impossible on this
+host, because every route to them seemed to need a downloaded binary. That conclusion was wrong, and
+both now run in-process:
+
+*Page JavaScript — jsdom.* `jsdom` installs from the registry (38 packages, 8.4 MB, no binary
+download) and genuinely executes a page's own scripts in Node. Given a shell that is nothing but
+`<div id="root">` plus an inline script, `runScripts: "dangerously"` produces the real document:
+`document.title` becomes `Rendered by JS` and the root fills with the rendered list. It is a third
+engine between `http` and `playwright`, chosen automatically. It is not a real browser — no layout,
+no CSS cascade, no painting — and its script sandbox is a `vm` context, which contains accidents and
+is *not* a security boundary. So subresources go through the same SSRF gate as navigation
+(`subresourceAllowed`, unit-tested against `169.254.169.254`, loopback and RFC1918 ranges) and
+cross-origin scripts are refused unless explicitly allowed.
+
+*Video frames — ffmpeg compiled to WebAssembly.* `@ffmpeg/core` is ffmpeg 5.1.4 built with Emscripten,
+shipping entirely inside an npm tarball. It does load in Node; three things are required, and the
+earlier audit stopped before finding them:
+
+1. `globalThis.self` **and** `globalThis.location.href` must exist — the glue reads
+   `self.location.href` to compute `scriptDirectory` and dies with
+   `Cannot read properties of undefined (reading 'href')` without them.
+2. `wasmBinary` must be handed to the module from `fs`. Otherwise it `fetch()`es the `.wasm` over
+   HTTP and fails offline, even though the file is on disk.
+3. One worker per invocation. A real transcode ends with ffmpeg calling `exit()`, which tears the
+   Emscripten runtime down and leaves every later `exec()` in the same isolate throwing `Aborted()`.
+
+With those, `M.exec("-i", "/in.mp4", "-vf", "fps=1,scale=160:-1", "-frames:v", "3", …)` returns
+genuine JPEGs (`ffd8ff`) — verified against a real 13 KB H.264 MP4, which the WASM core also
+generated (`tools/gen-fixture.ts`). The wrapper (`core/multimodal/wasmffmpeg`) runs each job in a
+`worker_thread` so a slow decode never blocks the server's event loop, kills it at a timeout, and
+keeps everything in memory. The specifier is assembled at runtime because webpack otherwise resolves
+`require.resolve("@ffmpeg/core/wasm")` statically and tries to bundle the 62 MB wasm as JavaScript.
+
+What is still genuinely out of reach is a *real browser*: `ffmpeg-static` and `@sparticuz/chromium`
+fetch GitHub **release assets**, and `release-assets.githubusercontent.com:443` fails at
+`SSL_connect`, while `registry.npmjs.org`, `github.com` and `codeload.github.com` are fine.
+Debian/Ubuntu mirrors are unreachable too, so `apt` cannot supply anything. Hence the rule this repo
+follows: **anything whose postinstall pulls a release asset is unavailable here; anything that ships
+in an npm tarball is not.** Playwright stays an optional upgrade for true rendering, and
+`GET /api/browser` reports which engine is live.
 
 **Closed since the last audit:** persistent telemetry (durable SQLite event log, tail restored on boot) and offline semantic embeddings (Random Indexing over the corpus — `cosine("kitten","cat")` is 0.000 with the lexical hash and 0.863 with the trained model, which is what lets a vector search find a "cat" fact from a query that only says "kitten").
 
