@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import type { Settings } from "./store";
 import type { Account } from "./Upgrade";
+import { LANGS, useLang } from "@/lib/i18n";
 
 export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemory, onClearMemory, onAddMemory, onClose, onExport, onClearChats, account, onUpgrade }: {
   settings: Settings; onUpdate: (p: Partial<Settings>) => void; account?: Account | null; onUpgrade?: () => void;
   memory: string[]; onRemoveMemory: (f: string) => void; onClearMemory: () => void; onAddMemory: (f: string) => void;
   onClose: () => void; onExport: () => void; onClearChats: () => void;
 }) {
+  const { lang, setLang, t } = useLang();
   const [tab, setTab] = useState<"general" | "usage" | "memory" | "keys" | "data">("general");
   const [newFact, setNewFact] = useState("");
   const [keys, setKeys] = useState<{ id: string; name: string; prefix: string; model: string; createdAt: number; calls: number; lastUsedAt?: number }[]>([]);
@@ -41,6 +43,13 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "general" && (
           <div className="settings">
+            <label className="field">
+              <span>{t("settings.language")}</span>
+              <select value={lang} onChange={(e) => setLang(e.target.value as typeof lang)}>
+                {LANGS.map((l) => <option key={l.id} value={l.id}>{l.native} · {l.label}</option>)}
+              </select>
+              <small>{t("settings.languageHint")}</small>
+            </label>
             <label className="field">
               <span>Web search</span>
               <select value={settings.web} onChange={(e) => onUpdate({ web: e.target.value as Settings["web"] })}>

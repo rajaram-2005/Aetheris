@@ -351,6 +351,16 @@ The key still works for scripts (`Authorization: Bearer …`).
 - **Install as an app** — PWA manifest + service worker: "Add to Home Screen" on Android/iOS or Install in Chrome/Edge.
   The shell loads offline; API calls always go to the network.
 
+## Rooms, gallery, languages
+
+- **Live rooms** — 👥 in the header turns the current chat into a room at `/room/<id>`. Anyone with the link joins;
+  every message shows who said it, presence avatars update live (SSE with polling fallback), and the AI answers in the
+  room for everyone (it sees the speakers' names). Start a message with `//` or use *aside* to talk to humans only.
+- **Prompt & agent gallery** — 🗂️ Gallery mode: community-shared prompts and agent recipes (with `@agent` mentions
+  and tags). Search, like, "Use →" drops it into the composer, publish your own; seeded with starters incl. Tamil/Hindi.
+- **Languages** — Settings → General → Language: English, தமிழ், हिन्दी (auto-detected from the browser). Add a
+  language by extending `src/lib/i18n.ts`.
+
 ## Self-hosting
 
 ```bash

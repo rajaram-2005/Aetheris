@@ -2,14 +2,16 @@
 
 import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
+import { useLang } from "@/lib/i18n";
 
-export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "providers";
+export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
   { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
   { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
   { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },
+  { id: "gallery", label: "Gallery", icon: "🗂️", blurb: "Community prompts & agent recipes" },
   { id: "providers", label: "Providers", icon: "🛰️", blurb: "AI mesh status & keys" },
 ];
 
@@ -18,6 +20,7 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
   onOpen: () => void; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onPin: (id: string) => void; onRename: (id: string, t: string) => void;
   onProject: (id: string | null) => void; onNewProject: () => void; onEditProject: (id: string) => void; onDeleteProject: (id: string) => void; onSettings: () => void; onClose: () => void;
 }) {
+  const { t } = useLang();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -50,7 +53,7 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
         {MODES.map((m) => (
           <button key={m.id} className={`sb-navitem ${mode === m.id ? "active" : ""}`} onClick={() => onMode(m.id)}>
             <span className="sb-ico">{m.icon}</span>
-            <span className="sb-navtext"><span>{m.label}{m.id === "apps" && appsCount ? <span className="sb-count-pill">{appsCount}</span> : null}</span><small>{m.blurb}</small></span>
+            <span className="sb-navtext"><span>{t(`mode.${m.id}` as "mode.chat")}{m.id === "apps" && appsCount ? <span className="sb-count-pill">{appsCount}</span> : null}</span><small>{m.blurb}</small></span>
           </button>
         ))}
       </div>
@@ -98,26 +101,27 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
       </div>
       <div className="sb-bottom">
         <AccountChip />
-        <button className="sb-item sb-item-main" onClick={onSettings}>⚙ Settings, memory & keys</button>
+        <button className="sb-item sb-item-main" onClick={onSettings}>{t("sb.settings")}</button>
       </div>
     </nav>
   );
 }
 
 function AccountChip() {
+  const { t } = useLang();
   const [acc, setAcc] = useState<{ name?: string; email?: string; phone?: string; avatar?: string; providers: string[]; admin?: boolean } | null | undefined>(undefined);
   useEffect(() => {
     fetch("/api/auth/session").then((r) => r.json()).then((j) => setAcc(j.account ?? null)).catch(() => setAcc(null));
   }, []);
   if (acc === undefined) return null;
-  if (!acc) return <a className="sb-item" href="/login">👤 Sign in / Create account</a>;
+  if (!acc) return <a className="sb-item" href="/login">{t("sb.signIn")}</a>;
   const label = acc.name || acc.email || acc.phone || "Account";
   return (
     <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>
       {acc.avatar ? <img src={acc.avatar} alt="" /> : <span className="av">{label[0]?.toUpperCase()}</span>}
       <span className="who">{label}{acc.admin && <span title="Admin — full access" style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
       {acc.admin && <a className="link" href="/admin">admin</a>}
-      <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
+      <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>{t("sb.signOut")}</button>
     </div>
   );
 }

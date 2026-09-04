@@ -626,3 +626,32 @@ button.chip { cursor: pointer; }
 .share-foot .send { text-decoration: none; padding: 8px 14px; border-radius: 12px; }
 .sync-dot { font-size: 11px; color: var(--muted); }
 .sync-dot.on { color: #3ecf8e; }
+
+/* ── Rooms ─────────────────────────────────────────────── */
+.room { display: flex; flex-direction: column; height: 100vh; }
+.room-head { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.room-head h1 { font-size: 15px; margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-people { display: flex; align-items: center; gap: 4px; }
+.room-people .av, .room .msg .av { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; color: #0b0d12; flex: none; }
+.room-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.room .msg.user.other { justify-content: flex-start; }
+.room .msg.user.other .msg-body { align-items: flex-start; }
+.room .msg.user .av { margin-top: 18px; }
+.room-composer { display: flex; gap: 8px; align-items: flex-end; padding: 10px 16px 14px; border-top: 1px solid var(--border); background: var(--panel); }
+.room-composer textarea { flex: 1; min-height: 40px; resize: none; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+.room-name { width: 120px; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13px; }
+
+/* ── Gallery ───────────────────────────────────────────── */
+.gallery { display: flex; flex-direction: column; gap: 12px; padding: 4px 8px 24px; }
+.gallery-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gallery-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gallery-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.gallery-form { display: grid; gap: 8px; border: 1px solid var(--accent); border-radius: 14px; padding: 14px; background: var(--panel); }
+.gallery-form input, .gallery-form textarea { width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 13px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.gcard { border: 1px solid var(--border); border-radius: 14px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+.gcard-top { display: flex; justify-content: space-between; align-items: center; }
+.gcard-prompt { font-size: 12px; white-space: pre-wrap; max-height: 120px; overflow: auto; background: var(--bg); border-radius: 10px; padding: 8px 10px; margin: 0; color: var(--muted); }
+.gcard-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.gcard-foot { display: flex; gap: 8px; align-items: center; }
+.gcard-foot .send { padding: 6px 10px; font-size: 12px; }

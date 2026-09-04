@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
+import Gallery from "./Gallery";
+import { useLang } from "@/lib/i18n";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
 import FactoryRun, { emptyFactoryState, type StepId } from "./FactoryRun";
 import Studio from "./Studio";
@@ -72,6 +74,7 @@ export default function Chat() {
   const { settings, update: updateSettings } = useSettings();
   const sync = useCloudSync({ convos, setConvos, projects, upsertProject: saveProject, memory, addMemory, settings, updateSettings, loaded });
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const { t } = useLang();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<string | null>(null);
@@ -399,6 +402,11 @@ export default function Chat() {
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const autoGrow = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; };
 
+  const openRoom = async () => {
+    const r = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: active?.title ?? "Room", messages: (active?.messages ?? []).filter((m) => !m.error && m.content).map((m) => ({ role: m.role, content: m.content, provider: m.provider, model: m.model })) }) });
+    const j = await r.json();
+    if (r.ok) location.href = j.url;
+  };
   const shareConvo = async () => {
     if (!active) return;
     const r = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: active.title, messages: active.messages.filter((m) => !m.error && m.content).map((m) => ({ role: m.role, content: m.content, provider: m.provider, model: m.model })) }) });
@@ -469,7 +477,7 @@ export default function Chat() {
         <header className="header">
           <div className="brand">
             {!sidebar && <button className="icon-btn" title="Open sidebar" onClick={() => setSidebar(true)}>☰</button>}
-            <h1>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : MODES.find((m) => m.id === mode)?.label}</h1>
+            <h1>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : t(`mode.${mode}` as "mode.chat")}</h1>
             {mode === "chat" && project && <span className="proj-pill" title={project.instructions || "No instructions"}>📁 project</span>}
           </div>
           <div className="header-right">
@@ -478,13 +486,14 @@ export default function Chat() {
                 {MODES.map((m) => <button key={m.id} className={mode === m.id ? "active" : ""} onClick={() => setMode(m.id)} title={m.label}>{m.icon}<span className="mt-label"> {m.label}</span></button>)}
               </div>
             )}
-            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={exportConvo} title="Download this chat as Markdown">⤓</button>}
-            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={shareConvo} title="Create a public read-only link to this chat">🔗</button>}
+            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={exportConvo} title={t("chat.export")}>⤓</button>}
+            {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={shareConvo} title={t("chat.share")}>🔗</button>}
+            {mode === "chat" && <button className="mesh-pill" onClick={openRoom} title={t("chat.room")}>👥</button>}
             {sync.signedIn && <span className={`sync-dot ${sync.status === "on" ? "on" : ""}`} title={`Cloud sync: ${sync.status}`}>{sync.status === "syncing" ? "⟳" : sync.status === "error" ? "⚠ sync" : "☁ synced"}</span>}
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
-              : account.freeForAll ? <span className="mesh-pill" title="Aetheris is free for everyone — no limits, no payments">✦ free · {account.chat.used} today</span> : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
+              : account.freeForAll ? <span className="mesh-pill" title="Aetheris is free for everyone — no limits, no payments">✦ {t("chat.free")} · {account.chat.used} {t("chat.today")}</span> : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
             <button className={`mesh-pill ${mode === "providers" ? "on" : ""}`} onClick={() => (mode === "chat" ? setShowMesh((s) => !s) : setMode("providers"))} title="Provider mesh status (click to toggle panel)">
               <span className={`dot ${meshDot}`} />{meshLabel}{preferredName ? ` · ${preferredName}` : ""}
             </button>
@@ -496,6 +505,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
+          {mode === "gallery" && <div className="pane"><Gallery onUse={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
             {showMesh && mesh && <div className="mesh-inline"><MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /><div style={{ textAlign: "right" }}><button className="link" onClick={() => setMode("providers")}>open full Providers page →</button></div></div>}
@@ -624,7 +634,7 @@ export default function Chat() {
             )}
             {voice.speaking && <button className="ghost" onClick={voice.stopSpeaking}>Mute</button>}
             {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
-              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? "Build" : research ? "Research" : arena ? "Compare" : "Send"}</button>}
+              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? t("chat.build") : research ? t("chat.research") : arena ? t("chat.compare") : t("chat.send")}</button>}
           </div>
           {mode === "chat" && arena && mesh && <ArenaPicker providers={mesh.providers} selected={arenaPick} onChange={setArenaPick} />}
           {mode === "chat" && (
