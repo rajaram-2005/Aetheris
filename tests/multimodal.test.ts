@@ -8,7 +8,7 @@ process.env.AETHERIS_DATA_DIR = mkdtempSync(path.join(tmpdir(), "aeth-mm-"));
 
 import { describeContainer, matrixRotation, readContainer, type ContainerInfo } from "../src/core/multimodal/container";
 import { coverArtOf, status } from "../src/core/multimodal/perceive";
-import { looksLikeJsShell, render, snapshot } from "../src/core/browser/agent";
+import { extractEmbeddedData, jsonToText, looksLikeJsShell, render, snapshot } from "../src/core/browser/agent";
 import { hasVideo } from "../src/lib/router/adapters";
 import { orderedCandidates } from "../src/lib/router/router";
 
@@ -190,4 +190,71 @@ test("browser: a JavaScript application shell is detected instead of being descr
   assert.equal(snapshot("https://example.com/t", thin, 200).needsJs, undefined);
   assert.equal(looksLikeJsShell(shell, ""), true);
   assert.equal(looksLikeJsShell(thin, "Hello"), false);
+});
+
+// --------------------------------------------------------------------------- SSR payload recovery
+
+const NEXT_PAGE = `<html><head><title>Pricing</title></head><body><div id="__next"></div>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"plans":[{"name":"Free","price":"$0","features":["1 workspace","community support"]},{"name":"Pro","price":"$19","features":["unlimited workspaces","priority support"]}],"faq":"Can I switch plans later? Yes, at any time."}},"page":"/pricing","query":{}}</script>
+<script src="/_next/static/chunks/main.js"></script></body></html>`;
+
+test("browser: the data that rendered a JS page is recovered from its hydration payload", () => {
+  const s = snapshot("https://x.test/pricing", NEXT_PAGE, 200);
+  assert.equal(s.needsJs, true, "still honestly flagged as client-rendered");
+  assert.deepEqual(s.embedded?.map((e) => e.source), ["next-data"]);
+  const recovered = s.text.split("[recovered from the page's embedded data]")[1] ?? "";
+  for (const expected of ["name: Free", "price: $19", "features: unlimited workspaces", "faq: Can I switch plans later?"]) {
+    assert.ok(recovered.includes(expected), `"${expected}" missing from: ${recovered.replace(/\n/g, " | ")}`);
+  }
+  assert.match(render(s), /JavaScript application shell/, "the warning stays — this is still not the rendered page");
+});
+
+test("browser: Nuxt, Remix, SvelteKit, Angular, Vue SSR and JSON-LD payloads are all recognised", () => {
+  const pages: [string, string][] = [
+    ["nuxt-data", '<script id="__NUXT_DATA__" type="application/json">[1,2,"Welcome to the Nuxt docs",3]</script>'],
+    ["nuxt-legacy", '<script>window.__NUXT__={"state":{"heading":"Nuxt two page","note":"Rendered on the server"}};</script>'],
+    ["remix", '<script>window.__remixContext = {"state":{"loaderData":{"root":{"title":"Remix route data"}}}};</script>'],
+    ["initial-state", '<script>window.__INITIAL_STATE__ = {"user":{"name":"Ada","role":"admin"},"notice":"Maintenance on Sunday"};</script>'],
+    ["angular-ssr", '<script id="serverApp-state" type="application/json">{"heading":"Angular universal page"}</script>'],
+    ["sveltekit", '<script type="application/json" data-sveltekit-hydrate="abc123">{"posts":{"title":"SvelteKit post title"}}</script>'],
+    ["ld+json", '<script type="application/ld+json">{"@type":"Product","name":"Aetheris Desktop","description":"A local intelligence OS"}</script>'],
+  ];
+  for (const [source, tag] of pages) {
+    const found = extractEmbeddedData(`<html><body><div id="app"></div>${tag}</body></html>`);
+    assert.ok(found.some((f) => f.source === source), `${source} not recognised (got ${found.map((f) => f.source).join(",") || "nothing"})`);
+  }
+  // JSON-LD is labelled with its @type so the agent knows what it is reading.
+  const ld = extractEmbeddedData('<script type="application/ld+json">{"@type":"Product","name":"X","description":"A useful thing"}</script>');
+  assert.equal(ld[0].label, "JSON-LD Product");
+});
+
+test("browser: recovery never evaluates page JavaScript and ignores noise", () => {
+  // A script that would run code if anything here eval'd it. Only JSON.parse is ever used.
+  const hostile = '<script>window.__INITIAL_STATE__ = {"a":1}; globalThis.__pwned = true;</script>';
+  const found = extractEmbeddedData(hostile);
+  assert.equal((globalThis as unknown as { __pwned?: boolean }).__pwned, undefined, "page code was executed");
+  assert.equal(found[0].source, "initial-state");
+
+  // Hashes, data URIs, CSS and nested React elements are not content.
+  const noisy = {
+    headline: "The real headline",
+    avatar: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    hash: "3f9a1c7e5b2d8460aa11bb22cc33dd44ee55ff66",
+    css: ".hero { background: red; }",
+    node: { $$typeof: "Symbol(react.element)", type: "div", key: null, ref: null, props: { children: "not data" } },
+  };
+  const text = jsonToText(noisy);
+  assert.ok(text.includes("The real headline"), `expected the headline, got: ${JSON.stringify(text)}`);
+  assert.ok(!text.includes("not data"), "a nested React element is skipped");
+  assert.ok(!text.includes("iVBORw0KGgo"), "data URIs are not text");
+  assert.ok(!text.includes("3f9a1c7e5b2d8460"), "hashes are not text");
+  assert.ok(!text.includes("background: red"), "CSS is not text");
+  assert.equal(jsonToText({ $$typeof: "Symbol(react.element)", type: "div", props: { children: "hi" } }), "", "React elements are skipped");
+});
+
+test("browser: <noscript> content is recovered, and a page with no payload says so", () => {
+  const s = snapshot("https://x.test/", '<html><body><div id="root"></div><noscript><p>This page requires JavaScript, but our phone line is 1800-555-0100.</p></noscript><script src="/main.js"></script></body></html>', 200);
+  assert.equal(s.needsJs, true);
+  assert.ok(s.text.includes("1800-555-0100"), "noscript text survives");
+  assert.deepEqual(s.embedded, [], "no hydration payload was claimed");
 });

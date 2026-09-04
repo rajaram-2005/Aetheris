@@ -12,10 +12,12 @@
  */
 import { route } from "@/lib/router/router";
 import { htmlToText } from "@/lib/kb";
+import { extractJson } from "../verification/verify";
 import { traced } from "../observability/events";
 import { ssrfCheck } from "../security/guard";
 
-export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number; /** True when the page is a JS application shell: the http engine got the markup, but the content is rendered client-side, so this snapshot is not the page the user would see. */ needsJs?: boolean }
+export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number; /** True when the page is a JS application shell: the http engine got the markup, but the content is rendered client-side, so this snapshot is not the page the user would see. */ needsJs?: boolean;
+  /** Server-rendered hydration payloads recovered from `<script>` tags (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD). */ embedded?: { source: EmbeddedSource; label: string; chars: number }[] }
 export type Action = { type: "goto"; url: string } | { type: "follow"; n: number } | { type: "submit"; n: number; fields: Record<string, string> } | { type: "extract"; instruction: string } | { type: "finish"; answer: string };
 export interface Step { i: number; action: Action; url?: string; ok: boolean; note?: string; ms: number }
 export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engine: "http" | "playwright"; finalUrl?: string; reason?: string }
@@ -23,6 +25,102 @@ export interface BrowseResult { ok: boolean; answer: string; steps: Step[]; engi
 const DENY_DEFAULT = [/^https?:\/\/(localhost|127\.|10\.|192\.168\.|169\.254\.|\[::1\])/i, /^file:/i];
 const abs = (base: string, href: string) => { try { return new URL(href, base).toString(); } catch { return ""; } };
 const decode = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+/** Where a hydration payload came from — reported so the agent knows what it is reading. */
+export type EmbeddedSource = "next-data" | "nuxt-data" | "nuxt-legacy" | "remix" | "initial-state" | "sveltekit" | "angular-ssr" | "ld+json";
+
+export interface EmbeddedData { source: EmbeddedSource; label: string; json: unknown }
+
+const SCRIPT_BODY = (attrs: string) => new RegExp(`<script\\b[^>]*${attrs}[^>]*>([\\s\\S]*?)<\\/script>`, "gi");
+
+/** Keys that never carry readable content on their own. */
+const NOISE = new Set(["_owner", "_store", "displayName", "__v", "className", "style", "key", "ref"]);
+
+/**
+ * A React/RSC element rather than data. `props` and `children` must NOT be blanket-skipped: that is
+ * exactly where Next.js puts `pageProps`, so they are only dropped when the object is an element.
+ */
+const isReactNode = (o: Record<string, unknown>) => "$$typeof" in o || (typeof o.type === "string" && ("props" in o || "key" in o) && !("name" in o || "title" in o || "text" in o));
+
+/**
+ * Flatten a hydration payload into readable lines. Frameworks ship the data that rendered the page
+ * as JSON in a <script> tag; walking it recovers text the http engine would otherwise throw away
+ * with the rest of the <script> content. Scalars only — objects/arrays are traversed, never dumped.
+ */
+export function jsonToText(value: unknown, maxChars = 6000, depth = 0, key = ""): string {
+  if (maxChars <= 0 || depth > 8) return "";
+  const out: string[] = [];
+  let budget = maxChars;
+  const walk = (v: unknown, k: string, d: number) => {
+    if (budget <= 0 || d > 8) return;
+    if (v === null || v === undefined) return;
+    if (typeof v === "string") {
+      const t = v.trim();
+      // Skip hashes, data URIs, CSS and code-ish blobs; keep human sentences and short values.
+      if (t.length >= 2 && t.length <= 400 && !/^(data:|[A-Za-z0-9+/]{40,}={0,2}$|\.|function|\(module\)|use client)/.test(t) && !/^[-\w.]+\s*\{/.test(t)) {
+        const line = k ? `${k}: ${t}` : t;
+        if (line.length < budget) { out.push(line); budget -= line.length + 1; }
+      }
+      return;
+    }
+    if (typeof v === "number" || typeof v === "boolean") {
+      if (k && !/^(_|__)/.test(k)) { const line = `${k}: ${v}`; if (line.length < budget) { out.push(line); budget -= line.length + 1; } }
+      return;
+    }
+    if (Array.isArray(v)) { for (const item of v) walk(item, k, d + 1); return; }
+    if (typeof v === "object") {
+      const o = v as Record<string, unknown>;
+      if (isReactNode(o)) return;
+      for (const [kk, vv] of Object.entries(o)) {
+        if (NOISE.has(kk) || kk.startsWith("__")) continue;
+        walk(vv, kk, d + 1);
+      }
+    }
+  };
+  walk(value, key, depth);
+  return out.join("\n");
+}
+
+/**
+ * Pure: pull the server-rendered hydration payloads out of a page.
+ *
+ * A page that "needs JavaScript" is usually not empty — Next, Nuxt, Remix, SvelteKit and Angular
+ * Universal serialise the exact data that rendered it into a <script> tag so the client can hydrate.
+ * That JSON is in the raw HTML, so the http engine can read it without executing anything. Only
+ * `JSON.parse` is ever used: nothing here evaluates a page's JavaScript.
+ */
+export function extractEmbeddedData(html: string): EmbeddedData[] {
+  const found: EmbeddedData[] = [];
+  const push = (source: EmbeddedSource, label: string, raw: string | undefined) => {
+    if (!raw || !raw.trim()) return;
+    const { value, found: ok } = extractJson(raw);
+    if (ok && value !== null) found.push({ source, label, json: value });
+  };
+  const one = (re: RegExp) => { re.lastIndex = 0; const m = re.exec(html); return m?.[1]; };
+
+  push("next-data", "Next.js __NEXT_DATA__", one(SCRIPT_BODY('id=["\']__NEXT_DATA__["\']')));
+  push("nuxt-data", "Nuxt __NUXT_DATA__", one(SCRIPT_BODY('id=["\']__NUXT_DATA__["\']')));
+  push("angular-ssr", "Angular serverApp-state", one(SCRIPT_BODY('id=["\']serverApp-state["\']')));
+  push("sveltekit", "SvelteKit hydration data", one(SCRIPT_BODY('data-sveltekit-hydrate')));
+
+  // `window.X = {...};` forms: take the balanced literal after the `=`, never eval the script.
+  const assign = (name: string) => {
+    const m = new RegExp(`(?:window\\.)?${name}\\s*=\\s*`, "i").exec(html);
+    if (!m) return undefined;
+    return html.slice(m.index + m[0].length, m.index + m[0].length + 200_000);
+  };
+  push("nuxt-legacy", "Nuxt window.__NUXT__", assign("__NUXT__"));
+  push("remix", "Remix __remixContext", assign("__remixContext"));
+  push("initial-state", "window.__INITIAL_STATE__", assign("__INITIAL_STATE__"));
+
+  // JSON-LD: framework-independent structured data (products, articles, events, orgs).
+  const ld = SCRIPT_BODY('type=["\']application/ld\\+json["\']');
+  for (let m = ld.exec(html), n = 0; m && n < 8; m = ld.exec(html), n++) {
+    const label = (() => { try { const v = JSON.parse(m[1]) as { ["@type"]?: string | string[] }; return `JSON-LD ${Array.isArray(v?.["@type"]) ? v["@type"][0] : v?.["@type"] ?? ""}`.trim(); } catch { return "JSON-LD"; } })();
+    push("ld+json", label, m[1]);
+  }
+  return found;
+}
 
 /**
  * Pure: is this an application shell rather than a server-rendered page? React/Vue/Angular/Next ship
@@ -39,7 +137,9 @@ export function looksLikeJsShell(html: string, text: string): boolean {
 /** Pure: HTML → snapshot (tested). */
 export function snapshot(url: string, html: string, status = 200, maxText = 12_000): Snapshot {
   const title = decode(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
+  const noscript = [...html.matchAll(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gi)].map((m) => htmlToText(m[1])).filter(Boolean).join(" ");
   const body = html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, "");
+  const embedded = extractEmbeddedData(html).map((e) => ({ ...e, text: jsonToText(e.json, 3000) })).filter((e) => e.text.length > 20);
   const links: Snapshot["links"] = []; let n = 0;
   for (const m of body.matchAll(/<a\b[^>]*href=["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)) { const href = abs(url, m[1]); const text = decode(m[2].replace(/<[^>]+>/g, "")); if (href && /^https?:/.test(href) && text) { links.push({ n: ++n, text: text.slice(0, 80), href }); if (n >= 120) break; } }
   const forms: Snapshot["forms"] = []; let f = 0;
@@ -50,7 +150,13 @@ export function snapshot(url: string, html: string, status = 200, maxText = 12_0
     forms.push({ n: ++f, action, method, fields }); if (f >= 20) break;
   }
   const text = htmlToText(body).slice(0, maxText);
-  return { url, title, text, links, forms, status, needsJs: looksLikeJsShell(html, text) || undefined };
+  // Hydration payloads and <noscript> are real page content that the stripped body does not contain.
+  const extra = [noscript, ...embedded.map((e) => `— ${e.label} —\n${e.text}`)].filter(Boolean).join("\n");
+  return {
+    url, title, text: extra ? `${text}\n\n[recovered from the page\'s embedded data]\n${extra}`.slice(0, maxText + 12_000) : text,
+    links, forms, status, needsJs: looksLikeJsShell(html, text) || undefined,
+    embedded: embedded.map((e) => ({ source: e.source, label: e.label, chars: e.text.length })),
+  };
 }
 export function render(s: Snapshot, maxLinks = 60): string {
   return `URL: ${s.url}\nTITLE: ${s.title}\nSTATUS: ${s.status}${s.needsJs ? "\nWARNING: JavaScript application shell — this page renders client-side, so the text below is the shell, not the content. Do not describe it as the answer; report that the page needs JavaScript." : ""}\n\nTEXT:\n${s.text.slice(0, 7000)}\n\nLINKS:\n${s.links.slice(0, maxLinks).map((l) => `[${l.n}] ${l.text} → ${l.href}`).join("\n")}\n\nFORMS:\n${s.forms.map((f) => `(${f.n}) ${f.method.toUpperCase()} ${f.action} fields: ${f.fields.map((x) => `${x.name}:${x.type}${x.label ? `(${x.label})` : ""}`).join(", ")}`).join("\n") || "none"}`;

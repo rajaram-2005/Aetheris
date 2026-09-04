@@ -123,20 +123,30 @@ Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verifi
 | 9 GitHub intelligence | repo map, analyze, PR review, triage, patch→PR | **done** (untestable offline) |
 | 10 Research engine | arXiv/Crossref/OpenAlex/S2, citation graph, claims, contradictions | **done** (network) |
 | 11 Multimodal | image/doc/audio/sensor; video via ffmpeg **or** an inline-video model **or** an in-process container read | **done** (frame sampling needs ffmpeg or a video-native key) |
-| 12 Browser agent | http engine with robots/SSRF gates and JS-shell detection; Playwright when installed | **done** (http engine); JS rendering needs Playwright |
+| 12 Browser agent | http engine with robots/SSRF gates, JS-shell detection and SSR hydration-payload recovery (Next/Nuxt/Remix/SvelteKit/Angular/JSON-LD, JSON.parse only — never eval); Playwright when installed | **done** (http engine); executing page JS needs Playwright |
 | 13 Physical AI | http/mqtt/modbus adapters, safety loop, telemetry, bridge | **done** (hardware unverified here) |
 | 14 Robotics/twins | rosbridge governor, twins with simulation | **done** (mock-verified) |
 | 15 Automation engine | 6 triggers, conditions, agent, verify, 6 actions | **done** |
 | 16 Control Center | 16 panels, live events | **done** |
 | 17 Security | guard (SSRF, limits, redaction), middleware, audit export | **done** (per-instance limits) |
-| 18 Testing/evals | 170 tests, eval harness with thresholds, CI workflow file | **done** |
+| 18 Testing/evals | 174 tests, eval harness with thresholds, CI workflow file | **done** |
 | 19 Performance | store read cache, perf budget tests | **done** |
 | 20 Deployment | Dockerfile, compose, health, DEPLOYMENT.md | **done** |
 | 21 API-first + plugin SDK | /api/workspaces, /api/tools, /api/plugins, definePlugin | **done** |
 | 22 Docs | 15 documents with diagrams and status tables | **done** |
 | 23 Verification engine | JSON-schema validation, independent reviewer gate (routed off the generator's model), test loop through the execution sandbox; wired into `/api/verify` and the automation verify stage | **done** (sandbox is process-level, not a container) |
 
-**Still open (honest):** the offline semantic embedder only knows what your own corpus taught it — unseen words fall back to their lexical index, so it is weaker than a provider model on a small corpus (set `EMBEDDINGS_URL` when you have one); multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; Playwright hardening; the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
+**Still open (honest):** the offline semantic embedder only knows what your own corpus taught it — unseen words fall back to their lexical index, so it is weaker than a provider model on a small corpus (set `EMBEDDINGS_URL` when you have one); multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; executing page JavaScript (needs a browser binary — Playwright hardening); the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
+
+**Why the video/browser binaries stay optional rather than bundled** (checked, not assumed): every
+npm route to them downloads from a host this build environment cannot reach — `ffmpeg-static` and
+`@sparticuz/chromium` fetch GitHub *release assets*, and `release-assets.githubusercontent.com:443`
+fails at `SSL_connect`, while `registry.npmjs.org`, `github.com` and `codeload.github.com` are fine.
+`@ffmpeg/core` does install from the registry (its 32 MB wasm ships in the tarball), but
+`@ffmpeg/ffmpeg` throws `"ffmpeg.wasm does not support nodejs"` and the Emscripten glue fails to load
+in Node on its own, so there is no honest way to run it server-side here. Debian/Ubuntu mirrors are
+unreachable too, so `apt` cannot supply ffmpeg. Both features therefore detect the binary at runtime
+and report what is actually available.
 
 **Closed since the last audit:** persistent telemetry (durable SQLite event log, tail restored on boot) and offline semantic embeddings (Random Indexing over the corpus — `cosine("kitten","cat")` is 0.000 with the lexical hash and 0.863 with the trained model, which is what lets a vector search find a "cat" fact from a query that only says "kitten").
 

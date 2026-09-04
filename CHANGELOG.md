@@ -34,10 +34,19 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 - `fabricStatus()` reports which embedder is live, how much the corpus has taught it, and the row
   count per space
 
+### browser
+
+- A page that "needs JavaScript" is usually not empty: Next, Nuxt, Remix, SvelteKit, Angular Universal
+  and Vue SSR serialise the data that rendered it into a `<script>` tag. `extractEmbeddedData()`
+  recovers those payloads (plus JSON-LD and `<noscript>`) and folds them into the snapshot text, so
+  the http engine now reads a Next.js pricing page instead of reporting an empty shell
+- Only `JSON.parse` is ever used — page JavaScript is never evaluated (there is a test for that), and
+  React elements, hashes, data URIs and CSS are filtered out rather than passed off as content
+
 ### tests
 
-- `tests/telemetry.test.ts` (4, including a cross-process restart proof) and `tests/semantic.test.ts`
-  (6); suite is 170 tests
+- `tests/telemetry.test.ts` (4, including a cross-process restart proof), `tests/semantic.test.ts` (6)
+  and four SSR-recovery cases in `tests/multimodal.test.ts`; suite is 174 tests
 
 ### verification
 
