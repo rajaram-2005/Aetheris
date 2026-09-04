@@ -6,13 +6,18 @@ import { business } from "./seeds/business";
 import { marketing } from "./seeds/marketing";
 import { writing } from "./seeds/writing";
 import { life } from "./seeds/life";
+import { finance } from "./seeds/finance";
+import { legal } from "./seeds/legal";
+import { health } from "./seeds/health";
+import { science } from "./seeds/science";
+import { design } from "./seeds/design";
 
 const sys = { uid: "aetheris", name: "Aetheris" };
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
 
 function expand(list: SeedTuple[], category: string): GalleryItem[] {
   return list.map(([title, description, prompt, agents, tags], i) => ({
-    id: `seed-${category}-${slug(title)}`,
+    id: `seed-${category}-${slug(title) || `item-${i + 1}`}`,
     title, description, prompt, agents,
     tags: Array.from(new Set([category, ...tags])),
     author: sys, createdAt: 1_750_000_000_000 - i * 1000, uses: 0, likes: Math.max(0, 12 - i), likedBy: [],
@@ -30,4 +35,9 @@ export const SEED: GalleryItem[] = [
   ...expand(marketing, "marketing"),
   ...expand(writing, "writing"),
   ...expand(life, "life"),
+  ...expand(finance, "finance"),
+  ...expand(legal, "legal"),
+  ...expand(health, "health"),
+  ...expand(science, "science"),
+  ...expand(design, "design"),
 ];
