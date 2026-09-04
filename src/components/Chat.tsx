@@ -5,6 +5,7 @@ import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
 import Gallery from "./Gallery";
 import MentionPicker from "./MentionPicker";
+import Learn from "@/components/Learn";
 import Workflows from "./Workflows";
 import { useLang } from "@/lib/i18n";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
@@ -470,6 +471,7 @@ export default function Chat() {
     else if (id === "agents") setMode("agents");
     else if (id === "gallery") setMode("gallery");
     else if (id === "workflows") setMode("workflows");
+    else if (id === "learn") setMode("learn");
     else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
     else if (id === "explain") { runExplain(); return; }
     else if (id === "ethics") { setInput("@ai-ethics Run an AI ethics impact assessment on: "); setPickerOff(true); setTimeout(() => taRef.current?.focus(), 30); return; }
@@ -582,6 +584,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
+          {mode === "learn" && <div className="pane"><Learn onTry={(p) => { setMode("chat"); if (p.startsWith("/explain")) { runExplain(); return; } setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "workflows" && <div className="pane"><Workflows agents={agentList} onSendToChat={(text) => { setMode("chat"); setInput(`Here is the output of a workflow. Let's continue from it:\n\n${text}`); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "gallery" && <div className="pane"><Gallery onUse={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}

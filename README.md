@@ -395,6 +395,7 @@ persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 - **`/explain`** (or the *explain* link under any answer) — the AI Explainer audits the answer: fact vs inference vs guess, assumptions, calibrated confidence, what's most likely wrong, how to verify, bias/framing check. `POST /api/explain`.
 - **`/ethics <plan or text>`** — the AI Ethicist runs a structured impact assessment (harms × likelihood × severity, consent, accountability, mitigations, go/no-go).
 - **`@fairness`** — bias audit for text, prompts, datasets and model behaviour (India-aware axes incl. caste, region, language).
+- **📚 Learn / `/docs/concepts`** — *Explained AI*: 46 plain-language concepts (how LLMs work, limits, agents & RAG, explainability, ethics, law & governance incl. DPDP/EU AI Act, using AI well), each with an analogy, misconception, and a try-it prompt. Public `GET /api/concepts`; also grounds the Explainer/Ethicist agents.
 - Transparency everywhere: provider/model/latency under every message, agent plan cards, inline tool trails, sources, editable Metis lessons, Markdown export, MIT code. See `/docs/ethics`.
 
 ## Docs & prompt gallery

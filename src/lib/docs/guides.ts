@@ -92,6 +92,9 @@ The **Fairness Auditor** checks text, prompts, datasets and model behaviour acro
 - **Metis lessons** are visible and editable in Agents mode — you can see and delete what the system has learned about you.
 - **Your data**: guests are local-only; signed-in sync is per-account; export any chat as Markdown; the code is MIT-licensed so anyone can inspect how routing and memory work.
 
+## Learn the concepts
+**📚 Learn** in the sidebar (or [/docs/concepts](/docs/concepts)) is a plain-language knowledge base of AI concepts and ethics topics — hallucination, calibration, RAG, bias & fairness metrics, privacy/DPDP, EU AI Act, accountability, human oversight — each with an analogy, a misconception corrected, and a prompt to try. The Explainer and Ethicist link to these pages when they use a concept.
+
 ## Limits we state plainly
 Answers can be wrong, outdated or biased; the model has no live view of the world unless web search or a tool is used; confidence estimates are themselves estimates. Use \`/explain\` for anything that matters, and verify before acting on medical, legal or financial advice.
 `},

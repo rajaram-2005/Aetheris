@@ -27,7 +27,8 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
         {sections.map((s) => (
           <div key={s} className="docs-sec">
             <div className="docs-sec-title">{s}</div>
-            {pages.filter((p) => p.section === s).map((p) => <a key={p.slug} href={`/docs/${p.slug}`} className={p.slug === slug ? "on" : ""}>{p.title}</a>)}
+            {pages.filter((p) => p.section === s && !p.slug.startsWith("concept-")).map((p) => <a key={p.slug} href={`/docs/${p.slug}`} className={p.slug === slug ? "on" : ""}>{p.title}</a>)}
+            {s === "Explained AI" && slug.startsWith("concept-") && <a href={`/docs/${slug}`} className="on" style={{ paddingLeft: 18 }}>↳ {page.title}</a>}
           </div>
         ))}
       </aside>

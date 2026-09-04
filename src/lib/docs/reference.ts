@@ -5,6 +5,7 @@ import { MODEL_TIERS } from "@/lib/models/tiers";
 import { COMMANDS } from "@/lib/commands";
 import { TEMPLATES } from "@/lib/workflows/engine";
 import type { Guide } from "./guides";
+import { CONCEPTS, GROUP_LABEL, conceptMarkdown, type ConceptGroup } from "@/lib/concepts";
 
 const esc = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
@@ -82,7 +83,17 @@ All routes live under \`src/app/api\`. Auth: cookie session (browser) or \`Autho
 | \`GET/POST /api/admin/{users,payments}\` | Admin. |
 `;
 
+  const groups = Object.keys(GROUP_LABEL) as ConceptGroup[];
+  const conceptsIndex = `
+Plain-language explanations of ${CONCEPTS.length} AI concepts and AI-ethics topics — each with an analogy, why it matters in Aetheris, a common misconception, and a prompt to try. Also available as \`GET /api/concepts\` and the **📚 Learn** view, and used to ground the AI Explainer and AI Ethicist.
+
+${groups.map((g) => `## ${GROUP_LABEL[g]}\n\n${CONCEPTS.filter((c) => c.group === g).map((c) => `- [**${c.term}**](/docs/concept-${c.id}) — ${esc(c.short)}`).join("\n")}`).join("\n\n")}
+`;
+  const conceptPages: Guide[] = CONCEPTS.map((c) => ({ slug: `concept-${c.id}`, section: "Explained AI", title: c.term, body: conceptMarkdown(c) }));
+
   return [
+    { slug: "concepts", section: "Explained AI", title: `Explained AI — ${CONCEPTS.length} concepts`, body: conceptsIndex },
+    ...conceptPages,
     { slug: "ref-agents", section: "Reference", title: `Agents (${AGENTS.length})`, body: agents },
     { slug: "ref-providers", section: "Reference", title: `Providers (${PROVIDERS.length})`, body: providers },
     { slug: "ref-connectors", section: "Reference", title: `MCP connectors (${CONNECTORS.length})`, body: connectors },

@@ -7,6 +7,7 @@ export const COMMANDS: Command[] = [
   { id: "debate", icon: "🥊", label: "/debate", hint: "Two agents argue a motion, Metis judges — /debate <motion>" },
   { id: "explain", icon: "🔍", label: "/explain", hint: "Explain the last answer: reasoning, confidence, what could be wrong, how to verify" },
   { id: "ethics", icon: "⚖️", label: "/ethics", hint: "AI ethics impact assessment — /ethics <plan, feature or text>" },
+  { id: "learn", icon: "📚", label: "/learn", hint: "Explained AI: plain-language concepts, limits and ethics" },
   { id: "workflows", icon: "⛓️", label: "/workflows", hint: "Chain agents into automations" },
   { id: "room", icon: "👥", label: "/room", hint: "Open a live room for this chat" },
   { id: "share", icon: "🔗", label: "/share", hint: "Create a public link to this chat" },

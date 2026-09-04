@@ -2,6 +2,7 @@
  * Orchestrator — Aetheris Prime (ultra) plans; Hermes-based sub-agents execute;
  * Prime synthesises; Metis reflects and stores lessons (meta-learning loop).
  */
+import { conceptGlossary } from "@/lib/concepts";
 import { route } from "@/lib/router/router";
 import { runAgent, type EnabledServer, type AgentContext } from "@/lib/mcp/agent";
 import { groundingBlock, searchWeb } from "@/lib/search/tavily";
@@ -73,6 +74,8 @@ async function runSpecialist(
   const started = Date.now();
   opts.onEvent({ type: "agent_start", agent: agent.id, brief, index });
   const sysParts = [baseSystem, HERMES_BASE, `ROLE: ${agent.name} (${agent.id})\n${agent.system}`];
+  // Ethics/explainability agents are grounded in the Explained-AI knowledge base so their vocabulary matches the docs.
+  if (agent.domain === "ethics") sysParts.push(`Reference glossary — when you use one of these concepts, link it as [term](/docs/concept-<id>):\n${conceptGlossary()}`);
   const lb = lessonsBlock(opts.lessons ?? [], agent.id);
   if (lb) sysParts.push(lb);
 
