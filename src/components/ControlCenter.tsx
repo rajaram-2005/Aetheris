@@ -7,8 +7,8 @@ interface Tele { admin: boolean; principal: { uid: string; grants: string[] }; s
 
 const STATUS_LABEL: Record<string, string> = { implemented: "Implemented", partial: "Partial", experimental: "Experimental", mocked: "Mocked", not_available: "Not available" };
 const STATUS_ORDER = ["implemented", "partial", "experimental", "mocked", "not_available"];
-type Tab = "overview" | "registry" | "events" | "intent" | "permissions" | "jobs" | "executions" | "mcp" | "knowledge" | "devices" | "twins" | "robots" | "automations" | "browser";
-const TABS: Tab[] = ["overview", "registry", "events", "intent", "permissions", "jobs", "executions", "mcp", "knowledge", "devices", "twins", "robots", "automations", "browser"];
+type Tab = "overview" | "registry" | "events" | "intent" | "permissions" | "jobs" | "executions" | "mcp" | "knowledge" | "devices" | "twins" | "robots" | "automations" | "browser" | "workspaces" | "tools";
+const TABS: Tab[] = ["overview", "registry", "events", "intent", "permissions", "jobs", "executions", "mcp", "knowledge", "devices", "twins", "robots", "automations", "browser", "workspaces", "tools"];
 const fmtAge = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
 
 /** 🎛️ Control Center — system health, capability registry (honest status), event feed, intent tester, permissions. */
@@ -105,6 +105,8 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
       {tab === "twins" && <TwinsPanel />}
       {tab === "robots" && <RobotsPanel />}
       {tab === "automations" && <AutomationsPanel />}
+      {tab === "workspaces" && <WorkspacesPanel />}
+      {tab === "tools" && <ToolsPanel />}
       {tab === "browser" && <BrowserPanel />}
 
       {tab === "permissions" && (
@@ -179,6 +181,22 @@ function TwinsPanel() {
   return <div className="study-summary"><b>Digital twins</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Twins sync from device telemetry and let agents simulate an actuation before doing it (rule DSL, no eval). Health = staleness + bound breaches + overdue maintenance.</p>
     <div className="row" style={{ gap: 8 }}><input className="agent-search" style={{ maxWidth: 200 }} value={name} onChange={(e) => setName(e.target.value)} /><button className="send" onClick={create}>Create example twin</button></div><Pre v={out} />
     <div className="study-cards">{(data?.twins ?? []).length === 0 && <div className="hint">No twins.</div>}{(data?.twins ?? []).map((t) => <div key={t.id} className={`study-row ${t.health.score >= 70 ? "stage-mature" : "stage-learning"}`} style={{ gridTemplateColumns: "70px minmax(0,1fr) auto" }}><b>{t.health.score}</b><div className="study-row-main"><b>{t.name}</b> <span className="meta">{t.kind} · {t.deviceIds.length} devices{t.health.stale ? " · stale" : ""}</span><div className="hint" style={{ textAlign: "left", margin: 0 }}>{JSON.stringify(t.state).slice(0, 140)} {t.health.breaches.map((b) => b.detail).join("; ")}</div></div><span className="row" style={{ gap: 4 }}><button className="chip" onClick={() => post(`/api/twins/${t.id}`, { op: "sync" }).then((j) => { setOut(j); reload(); })}>sync</button><button className="chip" onClick={() => sim(t.id)}>simulate</button><button className="chip" onClick={() => fetch(`/api/twins/${t.id}`, { method: "DELETE" }).then(reload)}>remove</button></span></div>)}</div></div>;
+}
+function WorkspacesPanel() {
+  type W = { id: string; name: string; tags: string[]; archived?: boolean; stats: { scope: string; facts: number; memories: number; jobs: number; runningJobs: number } };
+  const [data, reload] = usePoll<{ workspaces: W[] }>("/api/workspaces", 15000);
+  const [name, setName] = useState(""); const [out, setOut] = useState<unknown>();
+  return <div className="study-summary"><b>Workspaces</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>A workspace is a scope: knowledge facts, memories, jobs and automations created with its scope key stay together. Counts are computed from the stores, not estimated.</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" style={{ maxWidth: 240 }} placeholder="New workspace name" value={name} onChange={(e) => setName(e.target.value)} /><button className="send" disabled={!name.trim()} onClick={async () => { setOut(await post("/api/workspaces", { name })); setName(""); reload(); }}>Create</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.workspaces ?? []).map((w) => <div key={w.id} className="study-row" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}><div className="study-row-main"><b>{w.name}</b> <span className="meta">scope <code>{w.stats.scope}</code>{w.archived ? " · archived" : ""}</span><div className="hint" style={{ textAlign: "left", margin: 0 }}>{w.stats.facts} facts · {w.stats.memories} memories · {w.stats.jobs} jobs ({w.stats.runningJobs} running)</div></div><span className="row" style={{ gap: 4 }}><button className="chip" onClick={() => fetch(`/api/workspaces/${encodeURIComponent(w.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ archived: !w.archived }) }).then(reload)}>{w.archived ? "unarchive" : "archive"}</button>{w.stats.scope !== "default" && <button className="chip" onClick={() => fetch(`/api/workspaces/${encodeURIComponent(w.id)}`, { method: "DELETE" }).then(reload)}>remove</button>}</span></div>)}</div></div>;
+}
+function ToolsPanel() {
+  type T = { id: string; name: string; category: string; status: string; security_level: string; requires_confirmation: boolean; invoke: { method: string; path: string } };
+  const [q, setQ] = useState(""); const [data, setData] = useState<{ count: number; tools: T[] }>();
+  const search = async () => setData(await fetch(`/api/tools?q=${encodeURIComponent(q)}&limit=60`).then(J));
+  return <div className="study-summary"><b>Tools — callable view of the registry</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Every tool, connector and sandbox with its permission level and the exact endpoint that invokes it. Status labels are the registry&apos;s honest labels.</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" placeholder="search tools (e.g. send message, sql, scrape)" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} /><button className="send" onClick={search}>Search</button></div>
+    <div className="study-cards">{data && data.tools.length === 0 && <div className="hint">No matches.</div>}{(data?.tools ?? []).map((t) => <div key={t.id} className="study-row" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}><div className="study-row-main"><b>{t.name}</b> <span className="meta">{t.category} · {STATUS_LABEL[t.status] ?? t.status} · {t.security_level}{t.requires_confirmation ? " · confirm" : ""}</span><div className="hint" style={{ textAlign: "left", margin: 0 }}><code>{t.id}</code> → {t.invoke.method} {t.invoke.path}</div></div></div>)}</div></div>;
 }
 function RobotsPanel() {
   const [url, setUrl] = useState("ws://localhost:9090"); const [out, setOut] = useState<unknown>(); const [v, setV] = useState({ linear: 0.2, angular: 0 });

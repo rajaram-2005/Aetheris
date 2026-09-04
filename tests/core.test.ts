@@ -92,3 +92,16 @@ test("security guard: rate limit, private IP, ssrf, redaction", async () => {
   assert.ok(!red.includes("abcdefghijklmnopqrstuvwxyz") && !red.includes("1234567890abcdef") && !red.includes("hunter22"), red);
   assert.equal(toCsv([{ a: 1, b: 'x"y' }]), 'a,b\n"1","x""y"');
 });
+
+test("workspaces: default exists, create/update/delete, stats computed", async () => {
+  const ws = await import("../src/core/workspaces/workspaces");
+  const uid = "ws-test-" + Date.now();
+  const list = await ws.listWorkspaces(uid); assert.equal(list.length, 1); assert.equal(list[0].name, "Default");
+  const w = await ws.createWorkspace(uid, { name: "Factory line 3", tags: ["plc"] });
+  assert.equal((await ws.listWorkspaces(uid)).length, 2);
+  assert.equal((await ws.updateWorkspace(uid, w.id, { name: "Line 3" }))?.name, "Line 3");
+  const st = await ws.workspaceStats(uid, w); assert.equal(st.facts, 0); assert.equal(st.scope, ws.scopeOf(w));
+  assert.equal(await ws.deleteWorkspace(uid, list[0].id), false);
+  assert.equal(await ws.deleteWorkspace(uid, w.id), true);
+  assert.equal(await ws.getWorkspace("other", list[0].id), undefined);
+});
