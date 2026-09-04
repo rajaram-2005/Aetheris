@@ -53,3 +53,43 @@ test("safety policy: limits, interlocks, latch, rate; actuate via simulated adap
   await assert.rejects(() => actuate(d, "pump", 1, { by: "test" }), /E-STOP/);
   const unsupported = await registerDevice("u", { name: "plc2", adapter: "opcua", address: "opc.tcp://x" }); assert.equal(unsupported.health.state, "error");
 });
+
+test("rosbridge client against a mock server; governor clamps and geofences", async () => {
+  const { RosBridge, governTwist, DEFAULT_SAFETY, RobotAgent } = await import("../src/core/robotics/rosbridge");
+  const g = governTwist({ linear: 2, angular: -3 }, DEFAULT_SAFETY); assert.equal(g.linear, 0.3); assert.equal(g.angular, -0.8); assert.equal(g.clamped, true);
+  const fence = { ...DEFAULT_SAFETY, geofence: { xMin: -1, xMax: 1, yMin: -1, yMax: 1 } };
+  assert.equal(governTwist({ linear: 0.2, angular: 0 }, fence, { x: 1, y: 0, yaw: 0 }).linear, 0);        // at east wall heading east → stop
+  assert.equal(governTwist({ linear: 0.2, angular: 0 }, fence, { x: 1, y: 0, yaw: Math.PI }).linear, 0.2); // heading back inside → ok
+  // real rosbridge JSON protocol over a minimal in-process WebSocket server
+  const { miniWsServer } = await import("./helpers/miniws");
+  const srv = await miniWsServer((m, send) => {
+    if (m.op === "call_service" && m.service === "/rosapi/topics") send({ op: "service_response", id: m.id, service: m.service, result: true, values: { topics: ["/cmd_vel", "/odom"], types: ["geometry_msgs/msg/Twist", "nav_msgs/msg/Odometry"] } });
+    if (m.op === "call_service" && m.service === "/fail") send({ op: "service_response", id: m.id, result: false, values: "boom" });
+    if (m.op === "subscribe" && m.topic === "/odom") send({ op: "publish", topic: "/odom", msg: { pose: { pose: { position: { x: 1, y: 2 }, orientation: { x: 0, y: 0, z: 0, w: 1 } } } } });
+  });
+  const ros = new RosBridge(srv.url); await ros.connect();
+  assert.deepEqual((await ros.topics()).map((t) => t.topic), ["/cmd_vel", "/odom"]);
+  await assert.rejects(() => ros.call("/fail"), /boom/);
+  const odom = await ros.once("/odom"); assert.equal((odom.pose as { pose: { position: { x: number } } }).pose.position.x, 1);
+  ros.close(); srv.close();
+  await assert.rejects(() => new RosBridge("ws://127.0.0.1:1").connect(1500), /rosbridge connection failed|timeout/);
+  const published: unknown[] = [];
+  const fake = { url: "ws://x", advertise() {}, publish(t: string, m: unknown) { published.push({ t, m }); }, subscribe() { return () => {}; } } as unknown as InstanceType<typeof RosBridge>;
+  const a = new RobotAgent(fake, { ...DEFAULT_SAFETY, watchdogMs: 200 }); await a.start();
+  a.move(1, 0); assert.deepEqual((published.at(-1) as { m: { linear: { x: number } } }).m.linear.x, 0.3);
+  await new Promise((r) => setTimeout(r, 450)); const zero = published.at(-1) as { m: { linear: { x: number } } }; assert.equal(zero.m.linear.x, 0); // watchdog stopped it
+  a.estop(); assert.throws(() => a.move(0.1, 0), /E-STOP/); a.stop();
+});
+
+test("digital twin: expression DSL, bounds, simulation, health", async () => {
+  const { evalExpr, checkBounds, simulate, twinHealth } = await import("../src/core/twins/twins");
+  assert.equal(evalExpr("temp + 0.5*valve*dt/60 - 0.1*(temp-20)", { temp: 30, valve: 50, dt: 60 }), 30 + 25 - 1);
+  assert.equal(evalExpr("clamp(x, 0, 10)", { x: 42 }), 10); assert.throws(() => evalExpr("process.exit()", {}), /unknown/);
+  assert.equal(checkBounds({ temp: 95 }, [{ key: "temp", max: 90, critical: true }])[0].critical, true);
+  const sim = simulate({ state: { temp: 60, valve: 0 }, rules: [{ target: "temp", expr: "temp + 0.4*valve*dt/60 - 0.05*(temp-20)" }], bounds: [{ key: "temp", max: 90, critical: true }], stepSeconds: 60 }, { valve: 100 }, 30);
+  assert.equal(sim.safe, false); assert.ok(sim.firstBreachAtSeconds! > 0);
+  const safe = simulate({ state: { temp: 60, valve: 0 }, rules: [{ target: "temp", expr: "temp + 0.4*valve*dt/60 - 0.05*(temp-20)" }], bounds: [{ key: "temp", max: 90, critical: true }], stepSeconds: 60 }, { valve: 5 }, 30);
+  assert.equal(safe.safe, true);
+  const h = twinHealth({ id: "t", uid: "u", name: "n", kind: "k", deviceIds: [], state: { temp: 95 }, history: [], bounds: [{ key: "temp", max: 90, critical: true }], rules: [], stepSeconds: 60, relationships: [], maintenance: [{ at: 0, note: "x", nextDue: 1 }], events: [], createdAt: 0, updatedAt: 0 });
+  assert.equal(h.score, 100 - 30 - 40 - 10); assert.equal(h.stale, true);
+});
