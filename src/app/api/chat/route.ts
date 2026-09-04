@@ -1,4 +1,5 @@
 import { voicePrompt } from "@/lib/voice";
+import { getKb, kbGroundingBlock, retrieve } from "@/lib/kb";
 import { NextResponse } from "next/server";
 import { route } from "@/lib/router/router";
 import { ProviderError, type ChatMessage, type ProviderAttempt } from "@/lib/router/types";
@@ -59,6 +60,8 @@ interface Body {
   model?: unknown;
   /** BCP-47 tag when the message came from voice mode: reply is read aloud. */
   voice?: unknown;
+  /** Knowledge base id → retrieve passages for the last user message and cite them. */
+  kb?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -134,6 +137,16 @@ export async function POST(req: Request) {
 
   if (typeof body.voice === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(body.voice)) sysParts.push(voicePrompt(body.voice));
   const lastUser = [...kept].reverse().find((m) => m.role === "user");
+  let citations: ReturnType<typeof kbGroundingBlock>["cites"] | undefined; let kbName: string | undefined;
+  if (typeof body.kb === "string" && lastUser) {
+    const kb = await getKb(body.kb);
+    if (kb && kb.uid === uid) {
+      const hits = retrieve(kb, lastUser.content, 6);
+      kbName = kb.name;
+      if (hits.length) { const g = kbGroundingBlock(kb.name, hits); sysParts.push(g.block); citations = g.cites; }
+      else sysParts.push(`DOCUMENTS — the user's knowledge base "${kb.name}" (${kb.docs.length} documents) was searched but no relevant passage was found for this message. Say so if they ask about it; do not invent citations.`);
+    }
+  }
   const webMode = body.web === "on" || body.web === "off" ? body.web : "auto";
   const searchKey = searchKeyFor(typeof body.searchKey === "string" ? body.searchKey : undefined);
   let sources: SearchResult[] | undefined;
@@ -183,7 +196,7 @@ export async function POST(req: Request) {
       const ctx = { uid, github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens };
       if (!wantStream) {
         const a = await runAgent({ messages, servers, preferred, ctx });
-        const res = NextResponse.json({ content: a.content, provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota, sources, searchQuery });
+        const res = NextResponse.json({ content: a.content, provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota, sources, searchQuery, citations });
         if (isNew) res.cookies.set(uidCookie(uid));
         if (tokensChanged) res.cookies.set(tokensCookie(tokenMap));
         return res;
@@ -194,6 +207,8 @@ export async function POST(req: Request) {
           const send = (e: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
           try {
             if (sources) send({ type: "sources", sources, query: searchQuery });
+        if (citations) send({ type: "citations", kb: kbName, citations });
+            if (citations) send({ type: "citations", kb: kbName, citations });
             const a = await runAgent({ messages, servers, preferred, ctx, onEvent: (e) => send({ type: "tool", event: e }) });
             send({ type: "delta", text: a.content, provider: a.provider });
             send({ type: "done", provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota });
@@ -212,7 +227,7 @@ export async function POST(req: Request) {
   if (!wantStream) {
     try {
       const result = await route({ ...tierOpts, messages, preferred, temperature, signal: req.signal });
-      const res = NextResponse.json({ ...result, tier: tier.id, quota, sources, searchQuery });
+      const res = NextResponse.json({ ...result, tier: tier.id, quota, sources, searchQuery, citations });
       if (isNew) res.cookies.set(uidCookie(uid));
       return res;
     } catch (err) {
@@ -227,6 +242,7 @@ export async function POST(req: Request) {
       const send = (e: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
       try {
         if (sources) send({ type: "sources", sources, query: searchQuery });
+        if (citations) send({ type: "citations", kb: kbName, citations });
         let current = "";
         const result = await route({
           ...tierOpts, messages, preferred, temperature, signal: req.signal,

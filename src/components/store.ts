@@ -18,6 +18,8 @@ export interface UiMessage {
   factory?: FactoryState;
   toolEvents?: { type: string; server: string; tool: string; error?: string }[];
   sources?: Source[];
+  citations?: { n: number; doc: string; page?: number; section?: string; excerpt: string }[];
+  kb?: string;
   research?: { questions: string[]; searched: number; status: string; done?: boolean };
   agentRun?: import("./Agents").AgentRun;
   arena?: ArenaRun;

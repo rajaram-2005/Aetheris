@@ -7,6 +7,7 @@ import Gallery from "./Gallery";
 import MentionPicker from "./MentionPicker";
 import Learn from "@/components/Learn";
 import Study from "@/components/Study";
+import Docs from "@/components/Docs";
 import Workflows from "./Workflows";
 import { useLang } from "@/lib/i18n";
 import GitHubAuth, { useGitHubAuth } from "./GitHubAuth";
@@ -115,6 +116,9 @@ export default function Chat() {
   const agentList = useAgents();
   const [arenaPick, setArenaPick] = useState<string[]>([]);
   const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
+  const [kb, setKbState] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => { try { const v = localStorage.getItem("aetheris.kb"); if (v) setKbState(JSON.parse(v)); } catch { /* noop */ } }, []);
+  const setKb = (id: string | null, name?: string) => { const v = id ? { id, name: name ?? id } : null; setKbState(v); if (v) localStorage.setItem("aetheris.kb", JSON.stringify(v)); else localStorage.removeItem("aetheris.kb"); };
   const [voiceMode, setVoiceMode] = useState(false);
   const [interim, setInterim] = useState("");
   const [voicePrefs, setVoicePrefsState] = useState<VoicePrefs>({ lang: "auto", engine: "browser", handsFree: true, rate: 1, voiceURI: "" });
@@ -250,7 +254,7 @@ export default function Chat() {
       if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: "Connection to Aetheris lost." }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, active, activeProject, voiceLang]);
+  }, [model, active, activeProject, voiceLang, kb]);
 
   // ---- explain (/explain → AI Explainer audits the last answer) --------------------------------
   const runExplain = useCallback(async (target?: UiMessage) => {
@@ -356,7 +360,7 @@ export default function Chat() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: history, preferred, servers, stream: true, model,
-          voice: viaVoice ? voiceLang : undefined,
+          voice: viaVoice ? voiceLang : undefined, kb: kb?.id,
           web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
           project: project ? { instructions: project.instructions, files: project.files } : null,
           memory: settings.memoryEnabled ? memory : [],
@@ -376,6 +380,7 @@ export default function Chat() {
         if (ev.type === "provider") { if (provider) failovers++; provider = ev.provider; }
         else if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
         else if (ev.type === "sources") patchMsg(c.id, aid, (m) => ({ ...m, sources: ev.sources }));
+        else if (ev.type === "citations") patchMsg(c.id, aid, (m) => ({ ...m, citations: ev.citations, kb: ev.kb }));
         else if (ev.type === "tool") patchMsg(c.id, aid, (m) => ({ ...m, toolEvents: [...(m.toolEvents ?? []), ev.event] }));
         else if (ev.type === "done") {
           const fo = (ev.attempts ?? []).filter((a: Attempt) => !a.ok).length || failovers;
@@ -494,6 +499,7 @@ export default function Chat() {
     else if (id === "learn") setMode("learn");
     else if (id === "study") setMode("study");
     else if (id === "voice") enterVoice();
+    else if (id === "docs") setMode("docs");
     else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
     else if (id === "explain") { runExplain(); return; }
     else if (id === "ethics") { setInput("@ai-ethics Run an AI ethics impact assessment on: "); setPickerOff(true); setTimeout(() => taRef.current?.focus(), 30); return; }
@@ -606,6 +612,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
+          {mode === "docs" && <div className="pane"><Docs activeKb={kb?.id ?? null} onUseKb={setKb} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "study" && <div className="pane"><Study onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "learn" && <div className="pane"><Learn onTry={(p) => { setMode("chat"); if (p.startsWith("/explain")) { runExplain(); return; } setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "workflows" && <div className="pane"><Workflows agents={agentList} onSendToChat={(text) => { setMode("chat"); setInput(`Here is the output of a workflow. Let's continue from it:\n\n${text}`); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
@@ -688,6 +695,9 @@ export default function Chat() {
                 {m.sources && m.sources.length > 0 && !m.research && (
                   <div className="sources">{m.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="chip" title={s.title}>[{i + 1}] {new URL(s.url).hostname.replace(/^www\./, "")}</a>)}</div>
                 )}
+                {m.citations && m.citations.length > 0 && (
+                  <div className="sources citations">{m.citations.map((ci) => <span key={ci.n} className="chip" title={ci.excerpt}>[D{ci.n}] {ci.doc}{ci.page ? ` p.${ci.page}` : ""}{ci.section ? ` § ${ci.section}` : ""}</span>)}<span className="meta">📁 {m.kb}</span></div>
+                )}
                 {artifacts.some((a) => a.messageId === m.id) && (
                   <div className="tool-trail">{artifacts.filter((a) => a.messageId === m.id).map((a) => <button key={a.id} className={`chip art-chip ${a.id === artifactId && artifactsOpen ? "on" : ""}`} onClick={() => { setArtifactId(a.id); setArtifactsOpen(true); }}>📎 {a.title}</button>)}</div>
                 )}
@@ -751,6 +761,8 @@ export default function Chat() {
               {(models.find((m) => m.id === model)?.agents.max ?? 1) > 1
                 ? <button className={`chip ${!direct ? "on" : ""}`} title={direct ? "Agents off for quick replies (1 credit). Click to re-enable Prime routing." : "Prime routes each message to specialists (2 credits). Click for a direct single-model reply."} onClick={() => setDirect((d) => !d)}>🤖 {direct ? "Agents: off" : "Agents: on"}</button>
                 : <button className="chip" title="Aetheris Free answers directly with Hermes. Type @tutor, @coder… to call one specialist, or upgrade for Prime multi-agent routing." onClick={() => setInput((v) => (v.startsWith("@") ? v : "@" + v))}>🤖 @agent</button>}
+              <button className={`chip ${kb ? "on" : ""}`} title={kb ? `Answers grounded in "${kb.name}" with citations. Click to manage or detach.` : "Chat with your documents: attach a knowledge base"} onClick={() => setMode("docs")}>📁 {kb ? kb.name.slice(0, 18) : "Docs"}</button>
+              {kb && <button className="link" title="Detach knowledge base" onClick={() => setKb(null)}>✕</button>}
               <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
               <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>

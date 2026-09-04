@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "next": "^15.5.0",
+    "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -26,7 +27,7 @@
     "typescript": "^5.6.0"
   },
   "license": "MIT",
-  "description": "Aetheris One \u2014 open-source AI workspace: one chat over 27 free LLM providers, hierarchical agents, GitHub coding factory, media studio, 100+ MCP app hub.",
+  "description": "Aetheris One — open-source AI workspace: one chat over 27 free LLM providers, hierarchical agents, GitHub coding factory, media studio, 100+ MCP app hub.",
   "repository": {
     "type": "git",
     "url": "https://github.com/rajaram-2005/Aetheris.git"

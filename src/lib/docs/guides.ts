@@ -59,6 +59,28 @@ Recognition and browser TTS run on your device. No audio is recorded, stored or 
 - Say "in Tamil" / "தமிழில் சொல்" to switch reply language mid-conversation.
 - If the mic won't start, allow microphone access for the site in the browser's address bar.
 `},
+  { slug: "documents", section: "Getting started", title: "Chat with documents (knowledge bases)", body: `
+Open **📁 Docs** in the sidebar (or type \`/docs\`) to build knowledge bases from your own files and get answers grounded in them, with citations.
+
+## Add documents
+- Create a knowledge base (e.g. *Company policies*, *Semester 3 notes*, *Client contracts*), then drop in files: **PDF** (page-aware), **DOCX**, **CSV/TSV** (row-aware, so "what is X's price" finds the right row), **TXT/Markdown**, **HTML**, **JSON** and source code. Up to 25 MB each, 40 per knowledge base.
+- Add a **web page by URL** or **paste text** (meeting notes, an email thread).
+- Re-uploading a file with the same name replaces it.
+
+## Chat with it
+Press **💬 Chat with it** (or the 📁 chip in the composer). Every message then retrieves the most relevant passages and the model answers **from your documents**, citing each fact as **[D1]**, **[D2]**… Under each answer you'll see the cited document, page and section; hover to preview the passage. If the documents don't contain the answer, Aetheris says so rather than inventing a citation.
+
+The knowledge base stays attached across chats until you detach it (✕ next to the chip). Works together with agents (\`@lawyer\` review this contract clause), Voice mode and Study mode.
+
+## Test retrieval
+Inside a knowledge base, the **Test retrieval** box shows exactly which passages a question would pull up and their scores — useful for checking coverage before you rely on an answer.
+
+## How it works (and why it's free)
+Documents are split into ~900-character passages that respect sentences and headings (with overlap), and ranked with **BM25** lexical retrieval — no embedding API, so it works on any host, offline from any provider, deterministically. The top passages (about 12k characters) are placed in the system prompt with numbered labels. Files are stored on the server for your account only (\`data/kb.json\` when self-hosting).
+
+## API
+\`GET/POST /api/kb\` · \`GET/PATCH/DELETE /api/kb/:id\` · \`POST /api/kb/:id/docs\` (multipart \`files[]\`, or JSON \`{text,name}\` / \`{url}\`) · \`GET /api/kb/:id/search?q=\` · chat: add \`kb: "<id>"\` to \`POST /api/chat\` and read the \`citations\` event/field.
+`},
   { slug: "agents", section: "Agents", title: "The agent hierarchy", body: `
 Aetheris agents are built on two base layers:
 
