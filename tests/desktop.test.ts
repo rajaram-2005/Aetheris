@@ -424,6 +424,47 @@ test("embedded server: refuses to start without a build, then spawns, waits, sup
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+test("embedded server: <dataDir>/.env.local is injected into the child the app really spawns", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aetheris-envfile-"));
+  const dataDir = path.join(tmp, "data");
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, ".env.local"), "GROQ_API_KEY=gsk_from-user-file\nMARKER_VALUE=aetheris-env-ok\n");
+
+  // The child writes the environment it actually received into the data dir, then exits; the
+  // health wait fails on purpose (nothing listens), which is fine — we only care about the env.
+  fs.writeFileSync(
+    path.join(tmp, "server.js"),
+    `require("node:fs").writeFileSync(require("node:path").join(process.env.AETHERIS_DATA_DIR, "env.json"), JSON.stringify(process.env));\nsetInterval(() => {}, 1000);\n`,
+  );
+
+  const logs: string[] = [];
+  await assert.rejects(
+    () =>
+      startLocalServer({
+        serverDir: tmp,
+        execPath: process.execPath,
+        dataDir,
+        preferredPort: 17899,
+        healthTimeoutMs: 3000,
+        inheritedEnv: { NODE_ENV: "production", PATH: process.env.PATH ?? "/usr/bin", GROQ_API_KEY: "gsk_from-parent" },
+        onLog: (l) => logs.push(l),
+      }),
+    /did not become healthy/,
+  );
+
+  const received = JSON.parse(fs.readFileSync(path.join(dataDir, "env.json"), "utf8")) as Record<string, string>;
+  assert.equal(received.GROQ_API_KEY, "gsk_from-user-file", "the user's file beats the inherited environment");
+  assert.equal(received.MARKER_VALUE, "aetheris-env-ok");
+  assert.equal(received.AETHERIS_DATA_DIR, dataDir);
+  assert.equal(received.HOSTNAME, "127.0.0.1");
+  // the log names the keys it loaded, without printing any value
+  const loadLine = logs.find((l) => l.includes(".env.local"));
+  assert.ok(loadLine, logs.join("|"));
+  assert.ok(loadLine!.includes("GROQ_API_KEY"), loadLine);
+  assert.equal(loadLine!.includes("gsk_from-user-file"), false, "values are never logged");
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
 // --------------------------------------------------------------------------- updates
 
 const RELEASE = {

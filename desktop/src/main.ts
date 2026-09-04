@@ -19,6 +19,7 @@ import * as path from "path";
 import { createLogger, fileSink, formatLine, logFileName, type Logger } from "./lib/logging";
 import { isServerDirReady, probeHealth, serverNotBuiltMessage, startLocalServer, type LocalServer } from "./lib/local-server";
 import { applyPatch, defaultSettings, normalizeServerUrl, sanitizeSettings, type DesktopSettings, type SettingsPatch } from "./lib/settings";
+import { isAllowedNavigation, isExternallyOpenable } from "./lib/navigation";
 import { checkForUpdates, type UpdateCheckResult } from "./lib/update";
 
 const APP_NAME = "Aetheris";
@@ -134,15 +135,15 @@ function createWindow() {
   win.on("close", persistBounds);
   win.on("resized", persistBounds);
 
-  const guard = new URL(win.webContents.getURL() || "about:blank");
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (isExternallyOpenable(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    if (!isAllowedNavigation(url, guard)) {
+    // The current URL is read here, on every navigation — see lib/navigation.ts.
+    if (!isAllowedNavigation(url, { currentUrl: win?.webContents.getURL() ?? "", allowedOrigin: allowedOrigin() })) {
       event.preventDefault();
-      void shell.openExternal(url);
+      if (isExternallyOpenable(url)) void shell.openExternal(url);
     }
   });
   win.webContents.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
@@ -159,20 +160,6 @@ function allowedOrigin(): string | null {
   if (server) return server.url;
   if (settings.mode === "remote" && settings.serverUrl) return normalizeServerUrl(settings.serverUrl);
   return null;
-}
-
-/** In-window navigation stays on the Aetheris origin; everything else opens in the real browser. */
-function isAllowedNavigation(url: string, current: URL): boolean {
-  let target: URL;
-  try {
-    target = new URL(url);
-  } catch {
-    return false;
-  }
-  if (target.protocol === "file:") return true; // the boot shell
-  if (target.origin === current.origin) return true;
-  const allowed = allowedOrigin();
-  return allowed ? target.origin === new URL(allowed).origin : false;
 }
 
 // --------------------------------------------------------------------------- boot flow
@@ -493,13 +480,7 @@ function registerIpc() {
   });
   ipcMain.handle("aetheris:open-data-dir", () => shell.openPath(dataDir()));
   ipcMain.handle("aetheris:open-external", (_e, url: unknown) => {
-    if (typeof url !== "string") return;
-    try {
-      const u = new URL(url);
-      if (u.protocol === "https:" || u.protocol === "http:") void shell.openExternal(url);
-    } catch {
-      /* ignore */
-    }
+    if (typeof url === "string" && isExternallyOpenable(url)) void shell.openExternal(url);
   });
 }
 

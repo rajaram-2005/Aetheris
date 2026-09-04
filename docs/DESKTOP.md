@@ -126,9 +126,15 @@ The desktop app inherits Aetheris's server-side rules (see [SECURITY](SECURITY.m
    `tests/desktop.embedded.test.ts`.
 3. **A near-empty child environment.** `buildServerEnv` starts from an allow-list (`PATH`, `HOME`,
    proxy and CA variables, `OLLAMA_BASE_URL`) and adds only what the server needs. `NODE_OPTIONS` is
-   never forwarded, and provider keys are only passed through when you set
-   `AETHERIS_DESKTOP_FORWARD_KEYS=1` — and even then `AETHERIS_ADMIN_KEY` is withheld. Put keys in
-   `<userData>/data/.env.local` instead if you want them to persist.
+   never forwarded, and keys from the parent environment are only passed through when you set
+   `AETHERIS_DESKTOP_FORWARD_KEYS=1` — and even then `AETHERIS_ADMIN_KEY` is withheld.
+
+   The supported place for keys is **`<userData>/data/.env.local`** (`KEY=value`, `#` comments,
+   optional quotes). The desktop app parses it and injects it into the embedded server — which
+   matters on macOS, where a Finder-launched app inherits almost nothing from your shell, so a key
+   exported in `.zshrc` never arrives. Values from that file override inherited ones but can never
+   override the fixed ones: writing `HOSTNAME=0.0.0.0` or `AETHERIS_DESKTOP=0` into it has no
+   effect. Only the key *names* are logged, never the values.
 4. **No Node in the renderer.** `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`;
    the page sees only the ~12 functions exposed by `desktop/src/preload.ts`. Out-of-origin
    navigation and `window.open` go to the system browser.
@@ -157,6 +163,7 @@ below and [ci/README.md](../ci/README.md). `ci/release.yml` builds all three pla
 | "The embedded Aetheris server is not built yet" | you ran the shell without building the standalone bundle — `npm run desktop:build` (or use `npm run desktop:dev`) |
 | The app opens but shows the connection screen | `mode` is `remote` and the address is unreachable — enter a working URL or click "Use the embedded server" |
 | Port 17890 already in use | nothing to do: the app walks to the next free port. The session cookie follows the origin, so it is stable per machine |
+| The embedded server has no provider keys | put them in `<userData>/data/.env.local` — a shell export does not reach a Finder/Start-Menu-launched app |
 | Blank window on Linux with an old GPU driver | set `hardwareAcceleration: false` in `settings.json` |
 | Update check says "no releases published yet" | the repo has no GitHub Release yet, or egress to `api.github.com` is blocked. Point `AETHERIS_UPDATE_FEED` at a mirror or set `updateCheckIntervalMinutes: 0` |
 | macOS Gatekeeper blocks the app | the release is unsigned; right-click → Open once, or remove the quarantine attribute (above) |
@@ -170,5 +177,8 @@ below and [ci/README.md](../ci/README.md). `ci/release.yml` builds all three pla
 * **One embedded server per app.** A second launch focuses the first window rather than starting
   another server (single-instance lock).
 * **Tray icon is optional.** If the platform has no tray, the menu still has every action.
+* **The GUI itself is not exercised by the test suite.** `tests/desktop.main.test.ts` runs the real
+  compiled `main.js` against a stubbed `electron` module (so the IPC handlers, boot flow, settings
+  round-trip and navigation policy are covered), but no test drives real pixels.
 * **The embedded server is the same code as the hosted one** — so anything marked `NOT AVAILABLE` in
   the status table (OPC-UA, CAN, horizontal scaling) is equally unavailable here.

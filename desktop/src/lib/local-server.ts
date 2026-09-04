@@ -85,6 +85,39 @@ export const ENV_ALLOWLIST = [
 /** Provider keys are only forwarded when the user opted in with AETHERIS_DESKTOP_FORWARD_KEYS=1. */
 const KEY_PATTERN = /(_API_KEY|_TOKEN|_SECRET|_ACCESS_KEY)$/;
 
+/**
+ * Read `<dataDir>/.env.local` — where a desktop user puts their own provider keys.
+ *
+ * This matters most on macOS, where a Finder-launched app inherits almost nothing from the shell,
+ * so a key exported in `.zshrc` never reaches the embedded server. Keys in the app's own data
+ * directory are the reliable place. A minimal parser: `KEY=value`, `#` comments, one optional layer
+ * of matching quotes. Malformed lines are ignored rather than throwing — a bad line in a config file
+ * must not stop the app from starting.
+ */
+export function readEnvFile(filePath: string): Record<string, string> {
+  let text: string;
+  try {
+    text = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let value = line.slice(eq + 1).trim();
+    if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 /** Build the environment for the child process. Never mutates the parent env. */
 export function buildServerEnv(opts: {
   dataDir: string;
@@ -92,6 +125,8 @@ export function buildServerEnv(opts: {
   host?: string;
   inheritedEnv?: NodeJS.ProcessEnv;
   version: string;
+  /** Parsed `<dataDir>/.env.local`; see `readEnvFile`. */
+  envFile?: Record<string, string>;
 }): NodeJS.ProcessEnv {
   const host = opts.host ?? "127.0.0.1";
   const parent: Record<string, string | undefined> = opts.inheritedEnv ?? {};
@@ -116,6 +151,17 @@ export function buildServerEnv(opts: {
   env.AETHERIS_DESKTOP_VERSION = opts.version;
   env.NEXT_TELEMETRY_DISABLED = "1";
   env.AETHERIS_SCHEDULER = parent.AETHERIS_SCHEDULER ?? "1";
+  // The user's own keys, from a file inside their data dir, win over anything inherited. The fixed
+  // values above still win over the file, so a .env.local cannot un-loopback the server.
+  for (const [k, v] of Object.entries(opts.envFile ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) continue;
+    env[k] = v;
+  }
+  env.HOSTNAME = host;
+  env.PORT = String(opts.port);
+  env.AETHERIS_DATA_DIR = opts.dataDir;
+  env.AETHERIS_DESKTOP = "1";
+  env.NODE_ENV = "production";
   // NODE_OPTIONS is never copied: a parent's --inspect/--require must not reach the embedded server.
   // Cast: NODE_ENV is required by @types/node's ProcessEnv and is set above; the rest is optional.
   return env as NodeJS.ProcessEnv;
@@ -233,7 +279,10 @@ export async function startLocalServer(opts: StartOptions): Promise<LocalServer>
   if (port === null) throw new Error(`no free loopback port near ${opts.preferredPort}`);
 
   const version = process.env.AETHERIS_DESKTOP_VERSION ?? "0.0.0";
-  const env = buildServerEnv({ dataDir: opts.dataDir, port, inheritedEnv: opts.inheritedEnv ?? process.env, version });
+  const envFile = readEnvFile(path.join(opts.dataDir, ".env.local"));
+  const keyNames = Object.keys(envFile);
+  if (keyNames.length) opts.onLog?.(`[desktop] loaded ${keyNames.length} variable(s) from .env.local: ${keyNames.join(", ")}`);
+  const env = buildServerEnv({ dataDir: opts.dataDir, port, inheritedEnv: opts.inheritedEnv ?? process.env, version, envFile });
   const doSpawn = opts.spawnImpl ?? ((cmd: string, args: string[], so: SpawnOptions) => spawn(cmd, args, so) as unknown as ChildProcessLike);
 
   const child = doSpawn(

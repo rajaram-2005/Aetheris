@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-133%20passing-brightgreen.svg)](tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 

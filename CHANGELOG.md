@@ -17,6 +17,9 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 - Aetheris desktop app (Electron): embedded loopback server or remote server, macOS/Linux/Windows packaging
 - Boot/connection shell, tray, deep links (`aetheris://`), redacted log, GitHub release update check
+- Provider keys in `<userData>/data/.env.local` are injected into the embedded server (a shell export never reaches a Finder-launched app)
+- Navigation policy extracted and unit-tested: in-app links stay in the window, everything else goes to the system browser
+- `tests/desktop.main.test.ts` runs the compiled main process against a stubbed `electron` module
 
 ### release
 
