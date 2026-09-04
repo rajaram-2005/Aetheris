@@ -93,7 +93,13 @@ export default function Chat() {
   const { account, refresh: refreshAccount } = useAccount();
   const [upgrade, setUpgrade] = useState<string | null>(null);
   const [servers, setServers] = useState<EnabledServer[]>([]);
-  useEffect(() => { setServers(loadServers()); if (window.innerWidth < 900) setSidebar(false); }, []);
+  useEffect(() => { setServers(loadServers()); if (window.innerWidth < 1000) setSidebar(false); }, []);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1000px)");
+    const on = () => setNarrow(mq.matches);
+    on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on);
+  }, []);
   const features = account?.features ?? [];
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -334,11 +340,12 @@ export default function Chat() {
     : research ? "What should I research in depth?" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
-    <div className={`shell ${sidebar ? "with-sb" : ""} ${artifactsOpen && artifacts.length ? "with-art" : ""}`}>
+    <div className="shell">
+      {sidebar && narrow && <div className="backdrop" onClick={() => setSidebar(false)} />}
       <Sidebar convos={convos} projects={projects} activeId={activeId} activeProject={activeProject} open={sidebar} mode={mode} appsCount={servers.length}
-        onMode={(m) => { setMode(m); if (window.innerWidth < 900) setSidebar(false); }}
+        onMode={(m) => { setMode(m); if (window.innerWidth < 1000) setSidebar(false); }}
         onOpen={() => setSidebar(true)} onClose={() => setSidebar(false)} onNew={newChat}
-        onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 900) setSidebar(false); }}
+        onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 1000) setSidebar(false); }}
         onDelete={(id) => { remove(id); if (id === activeId) newChat(); }}
         onPin={(id) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, pinned: !c.pinned }); }}
         onRename={(id, t) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, title: t }); }}

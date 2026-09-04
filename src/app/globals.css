@@ -29,23 +29,21 @@ a { color: var(--accent); }
 button { font: inherit; cursor: pointer; }
 textarea { font: inherit; }
 
-.shell { display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; height: 100dvh; overflow: hidden; transition: grid-template-columns 0.15s ease; }
-.shell.with-sb { grid-template-columns: 256px minmax(0, 1fr) 0; }
-.shell.with-art { grid-template-columns: 0 minmax(0, 1fr) minmax(360px, 44%); }
-.shell.with-sb.with-art { grid-template-columns: 256px minmax(0, 1fr) minmax(360px, 40%); }
+/* Shell: simple flex row. Sidebar and Artifacts are fixed-width rails; the app takes the rest. */
+.shell { display: flex; height: 100dvh; width: 100vw; overflow: hidden; position: relative; }
+.sidebar { flex: 0 0 256px; width: 256px; }
 .app {
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100dvh;
   min-height: 0;
-  min-width: 0;
   overflow: hidden;
-  width: 100%;
-  margin: 0 auto;
   padding: 0 clamp(12px, 2vw, 24px);
 }
-/* Full-bleed layout: header/composer/content span the whole column; a readable measure is
-   applied only to the chat message stream via --measure. */
+.artifacts { flex: 0 0 clamp(360px, 40vw, 720px); width: clamp(360px, 40vw, 720px); }
+/* Header/composer/content span the whole column; the chat stream keeps a readable measure. */
 .app > .header, .app > .composer, .app > .messages { width: 100%; }
 .app { --measure: min(100%, 1100px); }
 .messages > * { width: 100%; max-width: var(--measure); margin-left: auto; margin-right: auto; }
@@ -53,16 +51,21 @@ textarea { font: inherit; }
 .messages > .pane { padding: 4px 0 24px; }
 .app > .composer { max-width: var(--measure); margin: 0 auto; }
 .brand h1 { max-width: none; }
+.mt-label { display: inline; }
 @media (min-width: 1700px) { .app { --measure: 1240px; } }
-@media (max-width: 900px) {
-  .shell.with-sb { grid-template-columns: 0 minmax(0, 1fr) 0; }
-  .shell.with-sb .sidebar { position: fixed; inset: 0 auto 0 0; width: min(85vw, 300px); z-index: 40; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
-  .shell.with-art, .shell.with-sb.with-art { grid-template-columns: 0 minmax(0, 1fr) 0; }
-  .artifacts { position: fixed; inset: 0; z-index: 45; }
+/* Narrow windows: rails become overlays so the app always gets the full width. */
+.backdrop { display: none; }
+@media (max-width: 1000px) {
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: min(85vw, 300px); z-index: 40; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+  .backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 39; }
+  .mt-label { display: none; }
+}
+@media (max-width: 1200px) {
+  .artifacts { position: fixed; top: 0; right: 0; bottom: 0; width: min(100vw, 560px); z-index: 45; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
 }
 
 /* Sidebar ----------------------------------------------------------------- */
-.sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; height: 100dvh; overflow: hidden; }
 .sb-top { display: flex; gap: 6px; padding: 12px 12px 6px; }
 .sb-new { flex: 1; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 10px; padding: 9px 12px; font-weight: 600; text-align: left; }
 .sb-new:hover { border-color: var(--accent); }
@@ -119,7 +122,7 @@ button.sb-item { background: none; border: 0; padding: 8px; width: 100%; text-al
 .mesh-pill.on { border-color: var(--accent); }
 
 /* Artifacts --------------------------------------------------------------- */
-.artifacts { background: var(--panel); border-left: 1px solid var(--border); display: grid; grid-template-rows: auto 1fr auto; min-width: 0; min-height: 0; }
+.artifacts { background: var(--panel); border-left: 1px solid var(--border); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; height: 100dvh; }
 .art-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .art-select { flex: 1; min-width: 120px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
 .art-tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
@@ -168,7 +171,6 @@ button.sb-item { background: none; border: 0; padding: 8px; width: 100%; text-al
 .brand { min-width: 0; }
 .brand h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; font-size: 17px; }
 .mt-label { display: inline; }
-@media (max-width: 1100px) { .mt-label { display: none; } }
 .brand { display: flex; align-items: baseline; gap: 10px; }
 .brand h1 {
   margin: 0;
