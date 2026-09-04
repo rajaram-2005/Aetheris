@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export interface ProviderStatus {
   id: string;
   name: string;
@@ -26,6 +28,34 @@ const KEY_URLS: Record<string, string> = {
   cohere: "https://dashboard.cohere.com/api-keys", cloudflare: "https://dash.cloudflare.com/profile/api-tokens", huggingface: "https://huggingface.co/settings/tokens",
   nvidia: "https://build.nvidia.com", deepseek: "https://platform.deepseek.com", ai21: "https://studio.ai21.com", perplexity: "https://www.perplexity.ai/settings/api",
 };
+
+/**
+ * Opens a URL in a new tab. Inside sandboxed iframes (e.g. hosted previews) popups are
+ * blocked silently, so we fall back to copying the URL and telling the user.
+ */
+function KeyLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const [state, setState] = useState<"idle" | "copied" | "blocked">("idle");
+  const onClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    let w: Window | null = null;
+    try { w = window.open(href, "_blank", "noopener,noreferrer"); } catch { w = null; }
+    if (w) return;
+    navigator.clipboard?.writeText(href).then(() => setState("copied")).catch(() => setState("blocked"));
+    setTimeout(() => setState("idle"), 4000);
+  };
+  return (
+    <span className="keylink">
+      <a href={href} target="_blank" rel="noreferrer noopener" onClick={onClick}>{children}</a>
+      {state !== "idle" && (
+        <span className="keylink-note">
+          {state === "copied" ? "popup blocked here — link copied, paste it in a new tab: " : "popup blocked — open this in a new tab: "}
+          <code>{href}</code>
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function MeshPanel({
   providers,
@@ -71,7 +101,7 @@ export default function MeshPanel({
                 <div className="name">{p.name}{p.keyless && !p.hasKey ? <span className="tag">keyless</span> : null}{p.state === "cooldown" ? ` · cooldown ${p.cooldownSecs}s` : ""}</div>
                 <div className="meta">{p.model}</div>
                 {p.freeTier && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.freeTier}</div>}
-                {p.keyless && !p.hasKey && p.keyUrl && <div className="meta"><a href={p.keyUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>add a free token for higher limits ↗</a></div>}
+                {p.keyless && !p.hasKey && p.keyUrl && <div className="meta"><KeyLink href={p.keyUrl}>add a free token for higher limits ↗</KeyLink></div>}
                 <div className="meta">
                   P{p.priority} · ✓{p.successes} ✗{p.failures}{p.avgLatencyMs ? ` · ${p.avgLatencyMs}ms` : ""}
                 </div>
@@ -93,7 +123,7 @@ export default function MeshPanel({
                   <div className="meta">{p.model}</div>
                   {p.notes && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.notes}</div>}
                   {p.freeTier && <div className="meta" style={{ fontFamily: "var(--font)", color: "var(--ok)" }}>{p.freeTier}</div>}
-                  <div className="meta">env: <code>{p.envKey}</code>{(p.keyUrl ?? KEY_URLS[p.id]) && <> · <a href={p.keyUrl ?? KEY_URLS[p.id]} target="_blank" rel="noreferrer">get a free key ↗</a></>}</div>
+                  <div className="meta">env: <code>{p.envKey}</code>{(p.keyUrl ?? KEY_URLS[p.id]) && <> · <KeyLink href={p.keyUrl ?? KEY_URLS[p.id]}>get a free key ↗</KeyLink></>}</div>
                 </span>
               </div>
             ))}
