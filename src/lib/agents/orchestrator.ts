@@ -21,9 +21,12 @@ export interface OrchestrateOptions {
   lessons?: Lesson[];
   signal?: AbortSignal;
   onEvent: (e: AgentEvent) => void;
+  /** Plan/tier policy. */
+  policy?: { maxAgents: number; parallel: boolean; critique: boolean; allow?: string[]; allowKeyless?: boolean; maxTokens?: number };
 }
 
 const PRIME = agentById("prime")!;
+const pol = (o: OrchestrateOptions) => ({ allow: o.policy?.allow, allowKeyless: o.policy?.allowKeyless });
 const HERMES = agentById("hermes")!;
 
 function extractJson<T>(s: string): T | null {
@@ -47,18 +50,19 @@ async function plan(opts: OrchestrateOptions, task: string, forced: AgentSpec[])
   if (forced.length > 1) {
     return { plan: { agents: forced.map((a) => a.id), mode: "pipeline", reason: `You asked for ${forced.map((a) => "@" + a.id).join(" → ")}.`, briefs: forced.map(() => task) } };
   }
+  const cap = opts.policy?.maxAgents ?? 3;
   const r = await route({
-    preferred: opts.preferred, temperature: 0.1, signal: opts.signal, maxTokens: 600,
+    ...pol(opts), preferred: opts.preferred, temperature: 0.1, signal: opts.signal, maxTokens: 600,
     messages: [
-      { role: "system", content: `${PRIME.system}\n\nAvailable specialists:\n${catalogForPlanner()}\n\nReply ONLY with JSON: {"agents":["id",...],"mode":"single|pipeline|parallel","reason":"<=100 chars","briefs":["task for agent 1",...]}.\nRules: prefer ONE agent for simple requests (most requests). Use 2–3 agents only when the task clearly spans domains (e.g. code + review, research + write). "pipeline" = each agent builds on the previous output; "parallel" = independent perspectives merged. Use "hermes" for anything general or conversational.` },
+      { role: "system", content: `${PRIME.system}\n\nAvailable specialists:\n${catalogForPlanner()}\n\nReply ONLY with JSON: {"agents":["id",...],"mode":"single|pipeline|parallel","reason":"<=100 chars","briefs":["task for agent 1",...]}.\nRules: prefer ONE agent for simple requests (most requests). Never exceed ${cap} agent(s). Use 2–3 agents only when the task clearly spans domains (e.g. code + review, research + write). "pipeline" = each agent builds on the previous output; "parallel" = independent perspectives merged. Use "hermes" for anything general or conversational.` },
       { role: "user", content: `Conversation so far:\n${historyText(opts.messages)}\n\nCurrent request: ${task}` },
     ],
   });
   const p = extractJson<AgentPlan>(r.content);
-  const ids = (p?.agents ?? []).map((x) => agentById(String(x))?.id).filter((x): x is string => !!x && x !== "prime").slice(0, 3);
+  const ids = (p?.agents ?? []).map((x) => agentById(String(x))?.id).filter((x): x is string => !!x && x !== "prime").slice(0, cap);
   if (ids.length === 0) return { plan: { agents: [HERMES.id], mode: "single", reason: "General request.", briefs: [task] }, provider: r.provider };
   const briefs = Array.isArray(p?.briefs) && p!.briefs.length === ids.length ? p!.briefs.map(String) : ids.map(() => task);
-  const mode: AgentPlan["mode"] = ids.length === 1 ? "single" : p?.mode === "parallel" ? "parallel" : "pipeline";
+  const mode: AgentPlan["mode"] = ids.length === 1 ? "single" : p?.mode === "parallel" && opts.policy?.parallel !== false ? "parallel" : "pipeline";
   return { plan: { agents: ids, mode, reason: String(p?.reason ?? "").slice(0, 120), briefs }, provider: r.provider };
 }
 
@@ -99,7 +103,7 @@ async function runSpecialist(
     opts.onEvent({ type: "agent_delta", agent: agent.id, text });
   } else {
     const r = await route({
-      messages: msgs, preferred: opts.preferred, temperature: agent.temperature ?? 0.4, signal: opts.signal,
+      ...pol(opts), maxTokens: opts.policy?.maxTokens, messages: msgs, preferred: opts.preferred, temperature: agent.temperature ?? 0.4, signal: opts.signal,
       onDelta: (t) => opts.onEvent({ type: "agent_delta", agent: agent.id, text: t }),
     });
     text = r.content; provider = r.provider; model = r.model;
@@ -112,7 +116,7 @@ async function runSpecialist(
 async function reflect(opts: OrchestrateOptions, task: string, planned: AgentPlan, answer: string): Promise<Lesson[]> {
   try {
     const r = await route({
-      preferred: opts.preferred, temperature: 0.1, signal: opts.signal, maxTokens: 300,
+      ...pol(opts), preferred: opts.preferred, temperature: 0.1, signal: opts.signal, maxTokens: 300,
       messages: [
         { role: "system", content: `${METIS_BASE}\nReply ONLY with JSON: {"lessons":[{"agent":"<agent id or *>","text":"..."}]} — 0 to 2 lessons. Return an empty list when nothing generalisable was learned (this is the common case).` },
         { role: "user", content: `Request: ${task.slice(0, 1500)}\n\nRouting: ${planned.agents.join(" → ")} (${planned.mode}) — ${planned.reason}\n\nAnswer (truncated): ${answer.slice(0, 2500)}\n\nExisting lessons: ${(opts.lessons ?? []).slice(-10).map((l) => l.text).join(" | ") || "none"}` },
@@ -132,8 +136,8 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === "user");
   const rawTask = lastUser?.content ?? "";
   const mention = parseMentions(rawTask);
-  const forced = (opts.agents ?? []).map((id) => agentById(id)).filter((a): a is AgentSpec => !!a);
-  const chosen = forced.length ? forced : mention.agents;
+  const forced = (opts.agents ?? []).map((id) => agentById(id)).filter((a): a is AgentSpec => !!a).slice(0, opts.policy?.maxAgents ?? 3);
+  const chosen = (forced.length ? forced : mention.agents).slice(0, opts.policy?.maxAgents ?? 3);
   const task = mention.agents.length ? mention.text : rawTask;
 
   // 1. Plan
@@ -172,7 +176,7 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
     emit({ type: "synthesis" });
     let acc = "";
     const r = await route({
-      preferred: opts.preferred, temperature: 0.3, signal: opts.signal,
+      ...pol(opts), maxTokens: opts.policy?.maxTokens, preferred: opts.preferred, temperature: 0.3, signal: opts.signal,
       messages: [
         { role: "system", content: `${baseSystem}\n\n${HERMES_BASE}\n\n${PRIME.system}` },
         { role: "user", content: `Request: ${task}\n\nSpecialist outputs:\n\n${outputs.map((o) => `### ${o.agent.name}\n${o.text}`).join("\n\n")}\n\nMerge into one final answer for the user. Keep artifacts (titled fenced blocks) intact.` },
@@ -180,6 +184,20 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<void> {
       onDelta: (t) => { acc += t; emit({ type: "delta", text: t }); },
     });
     final = r.content || acc; provider = r.provider; model = r.model;
+  } else if (opts.policy?.critique) {
+    // God tier: Metis critiques and Prime revises before the answer is shown.
+    emit({ type: "synthesis" });
+    let acc = "";
+    const r = await route({
+      ...pol(opts), maxTokens: opts.policy?.maxTokens, preferred: opts.preferred, temperature: 0.2, signal: opts.signal,
+      messages: [
+        { role: "system", content: `${baseSystem}\n\n${HERMES_BASE}\n\n${METIS_BASE}\nYou are running the God-mode quality pass. Silently critique the draft (errors, gaps, unclear structure, missing edge cases), then output ONLY the improved final answer — no preamble, no critique text. Preserve titled fenced artifacts.` },
+        { role: "user", content: `Request: ${task}\n\nDraft answer:\n${final.slice(0, 16000)}` },
+      ],
+      onDelta: (t) => { acc += t; emit({ type: "delta", text: t }); },
+    });
+    if ((r.content || acc).trim().length > final.length * 0.4) { final = r.content || acc; provider = r.provider; model = r.model; }
+    else { emit({ type: "synthesis" }); emit({ type: "delta", text: final }); }
   } else {
     // stream the chosen output as the final text (it was already streamed per-agent; UI uses agent_delta for live view)
     emit({ type: "delta", text: final });

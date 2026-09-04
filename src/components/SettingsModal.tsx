@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Settings } from "./store";
 
 export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemory, onClearMemory, onAddMemory, onClose, onExport, onClearChats }: {
@@ -8,8 +8,23 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
   memory: string[]; onRemoveMemory: (f: string) => void; onClearMemory: () => void; onAddMemory: (f: string) => void;
   onClose: () => void; onExport: () => void; onClearChats: () => void;
 }) {
-  const [tab, setTab] = useState<"general" | "memory" | "data">("general");
+  const [tab, setTab] = useState<"general" | "memory" | "keys" | "data">("general");
   const [newFact, setNewFact] = useState("");
+  const [keys, setKeys] = useState<{ id: string; name: string; prefix: string; model: string; createdAt: number; calls: number; lastUsedAt?: number }[]>([]);
+  const [keyLimit, setKeyLimit] = useState(0);
+  const [keyName, setKeyName] = useState("");
+  const [fresh, setFresh] = useState<string | null>(null);
+  const [keyErr, setKeyErr] = useState<string | null>(null);
+  const loadKeys = () => fetch("/api/keys").then((r) => r.json()).then((j) => { setKeys(j.keys ?? []); setKeyLimit(j.limit ?? 0); }).catch(() => undefined);
+  useEffect(() => { if (tab === "keys") loadKeys(); }, [tab]);
+  const mint = async () => {
+    setKeyErr(null);
+    const r = await fetch("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: keyName }) });
+    const j = await r.json();
+    if (!r.ok) return setKeyErr(j.error);
+    setFresh(j.key); setKeyName(""); loadKeys();
+  };
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://your-aetheris.app";
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
@@ -18,6 +33,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
         <div className="mode-toggle" style={{ marginBottom: 14 }}>
           <button className={tab === "general" ? "active" : ""} onClick={() => setTab("general")}>General</button>
           <button className={tab === "memory" ? "active" : ""} onClick={() => setTab("memory")}>Memory · {memory.length}</button>
+          <button className={tab === "keys" ? "active" : ""} onClick={() => setTab("keys")}>API keys</button>
           <button className={tab === "data" ? "active" : ""} onClick={() => setTab("data")}>Data</button>
         </div>
 
@@ -55,6 +71,32 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
               <button className="send" disabled={!newFact.trim()} onClick={() => { onAddMemory(newFact.trim()); setNewFact(""); }}>Add</button>
             </div>
             {memory.length > 0 && <button className="ghost" style={{ alignSelf: "flex-start" }} onClick={() => { if (confirm("Forget everything?")) onClearMemory(); }}>Clear all memory</button>}
+          </div>
+        )}
+
+        {tab === "keys" && (
+          <div className="settings">
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Your own Aetheris API key. OpenAI-compatible — point any SDK at <code>{origin}/api/v1</code> and use models <code>aetheris-free … aetheris-god</code>. Credits and model tiers follow your plan.</p>
+            {fresh && (
+              <div className="fresh-key">
+                <div><strong>Copy it now — it will not be shown again.</strong></div>
+                <code>{fresh}</code>
+                <button className="ghost" onClick={() => navigator.clipboard.writeText(fresh)}>Copy</button>
+              </div>
+            )}
+            {keys.length === 0 && <div className="sb-empty">No keys yet.{keyLimit === 0 ? " API keys are included from the Lite plan (₹200/month)." : ""}</div>}
+            <ul className="mem-list">
+              {keys.map((k) => <li key={k.id}><span><code>{k.prefix}</code> {k.name} · {k.model} · {k.calls} calls</span><button className="link" onClick={() => fetch("/api/keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: k.id }) }).then(loadKeys)}>revoke</button></li>)}
+            </ul>
+            <div className="utr-form">
+              <input placeholder="Key name, e.g. my-app" value={keyName} onChange={(e) => setKeyName(e.target.value)} />
+              <button className="send" disabled={keyLimit > 0 && keys.length >= keyLimit} onClick={mint}>Create key {keyLimit ? `(${keys.length}/${keyLimit})` : ""}</button>
+            </div>
+            {keyErr && <div className="err-text">{keyErr}</div>}
+            <pre className="codeblock" style={{ fontSize: 12 }}>{`curl ${origin}/api/v1/chat/completions \\
+  -H "Authorization: Bearer sk-aeth-..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"aetheris-pro","messages":[{"role":"user","content":"@coder write fizzbuzz in Go"}]}'`}</pre>
           </div>
         )}
 

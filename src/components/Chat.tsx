@@ -86,6 +86,11 @@ export default function Chat() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [arena, setArena] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [models, setModels] = useState<{ id: string; name: string; minPlan: string; available: boolean; description: string }[]>([]);
+  const [model, setModel] = useState<string>("");
+  const [showModels, setShowModels] = useState(false);
+  const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
+  useEffect(() => { loadModels(); }, [loadModels]);
   const agentList = useAgents();
   const [arenaPick, setArenaPick] = useState<string[]>([]);
   const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
@@ -104,6 +109,7 @@ export default function Chat() {
     on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on);
   }, []);
   const features = account?.features ?? [];
+  useEffect(() => { loadModels(); }, [account?.planId, loadModels]);
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -210,7 +216,7 @@ export default function Chat() {
     try {
       const r = await fetch("/api/agents/run", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, preferred, servers, searchKey: settings.tavilyKey || undefined, project: project ? { instructions: project.instructions, files: project.files } : null, memory: settings.memoryEnabled ? memory : [] }),
+        body: JSON.stringify({ messages: history, preferred, servers, model, searchKey: settings.tavilyKey || undefined, project: project ? { instructions: project.instructions, files: project.files } : null, memory: settings.memoryEnabled ? memory : [] }),
         signal: controller.signal,
       });
       if (!r.ok || !r.body) {
@@ -265,7 +271,7 @@ export default function Chat() {
       const r = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history, preferred, servers, stream: true,
+          messages: history, preferred, servers, stream: true, model,
           web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
           project: project ? { instructions: project.instructions, files: project.files } : null,
           memory: settings.memoryEnabled ? memory : [],
@@ -549,7 +555,18 @@ export default function Chat() {
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
               <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>
               {voice.supported && <button className={`chip ${voiceMode ? "on" : ""}`} title="Voice mode: speak, and hear replies" onClick={() => { setVoiceMode((v) => !v); if (voiceMode) { voice.stopListening(); voice.stopSpeaking(); } }}>🎙 Voice</button>}
-              <span className="hint" style={{ margin: 0, marginLeft: "auto" }}>Enter to send · Shift+Enter newline</span>
+              <span style={{ marginLeft: "auto", position: "relative" }}>
+                <button className="chip model-chip" title="Aetheris model tier" onClick={() => setShowModels((v) => !v)}>◈ {models.find((m) => m.id === model)?.name ?? "Model"} ▾</button>
+                {showModels && (
+                  <div className="model-menu" onMouseLeave={() => setShowModels(false)}>
+                    {models.map((m) => (
+                      <button key={m.id} className={`${m.id === model ? "on" : ""} ${m.available ? "" : "locked"}`} onClick={() => { if (m.available) { setModel(m.id); setShowModels(false); } else { setShowModels(false); setUpgrade(`${m.name} needs the ${m.minPlan.replace("-", " ")} plan.`); } }}>
+                        <b>{m.name}</b><span className="meta">{m.description}</span>{!m.available && <span className="tag">🔒 {m.minPlan}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </span>
             </div>
           )}
         </div>}

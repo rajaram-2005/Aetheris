@@ -71,9 +71,19 @@ function shuffle<T>(arr: T[]): T[] {
  * within each group (cheap load balancing), with cooled-down providers pushed to the end
  * as a last resort.
  */
-export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean }): ProviderConfig[] {
+export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean }): ProviderConfig[] {
   const now = Date.now();
-  const configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
+  let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
+  // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
+  // leave the user with nothing: fall back to the full configured set if the policy empties it.
+  if (opts?.allow?.length) {
+    const pick = configured.filter((p) => opts.allow!.includes(p.id));
+    if (pick.length) configured = pick;
+  }
+  if (opts?.allowKeyless === false) {
+    const keyed = configured.filter((p) => !p.keyless || !!process.env[p.envKey]?.trim());
+    if (keyed.length) configured = keyed;
+  }
 
   const groups = new Map<number, ProviderConfig[]>();
   for (const p of configured) {
@@ -112,11 +122,14 @@ export interface RouteOptions {
    * kept) rather than restarting with another provider.
    */
   onDelta?: (text: string, provider: string) => void;
+  /** Tier policy: provider allow-list (preference order) and whether keyless providers count. */
+  allow?: string[];
+  allowKeyless?: boolean;
 }
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
   const vision = hasImages(opts.messages);
-  const candidates = orderedCandidates({ preferred: opts.preferred, vision });
+  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless });
   if (candidates.length === 0) {
     throw new ProviderError(
       vision

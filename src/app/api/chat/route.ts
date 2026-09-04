@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { route } from "@/lib/router/router";
 import { ProviderError, type ChatMessage, type ProviderAttempt } from "@/lib/router/types";
 import { getUserId, uidCookie } from "@/lib/user";
-import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
+import { consumeChat, hasFeature, planFor } from "@/lib/billing/entitlements";
+import { resolveTier } from "@/lib/models/tiers";
 import { runAgent, type EnabledServer } from "@/lib/mcp/agent";
 import { connectorById } from "@/lib/mcp/catalog";
 import { getSession } from "@/lib/github/auth";
@@ -53,6 +54,8 @@ interface Body {
   project?: { instructions?: unknown; files?: { name?: unknown; text?: unknown }[] } | null;
   /** Long-term memory facts (client-stored) */
   memory?: unknown;
+  /** Aetheris model tier id (aetheris-free … aetheris-god). Capped by plan. */
+  model?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -90,6 +93,9 @@ export async function POST(req: Request) {
   }
 
   const { uid, isNew } = await getUserId();
+  const plan = await planFor(uid);
+  const { tier } = resolveTier(typeof body.model === "string" ? body.model : undefined, plan.id);
+  const tierOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens };
   const quota = await consumeChat(uid);
   if (!quota.allowed) {
     const res = NextResponse.json(
@@ -201,8 +207,8 @@ export async function POST(req: Request) {
   // ---- Plain chat path ----------------------------------------------------------------------
   if (!wantStream) {
     try {
-      const result = await route({ messages, preferred, temperature, signal: req.signal });
-      const res = NextResponse.json({ ...result, quota, sources, searchQuery });
+      const result = await route({ ...tierOpts, messages, preferred, temperature, signal: req.signal });
+      const res = NextResponse.json({ ...result, tier: tier.id, quota, sources, searchQuery });
       if (isNew) res.cookies.set(uidCookie(uid));
       return res;
     } catch (err) {
@@ -219,13 +225,13 @@ export async function POST(req: Request) {
         if (sources) send({ type: "sources", sources, query: searchQuery });
         let current = "";
         const result = await route({
-          messages, preferred, temperature, signal: req.signal,
+          ...tierOpts, messages, preferred, temperature, signal: req.signal,
           onDelta: (text, provider) => {
             if (provider !== current) { current = provider; send({ type: "provider", provider }); }
             send({ type: "delta", text });
           },
         });
-        send({ type: "done", provider: result.provider, model: result.model, latencyMs: Date.now() - started, attempts: result.attempts, quota });
+        send({ type: "done", provider: result.provider, model: result.model, tier: tier.id, latencyMs: Date.now() - started, attempts: result.attempts, quota });
       } catch (err) {
         const attempts = (err as { attempts?: ProviderAttempt[] }).attempts ?? [];
         send({ type: "error", error: err instanceof Error ? err.message : "Unexpected server error", attempts });

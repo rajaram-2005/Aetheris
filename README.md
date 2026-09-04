@@ -32,6 +32,29 @@ Any subset of keys works — the router only uses providers whose key is set.
 deployment answers immediately (at low rate limits) and every key you add raises quality and
 throughput. The **Providers** page in the app links straight to each provider's free-key page.
 
+## Plans, models and API keys
+
+| Plan | ₹/month | Credits/day | Model | Agents/run | API keys | Extras |
+|---|---|---|---|---|---|---|
+| Free | 0 | 50 | `aetheris-free` (community + free tiers) | 1 | 0 | — |
+| Lite | 200 | 300 | `aetheris-lite` | 2 | 1 | Prime routing |
+| Pro | 500 | 1,000 | `aetheris-pro` (strongest free-tier models first) | 3 | 3 | Deep Research, premium MCP, priority routing |
+| Pro Max | 1,500 | 4,000 | `aetheris-pro-max` | 4 (parallel) | 10 | + Video generation |
+| God Mode | 4,000 | unlimited | `aetheris-god` (Metis critique-and-revise on every answer) | 6 | 50 | + Enterprise GitHub Factory |
+
+Credits: chat = 1, agent run = 2, Deep Research = 5, Arena = 1 per lane. Payment is a UPI QR to the
+founder; the admin approves the UTR at `/admin` and the plan unlocks automatically.
+
+**Personal API keys** (Settings → API keys, Lite+) are OpenAI-compatible:
+
+```bash
+curl https://<host>/api/v1/chat/completions \
+  -H "Authorization: Bearer sk-aeth-…" -H "Content-Type: application/json" \
+  -d '{"model":"aetheris-pro","messages":[{"role":"user","content":"@coder write fizzbuzz in Go"}],"stream":true}'
+```
+`GET /api/v1/models` lists tiers. Keys are stored as SHA-256 hashes; a requested tier above the plan
+is silently capped to the plan's best tier.
+
 ## The agent hierarchy
 
 ```

@@ -3,7 +3,8 @@ import { orchestrate } from "@/lib/agents/orchestrator";
 import { addLessons, getLessons } from "@/lib/agents/lessons";
 import type { ChatMessage } from "@/lib/router/types";
 import { getUserId, uidCookie } from "@/lib/user";
-import { consumeChat } from "@/lib/billing/entitlements";
+import { consumeChat, planFor } from "@/lib/billing/entitlements";
+import { resolveTier } from "@/lib/models/tiers";
 import { type EnabledServer } from "@/lib/mcp/agent";
 import { getSession } from "@/lib/github/auth";
 import { readTokens } from "@/lib/mcp/oauth";
@@ -19,13 +20,19 @@ type InMsg = { role: string; content: string; images?: string[] };
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as null | {
-    messages?: InMsg[]; agents?: string[]; preferred?: string; servers?: EnabledServer[]; searchKey?: string;
+    messages?: InMsg[]; agents?: string[]; preferred?: string; model?: string; servers?: EnabledServer[]; searchKey?: string;
     project?: { instructions?: string; files?: { name?: string; text?: string }[] } | null; memory?: string[];
   };
   const raw = (body?.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-30);
   if (raw.length === 0 || raw[raw.length - 1].role !== "user") return NextResponse.json({ error: "messages must end with a user message" }, { status: 400 });
 
   const { uid, isNew } = await getUserId();
+  const plan = await planFor(uid);
+  const { tier } = resolveTier(body?.model, plan.id);
+  const wantsMulti = (body?.agents?.length ?? 0) > 1 || /^@[\w-]+\s+@/.test(raw[raw.length - 1].content);
+  if (!plan.features.includes("agents") && wantsMulti) {
+    return NextResponse.json({ error: "Multi-agent pipelines need Lite or above. Free includes single-agent @mentions.", code: "upgrade", feature: "agents" }, { status: 402 });
+  }
   const quota = await consumeChat(uid, 2); // orchestration = 2 credits
   if (!quota.allowed) return NextResponse.json({ error: `Free tier limit reached (${quota.limit}/day). Upgrade for unlimited agents.`, code: "quota", quota }, { status: 402 });
 
@@ -59,6 +66,7 @@ export async function POST(req: Request) {
           messages, preferred: body?.preferred, agents: body?.agents, servers: body?.servers ?? [],
           ctx: { github: gh ? { token: gh.token, login: gh.login } : undefined, oauthTokens },
           searchKey: searchKeyFor(body?.searchKey), lessons, signal: req.signal,
+          policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel && plan.features.includes("parallel_agents"), critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens },
           onEvent: async (e) => {
             send(e);
             if (e.type === "lessons") await addLessons(uid, e.lessons).catch(() => undefined);

@@ -7,7 +7,9 @@ export interface Account {
   expiresAt: number | null;
   features: string[];
   chat: { used: number; limit: number | null };
-  plans: { id: string; name: string; priceInr: number; days: number; blurb: string; features: string[] }[];
+  planId?: string;
+  maxModel?: string;
+  plans: { id: string; name: string; priceInr: number; days: number; blurb: string; features: string[]; highlights: string[]; dailyCredits: number | null; maxModel: string; apiKeys: number; maxAgents: number }[];
   payee: { phone: string; email: string };
 }
 
@@ -69,20 +71,26 @@ export default function Upgrade({ account, onClose, onChanged, reason }: {
 
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${!checkout ? "modal-plans" : ""}`} onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
         {!checkout ? (
           <>
-            <h2>Upgrade Aetheris</h2>
-            <p>{reason ?? "Unlock Pro Video Generation, unlimited chat and premium connectors."} Pay via UPI — GPay, PhonePe, Paytm or any UPI app.</p>
-            <div className="plans">
-              {account.plans.map((p) => (
-                <button key={p.id} className="plan" onClick={() => start(p.id)} disabled={busy}>
-                  <div className="name">{p.name}</div>
-                  <div className="price">₹{p.priceInr}<small> / {p.days} days</small></div>
-                  <div className="blurb">{p.blurb}</div>
-                </button>
-              ))}
+            <h2>Choose your Aetheris</h2>
+            <p>{reason ?? "Bigger daily credits, stronger Aetheris models, more agents, your own API keys."} Pay via UPI — GPay, PhonePe, Paytm or any UPI app. Plans are 30 days.</p>
+            <div className="plans plans-5">
+              {account.plans.map((p) => {
+                const current = (account.planId ?? "free") === p.id;
+                return (
+                  <button key={p.id} className={`plan plan-${p.id} ${current ? "current" : ""}`} onClick={() => p.priceInr > 0 && start(p.id)} disabled={busy || p.priceInr === 0}>
+                    {p.id === "pro" && <span className="plan-badge">Popular</span>}
+                    {p.id === "god-mode" && <span className="plan-badge god">∞</span>}
+                    <div className="name">{p.name}{current ? " · current" : ""}</div>
+                    <div className="price">{p.priceInr === 0 ? "₹0" : `₹${p.priceInr}`}<small> / month</small></div>
+                    <div className="blurb">{p.blurb}</div>
+                    <ul className="plan-list">{p.highlights.map((h) => <li key={h}>{h}</li>)}</ul>
+                  </button>
+                );
+              })}
             </div>
             {err && <div className="err-text">{err}</div>}
             <p>Questions? WhatsApp {account.payee.phone} · {account.payee.email}</p>
@@ -90,7 +98,7 @@ export default function Upgrade({ account, onClose, onChanged, reason }: {
         ) : status === "approved" ? (
           <div className="qr">
             <h2>✓ Unlocked</h2>
-            <p>Your plan is active. Enjoy Aetheris Pro.</p>
+            <p>Your plan is active. Enjoy Aetheris.</p>
             <button className="send" onClick={onClose}>Done</button>
           </div>
         ) : status === "rejected" ? (
