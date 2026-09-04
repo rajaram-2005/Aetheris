@@ -50,6 +50,9 @@ export default function AgentsPage({ agents, onUse }: { agents: AgentInfo[]; onU
         <span className="hint" style={{ margin: 0 }}>{agents.length} agents · type <code>@id</code> in chat to force one, or turn on 🤖 Agents to let Prime route</span>
       </div>
 
+      <h3 className="agents-h">How models and agents combine</h3>
+      <ModelMatrix />
+
       <h3 className="agents-h">✴️ Ultra-agent</h3>
       <div className="agent-grid">{ultra.map((a) => <Card key={a.id} a={a} big />)}</div>
 
@@ -122,6 +125,30 @@ export function MentionMenu({ agents, query, onPick }: { agents: AgentInfo[]; qu
   return (
     <div className="mention-menu">
       {list.map((a) => <button key={a.id} onMouseDown={(e) => { e.preventDefault(); onPick(a.id); }}><span>{a.icon}</span><b>@{a.id}</b><span className="meta">{a.description}</span></button>)}
+    </div>
+  );
+}
+
+function ModelMatrix() {
+  const [models, setModels] = useState<{ id: string; name: string; minPlan: string; available: boolean; agents: { max: number; parallel: boolean; critique: boolean } }[]>([]);
+  useEffect(() => { fetch("/api/models").then((r) => r.json()).then((j) => setModels(j.models ?? [])).catch(() => undefined); }, []);
+  if (!models.length) return null;
+  return (
+    <div className="model-matrix">
+      {models.map((m) => (
+        <div key={m.id} className={`mm-row ${m.available ? "" : "locked"}`}>
+          <div className="mm-name"><b>{m.name}</b><span className="meta">{m.id}{m.available ? "" : ` · 🔒 ${m.minPlan}`}</span></div>
+          <div className="mm-flow">
+            {m.agents.max === 1 ? <><span className="chip">⚡ Hermes</span><span className="arrow">→</span><span className="chip">answer</span></> : <>
+              <span className="chip">✴️ Prime plans</span><span className="arrow">→</span>
+              <span className="chip">{m.agents.max} specialists{m.agents.parallel ? " ∥" : " ⛓"}</span><span className="arrow">→</span>
+              {m.agents.parallel && <><span className="chip">✴️ synthesis</span><span className="arrow">→</span></>}
+              {m.agents.critique && <><span className="chip">🦉 Metis critique</span><span className="arrow">→</span></>}
+              <span className="chip">answer</span><span className="arrow">→</span><span className="chip">🦉 lessons</span>
+            </>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

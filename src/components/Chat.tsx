@@ -85,8 +85,8 @@ export default function Chat() {
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [arena, setArena] = useState(false);
-  const [agentMode, setAgentMode] = useState(false);
-  const [models, setModels] = useState<{ id: string; name: string; minPlan: string; available: boolean; description: string }[]>([]);
+  const [models, setModels] = useState<{ id: string; name: string; minPlan: string; available: boolean; description: string; agents: { max: number; parallel: boolean; critique: boolean } }[]>([]);
+  const [direct, setDirect] = useState(false); // bypass agents for this model (quick chat)
   const [model, setModel] = useState<string>("");
   const [showModels, setShowModels] = useState(false);
   const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
@@ -258,7 +258,9 @@ export default function Chat() {
     if (mode === "factory") return runFactory(content);
     if (research) return runResearch(content);
     if (arena) return runArenaRef.current(content, images);
-    if (agentMode || /^@[a-z][\w-]*\b/i.test(content)) return runAgents(content, images);
+    const tier = models.find((m) => m.id === model);
+    const agentic = !!tier && tier.agents.max > 1 && !direct;
+    if (agentic || /^@[a-z][\w-]*\b/i.test(content)) return runAgents(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
     const c = startConvo(userMsg);
     const aid = crypto.randomUUID();
@@ -313,7 +315,7 @@ export default function Chat() {
       else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, images, busy, mode, research, arena, agentMode, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents]);
+  }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents]);
 
   const regenerate = () => {
     if (!active || busy) return;
@@ -395,7 +397,7 @@ export default function Chat() {
   const preferredName = mesh?.providers.find((p) => p.id === preferred)?.name;
   const webOn = (webOverride ?? settings.web) !== "off" && !!settings.tavilyKey;
   const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
-    : research ? "What should I research in depth?" : agentMode ? "Describe the task — Prime will pick the right specialists (or type @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
+    : research ? "What should I research in depth?" : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1 && !direct ? "Describe the task — Prime routes it to the right specialists (or force one with @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
     <div className="shell">
@@ -437,7 +439,7 @@ export default function Chat() {
         <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}
           onClick={(e) => { const b = (e.target as HTMLElement).closest("button[data-copy]") as HTMLButtonElement | null; if (b) { const code = b.closest(".codeblock")?.querySelector("code")?.textContent ?? ""; navigator.clipboard.writeText(code); b.textContent = "copied"; setTimeout(() => { b.textContent = "copy"; }, 1200); } }}>
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
-          {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setAgentMode(true); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
+          {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
@@ -550,7 +552,9 @@ export default function Chat() {
           {mode === "chat" && (
             <div className="composer-tools">
               <button className={`chip ${webOn ? "on" : ""}`} title={settings.tavilyKey ? `Web search: ${webOverride ?? settings.web}` : "Add a Tavily key in Settings to enable web search"} onClick={() => settings.tavilyKey ? setWebOverride((w) => (w ? null : "on")) : setShowSettings(true)}>🌐 {settings.tavilyKey ? (webOverride === "on" ? "Search: on" : `Search: ${settings.web}`) : "Search"}</button>
-              <button className={`chip ${agentMode ? "on" : ""}`} title="Multi-agent mode: Prime plans, specialists execute, Metis learns (2 credits). Or type @agent to force one." onClick={() => { setAgentMode((a) => !a); setResearch(false); setArena(false); }}>🤖 Agents</button>
+              {(models.find((m) => m.id === model)?.agents.max ?? 1) > 1
+                ? <button className={`chip ${!direct ? "on" : ""}`} title={direct ? "Agents off for quick replies (1 credit). Click to re-enable Prime routing." : "Prime routes each message to specialists (2 credits). Click for a direct single-model reply."} onClick={() => setDirect((d) => !d)}>🤖 {direct ? "Agents: off" : "Agents: on"}</button>
+                : <button className="chip" title="Aetheris Free answers directly with Hermes. Type @tutor, @coder… to call one specialist, or upgrade for Prime multi-agent routing." onClick={() => setInput((v) => (v.startsWith("@") ? v : "@" + v))}>🤖 @agent</button>}
               <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
               <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>
@@ -561,7 +565,9 @@ export default function Chat() {
                   <div className="model-menu" onMouseLeave={() => setShowModels(false)}>
                     {models.map((m) => (
                       <button key={m.id} className={`${m.id === model ? "on" : ""} ${m.available ? "" : "locked"}`} onClick={() => { if (m.available) { setModel(m.id); setShowModels(false); } else { setShowModels(false); setUpgrade(`${m.name} needs the ${m.minPlan.replace("-", " ")} plan.`); } }}>
-                        <b>{m.name}</b><span className="meta">{m.description}</span>{!m.available && <span className="tag">🔒 {m.minPlan}</span>}
+                        <b>{m.name}</b><span className="meta">{m.description}</span>
+                        <span className="meta">{m.agents.max === 1 ? "⚡ Hermes direct · @mention one specialist" : `✴️ Prime → up to ${m.agents.max} specialists${m.agents.parallel ? " in parallel + synthesis" : " (pipeline)"}${m.agents.critique ? " · 🦉 Metis critique pass" : ""}`}</span>
+                        {!m.available && <span className="tag">🔒 {m.minPlan}</span>}
                       </button>
                     ))}
                   </div>

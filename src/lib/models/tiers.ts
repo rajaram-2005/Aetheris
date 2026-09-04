@@ -26,11 +26,11 @@ const STRONG = ["groq", "cerebras", "sambanova", "gemini", "github", "mistral", 
 const WIDE = [...STRONG, "cloudflare", "huggingface", "deepseek", "ai21", "ovh", "ollama-cloud", "zai", "siliconflow", "nebius", "chutes", "glhf", "nscale", "perplexity"];
 
 export const MODEL_TIERS: ModelTier[] = [
-  { id: "aetheris-free", name: "Aetheris Free", minPlan: "free", description: "Community + free-tier models, single agent.", providers: [], allowKeyless: true, maxTokens: 1024, agents: { max: 1, parallel: false, critique: false }, contextMessages: 12 },
-  { id: "aetheris-lite", name: "Aetheris Lite", minPlan: "lite", description: "Keyed free-tier providers, 2-step pipelines.", providers: WIDE, allowKeyless: false, maxTokens: 2048, agents: { max: 2, parallel: false, critique: false }, contextMessages: 20 },
-  { id: "aetheris-pro", name: "Aetheris Pro", minPlan: "pro", description: "Strongest free-tier models first, 3-agent pipelines, priority routing.", providers: STRONG, allowKeyless: false, maxTokens: 4096, agents: { max: 3, parallel: false, critique: false }, contextMessages: 30 },
-  { id: "aetheris-pro-max", name: "Aetheris Pro Max", minPlan: "pro-max", description: "Parallel specialists + Prime synthesis.", providers: STRONG, allowKeyless: false, maxTokens: 8192, agents: { max: 4, parallel: true, critique: false }, contextMessages: 40 },
-  { id: "aetheris-god", name: "Aetheris God", minPlan: "god-mode", description: "Everything, plus a Metis critique-and-revise pass on every answer.", providers: STRONG, allowKeyless: false, maxTokens: 8192, agents: { max: 6, parallel: true, critique: true }, contextMessages: 40 },
+  { id: "aetheris-free", name: "Aetheris Free", minPlan: "free", description: "Hermes answers directly on community + free-tier models.", providers: [], allowKeyless: true, maxTokens: 1024, agents: { max: 1, parallel: false, critique: false }, contextMessages: 12 },
+  { id: "aetheris-lite", name: "Aetheris Lite", minPlan: "lite", description: "Prime routes to 1–2 specialists on keyed free-tier providers.", providers: WIDE, allowKeyless: false, maxTokens: 2048, agents: { max: 2, parallel: false, critique: false }, contextMessages: 20 },
+  { id: "aetheris-pro", name: "Aetheris Pro", minPlan: "pro", description: "Prime + 3-specialist pipelines on the strongest free-tier models.", providers: STRONG, allowKeyless: false, maxTokens: 4096, agents: { max: 3, parallel: false, critique: false }, contextMessages: 30 },
+  { id: "aetheris-pro-max", name: "Aetheris Pro Max", minPlan: "pro-max", description: "Up to 4 specialists in parallel, merged by Prime.", providers: STRONG, allowKeyless: false, maxTokens: 8192, agents: { max: 4, parallel: true, critique: false }, contextMessages: 40 },
+  { id: "aetheris-god", name: "Aetheris God", minPlan: "god-mode", description: "6 specialists, parallel synthesis, and a Metis critique-and-revise pass on every answer.", providers: STRONG, allowKeyless: false, maxTokens: 8192, agents: { max: 6, parallel: true, critique: true }, contextMessages: 40 },
 ];
 
 export function tierById(id?: string | null): ModelTier | undefined {
