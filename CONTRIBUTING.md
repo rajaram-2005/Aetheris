@@ -32,7 +32,7 @@ Add it to `src/lib/mcp/catalog.ts` with the remote endpoint and auth type, then 
 
 ## Pull requests
 - Small, focused PRs. Describe *why*, link an issue if there is one.
-- `npm run typecheck` and `npm test` must pass (CI runs them plus `next build`).
+- `npm run typecheck` and `npm test` must pass. CI workflow: `mkdir -p .github/workflows && cp docs/ci.yml .github/workflows/ci.yml` (maintainer adds it once; runs typecheck, tests and `next build`).
 - No secrets, no `data/` fixtures, no generated artifacts.
 - Keep credit costs / plan gates consistent (`docs` in README → "Plans").
 
