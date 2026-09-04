@@ -38,7 +38,16 @@ Any subset of keys works — the router only uses providers whose key is set.
 deployment answers immediately (at low rate limits) and every key you add raises quality and
 throughput. The **Providers** page in the app links straight to each provider's free-key page.
 
-## Plans, models and API keys
+## 100% free — for everyone
+
+Aetheris is free. No plans, no credits, no payments: every user gets every feature (all models, parallel agents,
+deep research, video, premium MCP connectors, Enterprise Factory, 50 API keys) with **no daily limit**.
+The only limits are the free tiers of the upstream providers, which the router balances across 27 of them.
+
+The optional billing system below is kept in the codebase for self-hosters who want it; it is **off by default**.
+Set `AETHERIS_PAID_PLANS=1` to turn it on.
+
+## (Optional) Plans, models and API keys — off by default
 
 | Plan | ₹/month | Credits/day | Model | Agents/run | API keys | Extras |
 |---|---|---|---|---|---|---|

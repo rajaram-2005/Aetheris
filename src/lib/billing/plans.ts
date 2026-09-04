@@ -2,6 +2,13 @@ export type Feature = "video" | "factory_enterprise" | "mcp_premium" | "agents" 
 
 export type PlanId = "free" | "lite" | "pro" | "pro-max" | "god-mode";
 
+/**
+ * Aetheris is free for everyone. When FREE_FOR_ALL is on (the default), every user gets the full
+ * God Mode feature set with no metering and no payments. Set AETHERIS_PAID_PLANS=1 to re-enable
+ * the plan/UPI billing system on a self-hosted deployment.
+ */
+export const freeForAll = () => process.env.AETHERIS_PAID_PLANS !== "1";
+
 export interface Plan {
   id: PlanId;
   name: string;

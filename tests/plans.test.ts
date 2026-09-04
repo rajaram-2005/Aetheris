@@ -22,6 +22,7 @@ test("plan rank is monotonic and tiers cap by plan", () => {
 test("credits: over-limit request is refused without inflating the counter; kinds are tracked", async () => {
   const fs = await import("node:fs"); const os = await import("node:os"); const path = await import("node:path");
   process.env.AETHERIS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "aetheris-credits-"));
+  process.env.AETHERIS_PAID_PLANS = "1";
   const { consumeChat, usageSummary } = await import("../src/lib/billing/entitlements");
   // free plan: 50/day
   for (let i = 0; i < 48; i++) assert.equal((await consumeChat("c1", 1, "chat")).allowed, true);

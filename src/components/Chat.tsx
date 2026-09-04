@@ -458,7 +458,7 @@ export default function Chat() {
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
               ? <span className="badge" title={`until ${new Date(account.expiresAt!).toLocaleDateString("en-IN")}`}>{account.plan.name.replace("Aetheris ", "").toUpperCase()}</span>
-              : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
+              : account.freeForAll ? <span className="mesh-pill" title="Aetheris is free for everyone — no limits, no payments">✦ free · {account.chat.used} today</span> : <button className="mesh-pill" onClick={() => setUpgrade("")} title="Upgrade">✦ {account.chat.limit ? `${account.chat.used}/${account.chat.limit}` : "Upgrade"}</button>)}
             <button className={`mesh-pill ${mode === "providers" ? "on" : ""}`} onClick={() => (mode === "chat" ? setShowMesh((s) => !s) : setMode("providers"))} title="Provider mesh status (click to toggle panel)">
               <span className={`dot ${meshDot}`} />{meshLabel}{preferredName ? ` · ${preferredName}` : ""}
             </button>
@@ -566,7 +566,7 @@ export default function Chat() {
           </>}
         </div>
 
-        {upgrade !== null && account && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
+        {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
         {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 

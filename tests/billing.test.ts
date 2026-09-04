@@ -7,6 +7,7 @@ import path from "node:path";
 before(() => {
   process.env.AETHERIS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "aetheris-"));
   process.env.AETHERIS_FREE_DAILY_MESSAGES = "2";
+  process.env.AETHERIS_PAID_PLANS = "1";
 });
 
 test("UPI link is well-formed and points to the founder", async () => {

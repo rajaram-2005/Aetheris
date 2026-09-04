@@ -78,8 +78,8 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
               )}
             </div>
             <div className="usage-head">
-              <div><div className="hint" style={{ margin: 0, textAlign: "left" }}>Current plan</div><b style={{ fontSize: 18 }}>{account.plan?.name ?? "Free"}</b>{account.expiresAt && <span className="hint" style={{ marginLeft: 8 }}>renews by {new Date(account.expiresAt).toLocaleDateString("en-IN")}</span>}</div>
-              {account.admin ? <span className="plan-badge god">∞ admin</span> : <button className="send" onClick={onUpgrade}>{account.plan ? "Change plan" : "Upgrade"}</button>}
+              <div><div className="hint" style={{ margin: 0, textAlign: "left" }}>Current plan</div><b style={{ fontSize: 18 }}>{account.freeForAll ? "Everything, free" : account.plan?.name ?? "Free"}</b>{account.expiresAt && <span className="hint" style={{ marginLeft: 8 }}>renews by {new Date(account.expiresAt).toLocaleDateString("en-IN")}</span>}</div>
+              {account.freeForAll ? <span className="plan-badge god">∞ free for everyone</span> : account.admin ? <span className="plan-badge god">∞ admin</span> : <button className="send" onClick={onUpgrade}>{account.plan ? "Change plan" : "Upgrade"}</button>}
             </div>
             <div className="usage-bar"><div style={{ width: account.chat.limit ? `${Math.min(100, (account.chat.used / account.chat.limit) * 100)}%` : "0%" }} /></div>
             <div className="hint" style={{ textAlign: "left", margin: 0 }}>{account.chat.used} / {account.chat.limit ?? "∞"} credits used today · model cap <code>{account.maxModel}</code> · up to {account.maxAgents} agent{(account.maxAgents ?? 1) > 1 ? "s" : ""} per run · {account.apiKeys} API key{account.apiKeys === 1 ? "" : "s"}</div>
@@ -124,7 +124,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
                 <button className="ghost" onClick={() => navigator.clipboard.writeText(fresh)}>Copy</button>
               </div>
             )}
-            {keys.length === 0 && <div className="sb-empty">No keys yet.{keyLimit === 0 ? " API keys are included from the Lite plan (₹200/month)." : ""}</div>}
+            {keys.length === 0 && <div className="sb-empty">No keys yet.{keyLimit === 0 ? " API keys are not enabled on this deployment." : ""}</div>}
             <ul className="mem-list">
               {keys.map((k) => <li key={k.id}><span><code>{k.prefix}</code> {k.name} · {k.model} · {k.calls} calls</span><button className="link" onClick={() => fetch("/api/keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: k.id }) }).then(loadKeys)}>revoke</button></li>)}
             </ul>

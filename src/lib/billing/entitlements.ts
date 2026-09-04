@@ -1,5 +1,5 @@
 import { store } from "@/lib/store";
-import { FREE_PLAN, PLANS, planById, type Feature, type Plan } from "./plans";
+import { freeForAll, FREE_PLAN, PLANS, planById, type Feature, type Plan } from "./plans";
 
 export interface Entitlement {
   uid: string;
@@ -23,6 +23,7 @@ export async function isAdminUser(uid: string): Promise<boolean> {
 }
 
 export async function planFor(uid: string): Promise<Plan> {
+  if (freeForAll()) return GOD;
   if (await isAdminUser(uid)) return GOD;
   const e = await getEntitlement(uid);
   return (e && planById(e.planId)) || FREE_PLAN;
@@ -49,6 +50,10 @@ export type UsageKind = "chat" | "agents" | "research" | "arena" | "factory" | "
 
 export async function consumeChat(uid: string, cost = 1, kind: UsageKind = "chat"): Promise<{ allowed: boolean; used: number; limit: number | null }> {
   const plan = await planFor(uid);
+  if (freeForAll()) { // still record usage (nice stats), never refuse
+    const u = await store.update<Usage>("usage", uid, (cur) => { const d = today(); if (!cur || cur.day !== d) return { day: d, count: cost, byKind: { [kind]: cost }, history: [...(cur?.history ?? []), ...(cur ? [{ day: cur.day, count: cur.count }] : [])].slice(-30) }; return { ...cur, count: cur.count + cost, byKind: { ...(cur.byKind ?? {}), [kind]: (cur.byKind?.[kind] ?? 0) + cost } }; });
+    return { allowed: true, used: u.count, limit: null };
+  }
   // Check before charging so an over-limit request does not inflate the counter.
   const cur0 = await store.get<Usage>("usage", uid);
   const usedToday = cur0 && cur0.day === today() ? cur0.count : 0;

@@ -17,6 +17,7 @@ export interface Account {
   payee: { phone: string; email: string };
   user?: { id: string; name: string; email?: string; phone?: string; avatar?: string; providers: string[]; admin?: boolean } | null;
   admin?: boolean;
+  freeForAll?: boolean;
 }
 
 export function useAccount() {
