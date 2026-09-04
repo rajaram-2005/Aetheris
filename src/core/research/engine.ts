@@ -56,7 +56,7 @@ export async function searchSemanticScholar(q: string, n = 8): Promise<Evidence[
 export function dedupeEvidence(lists: Evidence[][]): Evidence[] {
   const byKey = new Map<string, Evidence>();
   for (const e of lists.flat()) {
-    const key = e.doi ? `doi:${e.doi.toLowerCase()}` : e.id.startsWith("arxiv:") ? e.id : `t:${norm(e.title).slice(0, 80)}`;
+    const key = e.doi ? `doi:${e.doi.toLowerCase()}` : e.id.startsWith("doi:") || e.id.startsWith("arxiv:") ? e.id.toLowerCase() : `t:${norm(e.title).slice(0, 80)}`;
     const cur = byKey.get(key);
     if (!cur) byKey.set(key, { ...e, id: key.startsWith("t:") ? e.id : key });
     else byKey.set(key, { ...cur, abstract: cur.abstract ?? e.abstract, citationCount: Math.max(cur.citationCount ?? 0, e.citationCount ?? 0) || undefined, venue: cur.venue ?? e.venue, s2Id: cur.s2Id ?? e.s2Id, openalexId: cur.openalexId ?? e.openalexId, authors: cur.authors.length ? cur.authors : e.authors });
