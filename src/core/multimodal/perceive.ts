@@ -42,7 +42,7 @@ export function analyzeSeries(series: { t: number; v: number }[], z = 3) {
   const xs = series.map((s) => s.t); const mx = xs.reduce((a, b) => a + b, 0) / n;
   const slope = xs.reduce((a, x, i) => a + (x - mx) * (vs[i] - mean), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1);
   const anomalies = series.filter((s) => sd > 0 && Math.abs(s.v - mean) / sd >= z);
-  return { n, min: Math.min(...vs), max: Math.max(...vs), mean, sd, slopePerUnit: slope, trend: Math.abs(slope) * (xs[n - 1] - xs[0]) < sd * 0.5 ? "flat" : slope > 0 ? "rising" : "falling", anomalies, first: series[0], last: series[n - 1] };
+  return { n, min: Math.min(...vs), max: Math.max(...vs), mean, sd, slopePerUnit: slope, trend: Math.abs(slope) * (xs[n - 1] - xs[0]) <= Math.max(sd * 0.5, 1e-9) ? "flat" : slope > 0 ? "rising" : "falling", anomalies, first: series[0], last: series[n - 1] };
 }
 
 export async function perceive(input: PerceiveInput): Promise<Perception> {
