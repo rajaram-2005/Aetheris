@@ -1,0 +1,54 @@
+{
+  "name": "aetheris",
+  "version": "0.1.0",
+  "private": false,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "eval": "tsx evals/run.ts",
+    "verify:connectors": "tsx scripts/verify-connectors.ts"
+  },
+  "dependencies": {
+    "next": "^15.5.0",
+    "pdf-parse": "^1.1.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.6.0"
+  },
+  "license": "MIT",
+  "description": "Aetheris One — open-source AI workspace: one chat over 27 free LLM providers, hierarchical agents, GitHub coding factory, media studio, 100+ MCP app hub.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rajaram-2005/Aetheris.git"
+  },
+  "homepage": "https://github.com/rajaram-2005/Aetheris#readme",
+  "bugs": {
+    "url": "https://github.com/rajaram-2005/Aetheris/issues"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "nextjs",
+    "mcp",
+    "agents",
+    "openai-compatible",
+    "free-llm",
+    "router",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
