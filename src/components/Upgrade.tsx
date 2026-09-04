@@ -15,6 +15,8 @@ export interface Account {
   apiKeys?: number;
   plans: { id: string; name: string; priceInr: number; days: number; blurb: string; features: string[]; highlights: string[]; dailyCredits: number | null; maxModel: string; apiKeys: number; maxAgents: number }[];
   payee: { phone: string; email: string };
+  user?: { id: string; name: string; email?: string; phone?: string; avatar?: string; providers: string[]; admin?: boolean } | null;
+  admin?: boolean;
 }
 
 export function useAccount() {

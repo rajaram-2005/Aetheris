@@ -2,6 +2,12 @@
 
 **One chat. A mesh of free AI providers. Automatic failover.**
 
+[![CI](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml/badge.svg)](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+Aetheris is **open source (MIT)**. Self-host it in a minute, fork it, or contribute a provider, agent or MCP connector — see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+
 Aetheris One is a minimalist chat interface backed by an *omni-router*: your prompt is
 load-balanced across 27 free-tier AI providers. When one provider rate-limits or errors,
 Aetheris silently reroutes to the next — no local GPU, no paid API required.
@@ -326,3 +332,18 @@ Sign in with an address listed in `AETHERIS_ADMIN_EMAILS` / `AETHERIS_ADMIN_PHON
 `ramkpraja175@gmail.com` and `+91 9488407998`) and you get **everything**: God Mode features, no credit metering,
 unlimited agents/API keys, and `/admin` (payments, users, plan changes) without typing `AETHERIS_ADMIN_KEY`.
 The key still works for scripts (`Authorization: Bearer …`).
+
+## Self-hosting
+
+```bash
+git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
+npm install && cp .env.example .env.local
+npm run dev            # or: npm run build && npm start
+```
+Works with zero keys (keyless providers). Add provider keys in Settings or `.env.local` for more capacity.
+Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHONES` (your admin identities) and the
+optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker);
+persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+
+## License
+MIT © 2026 Rajaram K — see [LICENSE](LICENSE).

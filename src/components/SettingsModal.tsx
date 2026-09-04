@@ -64,8 +64,22 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
         {tab === "usage" && account && (
           <div className="settings">
             <div className="usage-head">
+              {account.user ? (
+                <div className="sb-account" style={{ padding: 0 }}>
+                  {account.user.avatar ? <img src={account.user.avatar} alt="" /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
+                  <span className="who">{account.user.name}{account.admin && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
+                  <span className="hint" style={{ margin: 0 }}>{[account.user.email, account.user.phone].filter(Boolean).join(" · ")} · via {account.user.providers.join(", ")}</span>
+                  <a className="link" href="/login">+ link another</a>
+                  {account.admin && <a className="link" href="/admin">admin</a>}
+                  <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
+                </div>
+              ) : (
+                <div className="upsell">👤 You're using Aetheris as a guest on this browser. <a className="link" href="/login">Sign in</a> to keep your plan, memory and API keys on every device.</div>
+              )}
+            </div>
+            <div className="usage-head">
               <div><div className="hint" style={{ margin: 0, textAlign: "left" }}>Current plan</div><b style={{ fontSize: 18 }}>{account.plan?.name ?? "Free"}</b>{account.expiresAt && <span className="hint" style={{ marginLeft: 8 }}>renews by {new Date(account.expiresAt).toLocaleDateString("en-IN")}</span>}</div>
-              <button className="send" onClick={onUpgrade}>{account.plan ? "Change plan" : "Upgrade"}</button>
+              {account.admin ? <span className="plan-badge god">∞ admin</span> : <button className="send" onClick={onUpgrade}>{account.plan ? "Change plan" : "Upgrade"}</button>}
             </div>
             <div className="usage-bar"><div style={{ width: account.chat.limit ? `${Math.min(100, (account.chat.used / account.chat.limit) * 100)}%` : "0%" }} /></div>
             <div className="hint" style={{ textAlign: "left", margin: 0 }}>{account.chat.used} / {account.chat.limit ?? "∞"} credits used today · model cap <code>{account.maxModel}</code> · up to {account.maxAgents} agent{(account.maxAgents ?? 1) > 1 ? "s" : ""} per run · {account.apiKeys} API key{account.apiKeys === 1 ? "" : "s"}</div>
