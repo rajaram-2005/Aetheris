@@ -34,23 +34,29 @@ const KEY_URLS: Record<string, string> = {
  * blocked silently, so we fall back to copying the URL and telling the user.
  */
 function KeyLink({ href, children }: { href: string; children: React.ReactNode }) {
-  const [state, setState] = useState<"idle" | "copied" | "blocked">("idle");
+  const [blocked, setBlocked] = useState(false);
   const onClick = (e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
+    // Try a real new tab first. Sandboxed iframes (hosted previews) return null here.
     let w: Window | null = null;
     try { w = window.open(href, "_blank", "noopener,noreferrer"); } catch { w = null; }
-    if (w) return;
-    navigator.clipboard?.writeText(href).then(() => setState("copied")).catch(() => setState("blocked"));
-    setTimeout(() => setState("idle"), 4000);
+    if (w) { e.preventDefault(); return; }
+    e.preventDefault();
+    // Fallback 1: navigate the top-level page (allowed in most sandboxes on user gesture).
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = href; return; }
+    } catch { /* cross-origin top navigation denied */ }
+    // Fallback 2: same-tab navigation.
+    try { window.location.assign(href); return; } catch { /* ignore */ }
+    navigator.clipboard?.writeText(href).catch(() => {});
+    setBlocked(true);
   };
   return (
     <span className="keylink">
-      <a href={href} target="_blank" rel="noreferrer noopener" onClick={onClick}>{children}</a>
-      {state !== "idle" && (
+      <a href={href} target="_top" rel="noreferrer noopener" onClick={onClick}>{children}</a>
+      {blocked && (
         <span className="keylink-note">
-          {state === "copied" ? "popup blocked here — link copied, paste it in a new tab: " : "popup blocked — open this in a new tab: "}
-          <code>{href}</code>
+          this preview blocks navigation — open the app in its own tab, or paste: <code>{href}</code>
         </span>
       )}
     </span>
