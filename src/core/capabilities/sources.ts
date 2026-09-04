@@ -10,6 +10,8 @@ import { meshStatus } from "@/lib/router/router";
 import { AGENTS } from "@/lib/agents/catalog";
 import { CONNECTORS } from "@/lib/mcp/catalog";
 import { APIS } from "@/lib/gateway/apis";
+import { store } from "@/lib/store";
+import type { McpServerRecord } from "@/core/mcp/gateway";
 
 // ---- Models --------------------------------------------------------------------------------------
 const modelSource: CapabilitySource = {
@@ -75,7 +77,7 @@ const platformSource: CapabilitySource = {
     P({ id: "system:execution-policy", name: "Execution Policy & Permissions", category: "execution", description: "Capability-based permission levels (READ_ONLY → PHYSICAL), confirmation gates and audit log for every tool/command invocation.", status: "implemented", tags: ["security", "permissions", "sandbox", "audit"], security_level: "admin", supported_operations: ["check", "audit"], verification_status: "verified" }),
     P({ id: "execution:browser-sandbox", name: "Code Interpreter (browser sandbox)", category: "execution", description: "Python (Pyodide) and JavaScript run inside a sandboxed iframe in the user's browser — no server execution.", status: "implemented", tags: ["python", "javascript", "sandbox"], security_level: "read_only", supported_operations: ["run"], verification_status: "verified", locality: "local" }),
     P({ id: "execution:server-sandbox", name: "Server-side command sandbox", category: "execution", description: "Process-isolated shell/test execution on the server: fresh temp workspace, scrubbed env, SIGKILL timeout, output caps, allow-listed binaries, deny-list, network off via unshare when the host permits. Not a VM/container — run Aetheris itself in a container for defence in depth.", status: "implemented", tags: ["shell", "tests", "python", "node", "sandbox"], security_level: "full_workspace", requires_confirmation: true, supported_operations: ["run", "files", "fsChanges"], verification_status: "verified", locality: "local" }),
-    P({ id: "system:mcp-gateway", name: "MCP Gateway & Hub", category: "system", description: "One MCP endpoint (/api/mcp/hub) aggregating 110 connectors: remote MCP servers + REST gateway with per-user credentials, OAuth, tool namespacing. Missing: user-added arbitrary MCP servers with health monitoring and versioning.", status: "partial", tags: ["mcp", "tools", "gateway"], security_level: "safe_write", supported_operations: ["tools/list", "tools/call", "oauth"], verification_status: "verified" }),
+    P({ id: "system:mcp-gateway", name: "MCP Gateway & Hub", category: "system", description: "One MCP endpoint (/api/mcp/hub) aggregating 110 catalog connectors (remote MCP + REST gateway, per-user credentials, OAuth) plus user-registered MCP servers (/api/mcp/servers) with manifest capture, health monitoring & sweeps, tool versioning, JSON-schema argument validation and per-tool permission classification.", status: "implemented", tags: ["mcp", "tools", "gateway"], security_level: "safe_write", supported_operations: ["tools/list", "tools/call", "oauth"], verification_status: "verified" }),
     P({ id: "system:capability-registry", name: "Capability Registry", category: "system", description: "Unified, searchable metadata for models, agents, tools, connectors, subsystems with honest status. Drives intent routing and the Control Center.", status: "implemented", tags: ["registry", "discovery"], security_level: "read_only", supported_operations: ["search", "get", "summary"], verification_status: "verified", locality: "local" }),
     P({ id: "system:intent-router", name: "Intent → Capability Router", category: "system", description: "Classifies a command into task types and picks capabilities (agent, connectors, knowledge, mode) with explicit manual override.", status: "implemented", tags: ["intent", "routing", "planner"], security_level: "read_only", supported_operations: ["route"], verification_status: "verified", locality: "local" }),
     P({ id: "knowledge:kb", name: "Knowledge bases (documents, BM25)", category: "knowledge", description: "Per-user KBs: PDF/DOCX/CSV/HTML/text/URL ingestion, heading-aware chunking, BM25 retrieval, [D#] citations. Missing: embeddings/vector option, knowledge graph, temporal store, contradiction detection.", status: "partial", tags: ["rag", "documents", "pdf", "citations"], security_level: "read_only", supported_operations: ["ingest", "search", "cite"], verification_status: "verified", locality: "local" }),
@@ -94,9 +96,21 @@ const platformSource: CapabilitySource = {
   ],
 };
 
+// ---- User-registered MCP servers (Phase 7) -----------------------------------------------------
+const userMcpSource: CapabilitySource = {
+  id: "mcp-servers",
+  async list() {
+    const all = Object.values(await store.all<McpServerRecord>("mcp_servers"));
+    return all.flatMap<Capability>((srv) => [
+      { id: `mcpserver:${srv.id}`, name: `MCP · ${srv.name}`, category: "connector", provider: "mcp-gateway", description: `${srv.url} · ${srv.manifest?.serverName ?? ""} ${srv.manifest?.serverVersion ?? ""} · ${srv.manifest?.tools.length ?? 0} tools`.trim(), status: srv.health.state === "healthy" ? "implemented" : srv.health.state === "degraded" ? "partial" : "not_available", tags: ["mcp", "user-server", srv.name.toLowerCase()], security_level: "read_only", cost: { unit: "free" }, latency: "fast", reliability: srv.health.calls ? (srv.health.calls - srv.health.failures + 1) / (srv.health.calls + 2) : undefined, supported_operations: ["tools/list", "tools/call", "health"], verification_status: srv.health.lastCheck ? "verified" : "unverified", locality: /localhost|127\.0\.0\.1|192\.168\.|10\./.test(srv.url) ? "local" : "remote", invoke: { kind: "mcp", ref: `/api/mcp/servers/${srv.id}/call` } },
+      ...(srv.manifest?.tools ?? []).map<Capability>((t) => ({ id: `mcpserver:${srv.id}.${t.name}`, name: `${srv.name}: ${t.name}`, category: "tool", provider: "mcp-gateway", description: t.description ?? "", status: srv.health.state === "down" ? "not_available" : "implemented", tags: ["mcp", srv.name.toLowerCase(), ...t.name.split(/[_\-.]/)], input_schema: t.inputSchema, security_level: t.permission, requires_confirmation: t.requiresConfirmation, cost: { unit: "free" }, latency: "fast", supported_operations: ["call"], verification_status: "unverified", locality: "remote", invoke: { kind: "mcp", ref: `/api/mcp/servers/${srv.id}/call` } })),
+    ]);
+  },
+};
+
 let booted = false;
 /** Register the built-in sources once (idempotent; safe to call from any route). */
 export function bootCapabilities() {
   if (booted) return; booted = true;
-  registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource);
+  registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource); registerSource(userMcpSource);
 }
