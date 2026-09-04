@@ -659,6 +659,32 @@ test("desktop packaging: installers for macOS, Linux and Windows, server bundled
   assert.ok(width >= 512, `icon.png is ${width}px wide; electron-builder needs at least 512`);
 });
 
+test("desktop packaging: deb/rpm carry the metadata electron-builder's FpmTarget requires", () => {
+  // The ubuntu leg of `release-desktop` builds `.deb` and `.rpm` through electron-builder's
+  // FpmTarget, which throws *before* packaging unless the app package.json carries a `homepage`
+  // and an `author.email` (app-builder-lib/src/targets/FpmTarget.ts → computeFpmMetaInfoOptions).
+  // `homepage` was once missing from desktop/package.json, so both deb arch builds died with
+  // "Please specify project homepage … #Metadata-homepage" while the AppImage targets passed.
+  // Pin the required metadata so the next regression fails `npm test` in CI (which runs on
+  // ubuntu) instead of a release runner mid-package.
+  const pkg = json("desktop/package.json") as {
+    homepage?: unknown;
+    author?: { name?: unknown; email?: unknown };
+    description?: unknown;
+    name?: unknown;
+    version?: unknown;
+  };
+  assert.equal(typeof pkg.homepage, "string", "homepage (FpmTarget: project homepage)");
+  assert.ok((pkg.homepage as string).length > 0, "homepage is not empty");
+  assert.ok(
+    pkg.author && typeof pkg.author.email === "string" && pkg.author.email.length > 0,
+    "author.email (FpmTarget: deb/rpm maintainer)",
+  );
+  assert.ok(typeof pkg.description === "string" && pkg.description.length > 0, "description (deb description)");
+  assert.ok(typeof pkg.name === "string" && pkg.name.length > 0, "name (deb/rpm package name)");
+  assert.ok(typeof pkg.version === "string" && pkg.version.length > 0, "version (deb/rpm package version)");
+});
+
 test("release notes: the GitHub Release body is that version's CHANGELOG section only", async () => {
   const { extractSection } = await import("../tools/release-notes.mjs");
   const doc = [
