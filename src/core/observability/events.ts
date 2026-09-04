@@ -11,8 +11,10 @@ const g = globalThis as unknown as { __aetherisEvents?: AetherisEvent[]; __aethe
 const buf = (g.__aetherisEvents ??= []);
 const counters = (g.__aetherisCounters ??= {});
 
+/** Never let a key/token land in the event buffer (mirrors security/guard.redactSecrets; kept local to avoid a cycle). */
+const scrub = (t: string) => t.replace(/\b(sk|gsk|xai|hf|ghp|gho|github_pat|nvapi|AIza|pk|rk)[-_][A-Za-z0-9_\-]{12,}/g, (m) => m.slice(0, 6) + "…" + m.slice(-3)).replace(/\b(Bearer\s+)[A-Za-z0-9._\-]{16,}/gi, "$1•••");
 export function record(e: Omit<AetherisEvent, "id" | "at">): AetherisEvent {
-  const ev: AetherisEvent = { id: Math.random().toString(36).slice(2, 10), at: Date.now(), ...e, detail: e.detail?.slice(0, 500) };
+  const ev: AetherisEvent = { id: Math.random().toString(36).slice(2, 10), at: Date.now(), ...e, detail: e.detail ? scrub(e.detail).slice(0, 500) : undefined };
   buf.push(ev); if (buf.length > MAX) buf.splice(0, buf.length - MAX);
   const k = `${e.type}:${e.capability ?? "*"}`; const c = (counters[k] ??= { n: 0, ok: 0, ms: 0 }); c.n++; if (e.ok) c.ok++; c.ms += e.ms ?? 0;
   return ev;

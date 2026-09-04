@@ -14,6 +14,7 @@ import { store } from "@/lib/store";
 import { McpClient } from "@/lib/mcp/client";
 import { record, traced } from "../observability/events";
 import type { SecurityLevel } from "../capabilities/types";
+import { ssrfCheck } from "../security/guard";
 
 export interface McpToolManifest { name: string; description?: string; inputSchema: Record<string, unknown>; permission: SecurityLevel; requiresConfirmation: boolean }
 export interface McpServerRecord {
@@ -57,6 +58,7 @@ export async function removeServer(uid: string, id: string) { const s = await ge
 /** Register (or re-register) a server: probes it and stores manifest/health. Never fakes success. */
 export async function registerServer(uid: string, input: { name?: string; url: string; headers?: Record<string, string>; id?: string }): Promise<McpServerRecord> {
   if (!/^https?:\/\//.test(input.url)) throw new Error("url must be http(s)");
+  const ss = await ssrfCheck(input.url, { allowHttp: true }); if (!ss.ok) throw new Error(`url rejected: ${ss.reason} (set AETHERIS_ALLOW_PRIVATE_URLS=1 for self-hosted LAN servers)`);
   if (!input.id && (await listServers(uid)).length >= LIMIT) throw new Error(`limit of ${LIMIT} servers`);
   const existing = input.id ? await getServer(input.id) : undefined;
   if (input.id && (!existing || existing.uid !== uid)) throw new Error("not found");

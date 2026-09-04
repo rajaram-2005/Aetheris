@@ -13,6 +13,7 @@
 import { route } from "@/lib/router/router";
 import { htmlToText } from "@/lib/kb";
 import { traced } from "../observability/events";
+import { ssrfCheck } from "../security/guard";
 
 export interface Snapshot { url: string; title: string; text: string; links: { n: number; text: string; href: string }[]; forms: { n: number; action: string; method: string; fields: { name: string; type: string; value?: string; label?: string }[] }[]; status: number }
 export type Action = { type: "goto"; url: string } | { type: "follow"; n: number } | { type: "submit"; n: number; fields: Record<string, string> } | { type: "extract"; instruction: string } | { type: "finish"; answer: string };
@@ -92,6 +93,7 @@ export async function browse(opts: { goal: string; startUrl: string; maxSteps?: 
           let url: string; let init: { method?: string; body?: URLSearchParams } | undefined;
           if (action.type === "goto") url = action.url; else if (action.type === "follow") { const l = snap?.links.find((x) => x.n === action.n); if (!l) throw new Error(`no link [${action.n}]`); url = l.href; } else { const f = snap?.forms.find((x) => x.n === action.n); if (!f) throw new Error(`no form (${action.n})`); if (!opts.allowSubmit) throw new Error("form submission not permitted for this run (needs safe_write)"); const body = new URLSearchParams(); for (const fld of f.fields) { const v = action.fields[fld.name] ?? fld.value; if (v !== undefined) body.set(fld.name, v); } if (f.method === "post") { url = f.action; init = { method: "POST", body }; } else { const u = new URL(f.action); body.forEach((v, k) => u.searchParams.set(k, v)); url = u.toString(); } }
           const p = policyOk(url, opts); if (p) throw new Error(p);
+          const ss = await ssrfCheck(url, { allowHttp: true }); if (!ss.ok) throw new Error(`blocked: ${ss.reason}`);
           snap = await engine.load(url, init); s.url = snap.url; s.note = `${snap.status} · ${snap.title || "(no title)"} · ${snap.links.length} links`; last = snap.url;
         } else if (action.type === "extract") { if (!snap) throw new Error("no page loaded"); const r = await route({ preferred: opts.preferred, temperature: 0, maxTokens: 800, messages: [{ role: "system", content: "Extract exactly what is asked from the page text. Quote verbatim where possible. Say 'not found' if absent." }, { role: "user", content: `${action.instruction}\n\n${snap.text.slice(0, 14_000)}` }] }); s.note = r.content.slice(0, 1500); history.push(`extracted: ${s.note}`); }
       } catch (e) { s.ok = false; s.note = (e as Error).message; }

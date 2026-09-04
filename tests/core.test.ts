@@ -76,3 +76,19 @@ test("stopAction bypasses confirmation but not level", () => {
   assert.equal(decide({ principal: phys, capabilityId: "device:x.pump", required: "physical" }).allow, false);
   assert.equal(decide({ principal: principalFor("u"), capabilityId: "device:x.estop", required: "physical", stopAction: true }).allow, false);
 });
+
+test("security guard: rate limit, private IP, ssrf, redaction", async () => {
+  const { rateLimit, isPrivateIp, ssrfCheck, redactSecrets, toCsv } = await import("../src/core/security/guard");
+  const k = `k${Date.now()}`; assert.equal(rateLimit(k, { limit: 2, windowMs: 1000 }).ok, true); assert.equal(rateLimit(k, { limit: 2, windowMs: 1000 }).ok, true); const r = rateLimit(k, { limit: 2, windowMs: 1000 }); assert.equal(r.ok, false); assert.ok(r.retryAfterSec >= 1);
+  for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "::1", "fe80::1", "::ffff:127.0.0.1"]) assert.equal(isPrivateIp(ip), true, ip);
+  for (const ip of ["8.8.8.8", "172.32.0.1", "2606:4700::1"]) assert.equal(isPrivateIp(ip), false, ip);
+  assert.equal((await ssrfCheck("http://127.0.0.1:3000/x", { allowHttp: true })).ok, false);
+  assert.equal((await ssrfCheck("http://example.com/")).ok, false); // http not allowed by default
+  assert.equal((await ssrfCheck("https://user:pw@example.com/")).ok, false);
+  assert.equal((await ssrfCheck("http://169.254.169.254/latest", { allowHttp: true, allowPrivate: true })).ok, false); // metadata always blocked
+  assert.equal((await ssrfCheck("http://192.168.1.50/state", { allowHttp: true, allowPrivate: true })).ok, true);
+  assert.equal((await ssrfCheck("https://8.8.8.8/")).ok, true);
+  const red = redactSecrets('Authorization: Bearer abcdefghijklmnopqrstuvwxyz key gsk_1234567890abcdefXYZ "password":"hunter22"');
+  assert.ok(!red.includes("abcdefghijklmnopqrstuvwxyz") && !red.includes("1234567890abcdef") && !red.includes("hunter22"), red);
+  assert.equal(toCsv([{ a: 1, b: 'x"y' }]), 'a,b\n"1","x""y"');
+});

@@ -21,6 +21,7 @@ import { record, traced } from "../observability/events";
 import { evalExpr, getTwin, twinHealth } from "../twins/twins";
 import { actuate, getDevice, telemetryFor } from "../physical/devices";
 import { authorize, principalFor } from "../policy/permissions";
+import { ssrfCheck } from "../security/guard";
 
 export type Trigger = { kind: "cron"; cron: string; tz: string } | { kind: "webhook"; secret: string } | { kind: "device"; deviceId: string; key: string; op: ">" | "<" | ">=" | "<=" | "==" | "!="; value: number; cooldownMin?: number } | { kind: "twin"; twinId: string; minScore?: number } | { kind: "job"; status?: "done" | "failed" } | { kind: "manual" };
 export type Condition = { kind: "always" } | { kind: "expr"; expr: string; description?: string };
@@ -42,6 +43,7 @@ export const listAutomations = async (uid: string) => Object.values(await store.
 export const getAutomation = (id: string) => store.get<Automation>(COL, id);
 export async function saveAutomation(uid: string, input: Partial<Automation> & Pick<Automation, "name" | "trigger">, id?: string): Promise<Automation> {
   const err = validateAutomation(input); if (err) throw new Error(err);
+  for (const x of input.actions ?? []) if (x.kind === "webhook") { const ss = await ssrfCheck(x.url); if (!ss.ok) throw new Error(`webhook url rejected: ${ss.reason}`); }
   const cur = id ? await getAutomation(id) : undefined; if (id && (!cur || cur.uid !== uid)) throw new Error("not found");
   if (!cur && (await listAutomations(uid)).length >= LIMITS.perUser) throw new Error(`limit of ${LIMITS.perUser} automations`);
   const a: Automation = { id: cur?.id ?? randomBytes(5).toString("hex"), uid, name: input.name.slice(0, 80), enabled: input.enabled ?? cur?.enabled ?? true, trigger: input.trigger.kind === "webhook" && !input.trigger.secret ? { kind: "webhook", secret: randomBytes(12).toString("base64url") } : input.trigger, condition: input.condition ?? { kind: "always" }, agent: input.agent, verify: input.verify ?? { kind: "none" }, actions: input.actions ?? [], physicalToken: input.physicalToken ?? cur?.physicalToken, createdAt: cur?.createdAt ?? Date.now(), updatedAt: Date.now(), runs: cur?.runs ?? 0, lastAt: cur?.lastAt, lastStatus: cur?.lastStatus, lastFiredValue: cur?.lastFiredValue };

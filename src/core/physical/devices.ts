@@ -19,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import { store } from "@/lib/store";
 import { record, traced } from "../observability/events";
 import { ModbusTcp, MqttClient } from "./protocols";
+import { ssrfCheck } from "../security/guard";
 
 export type AdapterKind = "http" | "mqtt" | "modbus" | "serial" | "opcua" | "can" | "ros2" | "simulated";
 export type DeviceKind = "microcontroller" | "sbc" | "plc" | "sensor" | "actuator" | "robot" | "gateway" | "other";
@@ -41,6 +42,8 @@ export async function registerDevice(uid: string, input: Partial<Device> & { nam
   if ((await listDevices(uid)).length >= LIMIT) throw new Error(`limit of ${LIMIT} devices`);
   const d: Device = { id: randomBytes(5).toString("hex"), uid, name: input.name.slice(0, 60), kind: input.kind ?? "other", adapter: input.adapter, address: input.address, auth: input.auth, capabilities: input.capabilities ?? [], interlocks: input.interlocks ?? [], stopCommand: input.stopCommand, health: { state: "unknown" }, latched: false, twinId: input.twinId, tags: input.tags ?? [], createdAt: Date.now(), updatedAt: Date.now() };
   if (!adapterFor(d).supported) d.health = { state: "error", lastError: adapterFor(d).reason };
+  // Devices normally live on the LAN, so private addresses are allowed here by design — but cloud metadata endpoints and credential-in-URL are not.
+  if (d.adapter === "http") { const ss = await ssrfCheck(d.address, { allowHttp: true, allowPrivate: true }); if (!ss.ok) throw new Error(`address rejected: ${ss.reason}`); if (/169\.254\.169\.254|metadata/.test(d.address)) throw new Error("address rejected: metadata endpoint"); }
   await store.set(COL, d.id, d); return d;
 }
 export async function updateDevice(d: Device) { d.updatedAt = Date.now(); await store.set(COL, d.id, d); return d; }
