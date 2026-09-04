@@ -121,4 +121,7 @@ let booted = false;
 export function bootCapabilities() {
   if (booted) return; booted = true;
   registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource); registerSource(userMcpSource);
+  loadPlugins();
 }
+/** Plugins register their own CapabilitySources on import (src/plugins/index.ts). */
+function loadPlugins() { try { require("@/plugins"); } catch (e) { console.warn("[aetheris] plugin load failed", (e as Error).message); } }

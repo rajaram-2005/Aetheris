@@ -1,40 +1,46 @@
 # Contributing to Aetheris
 
-Thanks for helping build the open AI workspace. Aetheris is MIT-licensed; every contribution is welcome — new free LLM providers, MCP connectors, agents, translations, docs, bug fixes.
+Thanks for helping build an open, free Intelligence OS. Aetheris is MIT-licensed and **free for everyone** — contributions must keep it that way (no paywalls, no metering by default, no vendor lock-in).
 
-## Quick start
+## Ground rules
+
+1. **No fake integrations.** If a subsystem cannot run here, mark it `not_available`/`untestable_here` in the registry and docs. Never return synthetic data as if it were real.
+2. **Provider-neutral.** Never hard-code one LLM vendor; go through the ModelRouter.
+3. **Least privilege.** New actions declare a `security_level`; anything irreversible or physical requires confirmation. Stop/e-stop paths must never be gated by dialogs.
+4. **Audit first, then change.** Preserve useful existing work; refactor rather than rewrite.
+5. **Small, tested PRs.** `npm run typecheck && npm test && npm run eval && npm run build` must pass.
+
+## Workflow
+
 ```bash
-git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
-npm install
-cp .env.example .env.local        # everything is optional; keyless providers work out of the box
-npm run dev                       # http://localhost:3000
-npm run typecheck && npm test     # before you open a PR
+git checkout -b feat/<short-name>
+# make changes; follow docs/DEVELOPMENT.md → "Adding a capability"
+npm run typecheck && npm test && npm run eval
+git commit -m "area: what and why"
+gh pr create --fill
 ```
 
-## Where things live
-| Area | Path |
-| --- | --- |
-| Provider mesh / router | `src/lib/router/` (providers.ts = catalog) |
-| Agents (Hermes ultra → god → domain) | `src/lib/agents/` |
-| MCP catalog, gateway, hub | `src/lib/mcp/` |
-| Billing, plans, admin | `src/lib/billing/` |
-| Accounts & sign-in | `src/lib/auth/`, `src/app/api/auth/` |
-| UI | `src/components/`, `src/app/` |
-| Tests (`node:test` via tsx) | `tests/` |
+PR checklist:
 
-## Adding a free LLM provider
-1. Add an entry in `src/lib/router/providers.ts` (id, base URL, key page, models, limits, tier).
-2. If it isn't OpenAI-compatible, add an adapter in `src/lib/router/adapters.ts`.
-3. Add it to the README provider table. Key pages must open in a new tab (`target="_blank"`).
+- [ ] Capability registered with honest `status` + `verification_status`
+- [ ] Route calls `authorize()` and `record()`; user URLs pass `ssrfCheck`
+- [ ] Tests added (`tests/*.test.ts`), eval case if routing-relevant
+- [ ] Docs updated (status table in the relevant `docs/*.md`)
+- [ ] No secrets, no `data/` artefacts, no paid-only paths
 
-## Adding an MCP connector
-Add it to `src/lib/mcp/catalog.ts` with the remote endpoint and auth type, then run `npx tsx scripts/verify-connectors.ts` to check the endpoint answers `initialize`.
+## Good first contributions
 
-## Pull requests
-- Small, focused PRs. Describe *why*, link an issue if there is one.
-- `npm run typecheck` and `npm test` must pass. CI workflow: `mkdir -p .github/workflows && cp docs/ci.yml .github/workflows/ci.yml` (maintainer adds it once; runs typecheck, tests and `next build`).
-- No secrets, no `data/` fixtures, no generated artifacts.
-- Keep credit costs / plan gates consistent (`docs` in README → "Plans").
+* Real embedding provider adapters (see `docs/KNOWLEDGE.md`)
+* Persistent audit/event store (`StorageProvider`)
+* OPC-UA or CAN adapter behind `src/core/physical/interfaces.ts`
+* Playwright engine hardening for the browser agent
+* More intent/eval cases in `evals/cases.json`
+* Translations of the UI strings
+
+## Security issues
+
+Do not open public issues for vulnerabilities; email the maintainer in `README.md`.
 
 ## Code of conduct
-Be kind. See `CODE_OF_CONDUCT.md`.
+
+Be kind, be precise, assume good faith. Harassment of any kind is not tolerated.
