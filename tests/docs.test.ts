@@ -48,3 +48,15 @@ test("gallery search: whole-word title matches outrank substring hits; multi-ter
   const top = rankItems(SEED, "rag", () => 0);
   assert.ok(/rag/i.test(top[0].title), top[0].title);
 });
+
+test("gallery world seed: native-script prompts are searchable by language tag and by native text", async () => {
+  const { SEED } = await import("../src/lib/gallery/seed");
+  const { rankItems } = await import("../src/lib/gallery/search");
+  const world = SEED.filter((s) => s.tags[0] === "world");
+  assert.ok(world.length >= 50);
+  const scripts = [/[\u0B80-\u0BFF]/, /[\u0900-\u097F]/, /[\u0600-\u06FF]/, /[\u4E00-\u9FFF]/, /[\u3040-\u30FF]/, /[\uAC00-\uD7AF]/, /[\u0400-\u04FF]/, /[\u0E00-\u0E7F]/];
+  for (const re of scripts) assert.ok(world.some((s) => re.test(s.prompt)), String(re));
+  assert.ok(rankItems(SEED, "japanese", () => 0)[0].tags.includes("japanese"));
+  assert.ok(rankItems(SEED, "日本語", () => 0).length >= 2, "CJK substring search");
+  assert.ok(rankItems(SEED, "español", () => 0)[0].tags.includes("spanish"));
+});

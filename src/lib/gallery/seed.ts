@@ -21,6 +21,7 @@ import { students } from "./seeds/students";
 import { speaking } from "./seeds/speaking";
 import { arts } from "./seeds/arts";
 import { industry } from "./seeds/industry";
+import { world } from "./seeds/world";
 
 const sys = { uid: "aetheris", name: "Aetheris" };
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
@@ -60,4 +61,5 @@ export const SEED: GalleryItem[] = [
   ...expand(speaking, "presentation"),
   ...expand(arts, "arts"),
   ...expand(industry, "industry"),
+  ...expand(world, "world"),
 ];
