@@ -22,7 +22,7 @@ type InMsg = { role: string; content: string; images?: string[] };
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as null | {
     messages?: InMsg[]; agents?: string[]; preferred?: string; model?: string; servers?: EnabledServer[]; searchKey?: string;
-    project?: { instructions?: string; files?: { name?: string; text?: string }[] } | null; memory?: string[]; voice?: string;
+    project?: { instructions?: string; files?: { name?: string; text?: string }[] } | null; memory?: string[]; fabric?: boolean; voice?: string;
   };
   const raw = (body?.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-30);
   if (raw.length === 0 || raw[raw.length - 1].role !== "user") return NextResponse.json({ error: "messages must end with a user message" }, { status: 400 });
@@ -48,6 +48,16 @@ export async function POST(req: Request) {
   if (Array.isArray(body?.memory) && body!.memory.length) sysParts.push(`MEMORY about this user:\n${body!.memory.slice(0, 60).map((m) => `- ${m}`).join("\n")}`);
   if (typeof body?.voice === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(body.voice)) sysParts.push(voicePrompt(body.voice));
 
+  // Joined with the Intelligence-OS core: typed memory + knowledge fabric (+ document KBs) ground agent runs too. Best-effort.
+  const lastUserText = [...raw].reverse().find((m) => m.role === "user")?.content;
+  if (lastUserText && body?.fabric !== false) {
+    try {
+      const [{ recall, memoryBlock }, { queryUnified, knowledgeBlock }] = await Promise.all([import("@/core/memory/memory"), import("@/core/knowledge/fabric")]);
+      const [mem, facts] = await Promise.all([recall(uid, lastUserText, { k: 6 }), queryUnified(uid, lastUserText, { k: 5 })]);
+      const mb = memoryBlock(mem); if (mb) sysParts.push(mb);
+      const kbk = knowledgeBlock(facts.filter((h) => !h.fact.tags.some((t) => t.startsWith("memory:")))); if (kbk) sysParts.push(kbk);
+    } catch { /* fabric unavailable — run continues */ }
+  }
   const messages: ChatMessage[] = [
     { role: "system", content: sysParts.join("\n\n") },
     ...raw.map((m, i) => ({ role: m.role as "user" | "assistant", content: m.content, ...(i === raw.length - 1 && Array.isArray(m.images) && m.images.length ? { images: m.images.slice(0, 4) } : {}) })),
@@ -71,7 +81,11 @@ export async function POST(req: Request) {
           policy: { maxAgents: Math.min(plan.maxAgents, tier.agents.max), parallel: tier.agents.parallel && plan.features.includes("parallel_agents"), critique: tier.agents.critique, allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens, priority: plan.features.includes("priority_routing") },
           onEvent: async (e) => {
             send(e);
-            if (e.type === "lessons") await addLessons(uid, e.lessons).catch(() => undefined);
+            if (e.type === "lessons") {
+              await addLessons(uid, e.lessons).catch(() => undefined);
+              // mirror Metis lessons into typed procedural memory (provenance: agent)
+              import("@/core/memory/memory").then(({ remember }) => Promise.all(e.lessons.map((l) => remember(uid, "procedural", l.text, { tags: ["metis", `agent:${l.agent}`], confidence: 0.7, source: "agent" })))).catch(() => undefined);
+            }
           },
         });
       } catch (e) {

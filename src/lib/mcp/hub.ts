@@ -1,4 +1,6 @@
 import { traced } from "@/core/observability/events";
+import { classifyTool } from "@/core/mcp/gateway";
+import { authorize, principalFor } from "@/core/policy/permissions";
 /**
  * Aetheris MCP Hub — every connector behind ONE MCP server.
  *
@@ -23,6 +25,8 @@ export const SEP = "__";
 
 export interface HubContext extends AgentContext {
   uid: string;
+  /** single-use confirmation token for tools that require it (delete/pay/deploy…). */
+  confirmationToken?: string;
   /** connectorId → credential (already merged from header/stored). */
   creds: Record<string, string>;
   /** Restrict to these connector ids (undefined = all). */
@@ -142,6 +146,10 @@ async function callHubToolInner(ctx: HubContext, name: string, args: Record<stri
   const c = connectorById(cid);
   if (!c) throw new Error(`unknown connector ${cid}`);
   if (ctx.only && !ctx.only.includes(cid)) throw new Error(`connector ${cid} is not enabled for this session`);
+  // Same execution policy as user-registered MCP servers: classify the tool by verb, authorize, audit.
+  const cls = classifyTool(tool);
+  const d = authorize({ principal: principalFor(ctx.uid), capabilityId: `tool:${cid}.${tool}`, required: cls.permission, requiresConfirmation: cls.requiresConfirmation, confirmationToken: ctx.confirmationToken });
+  if (!d.allow) throw new Error(`${d.reason} (permission: ${cls.permission}${cls.requiresConfirmation ? ", confirmation required — POST /api/permissions {capabilityId:\"tool:" + cid + "." + tool + "\", issue:true} and pass confirmationToken" : ""})`);
 
   if (cid === "aetheris-factory") {
     if (!ctx.github) return "Error: connect GitHub in Aetheris (Factory tab) first.";
@@ -188,8 +196,9 @@ export async function handleHubRpc(ctx: HubContext, msg: Rpc, signal?: AbortSign
     }
     case "tools/call": {
       const name = String(msg.params?.name ?? "");
-      const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
-      try { return reply({ content: [{ type: "text", text: await callHubTool(ctx, name, args, signal) }], isError: false }); }
+      const { _confirmationToken, ...args } = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      const c2 = typeof _confirmationToken === "string" ? { ...ctx, confirmationToken: _confirmationToken } : ctx;
+      try { return reply({ content: [{ type: "text", text: await callHubTool(c2, name, args, signal) }], isError: false }); }
       catch (e) { return reply({ content: [{ type: "text", text: (e as Error).message }], isError: true }); }
     }
     default:

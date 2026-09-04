@@ -63,6 +63,18 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
                                         core/security/guard — SSRF · rate limits · redaction · audit export
 ```
 
+### How the original product and the core are joined (not two stacks)
+
+| Original module (`src/lib`) | Joined to core via |
+|---|---|
+| `router` (27→31 providers) | records `model` events; `ModelPolicy`; registry `model:*` |
+| `agents/orchestrator` (Prime/Hermes/Metis) | records `agent` events; `/api/agents/run` grounds runs with typed memory + knowledge fabric; Metis lessons mirrored into procedural memory; wrapped by `core/agents/runtime` jobs |
+| `mcp/hub` (107 connectors) | every `tools/call` passes `authorize()` with the same verb classifier as user MCP servers (`_confirmationToken` arg for destructive tools); traced as `mcp` events; registry `tool:*`/`connector:*` |
+| `kb` (document KBs) | `queryUnified()` merges BM25 chunks (provenance kind `document`) with fabric facts; used by `/api/knowledge` and `/api/chat` |
+| `workflows`, `factory`, `media`, `research/deep` | traced as events (`automation:workflows`, `github:factory`, `media:studio`, `research:deep`) |
+| `schedules` | records `schedule` events; drives MCP health sweeps, twin sync, automation cron |
+| `store` | shared JSON store with read cache; all new collections live beside the old |
+
 Every subsystem talks to Core through three things only: it **registers capabilities**, it **asks the policy** before acting, and it **records events**. Provider-independence contracts live in `src/core/providers/interfaces.ts`; the Plugin SDK (`src/core/plugins/sdk.ts`) is the same contract for third parties.
 
 ---

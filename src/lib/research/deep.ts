@@ -1,3 +1,4 @@
+import { traced } from "@/core/observability/events";
 /**
  * Deep Research — multi-step agent: plan sub-questions → parallel web searches →
  * per-question notes → cited long-form report. Emits progress events for the UI.
@@ -22,6 +23,16 @@ function extractJsonArray(s: string): string[] {
 }
 
 export async function deepResearch(opts: {
+  topic: string;
+  searchKey: string;
+  preferred?: string;
+  breadth?: number;
+  signal?: AbortSignal;
+  onEvent: (e: ResearchEvent) => void;
+}): Promise<void> {
+  return traced({ type: "tool", uid: undefined, capability: "research:deep" }, () => deepResearchInner(opts));
+}
+async function deepResearchInner(opts: {
   topic: string;
   searchKey: string;
   preferred?: string;

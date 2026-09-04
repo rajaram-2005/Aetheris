@@ -1,3 +1,4 @@
+import { traced } from "@/core/observability/events";
 import { ADAPTERS, mediaProviders } from "./providers";
 import { MediaError, type MediaKind, type MediaResult } from "./types";
 
@@ -23,6 +24,16 @@ export function mediaMeshStatus(userKeys: Record<string, string> = {}) {
 }
 
 export async function generateMedia(opts: {
+  kind: MediaKind;
+  prompt: string;
+  userKeys?: Record<string, string>;
+  preferred?: string;
+  voice?: string;
+  signal?: AbortSignal;
+}): Promise<MediaResult> {
+  return traced({ type: "tool", uid: undefined, capability: "media:studio" }, () => generateMediaInner(opts));
+}
+async function generateMediaInner(opts: {
   kind: MediaKind;
   prompt: string;
   userKeys?: Record<string, string>;

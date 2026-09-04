@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         try { controller.enqueue(encoder.encode(": ping\n\n")); } catch { /* closed */ }
       }, 15_000);
 
-      runFactory({ token: session.token, login: session.login }, task, send, { preferred: body.preferred, signal: req.signal, repo: body.repo?.trim() || undefined })
+      runFactory({ token: session.token, login: session.login }, task, send, { preferred: body.preferred, signal: req.signal, repo: body.repo?.trim() || undefined, uid })
         .catch((err) => send({ type: "error", message: err instanceof Error ? err.message : String(err) }))
         .finally(() => {
           clearInterval(heartbeat);

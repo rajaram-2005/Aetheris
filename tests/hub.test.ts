@@ -33,3 +33,15 @@ test("hub search + connectors meta-tools; missing credential is a clear error", 
   assert.equal(raw.includes("xoxb-secret"), false);
   assert.deepEqual(await getStoredCreds("h2"), { slack: "xoxb-secret" });
 });
+
+test("joined: legacy hub tools go through the execution policy (destructive verbs need confirmation)", async () => {
+  const { callHubTool } = await import("../src/lib/mcp/hub");
+  const { issueConfirmation } = await import("../src/core/policy/permissions");
+  const ctx = { uid: "hub-policy-" + Date.now(), creds: {}, oauthTokens: {} } as unknown as Parameters<typeof callHubTool>[0];
+  // read-only tool → passes policy and fails later only on the missing credential/network (not on permission)
+  await assert.rejects(() => callHubTool(ctx, "github__search_issues", { q: "x" }), (e: Error) => !/permission:/.test(e.message));
+  // delete verb → confirmation required
+  await assert.rejects(() => callHubTool(ctx, "trello__delete_card", { id: "1" }), /confirmation/);
+  const token = issueConfirmation(ctx.uid, "tool:trello.delete_card");
+  await assert.rejects(() => callHubTool({ ...ctx, confirmationToken: token }, "trello__delete_card", { id: "1" }), (e: Error) => !/permission:/.test(e.message));
+});

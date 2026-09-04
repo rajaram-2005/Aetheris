@@ -162,3 +162,24 @@ export function knowledgeBlock(hits: Hit[], budget = 6000): string {
   let out = "", n = 0; for (const h of hits) { const line = `[K${++n}] ${h.fact.text} (source: ${h.fact.provenance.kind}${h.fact.provenance.ref ? " " + h.fact.provenance.ref : ""}, confidence ${h.fact.provenance.confidence.toFixed(2)}${h.fact.validTo ? ", superseded" : ""})\n`; if (out.length + line.length > budget) break; out += line; }
   return out ? `Knowledge fabric (cite as [K#]):\n${out}` : "";
 }
+
+// ---- Bridge to the original document knowledge bases (src/lib/kb) --------------------------------
+/**
+ * Unified query: fabric facts + the user's document KBs (BM25 chunks) in one ranked list, each hit
+ * carrying provenance. Document chunks become transient Facts (not persisted) with kind "document".
+ */
+export async function queryUnified(uid: string, q: string, opts: QueryOpts & { includeDocuments?: boolean; kbIds?: string[] } = {}): Promise<Hit[]> {
+  const facts = await queryFacts(uid, q, opts);
+  if (opts.includeDocuments === false) return facts;
+  const { listKbs, getKb, search } = await import("@/lib/kb");
+  const kbs = (await listKbs(uid)).filter((k) => !opts.kbIds || opts.kbIds.includes(k.id));
+  const k = opts.k ?? 8; const docHits: Hit[] = [];
+  for (const meta of kbs) {
+    const kb = await getKb(meta.id); if (!kb?.chunks.length) continue;
+    for (const { chunk, score } of search(kb.chunks, q, k)) {
+      const doc = kb.docs.find((d) => d.id === chunk.doc);
+      docHits.push({ score: score / 10, via: ["keyword"], fact: { id: `kb:${kb.id}:${chunk.id}`, uid, workspace: opts.workspace ?? "default", text: chunk.text, entities: [], tags: ["document", `kb:${kb.id}`], createdAt: doc?.addedAt ?? kb.updatedAt, provenance: { kind: "document", ref: `${kb.name} / ${doc?.name ?? chunk.doc}${chunk.page ? ` p.${chunk.page}` : ""}${chunk.section ? ` § ${chunk.section}` : ""}`, confidence: 0.85, at: doc?.addedAt ?? kb.updatedAt } } });
+    }
+  }
+  return [...facts, ...docHits].sort((a, b) => b.score - a.score).slice(0, k);
+}

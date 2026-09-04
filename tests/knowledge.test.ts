@@ -58,3 +58,15 @@ test("automation engine: validation, device trigger edge detection, manual fire 
   const ok = await fire(a, "manual", { key: "temp", value: 95 }); assert.equal(ok.status, "ok"); assert.deepEqual(ok.stages.map((s) => s.stage), ["condition", "verify", "action"]);
   const { recall } = await import("../src/core/memory/memory"); assert.ok((await recall("auto-u", "sensor temp 95", { types: ["episodic"] })).some((m) => m.text === "Sensor temp hit 95"));
 });
+
+test("joined: unified query returns fabric facts AND legacy document-KB chunks with provenance", async () => {
+  const { addFact, queryUnified } = await import("../src/core/knowledge/fabric");
+  const { createKb, addDocument, saveKb } = await import("../src/lib/kb");
+  const uid = "join-" + Date.now();
+  await addFact({ uid, text: "Boiler B7 setpoint is 82 degrees", provenance: { kind: "device", confidence: 0.9 } });
+  const kb = await createKb(uid, "Manuals"); addDocument(kb, "boiler.txt", "text", "The boiler B7 maintenance manual says descale every 6 months."); await saveKb(kb);
+  const hits = await queryUnified(uid, "boiler B7", { k: 5 });
+  assert.ok(hits.some((h) => h.fact.provenance.kind === "device"));
+  const doc = hits.find((h) => h.fact.provenance.kind === "document"); assert.ok(doc); assert.match(doc!.fact.provenance.ref!, /Manuals \/ boiler.txt/);
+  assert.ok((await queryUnified(uid, "boiler B7", { k: 5, includeDocuments: false })).every((h) => h.fact.provenance.kind !== "document"));
+});

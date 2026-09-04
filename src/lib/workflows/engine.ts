@@ -1,3 +1,4 @@
+import { traced } from "@/core/observability/events";
 import { randomBytes } from "node:crypto";
 import { store } from "@/lib/store";
 import { route } from "@/lib/router/router";
@@ -84,6 +85,9 @@ export type WfEvent =
   | { type: "error"; step?: string; error: string };
 
 export async function runWorkflow(wf: Workflow, uid: string, input: string, opts: { onEvent: (e: WfEvent) => void; signal?: AbortSignal; allow?: string[]; allowKeyless?: boolean; maxTokens?: number; baseSystem?: string }): Promise<WorkflowRun> {
+  return traced({ type: "agent", uid: uid, capability: "automation:workflows" }, () => runWorkflowInner(wf, uid, input, opts));
+}
+async function runWorkflowInner(wf: Workflow, uid: string, input: string, opts: { onEvent: (e: WfEvent) => void; signal?: AbortSignal; allow?: string[]; allowKeyless?: boolean; maxTokens?: number; baseSystem?: string }): Promise<WorkflowRun> {
   const run: WorkflowRun = { id: randomBytes(6).toString("hex"), workflowId: wf.id, uid, input, outputs: {}, final: "", startedAt: Date.now(), status: "running" };
   await store.set(RUNS, run.id, run);
   opts.onEvent({ type: "start", runId: run.id, steps: wf.steps.map((s) => s.id) });

@@ -142,7 +142,7 @@ export async function POST(req: Request) {
   // Server-side typed memory + knowledge fabric (Phase 8): hybrid recall, provenance-stamped. Best-effort, never blocks chat.
   if (lastUser && body.fabric !== false) {
     try {
-      const [{ recall, memoryBlock }, { queryFacts, knowledgeBlock }] = await Promise.all([import("@/core/memory/memory"), import("@/core/knowledge/fabric")]);
+      const [{ recall, memoryBlock }, { queryUnified: queryFacts, knowledgeBlock }] = await Promise.all([import("@/core/memory/memory"), import("@/core/knowledge/fabric")]);
       const [mem, facts] = await Promise.all([recall(uid, lastUser.content, { k: 6 }), queryFacts(uid, lastUser.content, { k: 5, workspace: typeof body.workspace === "string" ? body.workspace : undefined })]);
       const mb = memoryBlock(mem); if (mb) sysParts.push(mb);
       const kbk = knowledgeBlock(facts.filter((h) => !h.fact.tags.some((t) => t.startsWith("memory:")))); if (kbk) sysParts.push(kbk);

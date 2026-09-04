@@ -1,3 +1,4 @@
+import { traced } from "@/core/observability/events";
 import { commitFilesToBranch, ensureRepo, jobLog, runJobs, waitForRun, type GH } from "@/lib/github/api";
 import { generateProject, summarizeRun } from "./codegen";
 import { workflowYaml } from "./workflow";
@@ -15,7 +16,15 @@ export async function runFactory(
   g: GH,
   task: string,
   emit: (e: FactoryEvent) => void,
-  opts: { preferred?: string; signal?: AbortSignal; repo?: string } = {},
+  opts: { preferred?: string; signal?: AbortSignal; repo?: string; uid?: string } = {},
+): Promise<void> {
+  return traced({ type: "tool", uid: opts.uid, capability: "github:factory" }, () => runFactoryInner(g, task, emit, opts));
+}
+async function runFactoryInner(
+  g: GH,
+  task: string,
+  emit: (e: FactoryEvent) => void,
+  opts: { preferred?: string; signal?: AbortSignal; repo?: string; uid?: string } = {},
 ): Promise<void> {
   const step = (step: StepId, status: "start" | "done" | "error", detail?: string, data?: Record<string, unknown>) =>
     emit({ type: "step", step, status, detail, data });
