@@ -69,3 +69,10 @@ test("intent router classifies tasks, honours @agent and /mode overrides, flags 
   const d = await routeIntent("send a message to my discord channel"); assert.ok(d.connectors.includes("tool:discord.send_message"));
   assert.equal((await routeIntent("hello there")).task, "general");
 });
+
+test("stopAction bypasses confirmation but not level", () => {
+  const phys: Principal = { uid: "u", grants: ["read_only", "safe_write", "physical"] };
+  assert.equal(decide({ principal: phys, capabilityId: "device:x.estop", required: "physical", stopAction: true }).allow, true);
+  assert.equal(decide({ principal: phys, capabilityId: "device:x.pump", required: "physical" }).allow, false);
+  assert.equal(decide({ principal: principalFor("u"), capabilityId: "device:x.estop", required: "physical", stopAction: true }).allow, false);
+});

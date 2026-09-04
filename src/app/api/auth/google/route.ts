@@ -4,7 +4,7 @@ import { requestOrigin } from "@/lib/github/auth";
 import { googleConfigured } from "@/lib/auth/deliver";
 
 export const dynamic = "force-dynamic";
-export const GOOGLE_STATE = "aetheris_g_state";
+const GOOGLE_STATE = "aetheris_g_state";
 
 export async function GET(req: Request) {
   if (!googleConfigured()) return NextResponse.redirect(`${requestOrigin(req)}/login?error=${encodeURIComponent("Google sign-in is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).")}`);

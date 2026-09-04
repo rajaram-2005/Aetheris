@@ -17,7 +17,7 @@ export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] =
   { id: "docs", label: "Docs", icon: "📁", blurb: "Chat with your documents (PDF, DOCX, CSV…)" },
   { id: "study", label: "Study", icon: "🎓", blurb: "Quizzes & flashcards, spaced repetition" },
   { id: "learn", label: "Learn", icon: "📚", blurb: "Explained AI: concepts & ethics" },
-  { id: "control", label: "Control Center", icon: "🎛️", blurb: "Health, capabilities, events, permissions" },
+  { id: "control", label: "Control Center", icon: "🎛️", blurb: "Jobs, devices, twins, robots, automations, knowledge, MCP, permissions" },
   { id: "providers", label: "Providers", icon: "🛰️", blurb: "AI mesh status & keys" },
 ];
 

@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!dec.allow) return NextResponse.json({ error: dec.reason, code: dec.code, hint: dec.code === "insufficient_level" ? "POST /api/devices/optin first" : "POST /api/permissions {capabilityId, confirm:true} for a token" }, { status: 403 });
         return NextResponse.json(await actuate(d, b.capability, b.value, { by: uid }));
       }
-      case "estop": { const dec = authorize({ principal: await physicalPrincipal(uid), capabilityId: `device:${d.id}.estop`, required: "physical" }); if (!dec.allow) return NextResponse.json({ error: dec.reason, code: dec.code }, { status: 403 }); return NextResponse.json(await estop(d, uid)); }
+      case "estop": { const dec = authorize({ principal: await physicalPrincipal(uid), capabilityId: `device:${d.id}.estop`, required: "physical", stopAction: true }); if (!dec.allow) return NextResponse.json({ error: dec.reason, code: dec.code }, { status: 403 }); return NextResponse.json(await estop(d, uid)); }
       case "reset": { const dec = authorize({ principal: await physicalPrincipal(uid), capabilityId: `device:${d.id}.reset`, required: "physical", requiresConfirmation: true, confirmationToken: b.confirmationToken }); if (!dec.allow) return NextResponse.json({ error: dec.reason, code: dec.code }, { status: 403 }); await resetLatch(d); return NextResponse.json({ latched: false }); }
       default: return NextResponse.json({ error: "op must be read|ingest|validate|actuate|estop|reset" }, { status: 400 });
     }

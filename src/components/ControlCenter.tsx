@@ -7,6 +7,8 @@ interface Tele { admin: boolean; principal: { uid: string; grants: string[] }; s
 
 const STATUS_LABEL: Record<string, string> = { implemented: "Implemented", partial: "Partial", experimental: "Experimental", mocked: "Mocked", not_available: "Not available" };
 const STATUS_ORDER = ["implemented", "partial", "experimental", "mocked", "not_available"];
+type Tab = "overview" | "registry" | "events" | "intent" | "permissions" | "jobs" | "executions" | "mcp" | "knowledge" | "devices" | "twins" | "robots" | "automations" | "browser";
+const TABS: Tab[] = ["overview", "registry", "events", "intent", "permissions", "jobs", "executions", "mcp", "knowledge", "devices", "twins", "robots", "automations", "browser"];
 const fmtAge = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
 
 /** 🎛️ Control Center — system health, capability registry (honest status), event feed, intent tester, permissions. */
@@ -15,7 +17,7 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
   const [caps, setCaps] = useState<Cap[]>([]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
-  const [tab, setTab] = useState<"overview" | "registry" | "events" | "intent" | "permissions">("overview");
+  const [tab, setTab] = useState<Tab>("overview");
   const [intentText, setIntentText] = useState("Connect my ESP32 temperature sensor over MQTT and alert me when it exceeds 60°C");
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
   const [permTest, setPermTest] = useState<{ cap: string; result?: Record<string, unknown> }>({ cap: "github:factory" });
@@ -33,7 +35,7 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
     <div className="study cc">
       <div className="gallery-head">
         <div><h2 style={{ margin: 0 }}>🎛️ Control Center</h2><p className="hint" style={{ margin: "4px 0 0", textAlign: "left" }}>What Aetheris can do, what is really running, and what every subsystem's honest status is. Nothing on this screen is mocked — counters come from live events.</p></div>
-        <div className="row" style={{ gap: 6 }}>{(["overview", "registry", "events", "intent", "permissions"] as const).map((t) => <button key={t} className={`chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}</div>
+        <div className="row" style={{ gap: 6 }}>{TABS.map((t) => <button key={t} className={`chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}</div>
       </div>
 
       {tab === "overview" && tele && (
@@ -95,6 +97,16 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
         </div>
       )}
 
+      {tab === "jobs" && <JobsPanel />}
+      {tab === "executions" && <ExecPanel />}
+      {tab === "mcp" && <McpPanel />}
+      {tab === "knowledge" && <KnowledgePanel />}
+      {tab === "devices" && <DevicesPanel />}
+      {tab === "twins" && <TwinsPanel />}
+      {tab === "robots" && <RobotsPanel />}
+      {tab === "automations" && <AutomationsPanel />}
+      {tab === "browser" && <BrowserPanel />}
+
       {tab === "permissions" && (
         <div className="study-summary">
           <b>Execution policy tester</b>
@@ -108,4 +120,84 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
       )}
     </div>
   );
+}
+
+// ---- subsystem panels (each talks only to its real API; empty states are honest) ----------------
+const J = (r: Response) => r.json();
+const post = (url: string, body: unknown, method = "POST") => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(J);
+function Pre({ v }: { v: unknown }) { return v === undefined || v === null ? null : <pre className="cc-pre">{typeof v === "string" ? v : JSON.stringify(v, null, 2)}</pre>; }
+function usePoll<T>(url: string, ms = 8000): [T | null, () => void] { const [v, setV] = useState<T | null>(null); const load = useCallback(() => fetch(url).then(J).then(setV).catch(() => undefined), [url]); useEffect(() => { load(); const t = setInterval(load, ms); return () => clearInterval(t); }, [load, ms]); return [v, load]; }
+async function confirmToken(capabilityId: string): Promise<string | undefined> { if (!window.confirm(`Confirm: allow Aetheris to run "${capabilityId}" once?`)) return undefined; const j = await post("/api/permissions", { capabilityId, issue: true }); return j?.token; }
+
+function JobsPanel() {
+  const [data, reload] = usePoll<{ jobs: { id: string; title: string; status: string; createdAt: number; used: { modelCalls: number; chars: number; agents: string[] }; output: string }[]; summary?: unknown }>("/api/jobs", 4000);
+  const [task, setTask] = useState("Summarise the three most important risks in deploying an ESP32 fleet over MQTT and propose mitigations.");
+  const [out, setOut] = useState<unknown>();
+  const submit = async () => { setOut(await post("/api/jobs", { task })); reload(); };
+  return <div className="study-summary"><b>Agent runtime — jobs</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Budgeted, checkpointed, cancellable jobs run by the Hermes orchestrator. Each row is a real job record.</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" value={task} onChange={(e) => setTask(e.target.value)} /><button className="send" onClick={submit}>Submit</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.jobs ?? []).length === 0 && <div className="hint">No jobs yet.</div>}{(data?.jobs ?? []).map((j) => <div key={j.id} className={`study-row ${j.status === "done" ? "stage-mature" : j.status === "running" || j.status === "queued" ? "" : "stage-learning"}`} style={{ gridTemplateColumns: "70px minmax(0,1fr) auto auto" }}><span className="meta">{fmtAge(j.createdAt)}</span><div className="study-row-main"><b>{j.title}</b><div className="hint" style={{ textAlign: "left", margin: 0 }}>{(j.output ?? "").slice(0, 160)}</div></div><span className="meta">{j.status} · {j.used.modelCalls} calls · {j.used.agents.join(",") || "—"}</span><span className="row" style={{ gap: 4 }}>{(j.status === "running" || j.status === "queued") && <button className="chip" onClick={() => fetch(`/api/jobs/${j.id}`, { method: "DELETE" }).then(reload)}>cancel</button>}<button className="chip" onClick={() => post(`/api/jobs/${j.id}`, {}).then(reload)}>retry</button></span></div>)}</div></div>;
+}
+function ExecPanel() {
+  const [st] = usePoll<Record<string, unknown>>("/api/executions", 30000);
+  const [cmd, setCmd] = useState("python3 -c 'print(sum(range(10)))'"); const [out, setOut] = useState<unknown>();
+  const run = async () => { const token = await confirmToken("execution:server-sandbox"); setOut(await post("/api/executions", { command: cmd, confirmationToken: token })); };
+  return <div className="study-summary"><b>Sandboxed execution</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Allow-listed binaries, scrubbed env, temp workspace, timeout, network isolation when the host supports <code>unshare</code>. Needs full_workspace confirmation (issued on click).</p><Pre v={st} />
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" value={cmd} onChange={(e) => setCmd(e.target.value)} /><button className="send" onClick={run}>Run</button></div><Pre v={out} /></div>;
+}
+function McpPanel() {
+  const [data, reload] = usePoll<{ servers: { id: string; name: string; url: string; enabled: boolean; health: { state: string; latencyMs?: number; lastError?: string }; manifest?: { tools: { name: string; permission: string; requiresConfirmation: boolean }[] }; versions: unknown[] }[]; summary: unknown }>("/api/mcp/servers", 15000);
+  const [url, setUrl] = useState("https://mcp.deepwiki.com/mcp"); const [name, setName] = useState(""); const [out, setOut] = useState<unknown>();
+  return <div className="study-summary"><b>MCP gateway — your servers</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Register any Streamable-HTTP MCP server. Aetheris probes it, stores the manifest, classifies tool permissions, tracks health and versions. The 110-connector catalog lives in Apps.</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" placeholder="https://host/mcp" value={url} onChange={(e) => setUrl(e.target.value)} /><input className="agent-search" style={{ maxWidth: 160 }} placeholder="name" value={name} onChange={(e) => setName(e.target.value)} /><button className="send" onClick={async () => { setOut(await post("/api/mcp/servers", { url, name: name || undefined })); reload(); }}>Add</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.servers ?? []).length === 0 && <div className="hint">No servers registered.</div>}{(data?.servers ?? []).map((s) => <div key={s.id} className={`study-row ${s.health.state === "healthy" ? "stage-mature" : "stage-learning"}`} style={{ gridTemplateColumns: "90px minmax(0,1fr) auto" }}><span className={`st st-${s.health.state === "healthy" ? "implemented" : s.health.state === "degraded" ? "partial" : "not_available"}`}>{s.health.state}</span><div className="study-row-main"><b>{s.name}</b> <code className="meta">{s.url}</code><div className="hint" style={{ textAlign: "left", margin: 0 }}>{s.manifest ? `${s.manifest.tools.length} tools · ${s.manifest.tools.filter((t) => t.requiresConfirmation).length} need confirmation · ${s.versions.length} versions` : s.health.lastError}</div></div><span className="row" style={{ gap: 4 }}><button className="chip" onClick={() => post(`/api/mcp/servers/${s.id}`, {}).then(reload)}>probe</button><button className="chip" onClick={() => fetch(`/api/mcp/servers/${s.id}`, { method: "DELETE" }).then(reload)}>remove</button></span></div>)}</div></div>;
+}
+function KnowledgePanel() {
+  const [q, setQ] = useState(""); const [text, setText] = useState(""); const [res, setRes] = useState<unknown>(); const [st] = usePoll<{ status: unknown; facts: { id: string; text: string; provenance: { kind: string; confidence: number }; createdAt: number; tags: string[] }[] }>("/api/knowledge?limit=30", 15000);
+  const [mem] = usePoll<{ items: { id: string; type: string; text: string; confidence: number }[]; summary: unknown }>("/api/memory", 15000);
+  return <div className="study-summary"><b>Knowledge fabric + typed memory</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>SQLite FTS5 keyword + vector + entity graph + temporal validity, provenance on every fact. Auto-recalled into chat.</p><Pre v={st?.status} />
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" placeholder="Add a fact (e.g. The boiler ESP32 lives in Plant 2)" value={text} onChange={(e) => setText(e.target.value)} /><button className="chip on" onClick={async () => { setRes(await post("/api/knowledge", { text })); setText(""); }}>Add fact</button><button className="chip" onClick={async () => { setRes(await post("/api/memory", { type: "semantic", text })); setText(""); }}>Remember</button></div>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" placeholder="Hybrid query…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter") setRes(await fetch(`/api/knowledge?q=${encodeURIComponent(q)}`).then(J)); }} /><button className="send" onClick={async () => setRes(await fetch(`/api/knowledge?q=${encodeURIComponent(q)}`).then(J))}>Query</button></div><Pre v={res} />
+    <div className="study-grid"><div className="study-summary"><b>Recent facts</b>{(st?.facts ?? []).map((f) => <div key={f.id} className="row" style={{ justifyContent: "space-between", gap: 8 }}><span>{f.text.slice(0, 90)}</span><span className="meta">{f.provenance.kind} {Math.round(f.provenance.confidence * 100)}%</span></div>)}{!st?.facts?.length && <span className="hint">empty</span>}</div><div className="study-summary"><b>Memory</b>{(mem?.items ?? []).slice(0, 20).map((m) => <div key={m.id} className="row" style={{ justifyContent: "space-between", gap: 8 }}><span>{m.text.slice(0, 90)}</span><span className="meta">{m.type}</span></div>)}{!mem?.items?.length && <span className="hint">empty</span>}</div></div></div>;
+}
+function DevicesPanel() {
+  const [data, reload] = usePoll<{ devices: { id: string; name: string; adapter: string; address: string; health: { state: string; lastError?: string; latencyMs?: number }; latched: boolean; capabilities: { id: string; kind: string }[] }[]; summary: unknown }>("/api/devices", 8000);
+  const [optin] = usePoll<{ physical: boolean; acknowledgement: string }>("/api/devices/optin", 30000);
+  const [form, setForm] = useState({ name: "demo-sim", adapter: "simulated", address: "sim", caps: "level:sensor,pump:actuator" }); const [out, setOut] = useState<unknown>();
+  const add = async () => { const capabilities = form.caps.split(",").map((s) => s.trim()).filter(Boolean).map((s) => { const [id, kind] = s.split(":"); return { id, kind: kind === "actuator" ? "actuator" : "sensor", limits: kind === "actuator" ? { min: 0, max: 100 } : undefined }; }); setOut(await post("/api/devices", { ...form, capabilities, stopCommand: capabilities.find((c) => c.kind === "actuator") ? { capability: capabilities.find((c) => c.kind === "actuator")!.id, value: 0 } : undefined })); reload(); };
+  const act = async (id: string, cap: string) => { const v = Number(prompt(`Value for ${cap}`, "1")); if (Number.isNaN(v)) return; const token = await confirmToken(`device:${id}.${cap}`); setOut(await post(`/api/devices/${id}`, { op: "actuate", capability: cap, value: v, confirmationToken: token })); reload(); };
+  return <div className="study-summary"><b>Physical AI — devices</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Adapters: http · mqtt · modbus (verified against protocol mocks, not real hardware from this host) · simulated (labelled). Actuation runs through the safety loop and needs the <code>physical</code> grant, which is opt-in only.</p>
+    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}><span className={`chip ${optin?.physical ? "on" : ""}`}>physical grant: {optin?.physical ? "on" : "off"}</span>{optin && !optin.physical && <button className="chip" onClick={() => post("/api/devices/optin", { acknowledge: optin.acknowledgement }).then(() => reload())}>Opt in (I accept responsibility)</button>}{optin?.physical && <button className="chip" onClick={() => fetch("/api/devices/optin", { method: "DELETE" }).then(() => reload())}>Revoke</button>}</div>
+    <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><input className="agent-search" style={{ maxWidth: 140 }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="name" /><select className="agent-search" style={{ maxWidth: 130 }} value={form.adapter} onChange={(e) => setForm({ ...form, adapter: e.target.value })}>{["http", "mqtt", "modbus", "simulated", "serial", "opcua", "can"].map((a) => <option key={a}>{a}</option>)}</select><input className="agent-search" style={{ maxWidth: 220 }} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="http://esp32.local | broker:1883 | plc:502" /><input className="agent-search" value={form.caps} onChange={(e) => setForm({ ...form, caps: e.target.value })} placeholder="id:sensor, id:actuator" /><button className="send" onClick={add}>Register</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.devices ?? []).length === 0 && <div className="hint">No devices.</div>}{(data?.devices ?? []).map((d) => <div key={d.id} className={`study-row ${d.health.state === "online" ? "stage-mature" : "stage-learning"}`} style={{ gridTemplateColumns: "80px minmax(0,1fr) auto" }}><span className={`st st-${d.health.state === "online" ? "implemented" : d.health.state === "error" ? "not_available" : "partial"}`}>{d.latched ? "E-STOP" : d.health.state}</span><div className="study-row-main"><b>{d.name}</b> <code className="meta">{d.adapter} {d.address}</code><div className="hint" style={{ textAlign: "left", margin: 0 }}>{d.health.lastError ?? d.capabilities.map((c) => `${c.id}(${c.kind[0]})`).join(" ")}</div></div><span className="row" style={{ gap: 4, flexWrap: "wrap" }}><button className="chip" onClick={() => post(`/api/devices/${d.id}`, { op: "read" }).then((j) => { setOut(j); reload(); })}>read</button>{d.capabilities.filter((c) => c.kind === "actuator").map((c) => <button key={c.id} className="chip" onClick={() => act(d.id, c.id)}>set {c.id}</button>)}<button className="chip bad" onClick={() => post(`/api/devices/${d.id}`, { op: "estop" }).then((j) => { setOut(j); reload(); })}>E-STOP</button>{d.latched && <button className="chip" onClick={async () => { const token = await confirmToken(`device:${d.id}.reset`); setOut(await post(`/api/devices/${d.id}`, { op: "reset", confirmationToken: token })); reload(); }}>reset</button>}<button className="chip" onClick={() => fetch(`/api/devices/${d.id}`, { method: "DELETE" }).then(reload)}>remove</button></span></div>)}</div></div>;
+}
+function TwinsPanel() {
+  const [data, reload] = usePoll<{ twins: { id: string; name: string; kind: string; state: Record<string, unknown>; health: { score: number; stale: boolean; breaches: { detail: string }[] }; deviceIds: string[] }[] }>("/api/twins", 10000);
+  const [out, setOut] = useState<unknown>(); const [name, setName] = useState("boiler-1");
+  const create = async () => { setOut(await post("/api/twins", { name, kind: "boiler", state: { temp: 60, valve: 0 }, bounds: [{ key: "temp", max: 90, unit: "°C", critical: true }], rules: [{ target: "temp", expr: "temp + 0.4*valve*dt/60 - 0.05*(temp-20)", description: "first-order heating" }], stepSeconds: 60 })); reload(); };
+  const sim = async (id: string) => { const v = Number(prompt("Proposed valve %", "100")); setOut(await post(`/api/twins/${id}`, { op: "simulate", proposed: { valve: v }, steps: 30 })); };
+  return <div className="study-summary"><b>Digital twins</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Twins sync from device telemetry and let agents simulate an actuation before doing it (rule DSL, no eval). Health = staleness + bound breaches + overdue maintenance.</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" style={{ maxWidth: 200 }} value={name} onChange={(e) => setName(e.target.value)} /><button className="send" onClick={create}>Create example twin</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.twins ?? []).length === 0 && <div className="hint">No twins.</div>}{(data?.twins ?? []).map((t) => <div key={t.id} className={`study-row ${t.health.score >= 70 ? "stage-mature" : "stage-learning"}`} style={{ gridTemplateColumns: "70px minmax(0,1fr) auto" }}><b>{t.health.score}</b><div className="study-row-main"><b>{t.name}</b> <span className="meta">{t.kind} · {t.deviceIds.length} devices{t.health.stale ? " · stale" : ""}</span><div className="hint" style={{ textAlign: "left", margin: 0 }}>{JSON.stringify(t.state).slice(0, 140)} {t.health.breaches.map((b) => b.detail).join("; ")}</div></div><span className="row" style={{ gap: 4 }}><button className="chip" onClick={() => post(`/api/twins/${t.id}`, { op: "sync" }).then((j) => { setOut(j); reload(); })}>sync</button><button className="chip" onClick={() => sim(t.id)}>simulate</button><button className="chip" onClick={() => fetch(`/api/twins/${t.id}`, { method: "DELETE" }).then(reload)}>remove</button></span></div>)}</div></div>;
+}
+function RobotsPanel() {
+  const [url, setUrl] = useState("ws://localhost:9090"); const [out, setOut] = useState<unknown>(); const [v, setV] = useState({ linear: 0.2, angular: 0 });
+  return <div className="study-summary"><b>Robotics — ROS 2 via rosbridge</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Point at a rosbridge WebSocket (real robot or Gazebo/Webots sim). Nothing is simulated here: inspect opens a live connection. Motion needs the physical grant + confirmation and is governed (clamps, geofence, watchdog).</p>
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" value={url} onChange={(e) => setUrl(e.target.value)} /><button className="send" onClick={async () => setOut(await fetch(`/api/robots?url=${encodeURIComponent(url)}`).then(J))}>Inspect</button></div>
+    <div className="row" style={{ gap: 8, flexWrap: "wrap" }}><label className="meta">linear <input className="agent-search" style={{ width: 80 }} type="number" step="0.1" value={v.linear} onChange={(e) => setV({ ...v, linear: Number(e.target.value) })} /></label><label className="meta">angular <input className="agent-search" style={{ width: 80 }} type="number" step="0.1" value={v.angular} onChange={(e) => setV({ ...v, angular: Number(e.target.value) })} /></label><button className="chip" onClick={async () => setOut(await post("/api/robots", { op: "govern", ...v }))}>Dry-run governor</button><button className="chip on" onClick={async () => { const token = await confirmToken("robot:move"); setOut(await post("/api/robots", { op: "move", url, ...v, durationMs: 1000, confirmationToken: token })); }}>Move 1 s</button><button className="chip bad" onClick={async () => setOut(await post("/api/robots", { op: "estop", url }))}>E-STOP</button></div><Pre v={out} /></div>;
+}
+function AutomationsPanel() {
+  const [data, reload] = usePoll<{ automations: { id: string; name: string; enabled: boolean; trigger: { kind: string }; actions: { kind: string }[]; lastStatus?: string; runs: number; nextAt?: number | null }[]; runs: { id: string; automationId: string; startedAt: number; status: string; trigger: string; stages: { stage: string; ok: boolean; detail?: string }[] }[] }>("/api/automations", 8000);
+  const [out, setOut] = useState<unknown>();
+  const example = async () => { setOut(await post("/api/automations", { name: "Remember webhook payloads", trigger: { kind: "webhook" }, condition: { kind: "always" }, verify: { kind: "none" }, actions: [{ kind: "remember", type: "episodic", template: "Webhook event: {{event}} {{value}}" }] })); reload(); };
+  return <div className="study-summary"><b>Automations — trigger → condition → agent → verify → action</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Triggers: cron, webhook, device threshold, twin health, job finished, manual. Verification (expression or model rubric) gates every action. Device actuation additionally needs the physical grant and a stored confirmation.</p>
+    <div className="row" style={{ gap: 8 }}><button className="send" onClick={example}>Create example (webhook → remember)</button></div><Pre v={out} />
+    <div className="study-cards">{(data?.automations ?? []).length === 0 && <div className="hint">No automations.</div>}{(data?.automations ?? []).map((a) => <div key={a.id} className={`study-row ${a.lastStatus === "ok" ? "stage-mature" : ""}`} style={{ gridTemplateColumns: "90px minmax(0,1fr) auto" }}><span className="meta">{a.trigger.kind}</span><div className="study-row-main"><b>{a.name}</b> <span className="meta">{a.enabled ? "on" : "off"} · {a.runs} runs · last {a.lastStatus ?? "—"}{a.nextAt ? ` · next ${fmtAge(a.nextAt).replace(/^-/, "in ")}` : ""}</span><div className="hint" style={{ textAlign: "left", margin: 0 }}>{a.actions.map((x) => x.kind).join(" → ")}</div></div><span className="row" style={{ gap: 4 }}><button className="chip" onClick={() => post(`/api/automations/${a.id}`, { payload: { event: "manual", value: Date.now() % 100 } }).then((j) => { setOut(j); reload(); })}>run</button><button className="chip" onClick={() => fetch(`/api/automations/${a.id}`).then(J).then(setOut)}>details</button><button className="chip" onClick={() => fetch(`/api/automations/${a.id}`, { method: "DELETE" }).then(reload)}>remove</button></span></div>)}</div>
+    {!!data?.runs?.length && <div className="study-summary"><b>Recent runs</b>{data.runs.slice(0, 15).map((r) => <div key={r.id} className="row" style={{ justifyContent: "space-between", gap: 8 }}><span className="meta">{fmtAge(r.startedAt)} · {r.trigger}</span><span>{r.stages.map((s) => `${s.stage}${s.ok ? "✓" : "✗"}`).join(" ")}</span><b>{r.status}</b></div>)}</div>}</div>;
+}
+function BrowserPanel() {
+  const [st] = usePoll<Record<string, unknown>>("/api/browser", 60000);
+  const [goal, setGoal] = useState("Find the latest release version and its date"); const [url, setUrl] = useState("https://github.com/vercel/next.js/releases"); const [out, setOut] = useState<unknown>(); const [busy, setBusy] = useState(false);
+  return <div className="study-summary"><b>Browser agent</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Goal-driven navigation over a page snapshot. http engine = static HTML (no JS); playwright is used only if installed on the server. Private networks are never browsed; form submission needs confirmation.</p><Pre v={st} />
+    <div className="row" style={{ gap: 8 }}><input className="agent-search" value={url} onChange={(e) => setUrl(e.target.value)} /><input className="agent-search" value={goal} onChange={(e) => setGoal(e.target.value)} /><button className="send" disabled={busy} onClick={async () => { setBusy(true); try { setOut(await post("/api/browser", { goal, startUrl: url, maxSteps: 6 })); } finally { setBusy(false); } }}>{busy ? "…" : "Browse"}</button></div><Pre v={out} /></div>;
 }

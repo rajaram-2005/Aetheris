@@ -14,7 +14,7 @@ import { record } from "../observability/events";
 
 export type PermissionLevel = SecurityLevel;
 export interface Principal { uid: string; grants: PermissionLevel[]; /** ids of capabilities explicitly allowed regardless of level (allow-list) */ allow?: string[]; /** explicitly denied capability ids */ deny?: string[] }
-export interface ExecutionRequest { principal: Principal; capabilityId: string; required: PermissionLevel; requiresConfirmation?: boolean; confirmationToken?: string; args?: Record<string, unknown>; workspace?: string }
+export interface ExecutionRequest { principal: Principal; capabilityId: string; required: PermissionLevel; requiresConfirmation?: boolean; confirmationToken?: string; args?: Record<string, unknown>; workspace?: string; /** Safety stops (E-stop, cancel) must never wait for a confirmation dialog. Level is still enforced. */ stopAction?: boolean }
 export type Decision = { allow: true; reason: string } | { allow: false; reason: string; code: "denied" | "insufficient_level" | "needs_confirmation" | "bad_token" };
 
 export const DEFAULT_GRANTS: PermissionLevel[] = ["read_only", "safe_write"];
@@ -46,7 +46,7 @@ export function decide(req: ExecutionRequest): Decision {
   // capabilities on their OWN sandboxed workspace (never admin/physical).
   const selfEscalate = required === "full_workspace" && hasLevel(p, "safe_write") && !!req.confirmationToken;
   if (!listed && !selfEscalate && !hasLevel(p, required)) return { allow: false, code: "insufficient_level", reason: `${capabilityId} needs ${required}; principal has ${highestLevel(p.grants)}${p.grants.includes("physical") ? "+physical" : ""}` };
-  const gate = req.requiresConfirmation || SECURITY_RANK[required] >= SECURITY_RANK.full_workspace;
+  const gate = !req.stopAction && (req.requiresConfirmation || SECURITY_RANK[required] >= SECURITY_RANK.full_workspace);
   if (gate) {
     if (!req.confirmationToken) return { allow: false, code: "needs_confirmation", reason: `${capabilityId} (${required}) requires explicit confirmation` };
     if (!consumeConfirmation(req.confirmationToken, p.uid, capabilityId)) return { allow: false, code: "bad_token", reason: "confirmation token invalid, expired or already used" };

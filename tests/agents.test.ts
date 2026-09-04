@@ -36,7 +36,7 @@ test("ethics agents exist with aliases and an explain prompt is well-formed", as
   const { agentById, AGENTS } = await import("../src/lib/agents/catalog");
   assert.ok(AGENTS.length >= 102);
   for (const id of ["ai-ethics", "xai", "fairness", "explain", "bias", "responsible-ai"]) assert.ok(agentById(id), id);
-  const { buildExplainPrompt, EXPLAIN_SECTIONS } = await import("../src/app/api/explain/route");
+  const { buildExplainPrompt, EXPLAIN_SECTIONS } = await import("../src/lib/explain");
   const msgs = buildExplainPrompt("What is 2+2?", "4", { provider: "groq", agents: ["math"] });
   assert.equal(msgs.length, 2);
   for (const s of EXPLAIN_SECTIONS) assert.ok(msgs[0].content.includes(s), s);

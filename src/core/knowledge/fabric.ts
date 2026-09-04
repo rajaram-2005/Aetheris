@@ -74,8 +74,8 @@ const vecOf = (r: Record<string, unknown>) => new Float32Array(new Uint8Array(r.
 
 /** Naive entity extraction: Capitalised spans, @handles, #tags, code identifiers, quoted terms. Pure; tested. */
 export function extractEntities(text: string): string[] {
-  const out = new Set<string>();
-  for (const m of text.matchAll(/\b([A-Z][\w-]+(?:\s+[A-Z][\w-]+){0,3})\b/g)) if (m[1].length > 2) out.add(m[1]);
+  const out = new Set<string>(); const STOP = new Set(["The", "A", "An", "This", "That", "It", "In", "On", "At", "To", "For", "Of", "And", "Or", "But", "If", "When", "Then", "We", "I", "You", "He", "She", "They"]);
+  for (const m of text.matchAll(/\b([A-Z][\w-]*(?:\s+(?:[A-Z][\w-]*|\d+)){0,3})\b/g)) { const words = m[1].split(/\s+/).filter((w, i) => !(i === 0 && STOP.has(w))); const e = words.join(" "); if (e.length > 1 && !STOP.has(e)) out.add(e); }
   for (const m of text.matchAll(/[@#]([\w-]{2,})/g)) out.add(m[1]);
   for (const m of text.matchAll(/`([^`]{2,40})`/g)) out.add(m[1]);
   for (const m of text.matchAll(/"([^"]{3,40})"/g)) out.add(m[1]);
@@ -84,7 +84,7 @@ export function extractEntities(text: string): string[] {
 /** Extract (subject, relation, object) triples from simple "X <verb> Y" sentences. Heuristic; tested. */
 export function extractTriples(text: string, entities: string[]): { src: string; rel: string; dst: string }[] {
   const t: { src: string; rel: string; dst: string }[] = [];
-  const rels = ["is a", "is an", "is", "uses", "owns", "works at", "works on", "built", "created", "depends on", "part of", "located in", "runs on", "prefers", "likes", "manages", "reports to", "connected to", "controls", "measures"];
+  const rels = ["is a", "is an", "is", "uses", "owns", "works at", "works on", "built", "created", "depends on", "part of", "located in", "runs on", "prefers", "likes", "manages", "reports to", "connected to", "controls", "measures", "feeds", "supplies", "powers", "monitors", "drives", "cools", "heats", "in"];
   for (const s of entities) for (const o of entities) {
     if (s === o) continue;
     for (const r of rels) { const re = new RegExp(`${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(?:\\w+\\s+){0,2}?${r}\\s+(?:\\w+\\s+){0,2}?${o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"); if (re.test(text)) { t.push({ src: s, rel: r.replace(/\s+/g, "_"), dst: o }); break; } }
