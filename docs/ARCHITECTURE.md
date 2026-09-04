@@ -129,13 +129,15 @@ Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verifi
 | 15 Automation engine | 6 triggers, conditions, agent, verify, 6 actions | **done** |
 | 16 Control Center | 16 panels, live events | **done** |
 | 17 Security | guard (SSRF, limits, redaction), middleware, audit export | **done** (per-instance limits) |
-| 18 Testing/evals | 160 tests, eval harness with thresholds, CI workflow file | **done** |
+| 18 Testing/evals | 170 tests, eval harness with thresholds, CI workflow file | **done** |
 | 19 Performance | store read cache, perf budget tests | **done** |
 | 20 Deployment | Dockerfile, compose, health, DEPLOYMENT.md | **done** |
 | 21 API-first + plugin SDK | /api/workspaces, /api/tools, /api/plugins, definePlugin | **done** |
 | 22 Docs | 15 documents with diagrams and status tables | **done** |
 | 23 Verification engine | JSON-schema validation, independent reviewer gate (routed off the generator's model), test loop through the execution sandbox; wired into `/api/verify` and the automation verify stage | **done** (sandbox is process-level, not a container) |
 
-**Still open (honest):** offline *semantic* embeddings (the built-in embedder is a hashed n-gram, i.e. lexical — set `EMBEDDINGS_URL` for real vectors); persistent event/audit store; multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; Playwright hardening; the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
+**Still open (honest):** the offline semantic embedder only knows what your own corpus taught it — unseen words fall back to their lexical index, so it is weaker than a provider model on a small corpus (set `EMBEDDINGS_URL` when you have one); multi-instance storage (Postgres `StorageProvider`); CSP; OPC-UA/CAN adapters; Playwright hardening; the verification loop is opt-in per endpoint/automation rather than applied to every generation; UI panels from plugins.
+
+**Closed since the last audit:** persistent telemetry (durable SQLite event log, tail restored on boot) and offline semantic embeddings (Random Indexing over the corpus — `cosine("kitten","cat")` is 0.000 with the lexical hash and 0.863 with the trained model, which is what lets a vector search find a "cat" fact from a query that only says "kitten").
 
 Principle for every phase: *"Reasoning is not completion. Verified execution is completion."* A capability is only marked `IMPLEMENTED` when it is exercised by a test or a live call.

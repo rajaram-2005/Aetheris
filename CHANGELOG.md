@@ -13,6 +13,32 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## 2026.9.1 — 2026-09-04
 
+### telemetry
+
+- Events are written to a durable SQLite log (`data/telemetry.sqlite`, `node:sqlite`, zero deps) as
+  well as the in-memory ring buffer, capped at `AETHERIS_EVENT_MAX` (default 50 000); the tail is
+  restored on boot, so telemetry survives a restart
+- Secrets are redacted before either copy is written — verified by reading the durable copy back from
+  a second process
+- `AETHERIS_EVENT_PERSIST=0` runs memory-only; a database that cannot be opened degrades silently
+  instead of breaking the request that emitted the event
+
+### knowledge
+
+- Offline **semantic** embeddings: Random Indexing over your own corpus (`src/core/knowledge/semantic.ts`),
+  persisted in the knowledge DB. Measured on a nine-sentence corpus, `cosine("kitten","cat")` is 0.863
+  with the trained model and 0.000 with the lexical hash — which is why a vector search for
+  "kitten blanket" now returns a fact about a *cat*
+- Every stored vector is tagged with its `vec_space`, so vectors from different embedders are never
+  compared; `reindexEmbeddings()` migrates rows, and `AETHERIS_SEMANTIC=0` stays lexical
+- `fabricStatus()` reports which embedder is live, how much the corpus has taught it, and the row
+  count per space
+
+### tests
+
+- `tests/telemetry.test.ts` (4, including a cross-process restart proof) and `tests/semantic.test.ts`
+  (6); suite is 170 tests
+
 ### verification
 
 - Verification engine (`src/core/verification/verify.ts`): JSON-schema validator (no dependency, malformed schemas reported as `schemaOk:false`), independent reviewer gate, and a test loop that runs a command in the execution sandbox and feeds the failure back to a revise pass

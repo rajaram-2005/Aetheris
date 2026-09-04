@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-170%20passing-brightgreen.svg)](tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
@@ -40,7 +40,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](docs/SECURITY.md) |
 | MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](docs/MCP.md) |
 | MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](docs/MCP.md) |
-| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (hashed local embeddings by default; set `EMBEDDINGS_URL` for semantic vectors) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
+| Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (offline semantic embeddings trained on your own corpus; `EMBEDDINGS_URL` preferred when set) | [KNOWLEDGE](docs/KNOWLEDGE.md) |
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](docs/MEMORY.md) |
 | Research engine — arXiv/Crossref/OpenAlex/S2, claims, contradictions | IMPLEMENTED (network) | [RESEARCH](docs/RESEARCH.md) |
 | GitHub repository intelligence + coding factory | IMPLEMENTED (untestable offline) | [AGENTS](docs/AGENTS.md) |
@@ -54,11 +54,12 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](docs/SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](docs/PLUGIN_SDK.md) |
-| Evals (intent, policy, sandbox, retrieval) + 160 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Evals (intent, policy, sandbox, retrieval) + 170 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](docs/DEPLOYMENT.md) |
 | Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](docs/DESKTOP.md) |
 | Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](CHANGELOG.md) |
-| Horizontal scaling, persistent telemetry store | NOT AVAILABLE (single-instance JSON store, in-memory ring buffer) | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Telemetry — durable event log surviving restarts, Control Center, audit export | IMPLEMENTED (`AETHERIS_EVENT_PERSIST=0` for memory-only) | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Horizontal scaling, multi-instance storage | NOT AVAILABLE (single-instance JSON store; `StorageProvider` is the swap point) | roadmap in [ARCHITECTURE](docs/ARCHITECTURE.md) |
 
 Docs index: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [CONTRIBUTING](CONTRIBUTING.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [DESKTOP](docs/DESKTOP.md) · [CHANGELOG](CHANGELOG.md)
 
