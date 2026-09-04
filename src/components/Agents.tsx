@@ -13,7 +13,7 @@ export function useAgents() {
 
 const DOMAIN_LABEL: Record<string, string> = {
   core: "Core", academy: "Academy", coding: "Coding", research: "Research", writing: "Writing", business: "Business", marketing: "Marketing", finance: "Finance",
-  legal: "Legal", health: "Health", design: "Design", data: "Data", career: "Career", language: "Languages", productivity: "Productivity", science: "Science", creative: "Creative",
+  legal: "Legal", health: "Health", design: "Design", data: "Data", career: "Career", language: "Languages", productivity: "Productivity", science: "Science", creative: "Creative", ethics: "AI Ethics & Explainability",
 };
 
 /** Full Agents page: hierarchy + catalog + Metis lessons. */

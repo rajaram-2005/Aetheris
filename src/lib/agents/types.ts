@@ -9,7 +9,7 @@ export type AgentTier = "ultra" | "god" | "sub";
 
 export type AgentDomain =
   | "core" | "academy" | "coding" | "research" | "writing" | "business" | "marketing" | "finance"
-  | "legal" | "health" | "design" | "data" | "career" | "language" | "productivity" | "science" | "creative";
+  | "legal" | "health" | "design" | "data" | "career" | "language" | "productivity" | "science" | "creative" | "ethics";
 
 export interface AgentSpec {
   id: string;

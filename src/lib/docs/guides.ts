@@ -61,6 +61,40 @@ Aetheris agents are built on two base layers:
 ## Where to look
 Agents mode lists everyone by domain with skills and aliases, plus the lessons Metis has learned for you (editable). See **Reference → Agents** for the full roster.
 `},
+  { slug: "ethics", section: "Agents", title: "AI ethics, explainability & transparency", body: `
+Aetheris is built so you can always ask **"why?"** and **"should we?"** of the AI.
+
+## /explain — audit any answer
+Click **explain** under any assistant message (or type \`/explain\`). The **AI Explainer** (\`@xai\`) reviews the answer from the outside and returns, in a fixed format:
+
+| Section | What you get |
+| --- | --- |
+| Fact / inference / guess | Each main claim classified in a table |
+| Assumptions made | What the answer silently took for granted |
+| Confidence | A percentage with the reason |
+| Most likely to be wrong | Where and why it could fail (cutoff, ambiguity, pattern-matching) |
+| How to verify | The cheapest check you can do yourself |
+| Bias & framing check | Whether the question or answer tilted the result |
+
+It is honest about being an outside review: it did not produce the answer and has no privileged view of the model's internals. Endpoint: \`POST /api/explain { question, answer }\` (SSE).
+
+## /ethics — impact assessment
+\`/ethics <plan, feature, dataset or text>\` runs the **AI Ethicist** (\`@ai-ethics\`): purpose & affected people, benefits, harms by type with likelihood × severity, consent/transparency/contestability, accountability, ranked mitigations and a go / go-with-conditions / no-go call. Frameworks (EU AI Act tiers, OECD, India's DPDP Act, NITI Aayog Responsible AI) are cited only when relevant.
+
+## @fairness — bias audit
+The **Fairness Auditor** checks text, prompts, datasets and model behaviour across gender, caste, religion, region, language, disability, age and class (India-aware), with a findings table, the mechanism, who is disadvantaged, and measurable fixes.
+
+## Transparency built into every answer
+- **Provider line** under each message: which provider/model answered, latency and failovers — nothing is hidden behind a single brand.
+- **Agent plan card**: when Prime delegates, you see which specialists ran, their briefs, and their status.
+- **Tool trail**: every MCP tool call and web search is shown inline.
+- **Sources** on research answers; **Metis verdict scorecard** in debates.
+- **Metis lessons** are visible and editable in Agents mode — you can see and delete what the system has learned about you.
+- **Your data**: guests are local-only; signed-in sync is per-account; export any chat as Markdown; the code is MIT-licensed so anyone can inspect how routing and memory work.
+
+## Limits we state plainly
+Answers can be wrong, outdated or biased; the model has no live view of the world unless web search or a tool is used; confidence estimates are themselves estimates. Use \`/explain\` for anything that matters, and verify before acting on medical, legal or financial advice.
+`},
   { slug: "workflows", section: "Agents", title: "Workflows", body: `
 Workflows chain agents into saved automations. Open **⛓️ Workflows** or type \`/workflows\`.
 

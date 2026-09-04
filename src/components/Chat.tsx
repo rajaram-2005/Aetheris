@@ -245,6 +245,34 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, active, activeProject]);
 
+  // ---- explain (/explain → AI Explainer audits the last answer) --------------------------------
+  const runExplain = useCallback(async (target?: UiMessage) => {
+    const conv = active; if (!conv) return;
+    const msgs = conv.messages;
+    const ai = target ?? [...msgs].reverse().find((m) => m.role === "assistant" && m.content && !m.error);
+    if (!ai) return;
+    const qIdx = msgs.findIndex((m) => m.id === ai.id);
+    const q = [...msgs.slice(0, Math.max(0, qIdx))].reverse().find((m) => m.role === "user")?.content ?? "";
+    const c = startConvo({ id: crypto.randomUUID(), role: "user", content: `🔍 Explain: ${ai.content.slice(0, 80).replace(/\s+/g, " ")}${ai.content.length > 80 ? "…" : ""}` });
+    const aid = crypto.randomUUID();
+    commit({ ...c, messages: [...c.messages, { id: aid, role: "assistant", content: "", streaming: true }] });
+    setInput(""); setBusy(true);
+    const controller = new AbortController(); abortRef.current = controller;
+    try {
+      const r = await fetch("/api/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, answer: ai.content, provider: ai.provider, model: ai.model ?? model, agents: ai.agentRun?.steps.map((s) => s.agent) }), signal: controller.signal });
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: j.error ?? `Request failed (${r.status})` })); return; }
+      patchMsg(c.id, aid, (m) => ({ ...m, content: "### 🔍 AI Explainer\n\n" }));
+      for await (const ev of sse(r)) {
+        if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
+        else if (ev.type === "done") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, provider: ev.provider, model: ev.model }));
+        else if (ev.type === "error") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || ev.error }));
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: "Connection to Aetheris lost." }));
+    } finally { setBusy(false); abortRef.current = null; refreshMesh(); refreshAccount(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, active, activeProject]);
+
   // ---- agents (Prime → specialists → Metis) ---------------------------------------------------
   const runAgents = useCallback(async (content: string, imgs: string[]) => {
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: imgs.length ? imgs : undefined };
@@ -298,6 +326,8 @@ export default function Chat() {
   const send = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if ((!content && images.length === 0) || busy) return;
+    if (/^\/explain\b/i.test(content)) { runExplain(); return; }
+    if (/^\/ethics\s+\S/i.test(content)) { setInput(""); return runAgents(`@ai-ethics Run an AI ethics impact assessment on: ${content.replace(/^\/ethics\s+/i, "")}`, []); }
     if (mode === "factory") return runFactory(content);
     if (/^\/debate\s+/i.test(content)) return runDebate(content.replace(/^\/debate\s+/i, ""));
     if (research) return runResearch(content);
@@ -441,6 +471,8 @@ export default function Chat() {
     else if (id === "gallery") setMode("gallery");
     else if (id === "workflows") setMode("workflows");
     else if (id === "debate") { setInput("/debate "); setPickerOff(true); return; }
+    else if (id === "explain") { runExplain(); return; }
+    else if (id === "ethics") { setInput("@ai-ethics Run an AI ethics impact assessment on: "); setPickerOff(true); setTimeout(() => taRef.current?.focus(), 30); return; }
     else if (id === "settings") setShowSettings(true);
     else if (id === "export") exportConvo();
     setTimeout(() => taRef.current?.focus(), 30);
@@ -639,6 +671,7 @@ export default function Chat() {
                     {m.failovers ? <span className="failover">↻ {m.failovers} failover{m.failovers > 1 ? "s" : ""}</span> : null}
                     {m.sources?.length ? <span>🌐 {m.sources.length} sources</span> : null}
                     <button className="link" onClick={() => navigator.clipboard.writeText(m.content)}>copy</button>
+                    {!busy && !m.research && <button className="link" title="Ask the AI Explainer: fact vs inference, confidence, what could be wrong, how to verify" onClick={() => runExplain(m)}>explain</button>}
                     {idx === messages.length - 1 && !busy && !m.research && <button className="link" onClick={regenerate}>regenerate</button>}
                   </div>
                 )}

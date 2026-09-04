@@ -351,9 +351,9 @@ The key still works for scripts (`Authorization: Bearer …`).
 - **Install as an app** — PWA manifest + service worker: "Add to Home Screen" on Android/iOS or Install in Chrome/Edge.
   The shell loads offline; API calls always go to the network.
 
-## 99 agents, @picker, slash commands, workflows, debate
+## 102 agents, @picker, slash commands, workflows, debate
 
-- **99 agents** across 17 domains (academy incl. physics/chemistry/biology/history/economics/exam strategist/kids;
+- **102 agents** across 17 domains (academy incl. physics/chemistry/biology/history/economics/exam strategist/kids;
   coding incl. frontend/backend/mobile/SRE/security/QA/docs/embedded/gamedev/web3; data incl. ML/SQL/data-eng/spreadsheets;
   research, science, writing, creative, business, marketing, finance (Indian tax, investing, accounting), legal, health,
   career, language (English/Tamil/Hindi/polyglot), productivity, design). Each has its own protocol, skills and aliases;
@@ -390,9 +390,16 @@ optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.
 persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 
+## AI ethics & explainability
+
+- **`/explain`** (or the *explain* link under any answer) — the AI Explainer audits the answer: fact vs inference vs guess, assumptions, calibrated confidence, what's most likely wrong, how to verify, bias/framing check. `POST /api/explain`.
+- **`/ethics <plan or text>`** — the AI Ethicist runs a structured impact assessment (harms × likelihood × severity, consent, accountability, mitigations, go/no-go).
+- **`@fairness`** — bias audit for text, prompts, datasets and model behaviour (India-aware axes incl. caste, region, language).
+- Transparency everywhere: provider/model/latency under every message, agent plan cards, inline tool trails, sources, editable Metis lessons, Markdown export, MIT code. See `/docs/ethics`.
+
 ## Docs & prompt gallery
 
-- **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, self-hosting…) plus **reference pages generated from the live catalogs** (all 99 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
+- **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, self-hosting…) plus **reference pages generated from the live catalogs** (all 102 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
 - **Prompt gallery seed** — 700+ hand-written, templated recipes across 26 domains — education, students, coding, engineering (civil/mechanical/electrical/chemical/aero/auto), business, industry playbooks (agriculture, hospitality, retail, real estate, logistics, manufacturing, NGOs, government, sports…), marketing, writing, presentation & speaking, arts (music, photography, film, fashion, architecture), life, finance, legal, health, science, design, career, language, productivity, creative, data/ML, gaming & entertainment, social & relationships, safety & security, using-AI-well, and a **world** set with writing recipes written natively in 40+ languages (Indian languages, Spanish, French, German, Portuguese, Arabic, Chinese, Japanese, Korean, Russian, Indonesian, Swahili and more) (Tamil/Hindi included) in `src/lib/gallery/seeds/*.ts`. Every recipe references real agents (tested).
 
 ## License
