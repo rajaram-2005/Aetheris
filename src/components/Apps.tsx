@@ -119,7 +119,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
           const s = enabled.find((x) => x.id === c.id);
           const tr = testResult[c.id];
           return (
-            <div key={c.id} className={`app ${on ? "on" : ""}`}>
+            <div key={c.id} className={`appcard ${on ? "on" : ""}`}>
               <div className="app-top">
                 <div className="app-name">{c.name} {c.premium && <span className="badge">PRO</span>}<span className="tag">{c.kind === "gateway" ? "gateway" : "MCP"}</span>{connected.includes(c.id) && <span className="tag" style={{ color: "var(--ok)" }}>signed in</span>}</div>
                 <button className={on ? "ghost" : "send"} onClick={() => toggle(c)} style={{ padding: "5px 10px", fontSize: 12 }}>{on ? "Disable" : c.auth && !connected.includes(c.id) ? "Connect" : "Enable"}</button>

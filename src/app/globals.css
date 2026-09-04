@@ -17,7 +17,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
 body {
   background: radial-gradient(1100px 500px at 70% -10%, #1b2250 0%, transparent 60%), radial-gradient(800px 500px at -10% 110%, #2a1a4a 0%, transparent 55%), var(--bg);
   background-attachment: fixed;
@@ -29,15 +29,17 @@ a { color: var(--accent); }
 button { font: inherit; cursor: pointer; }
 textarea { font: inherit; }
 
-.shell { display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; height: 100dvh; transition: grid-template-columns 0.15s ease; }
+.shell { display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; height: 100dvh; overflow: hidden; transition: grid-template-columns 0.15s ease; }
 .shell.with-sb { grid-template-columns: 272px minmax(0, 1fr) 0; }
 .shell.with-art { grid-template-columns: 0 minmax(0, 1fr) minmax(360px, 44%); }
 .shell.with-sb.with-art { grid-template-columns: 272px minmax(0, 1fr) minmax(360px, 42%); }
 .app {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100dvh;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   width: 100%;
   margin: 0 auto;
   padding: 0 clamp(12px, 3vw, 32px);
@@ -222,6 +224,8 @@ button.sb-item { background: none; border: 0; padding: 8px; width: 100%; text-al
 /* Messages ------------------------------------------------------------------ */
 .messages {
   overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
   padding: 8px 4px 16px;
   display: flex;
   flex-direction: column;
@@ -230,7 +234,7 @@ button.sb-item { background: none; border: 0; padding: 8px; width: 100%; text-al
 }
 .pane { display: block; }
 .empty {
-  margin: auto;
+  margin: auto !important;
   text-align: center;
   color: var(--muted);
   max-width: 640px;
@@ -459,9 +463,9 @@ button.chip { cursor: pointer; }
 .apps-filters input:focus { border-color: var(--accent); }
 .cats { display: flex; flex-wrap: wrap; gap: 6px; }
 .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.app { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; transition: border-color 0.15s, transform 0.15s; }
-.app:hover { border-color: rgba(124,156,255,0.4); transform: translateY(-1px); }
-.app.on { border-color: rgba(124,156,255,0.6); }
+.appcard { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; transition: border-color 0.15s, transform 0.15s; }
+.appcard:hover { border-color: rgba(124,156,255,0.4); transform: translateY(-1px); }
+.appcard.on { border-color: rgba(124,156,255,0.6); }
 .app-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .app-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
 .app-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
