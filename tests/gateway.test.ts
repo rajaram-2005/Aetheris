@@ -45,3 +45,15 @@ describe("sandbox policy", () => {
     assert.notEqual(policyCheck("cat ../../etc/passwd"), null);
   });
 });
+
+describe("github intelligence (pure parts)", () => {
+  it("summarizeTree finds key files and hotspots", async () => {
+    const { summarizeTree, parseFindings } = await import("../src/core/github/intelligence");
+    const s = summarizeTree(["README.md", "package.json", "src/app/a.ts", "src/app/b.ts", "src/lib/c.ts", "node_modules/x/index.js", ".github/workflows/ci.yml"]);
+    assert.ok(s.keyFiles.includes("package.json") && s.keyFiles.includes(".github/workflows/ci.yml"));
+    assert.equal(s.hotspots[0].dir, "src/app");
+    assert.ok(!s.tree.some((f) => f.startsWith("node_modules")));
+    assert.equal(parseFindings('here: [{"severity":"blocker","title":"SQL injection","file":"a.ts","line":3},{"severity":"weird","title":"x"}]').map((f) => f.severity).join(), "blocker,minor");
+    assert.deepEqual(parseFindings("no json"), []);
+  });
+});
