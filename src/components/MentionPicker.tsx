@@ -9,21 +9,8 @@ import type { AgentInfo } from "./Agents";
  * - Typing `/` at the start offers commands (research, arena, room, share, new, clear…).
  * Keyboard: ↑/↓ move, Tab/Enter accept, Esc close.
  */
-export interface Command { id: string; icon: string; label: string; hint: string }
-export const COMMANDS: Command[] = [
-  { id: "research", icon: "🔬", label: "/research", hint: "Deep research with sources" },
-  { id: "arena", icon: "⚔️", label: "/arena", hint: "Compare several providers side by side" },
-  { id: "image", icon: "🎨", label: "/image", hint: "Generate an image in the Studio" },
-  { id: "debate", icon: "🥊", label: "/debate", hint: "Two agents argue a motion, Metis judges — /debate <motion>" },
-  { id: "workflows", icon: "⛓️", label: "/workflows", hint: "Chain agents into automations" },
-  { id: "room", icon: "👥", label: "/room", hint: "Open a live room for this chat" },
-  { id: "share", icon: "🔗", label: "/share", hint: "Create a public link to this chat" },
-  { id: "new", icon: "✨", label: "/new", hint: "Start a new chat" },
-  { id: "agents", icon: "🤖", label: "/agents", hint: "Browse all agents" },
-  { id: "gallery", icon: "🗂️", label: "/gallery", hint: "Prompt & agent gallery" },
-  { id: "settings", icon: "⚙️", label: "/settings", hint: "Open settings" },
-  { id: "export", icon: "⤓", label: "/export", hint: "Download this chat as Markdown" },
-];
+import { COMMANDS, type Command } from "@/lib/commands";
+export { COMMANDS }; export type { Command };
 
 export function detectTrigger(value: string, caret: number): { kind: "agent" | "command"; query: string; start: number } | null {
   const before = value.slice(0, caret);

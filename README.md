@@ -389,5 +389,11 @@ Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHO
 optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker);
 persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
+
+## Docs & prompt gallery
+
+- **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, self-hosting…) plus **reference pages generated from the live catalogs** (all 99 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
+- **Prompt gallery seed** — 130+ hand-written, templated recipes across education, coding, business, marketing, writing and life (Tamil/Hindi included) in `src/lib/gallery/seeds/*.ts`. Every recipe references real agents (tested).
+
 ## License
 MIT © 2026 Rajaram K — see [LICENSE](LICENSE).

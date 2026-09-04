@@ -102,6 +102,7 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
       </div>
       <div className="sb-bottom">
         <AccountChip />
+        <a className="sb-item" href="/docs" target="_blank" rel="noreferrer">📖 Docs</a>
         <button className="sb-item sb-item-main" onClick={onSettings}>{t("sb.settings")}</button>
       </div>
     </nav>
