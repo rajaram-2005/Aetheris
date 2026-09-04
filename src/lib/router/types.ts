@@ -37,6 +37,14 @@ export interface ProviderConfig {
   vision?: boolean;
   /** Lower = tried first. Ties are shuffled for load balancing. */
   priority: number;
+  /** Task strengths for task-aware routing (Phase 4). Missing = general. */
+  strengths?: ("coding" | "reasoning" | "long_context" | "fast" | "multilingual" | "tools")[];
+  /** Approx context window in tokens (for long-context routing). */
+  contextTokens?: number;
+  /** Cost class: all bundled providers are free tier; local = free & private. */
+  costClass?: "free" | "local" | "credit" | "paid";
+  /** Runs on the user's machine / LAN. */
+  local?: boolean;
   /** Extra headers required by the provider */
   headers?: Record<string, string>;
   /** Notes shown in the UI / docs */

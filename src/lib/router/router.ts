@@ -80,7 +80,37 @@ function shuffle<T>(arr: T[]): T[] {
  * within each group (cheap load balancing), with cooled-down providers pushed to the end
  * as a last resort.
  */
-export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean; priority?: boolean }): ProviderConfig[] {
+/** Per-request routing policy (Phase 4): what the task needs and where it may run. */
+export interface ModelPolicy {
+  task?: "coding" | "reasoning" | "chat" | "long_context" | "fast" | "multilingual";
+  /** local = only local providers; prefer_local = local first; remote = cloud only; any = default order. */
+  locality?: "local" | "prefer_local" | "remote" | "any";
+  /** Approx prompt tokens; providers with a smaller declared context are dropped. */
+  minContext?: number;
+  needsTools?: boolean;
+}
+export const approxTokens = (msgs: { content: string }[]) => Math.ceil(msgs.reduce((n, m) => n + m.content.length, 0) / 3.5);
+
+/** Pure re-ranking of an ordered candidate list by task fit. Exported for tests. */
+export function applyPolicy(list: ProviderConfig[], pol?: ModelPolicy): ProviderConfig[] {
+  if (!pol) return list;
+  let out = list;
+  if (pol.locality === "local") out = out.filter((p) => p.local);
+  else if (pol.locality === "remote") out = out.filter((p) => !p.local);
+  if (pol.minContext) { const fit = out.filter((p) => !p.contextTokens || p.contextTokens >= pol.minContext!); if (fit.length) out = fit; }
+  const fit = (p: ProviderConfig) => {
+    let f = 0;
+    if (pol.task && p.strengths?.includes(pol.task as never)) f += 2;
+    if (pol.task === "long_context" && (p.contextTokens ?? 0) >= 100_000) f += 2;
+    if (pol.needsTools && p.strengths?.includes("tools")) f += 1;
+    if (pol.locality === "prefer_local" && p.local) f += 3;
+    return f;
+  };
+  // stable sort: keep original (priority/health) order among equal fit
+  return out.map((p, i) => ({ p, i, f: fit(p) })).sort((a, b) => b.f - a.f || a.i - b.i).map((x) => x.p);
+}
+
+export function orderedCandidates(opts?: { preferred?: string; exclude?: string[]; vision?: boolean; allow?: string[]; allowKeyless?: boolean; priority?: boolean; policy?: ModelPolicy }): ProviderConfig[] {
   const now = Date.now();
   let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
@@ -111,6 +141,7 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
   const cooling = ordered.filter((p) => entry(p.id).cooldownUntil > now);
   let list = [...healthy, ...cooling];
 
+  list = applyPolicy(list, opts?.policy);
   if (opts?.preferred) {
     const idx = list.findIndex((p) => p.id === opts.preferred);
     if (idx > 0) {
@@ -119,6 +150,20 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
     }
   }
   return list;
+}
+
+/** Infer a routing policy from the conversation (cheap heuristics; callers may override). */
+export function inferPolicy(messages: { role: string; content: string }[]): ModelPolicy {
+  const last = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const tokens = approxTokens(messages);
+  const pol: ModelPolicy = {};
+  if (/```|\b(function|class|import|def |const |bug|stack ?trace|compile|refactor|typescript|python|sql)\b/i.test(last)) pol.task = "coding";
+  else if (/\b(prove|derive|step by step|reason|why does|analy[sz]e|compare|trade-?offs?)\b/i.test(last)) pol.task = "reasoning";
+  else if (/[\u0B80-\u0BFF\u0900-\u097F]/.test(last)) pol.task = "multilingual";
+  if (tokens > 24_000) { pol.task = "long_context"; pol.minContext = Math.ceil(tokens * 1.3); }
+  const pref = process.env.AETHERIS_LOCALITY as ModelPolicy["locality"] | undefined;
+  if (pref) pol.locality = pref;
+  return pol;
 }
 
 export interface RouteOptions {
@@ -141,11 +186,14 @@ export interface RouteOptions {
   allowKeyless?: boolean;
   /** Priority routing: health-ranked instead of shuffled (paid plans). */
   priority?: boolean;
+  /** Task-aware policy; when omitted it is inferred from the messages. */
+  policy?: ModelPolicy;
 }
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
   const vision = hasImages(opts.messages);
-  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless, priority: opts.priority });
+  const policy = opts.policy ?? inferPolicy(opts.messages);
+  const candidates = orderedCandidates({ preferred: opts.preferred, vision, allow: opts.allow, allowKeyless: opts.allowKeyless, priority: opts.priority, policy });
   if (candidates.length === 0) {
     throw new ProviderError(
       vision
@@ -178,7 +226,7 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
       });
       const latencyMs = Date.now() - started;
       recordSuccess(provider.id, latencyMs);
-      record({ type: "model", capability: `model:${provider.id}`, ok: true, ms: latencyMs, meta: { model, attempts: attempts.length + 1, streamed: streamed > 0 } });
+      record({ type: "model", capability: `model:${provider.id}`, ok: true, ms: latencyMs, meta: { model, attempts: attempts.length + 1, streamed: streamed > 0, task: policy.task, local: !!provider.local, costClass: provider.costClass ?? "free" } });
       attempts.push({ provider: provider.id, ok: true, latencyMs });
       return { provider: provider.id, model, content, latencyMs, attempts };
     } catch (err) {

@@ -20,7 +20,7 @@ export const PROVIDERS: ProviderConfig[] = [
     baseUrl: "https://api.groq.com/openai/v1",
     envKey: "GROQ_API_KEY",
     model: "llama-3.3-70b-versatile",
-    priority: 1,
+    priority: 1, strengths: ["fast", "tools"], contextTokens: 128_000,
     keyUrl: "https://console.groq.com/keys",
     freeTier: "30 RPM · 14.4K RPD · no card",
     vision: true, visionModel: "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -33,7 +33,7 @@ export const PROVIDERS: ProviderConfig[] = [
     baseUrl: "https://api.cerebras.ai/v1",
     envKey: "CEREBRAS_API_KEY",
     model: "llama-3.3-70b",
-    priority: 1,
+    priority: 1, strengths: ["fast"], contextTokens: 8_000,
     keyUrl: "https://cloud.cerebras.ai",
     freeTier: "30 RPM · ~1M tokens/day · no card",
     notes: "Wafer-scale inference, free tier.",
@@ -357,6 +357,24 @@ export const PROVIDERS: ProviderConfig[] = [
     keyUrl: "https://console.nscale.com",
     freeTier: "Signup credit",
     notes: "Serverless inference on UK/EU GPUs.",
+  },
+
+  // ---- Local / self-hosted (offline-first). Any OpenAI-compatible server works. --------------
+  {
+    id: "ollama", name: "Ollama (local)", kind: "openai", baseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1", envKey: "OLLAMA_LOCAL",
+    model: process.env.OLLAMA_MODEL ?? "llama3.1", priority: 0, local: true, costClass: "local", strengths: ["coding", "reasoning"], contextTokens: 32_000,
+    keyUrl: "https://ollama.com/download", freeTier: "runs on your machine · unlimited · private",
+    notes: "Set OLLAMA_LOCAL=1 (and optionally OLLAMA_BASE_URL / OLLAMA_MODEL). Priority 0 = preferred when reachable.",
+  },
+  {
+    id: "lmstudio", name: "LM Studio (local)", kind: "openai", baseUrl: process.env.LMSTUDIO_BASE_URL ?? "http://127.0.0.1:1234/v1", envKey: "LMSTUDIO_LOCAL",
+    model: process.env.LMSTUDIO_MODEL ?? "local-model", priority: 0, local: true, costClass: "local", contextTokens: 32_000,
+    keyUrl: "https://lmstudio.ai", freeTier: "runs on your machine · unlimited · private", notes: "Set LMSTUDIO_LOCAL=1.",
+  },
+  {
+    id: "vllm", name: "vLLM / custom OpenAI-compatible", kind: "openai", baseUrl: process.env.CUSTOM_LLM_BASE_URL ?? "http://127.0.0.1:8000/v1", envKey: "CUSTOM_LLM_API_KEY",
+    model: process.env.CUSTOM_LLM_MODEL ?? "default", priority: 0, local: !/^https?:\/\/(?!127\.|localhost|10\.|192\.168\.)/.test(process.env.CUSTOM_LLM_BASE_URL ?? ""), costClass: "local", contextTokens: 32_000,
+    keyUrl: "https://docs.vllm.ai", freeTier: "self-hosted", notes: "Set CUSTOM_LLM_BASE_URL, CUSTOM_LLM_MODEL and CUSTOM_LLM_API_KEY (any value if the server needs none).",
   },
 ];
 

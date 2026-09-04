@@ -42,7 +42,10 @@ export function decide(req: ExecutionRequest): Decision {
   const { principal: p, capabilityId, required } = req;
   if (p.deny?.includes(capabilityId)) return { allow: false, code: "denied", reason: `${capabilityId} is on the deny list` };
   const listed = p.allow?.includes(capabilityId);
-  if (!listed && !hasLevel(p, required)) return { allow: false, code: "insufficient_level", reason: `${capabilityId} needs ${required}; principal has ${highestLevel(p.grants)}${p.grants.includes("physical") ? "+physical" : ""}` };
+  // Self-service escalation: a confirmed token lets a safe_write principal run full_workspace
+  // capabilities on their OWN sandboxed workspace (never admin/physical).
+  const selfEscalate = required === "full_workspace" && hasLevel(p, "safe_write") && !!req.confirmationToken;
+  if (!listed && !selfEscalate && !hasLevel(p, required)) return { allow: false, code: "insufficient_level", reason: `${capabilityId} needs ${required}; principal has ${highestLevel(p.grants)}${p.grants.includes("physical") ? "+physical" : ""}` };
   const gate = req.requiresConfirmation || SECURITY_RANK[required] >= SECURITY_RANK.full_workspace;
   if (gate) {
     if (!req.confirmationToken) return { allow: false, code: "needs_confirmation", reason: `${capabilityId} (${required}) requires explicit confirmation` };
