@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-134%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-135%20passing-brightgreen.svg)](tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
@@ -35,7 +35,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](docs/AGENTS.md) |
 | Verification engine | PARTIAL | critique/explain/automation-verify; no default test loop |
-| Capability Registry (383 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Capability Registry (387 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](docs/SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](docs/SECURITY.md) |
 | MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](docs/MCP.md) |
@@ -96,8 +96,8 @@ throughput. The **Providers** page in the app links straight to each provider's 
 Aetheris also ships as a desktop app (`desktop/`, Electron) around the same code — not a second
 product. It either runs the server **embedded** on `127.0.0.1` (a self-contained, offline app whose
 data lives in `~/Library/Application Support/Aetheris`, `~/.config/Aetheris` or `%APPDATA%/Aetheris`),
-or acts as a thin client for **any** Aetheris server you point it at — switchable in
-Settings → Connection. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
+or acts as a thin client for **any** Aetheris server you point it at — switchable from the app
+menu's **Connection settings…**. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
 check come with it. See [docs/DESKTOP.md](docs/DESKTOP.md).
 
 | Platform | Artefacts |
@@ -492,7 +492,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## 🎛️ Intelligence OS core (Control Center)
 
-`src/core` holds the **Capability Registry** (383 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+`src/core` holds the **Capability Registry** (387 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## ⏰ Scheduled automations
 

@@ -584,6 +584,33 @@ test("logging: credentials are redacted, the ring is bounded, the sink gets ever
 
 // --------------------------------------------------------------------------- repo invariants
 
+test("capability registry: the desktop app is listed, and the embedded server is honest about this process", async () => {
+  const { getCapability, searchCapabilities, registrySummary } = await import("../src/core/capabilities/registry");
+  const { bootCapabilities } = await import("../src/core/capabilities/sources");
+  bootCapabilities();
+
+  const app = await getCapability("desktop:app");
+  assert.ok(app, "desktop:app is registered");
+  assert.equal(app!.status, "implemented");
+  assert.equal(app!.category, "system");
+
+  // This test process is *not* the embedded server, so the honest status is not_available; the same
+  // entry reads implemented when AETHERIS_DESKTOP=1, which tests/desktop.embedded.test.ts sets.
+  const embedded = await getCapability("desktop:embedded-server");
+  assert.ok(embedded, "desktop:embedded-server is registered");
+  assert.equal(embedded!.status, process.env.AETHERIS_DESKTOP === "1" ? "implemented" : "not_available");
+  assert.equal(embedded!.locality, "local");
+
+  // …and the search surface honours that: a not_available entry never ranks as an answer.
+  const found = await searchCapabilities({ q: "desktop app electron" });
+  assert.ok(found.some((c) => c.id === "desktop:app"), "the app is discoverable by search");
+  if (process.env.AETHERIS_DESKTOP !== "1") {
+    assert.equal(found.some((c) => c.id === "desktop:embedded-server"), false, "not_available scores 0 in search");
+  }
+  const summary = await registrySummary();
+  assert.ok(summary.total > 380, `registry holds ${summary.total} capabilities`);
+});
+
 test("release coherence: one version everywhere, and the API reports it", async () => {
   const version = read("VERSION").trim();
   assert.ok(isCalVer(version), `VERSION must be CalVer, got "${version}"`);

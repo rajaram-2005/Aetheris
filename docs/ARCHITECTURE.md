@@ -41,7 +41,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
                                                     │
                      ┌──────────────────────────────┼──────────────────────────────┐
               Capability Registry           Execution Policy                  Observability
-              383 entries, honest status    levels + physical + confirm       events (redacted) · audit
+              387 entries, honest status    levels + physical + confirm       events (redacted) · audit
               plugins register here         authorize() on every action       Control Center feed
                      └──────────────────────────────┼──────────────────────────────┘
                                              Intent Router

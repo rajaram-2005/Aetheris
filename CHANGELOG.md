@@ -23,6 +23,8 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 - Deep links accept only the unambiguous `?path=` form and reject protocol-relative, backslash, absolute-URL, encoded-`//` and control-character paths
 - One app menu on macOS (was duplicated by `role: "appMenu"` plus a same-named menu), and every role menu now has a label
 - In-app docs: a "Desktop app" guide under Developers
+- Connection settings are reachable from the app menu and the tray (the old hints pointed at a "Settings → Connection" screen that does not exist in the web UI)
+- `desktop:app` and `desktop:embedded-server` registered in the Capability Registry with honest status
 
 ### release
 

@@ -1,7 +1,7 @@
 /**
  * Aetheris One — desktop main process.
  *
- * Two run modes (Settings → Connection):
+ * Two run modes (app menu → Connection settings…, or the tray):
  *
  *   local   the app starts the embedded Next.js server (the standalone build shipped in
  *           `resources/server`) as a child process on 127.0.0.1 and loads it in the window.
@@ -149,7 +149,7 @@ function createWindow() {
   win.webContents.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
     if (!isMainFrame || code === -3 /* aborted */) return;
     log.error(`page failed to load: ${url} (${code} ${desc})`);
-    setState({ view: "error", mode: settings.mode, error: `The page did not load: ${desc} (${code})`, hint: settings.mode === "remote" ? "Check the server URL in Settings → Connection." : undefined });
+    setState({ view: "error", mode: settings.mode, error: `The page did not load: ${desc} (${code})`, hint: settings.mode === "remote" ? "Check the address on the connection screen (app menu → Connection settings…)." : undefined });
   });
 
   if (settings.openDevTools) win.webContents.openDevTools({ mode: "detach" });
@@ -221,7 +221,7 @@ async function boot() {
           view: "error",
           mode: "remote",
           error: `Could not reach ${url}${health.status ? ` (HTTP ${health.status})` : ""}${health.error ? ` — ${health.error}` : ""}`,
-          hint: "Is the server running? Open Settings → Connection to change the URL.",
+          hint: "Is the server running? Use app menu → Connection settings… to change the address.",
         });
         return;
       }
@@ -274,24 +274,24 @@ function buildMenu() {
     label: APP_NAME,
     submenu: [
       ...(isMac ? ([{ role: "about" }, { type: "separator" }] as MenuItemConstructorOptions[]) : []),
-        { label: settings.mode === "local" ? "Restart embedded server" : "Reconnect to server", click: () => void boot() },
-        {
-          label: settings.mode === "local" ? "Switch to a remote server…" : "Switch to the embedded server",
-          click: () => {
-            if (settings.mode === "local") {
-              setState({ view: "connect" });
-              showBoot();
-            } else {
-              settings.mode = "local";
-              saveSettings();
-              void boot();
-            }
-          },
+      { label: settings.mode === "local" ? "Restart embedded server" : "Reconnect to server", click: () => void boot() },
+      { label: "Connection settings…", click: () => showConnectionScreen() },
+      {
+        label: settings.mode === "local" ? "Switch to a remote server…" : "Switch to the embedded server",
+        click: () => {
+          if (settings.mode === "local") {
+            showConnectionScreen();
+          } else {
+            settings.mode = "local";
+            saveSettings();
+            void boot();
+          }
         },
-        { type: "separator" },
-        { label: "Check for updates…", click: () => void runUpdateCheck(true) },
-        { label: "Open log", click: () => void openLog() },
-        { label: "Open data folder", click: () => void shell.openPath(dataDir()) },
+      },
+      { type: "separator" },
+      { label: "Check for updates…", click: () => void runUpdateCheck(true) },
+      { label: "Open log", click: () => void openLog() },
+      { label: "Open data folder", click: () => void shell.openPath(dataDir()) },
       ...(isMac ? ([{ type: "separator" }, { role: "quit" }] as MenuItemConstructorOptions[]) : []),
     ],
   };
@@ -335,12 +335,19 @@ function buildTray() {
         label: settings.mode === "local" ? "Restart embedded server" : "Reconnect",
         click: () => void boot(),
       },
+      { label: "Connection settings…", click: () => showConnectionScreen() },
       { label: "Check for updates…", click: () => void runUpdateCheck(true) },
       { type: "separator" },
       { label: "Quit", click: () => app.quit() },
     ]),
   );
   tray.on("click", () => showWindow());
+}
+
+/** Replace the window contents with the boot shell on its connection screen. */
+function showConnectionScreen() {
+  setState({ view: "connect" });
+  showBoot();
 }
 
 function showWindow() {

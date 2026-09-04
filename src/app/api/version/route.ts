@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
  * `GET /api/version` — what release this instance is running, and how it is packaged.
  *
  * The desktop app calls this to (a) show the version of the server it is talking to in remote mode
- * and (b) confirm that a candidate URL really is an Aetheris instance before saving it in
- * Settings → Connection. Unauthenticated, no secrets.
+ * and (b) confirm that a candidate URL really is an Aetheris instance before the desktop app
+ * saves it on its connection screen. Unauthenticated, no secrets.
  */
 export async function GET() {
   return Response.json(

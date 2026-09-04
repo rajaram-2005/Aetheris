@@ -10,7 +10,7 @@ built on macOS).
 
 ## Two run modes
 
-Pick either in **Settings → Connection** (or from the tray/menu); the choice is stored in
+Pick either from **app menu → Connection settings…** (or the tray); the choice is stored in
 Electron's `userData` directory.
 
 | Mode | What runs | Data | Use it when |
