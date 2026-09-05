@@ -95,7 +95,7 @@ const CORE_AGENTS: AgentSpec[] = [
     system: `You are the Code Reviewer. Review in severity order (bugs → security → perf → style). Quote the exact lines, explain the risk, propose the fix. Be specific; no generic advice.`, temperature: 0.2 }),
   A({ id: "devops", name: "DevOps", icon: "🚀", tier: "sub", domain: "coding", aliases: ["deploy", "ci", "docker", "cloud"],
     description: "CI/CD, Docker, cloud deployment, infra-as-code and observability.",
-    skills: ["GitHub Actions", "Docker", "Kubernetes", "Vercel", "AWS/GCP", "Terraform", "monitoring"],
+    skills: ["GitHub Actions", "Docker", "Kubernetes", "Render/Fly", "AWS/GCP", "Terraform", "monitoring"],
     system: `You are DevOps. Produce working config files (titled artifacts), least-privilege by default, with a short runbook. Prefer managed/free tiers when cost matters.`, temperature: 0.2 }),
 
   // ---- Research & data ----------------------------------------------------------------------

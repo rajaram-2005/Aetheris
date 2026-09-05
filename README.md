@@ -11,7 +11,7 @@
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
 ```
-  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (107 connectors · MCP · plugins)
+  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (106 connectors · MCP · plugins)
             └──────────────────────────────┬──────────────────────────────────┘
                      Capability Registry · Execution Policy · Observability
                                            │
@@ -46,7 +46,7 @@ npm run desktop:dev / desktop:build     # Electron app (macOS · Linux · Window
 - **Model mesh** — 31 providers with priority ordering, load-balancing, cooldowns, health tracking and silent failover; per-message `provider · latency · failover` transparency.
 - **Agents** — 102 specialists across 17 domains under Prime (planner), Hermes (executor) and Metis (meta-learning), plus `@picker`, slash commands, workflows and debate mode.
 - **Knowledge & memory** — hybrid FTS5 + vector + graph + temporal fabric with provenance, typed memory, and per-user document KBs (PDF/DOCX/CSV/HTML) with cited answers.
-- **Tools** — 107 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK.
+- **Tools** — 106 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK.
 - **Software** — GitHub repository intelligence and the Cloud Coding Factory (codegen → commit → Actions → logs → report).
 - **Physical AI** — http/mqtt/modbus adapters, ROS 2 via rosbridge, digital twins, safety loop and e-stop.
 - **Chat UX** — streaming, vision, artifacts, web search + citations, Deep Research, projects, memory, Model Arena, voice mode, in-browser code interpreter, live rooms, study mode, prompt gallery.
@@ -68,11 +68,11 @@ npm install && cp .env.example .env.local
 npm run dev            # or: npm run build && npm start
 ```
 
-Set `AETHERIS_SECRET` (cookie/credential sealing) and `AETHERIS_ADMIN_EMAILS`/`_PHONES`; the rest of the sign-in and payment variables are optional and documented in `.env.example`. Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker); persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+Set `AETHERIS_SECRET` (cookie/credential sealing) and `AETHERIS_ADMIN_EMAILS`/`_PHONES`; the rest of the sign-in and payment variables are optional and documented in `.env.example`. Deploy with Docker (`docker compose up -d --build`) or any container host — Render/Fly blueprints live in `deploy/`. Serverless (Vercel & co.) is not supported: Aetheris needs a long-lived process and a writable volume; persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 ## Docs
 
-[OVERVIEW](docs/OVERVIEW.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [DESKTOP](docs/DESKTOP.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md)
+[OVERVIEW](docs/OVERVIEW.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AGENTS](docs/AGENTS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [deploy recipes](deploy/README.md) · [DESKTOP](docs/DESKTOP.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md)
 
 ## License
 

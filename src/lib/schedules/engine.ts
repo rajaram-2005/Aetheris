@@ -4,7 +4,7 @@
  *
  * Execution model (cloud-friendly, no long-lived process needed):
  *  • `tick()` runs everything that is due. It is invoked (a) by an in-process timer while the server is
- *    up, (b) by GET/POST /api/schedules/tick — point any external cron (Vercel Cron, GitHub Actions,
+ *    up, (b) by GET/POST /api/schedules/tick — point any external cron (GitHub Actions,
  *    cron-job.org, UptimeRobot) at it, optionally with `Authorization: Bearer $CRON_SECRET`.
  *  • Missed runs (server asleep) are caught up once, not replayed N times.
  */

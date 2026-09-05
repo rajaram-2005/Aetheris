@@ -14,7 +14,7 @@
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
 ```
-  Models (31 providers, local-first option)   Knowledge (hybrid fabric + document KBs)   Tools (107 connectors · your MCP servers · plugins)
+  Models (31 providers, local-first option)   Knowledge (hybrid fabric + document KBs)   Tools (106 connectors · your MCP servers · plugins)
                  └──────────────────────────────────┬──────────────────────────────────────┘
                                    Capability Registry · Execution Policy · Observability
                                                     │
@@ -41,7 +41,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Capability Registry (387 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](SECURITY.md) |
-| MCP hub (Aetheris as server, 107 connectors) | IMPLEMENTED | [MCP](MCP.md) |
+| MCP hub (Aetheris as server, 106 connectors) | IMPLEMENTED | [MCP](MCP.md) |
 | MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](MCP.md) |
 | Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (offline semantic embeddings trained on your own corpus; `EMBEDDINGS_URL` preferred when set) | [KNOWLEDGE](KNOWLEDGE.md) |
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](MEMORY.md) |
@@ -77,7 +77,7 @@ Aetheris began as *One Chat over a mesh of free providers* and grew phase by pha
 | 1 | **One Chat + Omni-Router** (failover, cooldowns, provider pinning) | ✅ |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ |
-| 4 | **Cloud MCP App Store** (107 connectors: vendor MCP servers w/ OAuth + REST→MCP gateway) | ✅ |
+| 4 | **Cloud MCP App Store** (106 connectors: vendor MCP servers w/ OAuth + REST→MCP gateway) | ✅ |
 | 5 | UPI monetisation code — **off by default; everything is free** | ✅ (flag) |
 | 6 | **One Chat flagship UX** (streaming, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ |
 | 7–22 | **Intelligence OS**: registry, policy, observability, router policy, agent runtime, sandbox, MCP gateway, knowledge/memory, GitHub intelligence, research engine, multimodal, browser, physical AI, robotics/twins, automation, Control Center, security, evals, perf, deployment, plugin SDK, docs | ✅ see status table |
@@ -173,7 +173,7 @@ curl https://<host>/api/v1/chat/completions \
 `GET /api/v1/models` lists tiers. Keys are stored as SHA-256 hashes; a requested tier above the plan
 is silently capped to the plan's best tier.
 
-## Aetheris Hub — all 107 MCP connectors behind one server
+## Aetheris Hub — all 106 MCP connectors behind one server
 
 `POST /api/mcp/hub` is a single Streamable-HTTP MCP server that fronts every connector in the
 catalog (58 vendor-hosted MCP servers proxied + 49 REST APIs via the built-in gateway + the Factory).
@@ -323,22 +323,22 @@ Everything people expect from Claude / ChatGPT / Gemini, on top of the free-prov
 
 ## Cloud MCP App Store (Phase 4)
 
-**Apps** tab — **107 connectors**, every one backed by a real endpoint:
+**Apps** tab — **106 connectors**, every one backed by a real endpoint:
 
 | Kind | Count | How it works |
 |---|---|---|
-| **MCP** (vendor-hosted) | 63 | Aetheris' MCP client talks Streamable HTTP to the vendor's own server (Notion, GitHub, Slack, Figma, Stripe, Linear, Atlassian, Vercel, Supabase, Sentry, Canva, Zapier, Google's official Workspace servers…). 51 of them support **MCP OAuth 2.1** — click *Sign in*, approve, done. Others take a pasted token. |
-| **Gateway** (built-in) | 45 | Aetheris itself serves an MCP server at `/api/gateway/<id>` that wraps the vendor's public REST API (Razorpay, WhatsApp Business, Twilio, Discord, Telegram, X, YouTube, Google Workspace REST, Salesforce, Zoho, Zendesk, Odoo, SAP OData, BigQuery, Snowflake, OpenWeather, CoinGecko, Hacker News, Wikipedia…). Because it is a real MCP endpoint, Claude Desktop / Cursor / any client can use it too. |
+| **MCP** (vendor-hosted) | 63 | Aetheris' MCP client talks Streamable HTTP to the vendor's own server (Notion, GitHub, Slack, Figma, Stripe, Linear, Atlassian, Supabase, Sentry, Canva, Zapier, Google's official Workspace servers…). 51 of them support **MCP OAuth 2.1** — click *Sign in*, approve, done. Others take a pasted token. |
+| **Gateway** (built-in) | 44 | Aetheris itself serves an MCP server at `/api/gateway/<id>` that wraps the vendor's public REST API (Razorpay, WhatsApp Business, Twilio, Discord, Telegram, X, YouTube, Google Workspace REST, Salesforce, Zoho, Zendesk, Odoo, SAP OData, BigQuery, Snowflake, OpenWeather, CoinGecko, Hacker News, Wikipedia…). Because it is a real MCP endpoint, Claude Desktop / Cursor / any client can use it too. |
 
 **How it's built**
 - `src/lib/mcp/client.ts` — MCP client (Streamable HTTP, JSON-RPC, SSE responses, session ids).
 - `src/lib/mcp/oauth.ts` — MCP authorization spec: protected-resource metadata → AS metadata → **dynamic client registration** → **PKCE** → token → refresh. Tokens sealed in an httpOnly cookie; nothing server-side.
 - `src/lib/gateway/engine.ts` — declarative REST→MCP engine: `{path, query, body}` templates, header/query/basic/arg auth, JSON or form bodies, `prepare()` hooks; exposes `tools/list` + `tools/call`.
-- `src/lib/gateway/apis.ts` — the 45 API definitions (~110 tools).
+- `src/lib/gateway/apis.ts` — the 44 API definitions (~106 tools).
 - `src/lib/mcp/agent.ts` — **provider-agnostic tool loop**: tools go in the prompt, the model emits `<tool_call>{…}</tool_call>`, Aetheris executes (remote MCP or in-process gateway) and feeds the result back. Works with *every* model in the mesh. The *Enterprise GitHub Automation* connector calls the Phase-2 factory directly.
 - Pasted credentials stay in the browser and are forwarded only to that connector; premium connectors require Pro.
 
-**Live-checked 2026-09-04** — every remote MCP URL in the catalog was probed over HTTPS and answered with a protocol-level response (OAuth challenge / JSON-RPC error / 405 on GET), confirming the endpoint exists. Corrections made from that sweep: PayPal → `mcp.paypal.com/mcp`; Box → `/mcp`; Alpha Vantage → `/mcp`; Docker Hub, Cashfree, Web Fetch and Vercel moved to the built-in gateway (Docker/Cashfree have no hosted MCP; `remote.mcpservers.org` was down; Vercel's MCP admits only allow-listed clients). Sequential Thinking dropped. See `LIVE_CHECKED_AT` in `src/lib/mcp/catalog.ts`.
+**Live-checked 2026-09-04** — every remote MCP URL in the catalog was probed over HTTPS and answered with a protocol-level response (OAuth challenge / JSON-RPC error / 405 on GET), confirming the endpoint exists. Corrections made from that sweep: PayPal → `mcp.paypal.com/mcp`; Box → `/mcp`; Alpha Vantage → `/mcp`; Docker Hub, Cashfree and Web Fetch moved to the built-in gateway (Docker/Cashfree have no hosted MCP; `remote.mcpservers.org` was down). Sequential Thinking dropped; the Vercel connector was removed along with serverless deployment support. See `LIVE_CHECKED_AT` in `src/lib/mcp/catalog.ts`.
 
 **Verifying endpoints** — vendors move URLs. `npm run verify:connectors` probes every remote MCP server (`initialize`) and gateway upstream and prints a ✓/✗ table; the Apps tab's *test connection* does the same per connector.
 
@@ -399,8 +399,8 @@ src/lib/factory/
   workflow.ts    GitHub Actions workflow template per language
   pipeline.ts    the orchestrator (emits step events)
 src/lib/media/   image / speech / video provider mesh + adapters
-src/lib/mcp/     MCP client, OAuth 2.1 client, 107-connector catalog, tool-calling agent loop
-src/lib/gateway/ REST→MCP gateway engine + 45 API definitions (served at /api/gateway/<id>)
+src/lib/mcp/     MCP client, OAuth 2.1 client, 106-connector catalog, tool-calling agent loop
+src/lib/gateway/ REST→MCP gateway engine + 44 API definitions (served at /api/gateway/<id>)
 src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
 src/lib/store.ts locked JSON file store (data/)
 src/app/api/     chat, providers, factory, auth, media, mcp, billing, admin
@@ -486,8 +486,9 @@ npm run dev            # or: npm run build && npm start
 ```
 Works with zero keys (keyless providers). Add provider keys in Settings or `.env.local` for more capacity.
 Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHONES` (your admin identities) and the
-optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker);
-persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+optional sign-in / payment variables from `.env.example`. Deploy with Docker or any container host (Render / Fly /
+Railway blueprints in `deploy/`); serverless platforms like Vercel are not supported — Aetheris needs a long-lived
+process and a writable volume. Persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 
 ## 🎙 Voice mode
@@ -500,7 +501,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## ⏰ Scheduled automations
 
-Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (Vercel Cron, GitHub Actions, cron-job.org) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
+Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (GitHub Actions, cron-job.org, UptimeRobot) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
 
 ## 📁 Chat with documents
 
