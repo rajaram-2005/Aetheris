@@ -2,19 +2,21 @@
 
 > Long-form companion to the [README](../README.md): every subsystem, table and phase in detail.
 
+Aetheris is a **local-only application**: local browser, embedded desktop or local Docker. Cloud hosting and deployment connectors in Apps are not supported workflows. Online providers and integrations still send requests to their respective services. Start with [LOCAL SETUP](LOCAL_SETUP.md).
+
 
 **One layer that selects, coordinates and verifies models, agents, knowledge, tools — and, with explicit permission, physical systems.** Free for everyone. MIT. No paid tier, no metering, no vendor lock-in.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](../CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen.svg)](../tests)
-[![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](../CHANGELOG.md)
+[![CI](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml/badge.svg)](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-2026.9.2-informational.svg)](../CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](../CHANGELOG.md)
 
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
 ```
-  Models (31 providers, local-first option)   Knowledge (hybrid fabric + document KBs)   Tools (106 connectors · your MCP servers · plugins)
+  Models (31 providers, local-first option)   Knowledge (hybrid fabric + document KBs)   Tools (102 connectors · your MCP servers · plugins)
                  └──────────────────────────────────┬──────────────────────────────────────┘
                                    Capability Registry · Execution Policy · Observability
                                                     │
@@ -39,10 +41,10 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](AGENTS.md) |
 | Character database — creator, 16 curated personas, roleplay + guide modes | IMPLEMENTED | [CHARACTERS](CHARACTERS.md) |
 | Verification engine — schema validation, independent reviewer, test loop | IMPLEMENTED | `GET/POST /api/verify`, [ARCHITECTURE](ARCHITECTURE.md) |
-| Capability Registry (383 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](ARCHITECTURE.md) |
+| Capability Registry (live catalogs) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](SECURITY.md) |
-| MCP hub (Aetheris as server, 106 connectors) | IMPLEMENTED | [MCP](MCP.md) |
+| MCP hub (Aetheris as server, 102 connectors) | IMPLEMENTED | [MCP](MCP.md) |
 | MCP gateway (your servers: probe, health, versions, schema validation) | IMPLEMENTED | [MCP](MCP.md) |
 | Knowledge fabric — FTS5 + vector + graph + temporal, provenance | IMPLEMENTED (offline semantic embeddings trained on your own corpus; `EMBEDDINGS_URL` preferred when set) | [KNOWLEDGE](KNOWLEDGE.md) |
 | Typed memory (episodic/semantic/procedural/working/short-term) | IMPLEMENTED | [MEMORY](MEMORY.md) |
@@ -59,13 +61,13 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](PLUGIN_SDK.md) |
 | Evals (intent, policy, sandbox, retrieval) + 182 tests + perf budgets | IMPLEMENTED | `npm run eval` |
-| Deployment — Docker, compose, health endpoint | IMPLEMENTED | [DEPLOYMENT](DEPLOYMENT.md) |
-| Desktop app — macOS / Linux / Windows, embedded loopback server or remote, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](DESKTOP.md) |
+| Local runtime — browser, Docker Compose, health endpoint | IMPLEMENTED | [LOCAL SETUP](LOCAL_SETUP.md) |
+| Desktop app — macOS / Linux / Windows, embedded loopback server, local development, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](DESKTOP.md) |
 | Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](../CHANGELOG.md) |
 | Telemetry — durable event log surviving restarts, Control Center, audit export | IMPLEMENTED (`AETHERIS_EVENT_PERSIST=0` for memory-only) | [ARCHITECTURE](ARCHITECTURE.md) |
 | Horizontal scaling, multi-instance storage | NOT AVAILABLE (single-instance JSON store; `StorageProvider` is the swap point) | roadmap in [ARCHITECTURE](ARCHITECTURE.md) |
 
-Docs index: [ARCHITECTURE](ARCHITECTURE.md) · [DEVELOPMENT](DEVELOPMENT.md) · [API](API.md) · [AGENTS](AGENTS.md) · [MCP](MCP.md) · [MODELS](MODELS.md) · [KNOWLEDGE](KNOWLEDGE.md) · [MEMORY](MEMORY.md) · [SECURITY](SECURITY.md) · [HARDWARE](HARDWARE.md) · [ROBOTICS](ROBOTICS.md) · [RESEARCH](RESEARCH.md) · [DEPLOYMENT](DEPLOYMENT.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [PLUGIN_SDK](PLUGIN_SDK.md) · [DESKTOP](DESKTOP.md) · [CHANGELOG](../CHANGELOG.md)
+Docs index: [ARCHITECTURE](ARCHITECTURE.md) · [DEVELOPMENT](DEVELOPMENT.md) · [API](API.md) · [AGENTS](AGENTS.md) · [MCP](MCP.md) · [MODELS](MODELS.md) · [KNOWLEDGE](KNOWLEDGE.md) · [MEMORY](MEMORY.md) · [SECURITY](SECURITY.md) · [HARDWARE](HARDWARE.md) · [ROBOTICS](ROBOTICS.md) · [RESEARCH](RESEARCH.md) · [LOCAL SETUP](LOCAL_SETUP.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [PLUGIN_SDK](PLUGIN_SDK.md) · [DESKTOP](DESKTOP.md) · [CHANGELOG](../CHANGELOG.md)
 
 ---
 
@@ -78,31 +80,31 @@ Aetheris began as *One Chat over a mesh of free providers* and grew phase by pha
 | 1 | **One Chat + Omni-Router** (failover, cooldowns, provider pinning) | ✅ |
 | 2 | **GitHub Coding Factory** (OAuth/PAT → codegen → push → Actions → read logs → report) | ✅ |
 | 3 | **Multimodal Cloud Studio** (image / speech / video meshes, BYOK) | ✅ |
-| 4 | **Cloud MCP App Store** (106 connectors: vendor MCP servers w/ OAuth + REST→MCP gateway) | ✅ |
+| 4 | **MCP Apps** (102 connectors: vendor MCP servers w/ OAuth + REST→MCP gateway) | ✅ |
 | 5 | UPI monetisation code — **off by default; everything is free** | ✅ (flag) |
 | 6 | **One Chat flagship UX** (streaming, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ |
-| 7–22 | **Intelligence OS**: registry, policy, observability, router policy, agent runtime, sandbox, MCP gateway, knowledge/memory, GitHub intelligence, research engine, multimodal, browser, physical AI, robotics/twins, automation, Control Center, security, evals, perf, deployment, plugin SDK, docs | ✅ see status table |
+| 7–22 | **Intelligence OS**: registry, policy, observability, router policy, agent runtime, sandbox, MCP gateway, knowledge/memory, GitHub intelligence, research engine, multimodal, browser, physical AI, robotics/twins, automation, Control Center, security, evals, perf, local runtime, plugin SDK, docs | ✅ see status table |
 
 ## Quick start
 
 ```bash
-npm install
-cp .env.example .env.local     # add at least one key, e.g. GROQ_API_KEY
-npm run dev                    # http://localhost:3000
+npm ci                         # Node.js 22.x required
+cp .env.example .env.local      # optional provider keys
+npm run dev -- --hostname 127.0.0.1  # http://localhost:3000
 ```
 
 Any subset of keys works — the router only uses providers whose key is set.
 **Zero keys also works:** Pollinations and LLM7.io are keyless community endpoints, so a fresh
-deployment answers immediately (at low rate limits) and every key you add raises quality and
-throughput. The **Providers** page in the app links straight to each provider's free-key page.
+local installation can use those online services without keys, subject to their availability and
+rate limits. Add keys for more capacity, or configure local inference with `AETHERIS_LOCALITY=local`. The **Providers** page in the app links straight to each provider's free-key page.
 
 ## Desktop app — macOS, Linux, Windows
 
 Aetheris also ships as a desktop app (`desktop/`, Electron) around the same code — not a second
-product. It either runs the server **embedded** on `127.0.0.1` (a self-contained, offline app whose
-data lives in `~/Library/Application Support/Aetheris`, `~/.config/Aetheris` or `%APPDATA%/Aetheris`),
-or acts as a thin client for **any** Aetheris server you point it at — switchable from the app
-menu's **Connection settings…**. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
+product. Use the default **local / embedded** server on `127.0.0.1`; data lives in
+`~/Library/Application Support/Aetheris`, `~/.config/Aetheris` or `%APPDATA%/Aetheris`. The local
+development shell can connect to a separate Next.js process on the same computer for hot reload.
+Online models and integrations still require internet. Tray icon, `aetheris://` deep links, a redacted log, and a monthly update
 check come with it. See [docs/DESKTOP.md](DESKTOP.md).
 
 | Platform | Artefacts |
@@ -143,8 +145,8 @@ Aetheris is free. No plans, no credits, no payments: every user gets every featu
 deep research, video, premium MCP connectors, Enterprise Factory, 50 API keys) with **no daily limit**.
 The only limits are the free tiers of the upstream providers, which the router balances across 27 of them.
 
-The optional billing system below is kept in the codebase for self-hosters who want it; it is **off by default**.
-Set `AETHERIS_PAID_PLANS=1` to turn it on.
+The legacy optional billing system below remains in the codebase and is **off by default**.
+Leave `AETHERIS_PAID_PLANS` unset or `0` for local use.
 
 ## (Optional) Plans, models and API keys — off by default
 
@@ -167,24 +169,24 @@ founder; the admin approves the UTR at `/admin` and the plan unlocks automatical
 **Personal API keys** (Settings → API keys, Lite+) are OpenAI-compatible:
 
 ```bash
-curl https://<host>/api/v1/chat/completions \
+curl http://localhost:3000/api/v1/chat/completions \
   -H "Authorization: Bearer sk-aeth-…" -H "Content-Type: application/json" \
   -d '{"model":"aetheris-pro","messages":[{"role":"user","content":"@coder write fizzbuzz in Go"}],"stream":true}'
 ```
 `GET /api/v1/models` lists tiers. Keys are stored as SHA-256 hashes; a requested tier above the plan
 is silently capped to the plan's best tier.
 
-## Aetheris Hub — all 106 MCP connectors behind one server
+## Aetheris Hub — all 102 MCP connectors behind one server
 
 `POST /api/mcp/hub` is a single Streamable-HTTP MCP server that fronts every connector in the
-catalog (58 vendor-hosted MCP servers proxied + 49 REST APIs via the built-in gateway + the Factory).
+catalog (54 vendor-hosted MCP servers + 48 built-in gateway connectors, including the Factory).
 Tools are namespaced `<connector>__<tool>`; meta-tools `hub__connectors`, `hub__search_tools` and
 `hub__list_tools` let a model discover what it can do. Remote servers' tool lists load lazily and are
 cached 10 minutes.
 
 - **In One Chat**: Apps → "Enable all" on the Hub card. The model then sees every *ready* connector
   (public ones + those you have connected) and can search for the rest.
-- **From any MCP client** (Claude Desktop, Cursor, Windsurf…): `{"url": "https://<host>/api/mcp/hub",
+- **From any MCP client** (Claude Desktop, Cursor, Windsurf…): `{"url": "http://localhost:3000/api/mcp/hub",
   "headers": {"Authorization": "Bearer sk-aeth-…"}}`. Needs a Lite+ API key.
 - **From your API key**: `POST /api/v1/chat/completions` with `"hub": true` (or `"connectors": ["github","slack"]`).
 - Credentials you connect in Apps are stored **sealed (AES-GCM) server-side** so the Hub and your
@@ -322,24 +324,24 @@ Everything people expect from Claude / ChatGPT / Gemini, on top of the free-prov
 | **Code interpreter** | Every Python / JavaScript block in a reply gets a **▶ Run** button. Runs entirely in the browser: Python via Pyodide (numpy/pandas/matplotlib auto-loaded; figures rendered inline), JS in a sandboxed iframe. Errors get a 🛠 "Ask to fix" button that feeds code + traceback back to the model. |
 | Also | Regenerate, copy, per-message provider/model/latency/failover meta, richer Markdown (tables, ordered lists, quotes), mobile layout (sidebar/artifacts become overlays). |
 
-## Cloud MCP App Store (Phase 4)
+## MCP Apps (Phase 4)
 
-**Apps** tab — **106 connectors**, every one backed by a real endpoint:
+**Apps** tab — **102 optional connectors** for your local workspace. Deployment services (EdgeOne Pages, Netlify, Render and the Cloudflare infrastructure connector) are removed. The Cloudflare Workers AI model provider is separate and remains optional. Each remaining connector is backed by a real endpoint:
 
 | Kind | Count | How it works |
 |---|---|---|
-| **MCP** (vendor-hosted) | 63 | Aetheris' MCP client talks Streamable HTTP to the vendor's own server (Notion, GitHub, Slack, Figma, Stripe, Linear, Atlassian, Supabase, Sentry, Canva, Zapier, Google's official Workspace servers…). 51 of them support **MCP OAuth 2.1** — click *Sign in*, approve, done. Others take a pasted token. |
-| **Gateway** (built-in) | 44 | Aetheris itself serves an MCP server at `/api/gateway/<id>` that wraps the vendor's public REST API (Razorpay, WhatsApp Business, Twilio, Discord, Telegram, X, YouTube, Google Workspace REST, Salesforce, Zoho, Zendesk, Odoo, SAP OData, BigQuery, Snowflake, OpenWeather, CoinGecko, Hacker News, Wikipedia…). Because it is a real MCP endpoint, Claude Desktop / Cursor / any client can use it too. |
+| **MCP** (vendor-hosted) | 54 | Aetheris' MCP client talks Streamable HTTP to the vendor's own server (Notion, GitHub, Slack, Figma, Stripe, Linear, Atlassian, Supabase, Sentry, Canva, Zapier, Google's official Workspace servers…). 45 of them support **MCP OAuth 2.1** — click *Sign in*, approve, done. Others take a pasted token. |
+| **Gateway** (built-in) | 48 | Aetheris itself serves an MCP server at `/api/gateway/<id>` that wraps the vendor's public REST API (Razorpay, WhatsApp Business, Twilio, Discord, Telegram, X, YouTube, Google Workspace REST, Salesforce, Zoho, Zendesk, Odoo, SAP OData, BigQuery, Snowflake, OpenWeather, CoinGecko, Hacker News, Wikipedia…). Because it is a real MCP endpoint, Claude Desktop / Cursor / any client can use it too. |
 
 **How it's built**
 - `src/lib/mcp/client.ts` — MCP client (Streamable HTTP, JSON-RPC, SSE responses, session ids).
 - `src/lib/mcp/oauth.ts` — MCP authorization spec: protected-resource metadata → AS metadata → **dynamic client registration** → **PKCE** → token → refresh. Tokens sealed in an httpOnly cookie; nothing server-side.
 - `src/lib/gateway/engine.ts` — declarative REST→MCP engine: `{path, query, body}` templates, header/query/basic/arg auth, JSON or form bodies, `prepare()` hooks; exposes `tools/list` + `tools/call`.
-- `src/lib/gateway/apis.ts` — the 44 API definitions (~106 tools).
+- `src/lib/gateway/apis.ts` — built-in API definitions and typed tools; `/api/mcp/catalog` exposes the current list.
 - `src/lib/mcp/agent.ts` — **provider-agnostic tool loop**: tools go in the prompt, the model emits `<tool_call>{…}</tool_call>`, Aetheris executes (remote MCP or in-process gateway) and feeds the result back. Works with *every* model in the mesh. The *Enterprise GitHub Automation* connector calls the Phase-2 factory directly.
-- Pasted credentials stay in the browser and are forwarded only to that connector; premium connectors require Pro.
+- Pasted credentials are kept in the browser and sealed on the local server for Hub access. Requests go to the connected service; no Aetheris hosting account is needed.
 
-**Live-checked 2026-09-04** — every remote MCP URL in the catalog was probed over HTTPS and answered with a protocol-level response (OAuth challenge / JSON-RPC error / 405 on GET), confirming the endpoint exists. Corrections made from that sweep: PayPal → `mcp.paypal.com/mcp`; Box → `/mcp`; Alpha Vantage → `/mcp`; Docker Hub, Cashfree and Web Fetch moved to the built-in gateway (Docker/Cashfree have no hosted MCP; `remote.mcpservers.org` was down). Sequential Thinking dropped; the Vercel connector was removed along with serverless deployment support. See `LIVE_CHECKED_AT` in `src/lib/mcp/catalog.ts`.
+**Live-checked 2026-09-04** — every remote MCP URL in the catalog was probed over HTTPS and answered with a protocol-level response (OAuth challenge / JSON-RPC error / 405 on GET), confirming the endpoint exists. Corrections made from that sweep: PayPal → `mcp.paypal.com/mcp`; Box → `/mcp`; Alpha Vantage → `/mcp`; Docker Hub, Cashfree and Web Fetch moved to the built-in gateway (Docker/Cashfree have no hosted MCP; `remote.mcpservers.org` was down). Sequential Thinking was dropped. Deployment connectors are no longer part of the local-only Apps catalog. See `LIVE_CHECKED_AT` in `src/lib/mcp/catalog.ts`.
 
 **Verifying endpoints** — vendors move URLs. `npm run verify:connectors` probes every remote MCP server (`initialize`) and gateway upstream and prints a ✓/✗ table; the Apps tab's *test connection* does the same per connector.
 
@@ -381,7 +383,7 @@ Media: `POST /api/media/generate` `{kind: image|audio|video, prompt, keys?, voic
 
 MCP: `GET /api/mcp/catalog` · `POST /api/mcp/tools` (test a server, list tools) · `GET /api/mcp/oauth/start?id=` · `POST /api/mcp/oauth/disconnect`
 
-Gateway (MCP Streamable HTTP): `POST /api/gateway/<id>` with `Authorization: Bearer <credential>` — e.g. add `https://<your-host>/api/gateway/razorpay` to Claude Desktop or Cursor.
+Gateway (MCP Streamable HTTP): `POST /api/gateway/<id>` with `Authorization: Bearer <credential>` — e.g. add `http://localhost:3000/api/gateway/razorpay` to Claude Desktop or Cursor.
 
 Billing: `GET /api/billing/plans` · `POST /api/billing/checkout {planId}` · `POST /api/billing/confirm {id, utr}` · `GET /api/billing/status?id=` · admin `GET|POST /api/admin/payments` (Bearer `AETHERIS_ADMIN_KEY`)
 
@@ -401,7 +403,7 @@ src/lib/factory/
   pipeline.ts    the orchestrator (emits step events)
 src/lib/media/   image / speech / video provider mesh + adapters
 src/lib/characters/ persistent persona CRUD, curated seed records, trusted chat prompt assembly
-src/lib/mcp/     MCP client, OAuth 2.1 client, 106-connector catalog, tool-calling agent loop
+src/lib/mcp/     MCP client, OAuth 2.1 client, 102-connector catalog, tool-calling agent loop
 src/lib/gateway/ REST→MCP gateway engine + 44 API definitions (served at /api/gateway/<id>)
 src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
 src/lib/store.ts locked JSON file store (data/)
@@ -464,7 +466,9 @@ The key still works for scripts (`Authorization: Bearer …`).
 
 ## Rooms, gallery, languages
 
-- **Live rooms** — 👥 in the header turns the current chat into a room at `/room/<id>`. Anyone with the link joins;
+Rooms, snapshots and gallery records belong to the local instance. A localhost URL is not a public invitation; export Markdown when sharing a conversation with someone on another computer.
+
+- **Live rooms** — 👥 in the header turns the current chat into a room at `/room/<id>`. Other sessions on the same local instance can join;
   every message shows who said it, presence avatars update live (SSE with polling fallback), and the AI answers in the
   room for everyone (it sees the speakers' names). Start a message with `//` or use *aside* to talk to humans only.
 - **Prompt & agent gallery** — 🗂️ Gallery mode: community-shared prompts and agent recipes (with `@agent` mentions
@@ -472,19 +476,26 @@ The key still works for scripts (`Authorization: Bearer …`).
 - **Languages** — Settings → General → Language: English, தமிழ், हिन्दी (auto-detected from the browser). Add a
   language by extending `src/lib/i18n.ts`.
 
-## Self-hosting
+## Local setup
 
 ```bash
-git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
-npm install && cp .env.example .env.local
-npm run dev            # or: npm run build && npm start
+git clone https://github.com/rajaram-2005/Aetheris.git
+cd Aetheris
+npm ci
+cp .env.example .env.local
+npm run dev -- --hostname 127.0.0.1
 ```
-Works with zero keys (keyless providers). Add provider keys in Settings or `.env.local` for more capacity.
-Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHONES` (your admin identities) and the
-production login variables from [AUTHENTICATION](AUTHENTICATION.md) plus any optional payment variables from `.env.example`. Deploy with Docker or any container host (Render / Fly /
-Railway blueprints in `deploy/`); serverless platforms like Vercel are not supported — Aetheris needs a long-lived
-process and a writable volume. Persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
+Open **http://localhost:3000**; no login, display name or hosting account is required. For an optimized
+local build, run `npm run build`, then `npm start -- --hostname 127.0.0.1`. Optional Docker stays on
+this computer too: `docker compose up -d --build` publishes only `127.0.0.1:3000`.
+
+Keyless providers require internet. Set `AETHERIS_LOCALITY=local` and configure a local model server
+for local inference; that setting does not disable web search or other online integrations. Keep secrets
+in `.env.local` and configure OAuth only for integrations that need it, with localhost callbacks from
+[AUTHENTICATION](AUTHENTICATION.md). Browser data and the local server's `data/` directory need
+separate backups. Run one process per data directory; do not expose it through a public host or tunnel.
+See [LOCAL SETUP](LOCAL_SETUP.md) for full instructions and [DESKTOP](DESKTOP.md) for the embedded app.
 
 ## 🎙 Voice mode
 
@@ -492,11 +503,11 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## 🎛️ Intelligence OS core (Control Center)
 
-`src/core` holds the **Capability Registry** (383 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
+`src/core` holds the **Capability Registry** (models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## ⏰ Scheduled automations
 
-Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (GitHub Actions, cron-job.org, UptimeRobot) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
+Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). The in-process ticker runs while the local app is open and the machine is awake; an optional local cron can call `GET /api/schedules/tick` protected by `CRON_SECRET`. Claim-before-run prevents double execution. See `/docs/schedules`.
 
 ## 📁 Chat with documents
 
@@ -516,7 +527,7 @@ Adaptive quizzes and flashcards with spaced repetition. Create a deck for any su
 
 ## Docs & prompt gallery
 
-- **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, self-hosting…) plus **reference pages generated from the live catalogs** (all 102 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
+- **In-app docs at `/docs`** — 13 hand-written guides (routing, agents, workflows, Hub, API, local setup…) plus **reference pages generated from the live catalogs** (all 102 agents with aliases/skills, 27 providers with free-tier limits and key links, 100+ MCP connectors, commands, HTTP endpoints). They can't drift from the code.
 - **Prompt gallery seed** — 700+ hand-written, templated recipes across 26 domains — education, students, coding, engineering (civil/mechanical/electrical/chemical/aero/auto), business, industry playbooks (agriculture, hospitality, retail, real estate, logistics, manufacturing, NGOs, government, sports…), marketing, writing, presentation & speaking, arts (music, photography, film, fashion, architecture), life, finance, legal, health, science, design, career, language, productivity, creative, data/ML, gaming & entertainment, social & relationships, safety & security, using-AI-well, and a **world** set with writing recipes written natively in 40+ languages (Indian languages, Spanish, French, German, Portuguese, Arabic, Chinese, Japanese, Korean, Russian, Indonesian, Swahili and more) (Tamil/Hindi included) in `src/lib/gallery/seeds/*.ts`. Every recipe references real agents (tested).
 
 ## License

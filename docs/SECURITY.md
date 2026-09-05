@@ -15,7 +15,7 @@ Principles, in order: **least privilege**, **explicit confirmation for anything 
 |---|---|---|
 | `read_only` | read own data, query, inspect | ✔ |
 | `safe_write` | create/update own data, send messages via connectors, post PR comments | ✔ |
-| `full_workspace` | server sandbox execution, deployments, anything that changes shared state | via `AETHERIS_ADMIN_UIDS` or explicit grant |
+| `full_workspace` | server sandbox execution and operations that change shared state | via `AETHERIS_ADMIN_UIDS` or explicit grant |
 | `admin` | policy, telemetry of all users, admin routes | admin identities only |
 | `physical` | actuate devices / robots | **never implied** by any level; opt-in per user (`POST /api/devices/optin`), never set by env |
 
@@ -34,7 +34,7 @@ Principles, in order: **least privilege**, **explicit confirmation for anything 
 | Per uid `physical` | 30 / min |
 | Per automation `hook` | 120 / min |
 
-**Honest limit:** counters are in-memory per instance — they reset on restart and are not shared across replicas. There is no WAF. Put a reverse proxy limit or WAF in front of a public host.
+**Honest limit:** counters are in-memory per instance and reset on restart. There is no WAF. Aetheris is a local-only, anonymous-first workspace: keep it on loopback rather than exposing it through a public host or tunnel. See [LOCAL SETUP](LOCAL_SETUP.md).
 
 ## SSRF guard
 
@@ -57,7 +57,7 @@ Process isolation, **not a VM**: fresh temp workspace per run (deleted after), p
 
 ## Headers
 
-`src/middleware.ts` sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic self-only for Voice mode), `X-DNS-Prefetch-Control: off`, `X-Robots-Tag: noindex` on API routes. **Not set:** `X-Frame-Options`/`frame-ancestors` — Aetheris is designed to be embeddable (shared pages, hosted previews); add `frame-ancestors` at your reverse proxy if you need click-jacking protection. CSP is not enforced yet because the media studio embeds third-party outputs — tracked as **PARTIAL**.
+`src/middleware.ts` sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/mic self-only for Voice mode), `X-DNS-Prefetch-Control: off`, `X-Robots-Tag: noindex` on API routes. **Not set:** `X-Frame-Options`/`frame-ancestors` — development previews can embed the app. Loopback binding is not click-jacking protection; be cautious about untrusted pages while local Aetheris is running. CSP is not enforced yet because the media studio embeds third-party outputs — tracked as **PARTIAL**.
 
 ## Reporting
 
@@ -75,5 +75,5 @@ Email security issues to the maintainer listed in `README.md` rather than openin
 | Audit export | IMPLEMENTED — in-memory ring only |
 | Sandbox isolation | IMPLEMENTED (process-level), not a VM |
 | CSP | PARTIAL |
-| WAF / DDoS protection | NOT AVAILABLE (use a proxy) |
+| WAF / DDoS protection | NOT AVAILABLE (not a public hosting service) |
 | Secret vault / key rotation | NOT AVAILABLE (env + encrypted per-user store) |

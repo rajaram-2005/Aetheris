@@ -6,8 +6,10 @@
 git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
 npm ci                      # Node 22 required (node:sqlite)
 cp .env.example .env.local  # optional keys; keyless providers work without any
-npm run dev                 # http://localhost:3000 (binds 0.0.0.0)
+npm run dev -- --hostname 127.0.0.1  # http://localhost:3000 (loopback only)
 ```
+
+Aetheris is local-only. The hostname override above confines normal browser use to your computer; the default `dev` script also supports development previews on `0.0.0.0`. For local Docker, model configuration and backups, see [LOCAL SETUP](LOCAL_SETUP.md).
 
 ## Scripts
 

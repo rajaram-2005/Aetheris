@@ -1,7 +1,8 @@
 /**
- * Cloud MCP connector catalog. `url` entries are remote Streamable-HTTP MCP servers.
- * `auth` describes what the user must supply; the value is sent as a header on every call
- * and only lives in the user's browser + the request.
+ * Optional MCP integrations for the local Aetheris workspace (no cloud deployment services).
+ * `url` entries are remote Streamable-HTTP MCP servers, not hosts for Aetheris.
+ * `auth` describes what the user must supply; the value is sent as a header to that service.
+ * Apps keeps pasted credentials in browser storage and seals a local copy for the Hub.
  */
 export type Category = "productivity" | "dev" | "payments" | "communication" | "design" | "data" | "web" | "crm" | "social" | "storage";
 
@@ -68,23 +69,18 @@ export const CONNECTORS: Connector[] = [
     description: "Up-to-date library and framework documentation for coding." },
   { id: "fetch", kind: "gateway", name: "Web Fetch", category: "web", url: "/api/gateway/fetch",
     description: "Read any public web page as clean markdown (no key needed)." },
-  { id: "edgeone-pages", kind: "remote", name: "EdgeOne Pages", category: "dev", url: "https://mcp-on-edge.edgeone.site/mcp-server",
-    description: "Deploy HTML to a public URL instantly." },
 
   // ---- Dev & data ---------------------------------------------------------------------
   { id: "sentry", kind: "remote", oauth: true, name: "Sentry", category: "dev", url: "https://mcp.sentry.dev/mcp", description: "Issues, errors and performance data.", auth: { header: "Authorization", prefix: "Bearer ", label: "Sentry auth token" } },
   { id: "linear", kind: "remote", oauth: true, name: "Linear", category: "productivity", url: "https://mcp.linear.app/mcp", description: "Issues, projects and cycles.", auth: { header: "Authorization", prefix: "Bearer ", label: "Linear API key" } },
   { id: "atlassian", kind: "remote", oauth: true, name: "Jira & Confluence", category: "productivity", url: "https://mcp.atlassian.com/v1/mcp", description: "Jira issues and Confluence pages.", auth: { header: "Authorization", prefix: "Bearer ", label: "Atlassian access token" } },
   { id: "asana", kind: "remote", oauth: true, name: "Asana", category: "productivity", url: "https://mcp.asana.com/v2/mcp", description: "Tasks, projects and goals.", auth: { header: "Authorization", prefix: "Bearer ", label: "Asana PAT" } },
-  { id: "cloudflare", kind: "remote", oauth: true, name: "Cloudflare", category: "dev", url: "https://mcp.cloudflare.com/mcp", description: "Workers, KV, R2, D1 and DNS.", auth: { header: "Authorization", prefix: "Bearer ", label: "Cloudflare API token" } },
   { id: "supabase", kind: "remote", oauth: true, name: "Supabase", category: "data", url: "https://mcp.supabase.com/mcp", description: "Query tables, run SQL, manage projects.", auth: { header: "Authorization", prefix: "Bearer ", label: "Supabase PAT" } },
   { id: "neon", kind: "remote", oauth: true, name: "Neon Postgres", category: "data", url: "https://mcp.neon.tech/mcp", description: "Serverless Postgres branches and SQL.", auth: { header: "Authorization", prefix: "Bearer ", label: "Neon API key" } },
   { id: "mongodb", kind: "gateway", name: "MongoDB Atlas", category: "data", url: "/api/gateway/mongodb", description: "Clusters, collections and aggregation.", auth: { header: "Authorization", prefix: "Bearer ", label: "Atlas API key" } },
   { id: "airtable", kind: "remote", oauth: true, name: "Airtable", category: "data", url: "https://mcp.airtable.com/mcp", description: "Bases, tables and records.", auth: { header: "Authorization", prefix: "Bearer ", label: "Airtable PAT" } },
   { id: "postman", kind: "remote", oauth: true, name: "Postman", category: "dev", url: "https://mcp.postman.com/mcp", description: "Collections, environments and API tests.", auth: { header: "Authorization", prefix: "Bearer ", label: "Postman API key" } },
   { id: "huggingface", kind: "remote", oauth: true, name: "Hugging Face", category: "dev", url: "https://huggingface.co/mcp", description: "Search models, datasets, Spaces and papers.", auth: { header: "Authorization", prefix: "Bearer ", label: "HF token" } },
-  { id: "netlify", kind: "remote", oauth: true, name: "Netlify", category: "dev", url: "https://netlify-mcp.netlify.app/mcp", description: "Sites, deploys and env vars.", auth: { header: "Authorization", prefix: "Bearer ", label: "Netlify PAT" } },
-  { id: "render", kind: "remote", oauth: true, name: "Render", category: "dev", url: "https://mcp.render.com/mcp", description: "Services, deploys and logs.", auth: { header: "Authorization", prefix: "Bearer ", label: "Render API key" } },
   { id: "docker-hub", kind: "gateway", name: "Docker Hub", category: "dev", url: "/api/gateway/docker-hub", description: "Search images, list tags and repositories.", auth: { header: "Authorization", prefix: "Bearer ", label: "Docker Hub PAT (or leave blank for public search)" } },
   { id: "grafana", kind: "gateway", name: "Grafana", category: "data", url: "/api/gateway/grafana", description: "Dashboards, alerts and Loki queries.", auth: { header: "Authorization", prefix: "Bearer ", label: "Grafana service account token" } },
 

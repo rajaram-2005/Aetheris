@@ -1,17 +1,21 @@
-# Aetheris One — an open Intelligence Operating System
+# Aetheris One — a local, open-source Intelligence Operating System
 
-**One layer that selects, coordinates and verifies models, agents, knowledge, tools — and, with explicit permission, physical systems.** Free for everyone. MIT. No paid tier, no metering, no vendor lock-in.
+**One layer that selects, coordinates and verifies models, agents, knowledge and tools — on your own computer.** Free for everyone. MIT. No paid tier, no metering, no vendor lock-in.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen.svg)](tests)
-[![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](CHANGELOG.md)
+[![CI](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml/badge.svg)](https://github.com/rajaram-2005/Aetheris/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-2026.9.2-informational.svg)](CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](CHANGELOG.md)
 
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
-```
-  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (106 connectors · MCP · plugins)
+Aetheris is a **local-only application**: use it in your browser with a local Node.js process, or as an Electron desktop app on macOS, Linux or Windows. There is no hosted Aetheris service to sign up for, and cloud deployment is not a supported workflow. The Apps catalog contains optional integrations, not deployment services.
+
+**Local does not mean offline.** Online model providers, web search, GitHub and connected MCP services send requests to their respective services. For local model inference, configure Ollama, LM Studio or a local OpenAI-compatible server and set `AETHERIS_LOCALITY=local`. Online integrations still need an internet connection; see [MODELS](docs/MODELS.md).
+
+```text
+  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (102 connectors · MCP · plugins)
             └──────────────────────────────┬──────────────────────────────────┘
                      Capability Registry · Execution Policy · Observability
                                            │
@@ -24,56 +28,82 @@
 
 Everything is **discoverable** (`GET /api/capabilities`), **callable** (typed `/api/*`), **permissioned** (`read_only → safe_write → full_workspace → admin`, plus an isolated `physical` grant), **observable** (`/api/telemetry`, Control Center), **testable** (`npm test`, `npm run eval`) and **replaceable** (provider interfaces, plugin SDK).
 
-## Quick start
+## Quick start — local browser
+
+Requires **Node.js 22.x**, npm and Git. Node 22 is needed for the knowledge fabric's `node:sqlite` support.
 
 ```bash
-npm install
-cp .env.example .env.local     # optional: add a key, e.g. GROQ_API_KEY
-npm run dev                    # http://localhost:3000
+git clone https://github.com/rajaram-2005/Aetheris.git
+cd Aetheris
+npm ci
+cp .env.example .env.local
+npm run dev -- --hostname 127.0.0.1
 ```
 
-**Zero model-provider keys works** — Pollinations and LLM7.io are keyless. The web workspace opens directly with anonymous browser-local data; no login or display name is required. Every model key you add raises quality and throughput; the router only uses providers whose key is set.
+Open **http://localhost:3000**. The workspace opens directly with anonymous browser-local data; no login or display name is required. On Windows, copy `.env.example` to `.env.local` with PowerShell or File Explorer.
+
+**No model-provider key is required to get started** — Pollinations and LLM7.io are keyless online providers. Add optional provider keys in `.env.local` or the Providers view for more capacity. Upstream providers' availability and rate limits still apply.
+
+For an optimized local build:
 
 ```bash
-npm test          # 182 tests, no API keys needed
-npm run eval      # routing / policy / retrieval evals
-npm run build && npm start
-npm run desktop:dev / desktop:build     # Electron app (macOS · Linux · Windows)
+npm run build
+npm start -- --hostname 127.0.0.1
 ```
+
+The hostname override keeps these browser workflows on loopback. Keep the process running while you use Aetheris; no domain, public server or deployment account is needed.
+
+## Desktop app
+
+Download the installer for your platform from [GitHub Releases](https://github.com/rajaram-2005/Aetheris/releases), then use the default **local / embedded** mode. The app starts its own loopback server and stores its data on your computer.
+
+To develop or build the desktop app from this checkout:
+
+```bash
+npm --prefix desktop ci
+npm run desktop:dev      # local Next.js dev server + Electron shell
+npm run desktop:build    # packaged app with an embedded server
+```
+
+Platform requirements, installer commands and data locations: [DESKTOP](docs/DESKTOP.md).
 
 ## What's inside
 
-- **Model mesh** — 31 providers with priority ordering, load-balancing, cooldowns, health tracking and silent failover; per-message `provider · latency · failover` transparency.
+- **Model mesh** — 31 providers with priority ordering, load-balancing, cooldowns, health tracking and failover; per-message `provider · latency · failover` transparency, plus local inference support.
 - **Agents** — 102 specialists across 17 domains under Prime (planner), Hermes (executor) and Metis (meta-learning), plus `@picker`, slash commands, workflows and debate mode.
 - **Characters** — database-backed persona creator plus 16 curated deity interpretations across Hindu, Greek, Norse and Egyptian traditions, each with transparent roleplay and educational guide modes.
 - **Knowledge & memory** — hybrid FTS5 + vector + graph + temporal fabric with provenance, typed memory, and per-user document KBs (PDF/DOCX/CSV/HTML) with cited answers.
-- **Tools** — 106 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK.
-- **Software** — GitHub repository intelligence and the Cloud Coding Factory (codegen → commit → Actions → logs → report).
-- **Physical AI** — http/mqtt/modbus adapters, ROS 2 via rosbridge, digital twins, safety loop and e-stop.
-- **Chat UX** — streaming, vision, artifacts, web search + citations, Deep Research, projects, memory, Model Arena, voice mode, in-browser code interpreter, live rooms, study mode, prompt gallery.
-- **Ops** — Control Center (16 panels), execution policy + audit, SSRF guard and redaction, durable telemetry, Docker/compose deployment, monthly CalVer releases.
+- **Apps & tools** — 102 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK. Connect services such as Notion, GitHub and Slack from your local workspace; cloud deployment connectors are not included.
+- **Software** — GitHub repository intelligence and the Coding Factory (codegen → commit → Actions → logs → report). GitHub features require an internet connection and explicit authorization.
+- **Physical AI** — HTTP/MQTT/Modbus adapters, ROS 2 via rosbridge, digital twins, safety loop and e-stop, with explicit permission for physical systems.
+- **Chat UX** — streaming, vision, artifacts, web search + citations, Deep Research, projects, memory, Model Arena, voice mode, in-browser code interpreter, study mode and prompt gallery.
+- **Local operations** — Control Center (16 panels), execution policy + audit, SSRF guard and redaction, telemetry, optional local Docker, and monthly CalVer releases.
 
-Aetheris is **100% free**: every feature for every user, no credits, no daily limit. An optional billing system ships in the codebase for self-hosters and is off unless `AETHERIS_PAID_PLANS=1`.
+Aetheris is **free by default**: every feature, no Aetheris credits or daily quota. Leave `AETHERIS_PAID_PLANS` unset or `0`; the legacy optional billing code is not needed for local use. External providers may have their own limits or charges.
 
-## Status vocabulary
+## Local data and configuration
 
-Used everywhere, including the live registry: **IMPLEMENTED · PARTIAL · EXPERIMENTAL · MOCKED · NOT AVAILABLE**. Nothing in Aetheris is MOCKED; what cannot run here says so. Known gap: horizontal scaling is NOT AVAILABLE (single-instance JSON store; `StorageProvider` is the swap point).
+- Browser chats, projects and settings stay in that browser's local storage. Server-side records live in `data/` (`AETHERIS_DATA_DIR`); the desktop app uses its own local data directory.
+- Back up both exported browser data and the server data directory before an upgrade. Clearing browser storage or its anonymous owner cookie can lose access to that owner's records.
+- Keep secrets in `.env.local` (desktop: `<dataDir>/.env.local`), never in Git. Set `AETHERIS_SECRET` when using encrypted credentials or OAuth integrations. OAuth is optional, not a login requirement; see [AUTHENTICATION](docs/AUTHENTICATION.md) for localhost callbacks.
+- Optional Docker runs on your own computer: `docker compose up -d --build`. Its port is published only on `127.0.0.1:3000`, with persistent data in the `aetheris-data` volume.
+- Use one local instance per data directory. Do not expose the anonymous workspace through a public host, port-forward or tunnel.
 
-Full per-subsystem status table, provider mesh, phase history, API surface and project layout: **[docs/OVERVIEW.md](docs/OVERVIEW.md)**.
+Full setup, local inference, backups and troubleshooting: **[LOCAL SETUP](docs/LOCAL_SETUP.md)**.
 
-## Self-hosting
+## Development and status
 
 ```bash
-git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
-npm install && cp .env.example .env.local
-npm run dev            # or: npm run build && npm start
+npm run typecheck
+npm test             # no provider API keys needed
+npm run eval         # routing / policy / retrieval evals
 ```
 
-Set `AETHERIS_SECRET` (cookie/credential sealing) and `AETHERIS_ADMIN_EMAILS` when needed. Configure OAuth only for integrations that use it, as described in [AUTHENTICATION](docs/AUTHENTICATION.md). Deploy with Docker (`docker compose up -d --build`) or any container host — Render/Fly blueprints live in `deploy/`. Serverless (Vercel & co.) is not supported: Aetheris needs a long-lived process and a writable volume; persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+Status vocabulary: **IMPLEMENTED · PARTIAL · EXPERIMENTAL · MOCKED · NOT AVAILABLE**. Known gap: horizontal scaling is NOT AVAILABLE; the JSON/SQLite stores are single-instance. See the per-subsystem status table, API surface and project layout in **[OVERVIEW](docs/OVERVIEW.md)**.
 
 ## Docs
 
-[OVERVIEW](docs/OVERVIEW.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AUTHENTICATION](docs/AUTHENTICATION.md) · [AGENTS](docs/AGENTS.md) · [CHARACTERS](docs/CHARACTERS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [deploy recipes](deploy/README.md) · [DESKTOP](docs/DESKTOP.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md)
+[LOCAL SETUP](docs/LOCAL_SETUP.md) · [DESKTOP](docs/DESKTOP.md) · [OVERVIEW](docs/OVERVIEW.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [DEVELOPMENT](docs/DEVELOPMENT.md) · [API](docs/API.md) · [AUTHENTICATION](docs/AUTHENTICATION.md) · [AGENTS](docs/AGENTS.md) · [CHARACTERS](docs/CHARACTERS.md) · [MCP](docs/MCP.md) · [MODELS](docs/MODELS.md) · [KNOWLEDGE](docs/KNOWLEDGE.md) · [MEMORY](docs/MEMORY.md) · [SECURITY](docs/SECURITY.md) · [HARDWARE](docs/HARDWARE.md) · [ROBOTICS](docs/ROBOTICS.md) · [RESEARCH](docs/RESEARCH.md) · [PLUGIN_SDK](docs/PLUGIN_SDK.md) · [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md)
 
 ## License
 

@@ -74,8 +74,8 @@ All routes live under \`src/app/api\`. Auth: cookie session (browser) or \`Autho
 | \`GET /api/mcp/catalog\`, \`POST /api/mcp/*\` | Connectors; \`/api/mcp/hub\` is the MCP Streamable-HTTP hub (Bearer key). |
 | \`POST /api/v1/chat/completions\`, \`GET /api/v1/models\` | OpenAI-compatible API (Bearer key). |
 | \`GET/POST /api/rooms\`, \`GET /api/rooms/:id\`, \`GET /api/rooms/:id/events\`, \`POST /api/rooms/:id/messages\` | Live rooms. |
-| \`POST/DELETE /api/share\`, \`GET /api/share/:id\` | Public chat snapshots. |
-| \`GET/PUT/DELETE /api/sync\` | Account cloud sync. |
+| \`POST/DELETE /api/share\`, \`GET /api/share/:id\` | Read-only chat snapshots on the local instance. |
+| \`GET/PUT/DELETE /api/sync\` | Legacy account sync within the local instance. |
 | \`GET/POST /api/gallery\`, \`POST/DELETE /api/gallery/:id\` | Prompt gallery. |
 | \`GET/DELETE /api/auth/session\`, \`/api/auth/{google,github}\`, \`POST /api/auth/guest\` | OAuth integrations and legacy account compatibility endpoints; the web shell is anonymous-first. |
 | \`GET/POST/DELETE /api/keys\` | Personal API keys. |

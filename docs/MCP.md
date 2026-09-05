@@ -12,6 +12,8 @@ Aetheris is both an **MCP client** (it calls servers you register) and an **MCP 
                                            └── /api/mcp/servers ─┴──▶ REST gateway connectors (111 typed tools)
 ```
 
+Aetheris runs locally. Apps are optional integrations, not hosts for Aetheris; cloud deployment connectors are excluded from the catalog. Vendor-hosted MCP servers and REST APIs still need internet access. For desktop clients, use the embedded server's actual loopback port instead of `3000`.
+
 ## 1. Hub — Aetheris as an MCP server (`/api/mcp/hub`)
 
 Streamable-HTTP MCP endpoint. Methods: `initialize`, `tools/list`, `tools/call`. Tool names are `<connectorId>__<tool>` (e.g. `github__search_issues`). Auth: browser session, or `Authorization: Bearer sk-aeth-…` (personal API key — free). Per-connector credentials: stored via `POST /api/mcp/hub/credentials`, OAuth (`/api/mcp/oauth/start`), or per-request `X-Aetheris-Cred-<connectorId>` header. `X-Aetheris-Connectors: github,slack` restricts a session.
@@ -19,10 +21,10 @@ Streamable-HTTP MCP endpoint. Methods: `initialize`, `tools/list`, `tools/call`.
 Claude Desktop config:
 
 ```json
-{ "mcpServers": { "aetheris": { "url": "https://your-host/api/mcp/hub", "headers": { "Authorization": "Bearer sk-aeth-…" } } } }
+{ "mcpServers": { "aetheris": { "url": "http://localhost:3000/api/mcp/hub", "headers": { "Authorization": "Bearer sk-aeth-…" } } } }
 ```
 
-Catalog: 106 connectors (`GET /api/mcp/catalog`) — remote MCP servers (Notion, Linear, Sentry, Context7…) proxied with your credentials, plus a REST gateway with 111 typed tools (Discord, Telegram, Twilio, Razorpay, Shopify, Salesforce, Google Workspace, BigQuery…). Registry status per connector is `implemented` for gateway tools and `partial` for remote MCP servers whose live schema is only known after connection; `verification_status` is `untestable_here` because this sandbox has no egress — nothing is faked.
+Catalog: 102 connectors (`GET /api/mcp/catalog`) — remote MCP servers (Notion, Linear, Sentry, Context7…) proxied with your credentials, plus a REST gateway with 111 typed tools (Discord, Telegram, Twilio, Razorpay, Shopify, Salesforce, Google Workspace, BigQuery…). Registry status per connector is `implemented` for gateway tools and `partial` for remote MCP servers whose live schema is only known after connection; `verification_status` is `untestable_here` because this sandbox has no egress — nothing is faked.
 
 ## 2. Gateway — registering your own MCP servers (`src/core/mcp/gateway.ts`)
 
@@ -48,7 +50,7 @@ The intent router + registry scoring pick tools by query match, category, status
 
 | Piece | Status |
 |---|---|
-| Hub (Aetheris as MCP server), 106 connectors, OAuth + credential store | IMPLEMENTED (live calls untestable from this sandbox) |
+| Hub (Aetheris as MCP server), 102 connectors, OAuth + credential store | IMPLEMENTED (live calls untestable from this sandbox) |
 | User-registered MCP servers: probe, manifest, health, versions, schema validation, permissions | IMPLEMENTED (tested with an in-repo mock MCP server) |
 | Tool ranking by measured reliability | PARTIAL (events recorded; ranking uses text + status + level) |
 | stdio / SSE transports, MCP resources & prompts | NOT AVAILABLE |

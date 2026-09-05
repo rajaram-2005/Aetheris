@@ -3,7 +3,7 @@
 The full security architecture (permission levels, physical grant, SSRF guard, rate limits, sandbox, audit, honest limits) is documented in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Supported versions
-The `main` branch. Deployments should track the latest release.
+The `main` branch. Local installations should track the latest release.
 
 ## Reporting a vulnerability
 Please **do not** open a public issue. Email **ramkpraja175@gmail.com** with details and reproduction steps.

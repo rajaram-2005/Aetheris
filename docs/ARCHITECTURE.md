@@ -15,7 +15,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 | Model layer | `src/lib/router`: 27 HTTP providers behind 3 adapter kinds (OpenAI-compatible, Gemini, Cohere); health-scored failover, cooldowns, vision filter, tier allow-lists, streaming. Provider-neutral already. No local-model provider registered. | Keep. Exposed as `model:*` capabilities; `ModelProvider` interface documented; local OpenAI-compatible endpoints (Ollama/vLLM/LM Studio) can be added as a `ProviderConfig` without code changes to callers. |
 | Agents | `src/lib/agents`: 102 specs, Prime planner → single/pipeline/parallel → Metis lessons. No budgets, checkpoints, cancellation of sub-tasks, or background jobs. | Keep; marked `PARTIAL`. Instrumented with events. |
 | Characters | `src/lib/characters`: persistent curated/private personas resolved server-side for chat; dual roleplay/guide behavior. | `IMPLEMENTED`; owner-scoped CRUD and transparent mythology safeguards. See [CHARACTERS](CHARACTERS.md). |
-| Tools / MCP | `src/lib/mcp`: hub aggregating 106 connectors (remote MCP + REST gateway with 111 typed tools), per-user credentials, OAuth. Static catalog; no user-added servers, health, versioning. | Keep; `PARTIAL`. Every tool now a registry entry with permission level inferred from verb (`send/create/delete` → `safe_write`, `delete/remove` → confirmation). |
+| Tools / MCP | `src/lib/mcp`: hub aggregating 102 connectors (remote MCP + REST gateway with 111 typed tools), per-user credentials, OAuth. Static catalog; no user-added servers, health, versioning. | Keep; `PARTIAL`. Every tool now a registry entry with permission level inferred from verb (`send/create/delete` → `safe_write`, `delete/remove` → confirmation). |
 | Knowledge | `src/lib/kb`: BM25, heading-aware chunking, PDF/DOCX/CSV/HTML, citations. No vectors, graph, temporal store. | Keep; `PARTIAL`. `RetrievalProvider` interface for a vector adapter (hybrid). |
 | Memory | Client-side user memory + Metis lessons. No episodic/project/agent memory, ranking, expiry, provenance. | `PARTIAL`. |
 | Research | Deep Research: decomposition → Tavily → synthesis with citations. No academic sources / evidence graph. | `PARTIAL`. |
@@ -29,7 +29,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 | Physical AI / robotics / twins | Nothing existed. | Interfaces + deterministic safety policy defined; `NOT AVAILABLE`; no fake telemetry. |
 | Dead/duplicated code | `Upgrade.tsx` & billing UI unused in free mode (kept behind flag). Two "🛰️" icons (Providers) — Control Center uses 🎛️. Legacy `api/mcp/tools` overlaps hub (kept for compatibility). | Noted; no destructive removals. |
 | Dependencies | `pdf-parse@1.1.1` imported via internal path to avoid its debug side-effect. `next build` corrupts `.next` if dev server runs concurrently (dev-only). | Documented. |
-| Deployment | Workflows live in `.github/workflows/` (`ci.yml`, `release.yml`, `release-desktop.yml`) with the shared `.github/actions/build-desktop/` action; `ci/README.md` documents the pipeline. Schedules need external cron on serverless. | `docs/DEPLOYMENT.md`. |
+| Local runtime & releases | Browser, embedded desktop and local Docker only. Workflows in `.github/workflows/` test the app and package releases, not hosted deployments; `ci/README.md` documents the pipeline. Schedules require the local process to stay running. | `docs/LOCAL_SETUP.md`. |
 
 ---
 
@@ -70,7 +70,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 |---|---|
 | `router` (27→31 providers) | records `model` events; `ModelPolicy`; registry `model:*` |
 | `agents/orchestrator` (Prime/Hermes/Metis) | records `agent` events; `/api/agents/run` grounds runs with typed memory + knowledge fabric; Metis lessons mirrored into procedural memory; wrapped by `core/agents/runtime` jobs |
-| `mcp/hub` (106 connectors) | every `tools/call` passes `authorize()` with the same verb classifier as user MCP servers (`_confirmationToken` arg for destructive tools); traced as `mcp` events; registry `tool:*`/`connector:*` |
+| `mcp/hub` (102 connectors) | every `tools/call` passes `authorize()` with the same verb classifier as user MCP servers (`_confirmationToken` arg for destructive tools); traced as `mcp` events; registry `tool:*`/`connector:*` |
 | `kb` (document KBs) | `queryUnified()` merges BM25 chunks (provenance kind `document`) with fabric facts; used by `/api/knowledge` and `/api/chat` |
 | `workflows`, `factory`, `media`, `research/deep` | traced as events (`automation:workflows`, `github:factory`, `media:studio`, `research:deep`) |
 | `schedules` | records `schedule` events; drives MCP health sweeps, twin sync, automation cron |
@@ -83,7 +83,7 @@ Every subsystem talks to Core through three things only: it **registers capabili
 ## 3. Capability Registry (`src/core/capabilities`)
 
 - `Capability` record: id, category, `status`, tags, schemas, `security_level`, `requires_confirmation`, cost, latency, reliability, hardware/model requirements, operations, `verification_status`, locality, invoke hint.
-- Sources register themselves (`registerSource`); built-ins: `models` (27), `agents` (102), `connectors` (106 connectors + 111 gateway tools), `platform` (22 subsystems). Adding the next 1,000 tools = one more source.
+- Sources register themselves (`registerSource`); built-ins: `models` (27), `agents` (102), `connectors` (102 connectors + 111 gateway tools), `platform` (22 subsystems). Adding the next 1,000 tools = one more source.
 - `searchCapabilities({q, category, status, tags, maxSecurity})` ranks name/tags/description, multiplies by status weight (implemented 1.0 → mocked 0.2 → not_available 0) and reliability.
 - API: `GET /api/capabilities?q=&category=&status=&tags=&maxSecurity=&id=`.
 
@@ -132,7 +132,7 @@ Adapters http (verified on mock), mqtt + modbus (dependency-free clients, verifi
 | 17 Security | guard (SSRF, limits, redaction), middleware, audit export | **done** (per-instance limits) |
 | 18 Testing/evals | 174 tests, eval harness with thresholds, CI workflow file | **done** |
 | 19 Performance | store read cache, perf budget tests | **done** |
-| 20 Deployment | Dockerfile, compose, health, DEPLOYMENT.md | **done** |
+| 20 Local runtime | Local Dockerfile/compose, health, LOCAL_SETUP.md | **done** |
 | 21 API-first + plugin SDK | /api/workspaces, /api/tools, /api/plugins, definePlugin | **done** |
 | 22 Docs | 15 documents with diagrams and status tables | **done** |
 | 23 Verification engine | JSON-schema validation, independent reviewer gate (routed off the generator's model), test loop through the execution sandbox; wired into `/api/verify` and the automation verify stage | **done** (sandbox is process-level, not a container) |

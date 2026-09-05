@@ -1,25 +1,29 @@
 # Desktop app
 
 Aetheris One runs as a native desktop app on **macOS**, **Linux** and **Windows** — an Electron
-shell in `desktop/` around the same Next.js application that runs on a server. Nothing is a second
-codebase: the desktop app *is* Aetheris, either embedded or connected.
+shell in `desktop/` around the same Next.js application you run locally in a browser. Nothing is a
+second codebase: the desktop app *is* Aetheris. Normal use is **local-only**, with its own embedded server.
+Online model providers, integrations and update checks still use the internet; local inference needs
+a configured local model server.
 
 Status: **IMPLEMENTED** for the shell, packaging and the embedded server; installer artefacts are
 produced by `.github/workflows/release.yml` on the matching runners (see [Release](#release) — a `.dmg` can only be
 built on macOS).
 
-## Two run modes
+## Local operation and development
 
-Pick either from **app menu → Connection settings…** (or the tray); the choice is stored in
-Electron's `userData` directory.
+Use **local / embedded** mode for normal operation. If an older setting opens the connection screen,
+choose **Use the embedded server** from **app menu → Connection settings…** (or the tray). Settings
+are stored in Electron's `userData` directory.
 
 | Mode | What runs | Data | Use it when |
 |---|---|---|---|
-| `local` (default) | the app starts the embedded Next.js server on `127.0.0.1` as a child process | `<userData>/data` | you want a self-contained offline app |
-| `remote` | the window loads an Aetheris server you chose | the server's own data dir | you already run Aetheris on a LAN box / VPS, or want one shared instance |
+| `local` (default) | the app starts the embedded Next.js server on `127.0.0.1` as a child process | `<userData>/data` | normal local use |
+| `remote` (compatibility mode) | the window loads a separately running Aetheris process | that process's local data directory | local development with `npm run desktop:dev` and hot reload |
 
-`remote` mode probes `GET /api/health` before it saves an address, so you cannot point the app at
-something that is not Aetheris and get a blank window.
+The legacy `remote` connection setting remains in the code and checks `GET /api/health` before
+saving an address. Its supported use here is connecting the development shell to a server on the
+same computer; public and remote Aetheris hosting are not supported workflows.
 
 ```
   ┌─────────────────────────── Aetheris.app ───────────────────────────┐
@@ -36,7 +40,8 @@ something that is not Aetheris and get a blank window.
   └────────────────────────────────────────────────────────────────────┘
 ```
 
-In `remote` mode the left branch disappears and `loadURL` points at your server.
+During local development, the left branch disappears and `loadURL` points at the separately running
+local Next.js development server.
 
 ## Install
 
@@ -56,6 +61,7 @@ monthly release lands. It never downloads or installs anything by itself.
 ```bash
 git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
 npm ci
+npm --prefix desktop ci
 
 # day-to-day UI work: next dev + the desktop shell pointed at it (hot reload)
 npm run desktop:dev
@@ -101,8 +107,8 @@ than a crash.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `mode` | `"local"` | `"local"` embedded server, `"remote"` thin client |
-| `serverUrl` | `""` | remote address; normalised, must be http(s) and answer `/api/health` |
+| `mode` | `"local"` | `"local"` embedded server; `"remote"` compatibility client used for local development |
+| `serverUrl` | `""` | local development server address; normalised, must be http(s) and answer `/api/health` |
 | `preferredPort` | `17890` | loopback port the embedded server asks for; if taken, the next free one |
 | `dataDir` | `<userData>/data` | JSON stores + `knowledge.sqlite` |
 | `bounds` | 1280×840 | last window position/size |
@@ -166,7 +172,7 @@ below and [ci/README.md](../ci/README.md). `.github/workflows/release.yml` build
 | Symptom | Cause and fix |
 |---|---|
 | "The embedded Aetheris server is not built yet" | you ran the shell without building the standalone bundle — `npm run desktop:build` (or use `npm run desktop:dev`) |
-| The app opens but shows the connection screen | `mode` is `remote` and the address is unreachable — enter a working URL or click "Use the embedded server" |
+| The app opens but shows the connection screen | `mode` is `remote` and the address is unreachable — click "Use the embedded server" for normal local use, or start your local dev server |
 | Port 17890 already in use | nothing to do: the app walks to the next free port. The session cookie follows the origin, so it is stable per machine |
 | The embedded server has no provider keys | put them in `<userData>/data/.env.local` — a shell export does not reach a Finder/Start-Menu-launched app |
 | Blank window on Linux with an old GPU driver | set `hardwareAcceleration: false` in `settings.json` |
