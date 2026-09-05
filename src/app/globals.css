@@ -605,12 +605,6 @@ button.chip { cursor: pointer; }
 .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, rgba(124,156,255,0.18), transparent 60%); }
 .login-card { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 28px 26px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
 .login-card h1 { margin: 0 0 6px; font-size: 22px; }
-.login-social { display: grid; gap: 8px; }
-.login-btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); text-decoration: none; font-weight: 600; font-size: 14px; }
-.login-btn:hover { border-color: var(--accent); }
-.login-btn.off { opacity: 0.45; }
-.login-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--muted); font-size: 12px; }
-.login-or::before, .login-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .login-form { display: grid; gap: 8px; text-align: left; }
 .login-guest-label { color: var(--muted); font-size: 12px; font-weight: 600; }
 .login-form input { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 14px; }
