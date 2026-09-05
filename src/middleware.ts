@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authenticationRequired, isPublicAuthPath, validSessionCookie } from "./lib/auth/gate";
 import { isLoopbackHost } from "./lib/loopback";
 
 /**
@@ -26,21 +25,6 @@ export async function middleware(req: NextRequest) {
    */
   if (process.env.AETHERIS_DESKTOP === "1" && !isLoopbackHost(req.headers.get("host"))) {
     return new NextResponse(JSON.stringify({ error: "forbidden", detail: "this instance only accepts loopback Host headers" }), { status: 403, headers: { "content-type": "application/json" } });
-  }
-
-  if (authenticationRequired() && !isPublicAuthPath(path, req.method)) {
-    const signedIn = await validSessionCookie(req.cookies.get("aetheris_session")?.value);
-    if (!signedIn) {
-      if (path.startsWith("/api/")) {
-        return NextResponse.json(
-          { error: "authentication_required", detail: "Use Google, GitHub, or a named guest session to continue." },
-          { status: 401, headers: { "Cache-Control": "no-store" } },
-        );
-      }
-      const login = new URL("/login", req.url);
-      login.searchParams.set("next", `${path}${req.nextUrl.search}`);
-      return NextResponse.redirect(login);
-    }
   }
 
   if (req.method !== "GET" && req.method !== "HEAD") {

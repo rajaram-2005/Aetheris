@@ -77,7 +77,7 @@ All routes live under \`src/app/api\`. Auth: cookie session (browser) or \`Autho
 | \`POST/DELETE /api/share\`, \`GET /api/share/:id\` | Public chat snapshots. |
 | \`GET/PUT/DELETE /api/sync\` | Account cloud sync. |
 | \`GET/POST /api/gallery\`, \`POST/DELETE /api/gallery/:id\` | Prompt gallery. |
-| \`GET/DELETE /api/auth/session\`, \`/api/auth/{google,github}\`, \`POST /api/auth/guest\` | OAuth and named guest accounts. |
+| \`GET/DELETE /api/auth/session\`, \`/api/auth/{google,github}\`, \`POST /api/auth/guest\` | OAuth integrations and legacy account compatibility endpoints; the web shell is anonymous-first. |
 | \`GET/POST/DELETE /api/keys\` | Personal API keys. |
 | \`GET /api/providers\`, \`POST /api/providers/keys\` | Mesh status and BYOK. |
 | \`GET /api/billing/plans\` | Plan/usage/user snapshot (always free-for-all by default). |

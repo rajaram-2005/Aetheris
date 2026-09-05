@@ -4,8 +4,9 @@ import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
-export type Mode = "chat" | "characters" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
+export type Mode = "home" | "chat" | "characters" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
+  { id: "home", label: "Home", icon: "⌂", blurb: "Your Aetheris command center" },
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "characters", label: "Characters", icon: "🏛️", blurb: "Mythic guides & your own personas" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
@@ -124,7 +125,7 @@ function AccountChip() {
     fetch("/api/auth/session").then((r) => r.json()).then((j) => setAcc(j.account ?? null)).catch(() => setAcc(null));
   }, []);
   if (acc === undefined) return null;
-  if (!acc) return <a className="sb-item" href="/login">{t("sb.signIn")}</a>;
+  if (!acc) return null;
   const label = acc.name || acc.email || acc.phone || "Account";
   return (
     <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>

@@ -123,8 +123,8 @@ Events are per-instance and in memory. For a multi-replica deployment, ship them
 | `AETHERIS_DATA_DIR` | `./data` | must be writable; mount as a volume |
 | `AETHERIS_KNOWLEDGE_DB` | `$DATA/knowledge.sqlite` | SQLite (WAL) |
 | `AETHERIS_SECRET` | — | **set in production**; encrypts account/GitHub sessions (`openssl rand -hex 32`) |
-| `AETHERIS_REQUIRE_AUTH` | `0` | set to `1` to require an OAuth or guest session for hosted pages and protected APIs |
-| `AETHERIS_GUEST_ACCESS` | `0` | set to `1` to let a visitor continue after entering only a display name |
+| `AETHERIS_REQUIRE_AUTH` | `0` | legacy compatibility setting; keep `0` because the web app is anonymous-first |
+| `AETHERIS_GUEST_ACCESS` | `0` | legacy compatibility setting; no display-name prompt is shown |
 | `GOOGLE_*`, `GITHUB_*` | — | production OAuth providers; see [AUTHENTICATION](AUTHENTICATION.md) |
 | `AETHERIS_ADMIN_EMAILS` / `_PHONES` / `_UIDS` | founder defaults | who gets ADMIN permission level |
 | `AETHERIS_ADMIN_KEY` | — | `/admin` access (`openssl rand -hex 24`) |
@@ -141,8 +141,8 @@ Full list with provider keys: `.env.example`.
 
 ## 7. Security checklist for a public host
 
-1. Set `AETHERIS_SECRET`, `AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_ADMIN_KEY`, and real admin identities.
-2. Configure and test Google, GitHub, and named guest login using [AUTHENTICATION](AUTHENTICATION.md).
+1. Set `AETHERIS_SECRET`, `AETHERIS_ADMIN_KEY`, and real admin identities; leave the legacy auth switches at `0`.
+2. Configure and test only the Google/GitHub integrations that your deployment needs using [AUTHENTICATION](AUTHENTICATION.md).
 3. Keep `AETHERIS_ALLOW_PRIVATE_URLS` unset (SSRF guard blocks RFC1918/loopback/link-local after DNS resolution).
 4. Terminate TLS at a reverse proxy; the app sets security headers (`Referrer-Policy`, `Permissions-Policy`, nosniff; add `frame-ancestors` at the proxy if you need click-jacking protection) in `src/middleware.ts`.
 5. Rate limits are per-instance in-memory counters (see `docs/SECURITY.md`); put a WAF / proxy limit in front for real DDoS protection.

@@ -75,7 +75,7 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | `GET /api/auth/github` · `/api/auth/github/callback` | GitHub OAuth |
 | `POST /api/auth/guest {name}` | create a named browser-local guest session |
 
-With `AETHERIS_REQUIRE_AUTH=1`, protected API calls without a valid sealed session return `401 { error: "authentication_required" }`. Setup: [AUTHENTICATION](AUTHENTICATION.md).
+The web API is anonymous-first: browser-local owner data is created automatically and no login or display name is required. OAuth cookies are used only by integrations that explicitly need a provider identity. Setup: [AUTHENTICATION](AUTHENTICATION.md).
 
 ## GitHub
 

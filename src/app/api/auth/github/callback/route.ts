@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const next = safeReturnTo(jar.get(AUTH_RETURN_COOKIE)?.value);
 
   if (!code || !state || !expected || state !== expected) {
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent("Sign-in state mismatch. Please try again.")}&next=${encodeURIComponent(next)}`);
+    return NextResponse.redirect(`${origin}/?error=${encodeURIComponent("Sign-in state mismatch. Please try again.")}&next=${encodeURIComponent(next)}`);
   }
 
   const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   });
   const tok = (await tokenRes.json()) as { access_token?: string; error?: string };
   if (!tok.access_token) {
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(tok.error ?? "GitHub token exchange failed")}&next=${encodeURIComponent(next)}`);
+    return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(tok.error ?? "GitHub token exchange failed")}&next=${encodeURIComponent(next)}`);
   }
 
   const me = await viewer(tok.access_token);

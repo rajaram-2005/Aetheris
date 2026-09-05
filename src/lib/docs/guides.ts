@@ -15,7 +15,7 @@ Aetheris One is a **free, open-source AI workspace**. One chat box in front of a
 2. **@** — type \`@\` to pick one of 102 agents (\`@coder\`, \`@tutor\`, \`@tax\`…). Or just describe the task and **Prime** routes it.
 3. **/** — slash commands: \`/research\`, \`/arena\`, \`/debate\`, \`/room\`, \`/share\`, \`/workflows\`…
 4. **Sidebar modes** — Characters, Agents, Coding Factory, Studio, Apps, Gallery, Workflows, Providers.
-5. **Choose access** — use Google or GitHub for cross-device sync, or enter only your name for browser-local guest access.
+5. **Start immediately** — the web app uses anonymous browser-local data; no login or display name is required.
 `},
   { slug: "chat", section: "Getting started", title: "Chat, models and the provider mesh", body: `
 ## How routing works
@@ -168,7 +168,7 @@ The **Fairness Auditor** checks text, prompts, datasets and model behaviour acro
 - **Tool trail**: every MCP tool call and web search is shown inline.
 - **Sources** on research answers; **Metis verdict scorecard** in debates.
 - **Metis lessons** are visible and editable in Agents mode — you can see and delete what the system has learned about you.
-- **Your data**: guests are local-only; signed-in sync is per-account; export any chat as Markdown; the code is MIT-licensed so anyone can inspect how routing and memory work.
+- **Your data**: ordinary web usage is browser-local; export any chat as Markdown; OAuth is used only by integrations that need a provider identity; the code is MIT-licensed so anyone can inspect how routing and memory work.
 
 ## Learn the concepts
 **📚 Learn** in the sidebar (or [/docs/concepts](/docs/concepts)) is a plain-language knowledge base of AI concepts and ethics topics — hallucination, calibration, RAG, bias & fairness metrics, privacy/DPDP, EU AI Act, accountability, human oversight — each with an analogy, a misconception corrected, and a prompt to try. The Explainer and Ethicist link to these pages when they use a concept.
@@ -275,11 +275,9 @@ Click 👥 (or \`/room\`) to turn the current chat into a room at \`/room/<id>\`
 Sign in and your chats, projects, memory and settings merge across devices (newest wins per chat; deletions propagate; memory unions). Guests stay local-only.
 `},
   { slug: "accounts", section: "Collaborate", title: "Accounts and sign-in", body: `
-\`/login\` offers **Google**, **GitHub**, and a **named guest** option. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested. Google/GitHub accounts work across devices.
+Aetheris opens directly to Chat with anonymous browser-local data. There is no login page and no display-name prompt. No email, phone, or provider account is needed for ordinary conversations.
 
-A guest identity lasts only while its sealed browser session exists. The display name is not a password or recovery credential; use Google or GitHub for cross-device access and recovery.
-
-Sessions are sealed cookies valid 90 days. \`DELETE /api/auth/session\` signs out.
+OAuth sessions are used only by integrations that explicitly need a provider identity. Sessions are sealed cookies valid 90 days. \`DELETE /api/auth/session\` signs out.
 
 ### Admins
 OAuth identities listed in \`AETHERIS_ADMIN_EMAILS\` get \`/admin\` and full access. On the default (free-for-all) deployment everyone already has every feature, so admin mainly matters for moderation and the optional billing system.
@@ -340,8 +338,8 @@ Works with zero keys. Persistent data lives in \`data/\` (\`AETHERIS_DATA_DIR\`)
 | Variable | Purpose |
 | --- | --- |
 | \`AETHERIS_SECRET\` | Seals cookies, stored keys and credentials. Set in production. |
-| \`AETHERIS_REQUIRE_AUTH=1\` | Requires an OAuth or guest session on hosted pages and protected APIs. |
-| \`AETHERIS_GUEST_ACCESS=1\` | Enables the display-name-only guest option. |
+| \`AETHERIS_REQUIRE_AUTH=0\` | Anonymous-first compatibility setting; the web app does not require login or a display name. |
+| \`AETHERIS_GUEST_ACCESS=0\` | Legacy guest-entry switch; no guest name prompt is shown. |
 | \`AETHERIS_ADMIN_EMAILS\` | OAuth admin identities. |
 | \`GOOGLE_CLIENT_ID/SECRET\`, \`GITHUB_CLIENT_ID/SECRET\` | OAuth sign-in (redirects \`…/api/auth/google/callback\`, \`…/api/auth/github/callback\`). |
 | \`<PROVIDER>_API_KEY\` | Server-wide provider keys (users can also add their own). |

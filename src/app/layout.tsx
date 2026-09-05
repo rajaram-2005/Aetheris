@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             not register the service worker, or a stale cached shell would outlive an app update. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if(!window.aetherisDesktop&&"serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}`,
+            __html: `if(!window.aetherisDesktop&&"serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).catch(()=>{}))}`,
           }}
         />
       </body>

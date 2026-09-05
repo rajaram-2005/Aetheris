@@ -27,6 +27,7 @@ import { useVoice, VoiceOverlay, loadVoicePrefs, saveVoicePrefs, resolveVoiceLan
 import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from "./Agents";
 import CharactersPage, { useCharacters, type CharacterInfo, type CharacterMode } from "./Characters";
 import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
+import HomeDashboard from "./HomeDashboard";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
@@ -99,7 +100,8 @@ export default function Chat() {
   const [mesh, setMesh] = useState<MeshSummary | null>(null);
   const [showMesh, setShowMesh] = useState(false);
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<Mode>("chat");
+  const [mode, setMode] = useState<Mode>("home");
+  const [homeRequest, setHomeRequest] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [editProject, setEditProject] = useState<Project | null | "new">(null);
@@ -436,6 +438,16 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, selectedCharacterId, selectedCharacterMode, characterUnavailable, runFactory, runResearch, runAgents, runDebate]);
 
+  // The dashboard's composer is an actual chat entry point, not just a shortcut to a
+  // pre-filled input. Wait until the chat view has rendered so send() sees the fresh
+  // conversation created by newChat().
+  useEffect(() => {
+    if (mode !== "chat" || !homeRequest) return;
+    const prompt = homeRequest;
+    setHomeRequest(null);
+    void send(prompt);
+  }, [mode, homeRequest, send]);
+
   const regenerate = () => {
     if (!active || busy) return;
     const lastUserIdx = [...active.messages].map((m) => m.role).lastIndexOf("user");
@@ -599,6 +611,23 @@ export default function Chat() {
   const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
     : selectedCharacterName ? `Message ${selectedCharacterName} · ${selectedCharacterMode === "guide" ? "guide" : "roleplay"} mode…`
     : research ? "What should I research in depth?" : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1 && !direct ? "Describe the task — Prime routes it to the right specialists (or force one with @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
+
+  if (mode === "home") {
+    return <HomeDashboard
+      models={models}
+      mesh={mesh}
+      convos={convos}
+      projects={projects}
+      servers={servers}
+      onMode={setMode}
+      onAsk={(prompt) => {
+        newChat();
+        if (prompt.trim()) setHomeRequest(prompt.trim());
+      }}
+      onNewChat={newChat}
+      onSettings={() => setShowSettings(true)}
+    />;
+  }
 
   return (
     <div className="shell">

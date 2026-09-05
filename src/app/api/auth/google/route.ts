@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const GOOGLE_STATE = "aetheris_g_state";
 
 export async function GET(req: Request) {
-  if (!googleConfigured()) return NextResponse.redirect(`${requestOrigin(req)}/login?error=${encodeURIComponent("Google sign-in is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).")}`);
+  if (!googleConfigured()) return NextResponse.redirect(`${requestOrigin(req)}/?error=${encodeURIComponent("Google sign-in is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).")}`);
   const state = randomBytes(16).toString("hex");
   const next = safeReturnTo(new URL(req.url).searchParams.get("next"));
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");

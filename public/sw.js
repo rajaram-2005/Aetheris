@@ -1,5 +1,5 @@
 // Aetheris service worker: app-shell cache so the UI opens instantly / offline; API always network.
-const CACHE = "aetheris-shell-v1";
+const CACHE = "aetheris-shell-v4";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", (e) => {

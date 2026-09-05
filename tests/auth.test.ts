@@ -77,17 +77,17 @@ test("mandatory ownership uses the uid sealed into the account session", async (
   }
 });
 
-test("auth gate is hosted-only and preserves intentional public endpoints", () => {
-  assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1" }), true);
+test("web access stays anonymous and preserves intentional public endpoints", () => {
+  assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1" }), false);
   assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "0" }), false);
   assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1", AETHERIS_DESKTOP: "1" }), false);
   assert.equal(guestAccessEnabled({ AETHERIS_GUEST_ACCESS: "1" }), true);
   assert.equal(guestAccessEnabled({}), false);
-  for (const path of ["/login", "/docs/authentication", "/api/auth/session", "/api/health", "/s/public-id"]) {
+  for (const path of ["/", "/docs/authentication", "/api/auth/session", "/api/health", "/s/public-id"]) {
     assert.equal(isPublicAuthPath(path, "GET"), true, path);
   }
+  assert.equal(isPublicAuthPath("/login", "GET"), false);
   assert.equal(isPublicAuthPath("/api/characters", "GET"), false);
-  assert.equal(isPublicAuthPath("/", "GET"), false);
 });
 
 test("post-auth return paths cannot redirect off site or loop through login", () => {

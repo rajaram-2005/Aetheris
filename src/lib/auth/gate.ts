@@ -9,8 +9,9 @@
 const DEV_SECRET = "aetheris-dev-secret-do-not-use-in-prod";
 type AuthEnvironment = Readonly<Record<string, string | undefined>>;
 
-export function authenticationRequired(env: AuthEnvironment = process.env): boolean {
-  return env.AETHERIS_REQUIRE_AUTH === "1" && env.AETHERIS_DESKTOP !== "1";
+/** Web access is anonymous-first: the workspace never requires a login or display name. */
+export function authenticationRequired(_env: AuthEnvironment = process.env): boolean {
+  return false;
 }
 
 export function guestAccessEnabled(env: AuthEnvironment = process.env): boolean {
@@ -61,7 +62,7 @@ export async function validSessionCookie(raw: string | undefined, env: AuthEnvir
 
 /** Pages and service endpoints which must remain reachable before/without an interactive session. */
 export function isPublicAuthPath(path: string, method: string): boolean {
-  if (path === "/login" || path.startsWith("/docs") || path.startsWith("/s/")) return true;
+  if (path === "/" || path.startsWith("/docs") || path.startsWith("/s/")) return true;
   if (path === "/manifest.webmanifest" || path === "/sw.js" || path === "/icon.svg" || /\.(?:png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(path)) return true;
   if (path.startsWith("/api/auth/") || path === "/api/health" || path === "/api/version") return true;
   if (method === "GET" && path.startsWith("/api/share/")) return true;
