@@ -37,7 +37,7 @@ function LoginInner() {
       const response = await fetch("/api/auth/guest", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() || "Guest" }),
       });
       const value = await response.json();
@@ -62,9 +62,10 @@ function LoginInner() {
         <h1>{t("login.title")}</h1>
         <p className="hint" style={{ margin: "0 0 18px" }}>{t("login.sub")}</p>
 
-        <form className="login-form" onSubmit={continueAsGuest}>
+        <form className="login-form" method="post" action="/api/auth/guest" onSubmit={continueAsGuest}>
+          <input type="hidden" name="next" value={next} />
           <label className="login-guest-label" htmlFor="guest-name">{t("login.guestPrompt")}</label>
-          <input id="guest-name" autoComplete="name" maxLength={50} placeholder={t("login.guestPlaceholder")} value={name} onChange={(event) => setName(event.target.value)} />
+          <input id="guest-name" name="name" autoComplete="name" maxLength={50} placeholder={t("login.guestPlaceholder")} value={name} onChange={(event) => setName(event.target.value)} />
           <button className="send" disabled={busy || !!(methods && !methods.guest)}>{busy ? t("login.starting") : t("login.continueGuest")}</button>
         </form>
 
