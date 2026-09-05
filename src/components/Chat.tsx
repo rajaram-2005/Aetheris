@@ -760,6 +760,7 @@ export default function Chat() {
             {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
               : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? t("chat.build") : research ? t("chat.research") : arena ? t("chat.compare") : t("chat.send")}</button>}
           </div>
+          {mode === "chat" && !voiceMode && voice.error && <div className="err-box" style={{ marginTop: 8 }}>{voice.error} <button className="link" onClick={voice.clearError}>dismiss</button></div>}
           {mode === "chat" && arena && mesh && <ArenaPicker providers={mesh.providers} selected={arenaPick} onChange={setArenaPick} />}
           {mode === "chat" && (
             <div className="composer-tools">

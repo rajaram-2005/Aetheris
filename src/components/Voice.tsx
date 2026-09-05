@@ -103,7 +103,15 @@ export function useVoice(opts: { lang: string; prefs: VoicePrefs; onFinal: (text
     r.onend = () => { rec.current = null; setListening(false); stopMeter(); if (finalText.trim()) onFinal(finalText.trim()); else onInterim?.(""); };
     r.onerror = (e) => { rec.current = null; setListening(false); stopMeter(); if (e.error === "not-allowed") setError("Microphone permission denied. Allow the mic for this site and try again."); else if (e.error !== "no-speech" && e.error !== "aborted") setError(`Mic error: ${e.error}`); };
     rec.current = r; setError(null);
-    try { r.start(); setListening(true); startMeter(); } catch { rec.current = null; }
+    try {
+      r.start(); setListening(true); startMeter();
+    } catch (err) {
+      rec.current = null;
+      const embedded = typeof window !== "undefined" && window.self !== window.top;
+      setError(embedded
+        ? "Voice input is blocked inside this embedded preview (the browser only grants microphone access to the top-level page). Open the site in its own tab to use voice."
+        : `Couldn't start the microphone${err instanceof Error && err.message ? ` (${err.message})` : ""}. Check microphone permissions for this site and try again.`);
+    }
   }, [lang, onFinal, onInterim, stopSpeaking, stopMeter, startMeter]);
 
   // ---- browser TTS queue ----
