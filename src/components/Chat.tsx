@@ -101,6 +101,7 @@ export default function Chat() {
   const [showMesh, setShowMesh] = useState(false);
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<Mode>("home");
+  const [homeRequest, setHomeRequest] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [editProject, setEditProject] = useState<Project | null | "new">(null);
@@ -437,6 +438,16 @@ export default function Chat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, selectedCharacterId, selectedCharacterMode, characterUnavailable, runFactory, runResearch, runAgents, runDebate]);
 
+  // The dashboard's composer is an actual chat entry point, not just a shortcut to a
+  // pre-filled input. Wait until the chat view has rendered so send() sees the fresh
+  // conversation created by newChat().
+  useEffect(() => {
+    if (mode !== "chat" || !homeRequest) return;
+    const prompt = homeRequest;
+    setHomeRequest(null);
+    void send(prompt);
+  }, [mode, homeRequest, send]);
+
   const regenerate = () => {
     if (!active || busy) return;
     const lastUserIdx = [...active.messages].map((m) => m.role).lastIndexOf("user");
@@ -609,7 +620,10 @@ export default function Chat() {
       projects={projects}
       servers={servers}
       onMode={setMode}
-      onAsk={(prompt) => { newChat(); if (prompt.trim()) { setInput(prompt); setTimeout(() => taRef.current?.focus(), 0); } }}
+      onAsk={(prompt) => {
+        newChat();
+        if (prompt.trim()) setHomeRequest(prompt.trim());
+      }}
       onNewChat={newChat}
       onSettings={() => setShowSettings(true)}
     />;

@@ -29,6 +29,8 @@ const MAX_MESSAGES = 40;
 const MAX_CHARS = 48_000;
 const MAX_IMAGES = 4;
 const MAX_IMAGE_CHARS = 6_000_000; // ~4.5 MB of base64
+const OFFLINE_PROVIDER = "offline-preview";
+const OFFLINE_MODEL = "deterministic-connectivity-response";
 
 type InMsg = { role: string; content: string; images?: unknown };
 
@@ -262,6 +264,24 @@ export async function POST(req: Request) {
       if (isNew) res.cookies.set(uidCookie(uid));
       return res;
     } catch (err) {
+      const attempts = (err as { attempts?: ProviderAttempt[] }).attempts ?? [];
+      if (canUseOfflineFallback(err, attempts)) {
+        const res = NextResponse.json({
+          content: offlineReply(messages, attempts),
+          provider: OFFLINE_PROVIDER,
+          model: OFFLINE_MODEL,
+          latencyMs: 0,
+          attempts,
+          offline: true,
+          tier: tier.id,
+          quota,
+          sources,
+          searchQuery,
+          citations,
+        });
+        if (isNew) res.cookies.set(uidCookie(uid));
+        return res;
+      }
       return errorResponse(err);
     }
   }
@@ -285,7 +305,13 @@ export async function POST(req: Request) {
         send({ type: "done", provider: result.provider, model: result.model, tier: tier.id, latencyMs: Date.now() - started, attempts: result.attempts, quota });
       } catch (err) {
         const attempts = (err as { attempts?: ProviderAttempt[] }).attempts ?? [];
-        send({ type: "error", error: err instanceof Error ? err.message : "Unexpected server error", attempts });
+        if (canUseOfflineFallback(err, attempts)) {
+          send({ type: "provider", provider: OFFLINE_PROVIDER, offline: true });
+          send({ type: "delta", text: offlineReply(messages, attempts), provider: OFFLINE_PROVIDER, offline: true });
+          send({ type: "done", provider: OFFLINE_PROVIDER, model: OFFLINE_MODEL, latencyMs: Date.now() - started, attempts, offline: true, quota });
+        } else {
+          send({ type: "error", error: err instanceof Error ? err.message : "Unexpected server error", attempts });
+        }
       } finally {
         controller.close();
       }
@@ -296,6 +322,37 @@ export async function POST(req: Request) {
 
 function sseHeaders() {
   return { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" };
+}
+
+/**
+ * Development previews sometimes have no egress, while a production deployment should fail
+ * loudly rather than make an unavailable model look like a working one. The fallback is therefore
+ * limited to provider network failures (or no configured providers) and is labelled in both the
+ * response metadata and the response text. Set AETHERIS_OFFLINE_FALLBACK=0 to disable it in dev,
+ * or =1 to opt into the same honest behaviour in a non-development environment.
+ */
+function canUseOfflineFallback(err: unknown, attempts: ProviderAttempt[]): boolean {
+  const setting = process.env.AETHERIS_OFFLINE_FALLBACK?.trim().toLowerCase();
+  const enabled = setting === "1" || setting === "true" || (setting !== "0" && setting !== "false" && process.env.NODE_ENV !== "production");
+  if (!enabled || !(err instanceof ProviderError)) return false;
+  if (attempts.length === 0) return err.status === 503;
+  return attempts.every((a) => (a.error ?? "").startsWith("network error"));
+}
+
+function offlineReply(messages: ChatMessage[], attempts: ProviderAttempt[]): string {
+  const prompt = [...messages].reverse().find((m) => m.role === "user")?.content.trim() ?? "";
+  const preview = prompt.length > 500 ? `${prompt.slice(0, 500)}…` : prompt;
+  const tried = attempts.length ? attempts.map((a) => a.provider).join(", ") : "no configured provider";
+  return [
+    "### Offline preview",
+    "",
+    "Aetheris received your message, but no live AI provider was reachable in this development environment.",
+    "",
+    `**Message received:** ${preview ? `“${preview}”` : "(empty)"}`,
+    `**Providers tried:** ${tried}`,
+    "",
+    "This is a deterministic connectivity response, not an AI-generated answer. Start Ollama, LM Studio, or another OpenAI-compatible local server, or configure a reachable provider API key to get a real model response. Provider failover remains enabled when a provider is reachable.",
+  ].join("\n");
 }
 
 function errorResponse(err: unknown) {
