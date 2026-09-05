@@ -56,6 +56,7 @@ Works for the chat, router, agents, MCP gateway and GitHub features, with two ca
 
 * **Ephemeral filesystem.** The JSON stores and SQLite file are not durable across cold starts. Use it for demos, or point `AETHERIS_DATA_DIR` at a mounted persistent disk (Railway, Fly, Render volumes all work; Vercel does not offer one).
 * **No long-lived process.** Set `AETHERIS_SCHEDULER=0` and drive automations with an external cron hitting `POST /api/schedules/tick` with `Authorization: Bearer $CRON_SECRET` (Vercel Cron, GitHub Actions schedule, cron-job.org).
+* **Install-script approvals (npm ≥ 11.16 / npm 12).** Vercel's build image runs an npm that skips dependency install scripts unless they are approved in `package.json` (npm 12 makes this the default everywhere). The committed `allowScripts` field covers `esbuild` (needed by tooling) and `sharp` (needed by Next image optimization, including the copy nested under `next/`); without the approval, npm prints `npm warn allow-scripts …` and silently skips the scripts, which surfaces later as a broken build or failed optimization at runtime. The entries are version-pinned: after bumping either dependency, run `npm approve-scripts <pkg>` and commit the result. Review what's pending any time with `npm approve-scripts --allow-scripts-pending`.
 
 Fly.io / Railway / Render (persistent volume + always-on container) are the recommended managed options.
 
