@@ -36,7 +36,7 @@ test("hybrid query, graph and temporal supersession", async () => {
 test("typed memory remember/recall/dedupe + working/short-term", async () => {
   const a = await remember("m", "semantic", "User prefers Tamil replies"); const b = await remember("m", "semantic", "user prefers tamil replies");
   assert.equal(a!.id, b!.id);
-  await remember("m", "procedural", "To deploy, run npm run build then vercel --prod", { tags: ["deploy"] });
+  await remember("m", "procedural", "To deploy, run npm run build then docker compose up -d", { tags: ["deploy"] });
   const r = await recall("m", "how do I deploy?"); assert.equal(r[0].type, "procedural");
   assert.equal((await listMemory("m", "semantic")).length, 1);
   workingSet("job1", "plan", ["a", "b"]); assert.deepEqual(workingGet("job1", "plan"), ["a", "b"]);

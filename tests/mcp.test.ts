@@ -73,7 +73,7 @@ test("catalog: 90+ connectors, unique ids, featured set present", async () => {
   const { CONNECTORS } = await import("../src/lib/mcp/catalog");
   assert.ok(CONNECTORS.length >= 90, `got ${CONNECTORS.length}`);
   assert.equal(new Set(CONNECTORS.map((c) => c.id)).size, CONNECTORS.length);
-  for (const id of ["notion", "slack", "figma", "stripe", "razorpay", "vercel", "github"]) assert.ok(CONNECTORS.some((c) => c.id === id), id);
+  for (const id of ["notion", "slack", "figma", "stripe", "razorpay", "github"]) assert.ok(CONNECTORS.some((c) => c.id === id), id);
 });
 
 test("media router: fails over between providers and honours BYOK", async () => {

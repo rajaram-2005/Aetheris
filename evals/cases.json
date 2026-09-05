@@ -31,7 +31,7 @@
     "facts": [
       "The boiler ESP32 in Plant 2 publishes temperature every 5 seconds over MQTT",
       "Rajaram prefers replies in Tamil for casual chat",
-      "Deploy Aetheris with npm run build then vercel --prod",
+      "Deploy Aetheris with npm run build then docker compose up -d",
       "The Modbus PLC at 10.0.0.7 holds the valve position in holding register 40001",
       "Groq's free tier allows 30 requests per minute"
     ],

@@ -379,15 +379,6 @@ export const APIS: ApiDef[] = [
     tools: [{ name: "fetch", description: "Fetch a public URL and return its content as markdown", params: { url: s("Absolute URL", true) }, path: "/{url}" }],
   },
   {
-    id: "vercel", name: "Vercel", baseUrl: "https://api.vercel.com", auth: bearer(),
-    tools: [
-      { name: "list_projects", description: "Your projects", path: "/v10/projects", query: { limit: 20 } },
-      { name: "list_deployments", description: "Recent deployments", params: { project: s("Project id or name") }, path: "/v6/deployments", query: { projectId: "{project}", limit: 10 } },
-      { name: "deployment_events", description: "Build logs for a deployment", params: { deployment_id: s("Deployment id", true) }, path: "/v3/deployments/{deployment_id}/events", query: { limit: 200 } },
-      { name: "trigger_deploy_hook", description: "Trigger a deploy hook URL", params: { hook_url: s("Deploy hook URL from project settings", true) }, path: "{hook_url}", method: "POST", body: {} },
-    ],
-  },
-  {
     id: "aetheris-factory", name: "Enterprise GitHub Automation", baseUrl: "internal", auth: { in: "none" },
     tools: [{ name: "build_and_test", description: "Have the Aetheris Coding Factory write a program, push it to GitHub and run its tests on Actions. Returns the CI verdict.", params: { task: s("What to build", true) }, path: "internal://factory" }],
   },

@@ -11,7 +11,7 @@
 > Founder & Chief Architect: Rajaram · ramkpraja175@gmail.com · Chennai, India
 
 ```
-  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (107 connectors · MCP · plugins)
+  Models (31 providers)      Knowledge (hybrid fabric + doc KBs)      Tools (106 connectors · MCP · plugins)
             └──────────────────────────────┬──────────────────────────────────┘
                      Capability Registry · Execution Policy · Observability
                                            │
@@ -46,7 +46,7 @@ npm run desktop:dev / desktop:build     # Electron app (macOS · Linux · Window
 - **Model mesh** — 31 providers with priority ordering, load-balancing, cooldowns, health tracking and silent failover; per-message `provider · latency · failover` transparency.
 - **Agents** — 102 specialists across 17 domains under Prime (planner), Hermes (executor) and Metis (meta-learning), plus `@picker`, slash commands, workflows and debate mode.
 - **Knowledge & memory** — hybrid FTS5 + vector + graph + temporal fabric with provenance, typed memory, and per-user document KBs (PDF/DOCX/CSV/HTML) with cited answers.
-- **Tools** — 107 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK.
+- **Tools** — 106 MCP connectors behind one Streamable-HTTP hub (`POST /api/mcp/hub`), a REST→MCP gateway, and a plugin SDK.
 - **Software** — GitHub repository intelligence and the Cloud Coding Factory (codegen → commit → Actions → logs → report).
 - **Physical AI** — http/mqtt/modbus adapters, ROS 2 via rosbridge, digital twins, safety loop and e-stop.
 - **Chat UX** — streaming, vision, artifacts, web search + citations, Deep Research, projects, memory, Model Arena, voice mode, in-browser code interpreter, live rooms, study mode, prompt gallery.

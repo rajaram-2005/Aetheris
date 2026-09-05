@@ -56,7 +56,7 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/mcp/catalog` | 107 connectors |
+| `GET /api/mcp/catalog` | 106 connectors |
 | `POST /api/mcp/hub` (JSON-RPC) · `GET` | Aetheris as an MCP server |
 | `POST /api/mcp/hub/credentials` · `/api/mcp/oauth/start\|callback\|disconnect` | connector credentials |
 | `GET/POST /api/mcp/servers` · `GET/POST/PATCH/DELETE /api/mcp/servers/:id` · `POST /api/mcp/servers/:id/call` (⚠ per classification) | user MCP servers |

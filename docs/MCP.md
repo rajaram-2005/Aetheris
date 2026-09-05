@@ -9,7 +9,7 @@ Aetheris is both an **MCP client** (it calls servers you register) and an **MCP 
                         └───────────────┬─────────────────────────┘
    MCP clients ──JSON-RPC──▶ /api/mcp/hub ─┤                     ┌──▶ remote MCP servers (Streamable HTTP)
    (Claude, Cursor)                        │   Aetheris          │
-                                           └── /api/mcp/servers ─┴──▶ REST gateway connectors (115 typed tools)
+                                           └── /api/mcp/servers ─┴──▶ REST gateway connectors (111 typed tools)
 ```
 
 ## 1. Hub — Aetheris as an MCP server (`/api/mcp/hub`)
@@ -22,7 +22,7 @@ Claude Desktop config:
 { "mcpServers": { "aetheris": { "url": "https://your-host/api/mcp/hub", "headers": { "Authorization": "Bearer sk-aeth-…" } } } }
 ```
 
-Catalog: 107 connectors (`GET /api/mcp/catalog`) — remote MCP servers (Notion, Linear, Sentry, Context7…) proxied with your credentials, plus a REST gateway with 115 typed tools (Discord, Telegram, Twilio, Razorpay, Shopify, Salesforce, Google Workspace, BigQuery…). Registry status per connector is `implemented` for gateway tools and `partial` for remote MCP servers whose live schema is only known after connection; `verification_status` is `untestable_here` because this sandbox has no egress — nothing is faked.
+Catalog: 106 connectors (`GET /api/mcp/catalog`) — remote MCP servers (Notion, Linear, Sentry, Context7…) proxied with your credentials, plus a REST gateway with 111 typed tools (Discord, Telegram, Twilio, Razorpay, Shopify, Salesforce, Google Workspace, BigQuery…). Registry status per connector is `implemented` for gateway tools and `partial` for remote MCP servers whose live schema is only known after connection; `verification_status` is `untestable_here` because this sandbox has no egress — nothing is faked.
 
 ## 2. Gateway — registering your own MCP servers (`src/core/mcp/gateway.ts`)
 
@@ -48,7 +48,7 @@ The intent router + registry scoring pick tools by query match, category, status
 
 | Piece | Status |
 |---|---|
-| Hub (Aetheris as MCP server), 107 connectors, OAuth + credential store | IMPLEMENTED (live calls untestable from this sandbox) |
+| Hub (Aetheris as MCP server), 106 connectors, OAuth + credential store | IMPLEMENTED (live calls untestable from this sandbox) |
 | User-registered MCP servers: probe, manifest, health, versions, schema validation, permissions | IMPLEMENTED (tested with an in-repo mock MCP server) |
 | Tool ranking by measured reliability | PARTIAL (events recorded; ranking uses text + status + level) |
 | stdio / SSE transports, MCP resources & prompts | NOT AVAILABLE |

@@ -14,7 +14,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 |---|---|---|
 | Model layer | `src/lib/router`: 27 HTTP providers behind 3 adapter kinds (OpenAI-compatible, Gemini, Cohere); health-scored failover, cooldowns, vision filter, tier allow-lists, streaming. Provider-neutral already. No local-model provider registered. | Keep. Exposed as `model:*` capabilities; `ModelProvider` interface documented; local OpenAI-compatible endpoints (Ollama/vLLM/LM Studio) can be added as a `ProviderConfig` without code changes to callers. |
 | Agents | `src/lib/agents`: 102 specs, Prime planner → single/pipeline/parallel → Metis lessons. No budgets, checkpoints, cancellation of sub-tasks, or background jobs. | Keep; marked `PARTIAL`. Instrumented with events. |
-| Tools / MCP | `src/lib/mcp`: hub aggregating 107 connectors (remote MCP + REST gateway with 115 typed tools), per-user credentials, OAuth. Static catalog; no user-added servers, health, versioning. | Keep; `PARTIAL`. Every tool now a registry entry with permission level inferred from verb (`send/create/delete` → `safe_write`, `delete/remove` → confirmation). |
+| Tools / MCP | `src/lib/mcp`: hub aggregating 106 connectors (remote MCP + REST gateway with 111 typed tools), per-user credentials, OAuth. Static catalog; no user-added servers, health, versioning. | Keep; `PARTIAL`. Every tool now a registry entry with permission level inferred from verb (`send/create/delete` → `safe_write`, `delete/remove` → confirmation). |
 | Knowledge | `src/lib/kb`: BM25, heading-aware chunking, PDF/DOCX/CSV/HTML, citations. No vectors, graph, temporal store. | Keep; `PARTIAL`. `RetrievalProvider` interface for a vector adapter (hybrid). |
 | Memory | Client-side user memory + Metis lessons. No episodic/project/agent memory, ranking, expiry, provenance. | `PARTIAL`. |
 | Research | Deep Research: decomposition → Tavily → synthesis with citations. No academic sources / evidence graph. | `PARTIAL`. |
@@ -69,7 +69,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 |---|---|
 | `router` (27→31 providers) | records `model` events; `ModelPolicy`; registry `model:*` |
 | `agents/orchestrator` (Prime/Hermes/Metis) | records `agent` events; `/api/agents/run` grounds runs with typed memory + knowledge fabric; Metis lessons mirrored into procedural memory; wrapped by `core/agents/runtime` jobs |
-| `mcp/hub` (107 connectors) | every `tools/call` passes `authorize()` with the same verb classifier as user MCP servers (`_confirmationToken` arg for destructive tools); traced as `mcp` events; registry `tool:*`/`connector:*` |
+| `mcp/hub` (106 connectors) | every `tools/call` passes `authorize()` with the same verb classifier as user MCP servers (`_confirmationToken` arg for destructive tools); traced as `mcp` events; registry `tool:*`/`connector:*` |
 | `kb` (document KBs) | `queryUnified()` merges BM25 chunks (provenance kind `document`) with fabric facts; used by `/api/knowledge` and `/api/chat` |
 | `workflows`, `factory`, `media`, `research/deep` | traced as events (`automation:workflows`, `github:factory`, `media:studio`, `research:deep`) |
 | `schedules` | records `schedule` events; drives MCP health sweeps, twin sync, automation cron |
@@ -82,7 +82,7 @@ Every subsystem talks to Core through three things only: it **registers capabili
 ## 3. Capability Registry (`src/core/capabilities`)
 
 - `Capability` record: id, category, `status`, tags, schemas, `security_level`, `requires_confirmation`, cost, latency, reliability, hardware/model requirements, operations, `verification_status`, locality, invoke hint.
-- Sources register themselves (`registerSource`); built-ins: `models` (27), `agents` (102), `connectors` (107 connectors + 115 gateway tools), `platform` (22 subsystems). Adding the next 1,000 tools = one more source.
+- Sources register themselves (`registerSource`); built-ins: `models` (27), `agents` (102), `connectors` (106 connectors + 111 gateway tools), `platform` (22 subsystems). Adding the next 1,000 tools = one more source.
 - `searchCapabilities({q, category, status, tags, maxSecurity})` ranks name/tags/description, multiplies by status weight (implemented 1.0 → mocked 0.2 → not_available 0) and reliability.
 - API: `GET /api/capabilities?q=&category=&status=&tags=&maxSecurity=&id=`.
 

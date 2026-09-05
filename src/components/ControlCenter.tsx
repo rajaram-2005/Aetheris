@@ -215,7 +215,7 @@ function AutomationsPanel() {
 }
 function BrowserPanel() {
   const [st] = usePoll<Record<string, unknown>>("/api/browser", 60000);
-  const [goal, setGoal] = useState("Find the latest release version and its date"); const [url, setUrl] = useState("https://github.com/vercel/next.js/releases"); const [out, setOut] = useState<unknown>(); const [busy, setBusy] = useState(false);
+  const [goal, setGoal] = useState("Find the latest release version and its date"); const [url, setUrl] = useState("https://github.com/rajaram-2005/Aetheris/releases"); const [out, setOut] = useState<unknown>(); const [busy, setBusy] = useState(false);
   return <div className="study-summary"><b>Browser agent</b><p className="hint" style={{ textAlign: "left", margin: 0 }}>Goal-driven navigation over a page snapshot. http engine = static HTML (no JS); playwright is used only if installed on the server. Private networks are never browsed; form submission needs confirmation.</p><Pre v={st} />
     <div className="row" style={{ gap: 8 }}><input className="agent-search" value={url} onChange={(e) => setUrl(e.target.value)} /><input className="agent-search" value={goal} onChange={(e) => setGoal(e.target.value)} /><button className="send" disabled={busy} onClick={async () => { setBusy(true); try { setOut(await post("/api/browser", { goal, startUrl: url, maxSteps: 6 })); } finally { setBusy(false); } }}>{busy ? "…" : "Browse"}</button></div><Pre v={out} /></div>;
 }

@@ -16,6 +16,9 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 - Deployment: Vercel/serverless dropped as a supported target (no persistent disk, no long-lived
   process, build-image install-script skips). Docker and always-on container hosts are now the
   documented path, with ready blueprints in `deploy/` (`render.yaml`, `fly.toml`, `deploy/README.md`).
+- Vercel removed from the product: the Vercel gateway API definition and MCP catalog connector are
+  gone (106 connectors, 111 gateway tools), along with its mentions in agent skills, docs, guides,
+  evals and tests. Counts in README/docs updated.
 
 ## 2026.9.2 — 2026-09-04
 
