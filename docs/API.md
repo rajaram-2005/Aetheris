@@ -25,7 +25,8 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 |---|---|
 | `GET /api/models` | providers/tiers available (all free) |
 | `GET /api/providers` | mesh health, cooldowns |
-| `POST /api/chat` | One Chat: streaming SSE, images, KB grounding, agent auto-delegation, `@agent` |
+| `POST /api/chat` | One Chat: streaming SSE, images, KB grounding, agent auto-delegation, `@agent`; optional database persona via `character:{id,mode:"roleplay"|"guide"}` |
+| `GET/POST /api/characters` · `GET/PATCH/DELETE /api/characters/:id` | curated mythic personas + owner-private character creator ([CHARACTERS](CHARACTERS.md)) |
 | `POST /api/v1/chat/completions` · `GET /api/v1/models` | OpenAI-compatible |
 | `POST /api/explain` | fact-vs-inference explainability for an answer |
 | `POST /api/debate` | two positions + judge |
@@ -65,6 +66,17 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | `GET/POST /api/multimodal` | perceive image/document/audio/video/sensor |
 | `POST /api/media/generate` · `GET /api/media/providers` | image/speech/video generation |
 
+## Authentication
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/auth/session` · `DELETE /api/auth/session` | account, provider readiness and sign-out |
+| `GET /api/auth/google` · `/api/auth/google/callback` | Google OAuth |
+| `GET /api/auth/github` · `/api/auth/github/callback` | GitHub OAuth |
+| `POST /api/auth/guest {name}` | create a named browser-local guest session |
+
+With `AETHERIS_REQUIRE_AUTH=1`, protected API calls without a valid sealed session return `401 { error: "authentication_required" }`. Setup: [AUTHENTICATION](AUTHENTICATION.md).
+
 ## GitHub
 
 | Endpoint | Description |
@@ -100,7 +112,7 @@ Limits: 60 automations/user, cron ≥ 5 min, 60 runs kept, 3 attempts with backo
 
 ## Accounts, sync, misc
 
-`/api/auth/*` (Google, GitHub, email OTP, phone OTP, session, logout, token), `/api/keys`, `/api/sync`, `/api/share`, `/api/rooms/*`, `/api/gallery`, `/api/study/*`, `/api/concepts`, `/api/arena`. Billing routes exist but plans are off (`AETHERIS_PAID_PLANS` unset → everything free).
+`/api/auth/*` (Google, GitHub, named guest, session, logout, token), `/api/keys`, `/api/sync`, `/api/share`, `/api/rooms/*`, `/api/gallery`, `/api/study/*`, `/api/concepts`, `/api/arena`. Billing routes exist but plans are off (`AETHERIS_PAID_PLANS` unset → everything free).
 
 ## Example: safe device actuation
 

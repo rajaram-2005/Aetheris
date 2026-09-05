@@ -20,14 +20,14 @@ Aetheris One is a single Next.js 15 application (App Router, TypeScript). The AP
 | Node | **22.x** (the knowledge fabric uses `node:sqlite`; 20 will not work) |
 | RAM | 512 MB minimum, 1 GB comfortable |
 | Disk | writable `AETHERIS_DATA_DIR` (default `./data`) |
-| Keys | **none required**. Keyless providers (Pollinations, LLM7) work out of the box; every key in `.env.example` is optional and free-tier. |
+| Keys | No model key is required. Hosted OAuth requires `AETHERIS_SECRET` plus Google/GitHub credentials; named guest access needs no external provider. See [AUTHENTICATION](AUTHENTICATION.md). |
 
 ## 1. Bare metal / VPS
 
 ```bash
 git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
 npm ci
-cp .env.example .env.local        # fill in whatever keys you have (all optional)
+cp .env.example .env.local        # add auth secrets and any model-provider keys
 npm run build
 npm start                         # binds 0.0.0.0:3000
 ```
@@ -122,7 +122,10 @@ Events are per-instance and in memory. For a multi-replica deployment, ship them
 |---|---|---|
 | `AETHERIS_DATA_DIR` | `./data` | must be writable; mount as a volume |
 | `AETHERIS_KNOWLEDGE_DB` | `$DATA/knowledge.sqlite` | SQLite (WAL) |
-| `AETHERIS_SECRET` | — | **set in production**; encrypts GitHub token cookies (`openssl rand -hex 32`) |
+| `AETHERIS_SECRET` | — | **set in production**; encrypts account/GitHub sessions (`openssl rand -hex 32`) |
+| `AETHERIS_REQUIRE_AUTH` | `0` | set to `1` to require an OAuth or guest session for hosted pages and protected APIs |
+| `AETHERIS_GUEST_ACCESS` | `0` | set to `1` to let a visitor continue after entering only a display name |
+| `GOOGLE_*`, `GITHUB_*` | — | production OAuth providers; see [AUTHENTICATION](AUTHENTICATION.md) |
 | `AETHERIS_ADMIN_EMAILS` / `_PHONES` / `_UIDS` | founder defaults | who gets ADMIN permission level |
 | `AETHERIS_ADMIN_KEY` | — | `/admin` access (`openssl rand -hex 24`) |
 | `AETHERIS_SCHEDULER` | `1` | `0` disables the in-process minute ticker |
@@ -138,12 +141,13 @@ Full list with provider keys: `.env.example`.
 
 ## 7. Security checklist for a public host
 
-1. Set `AETHERIS_SECRET`, `AETHERIS_ADMIN_KEY`, and real admin identities.
-2. Keep `AETHERIS_ALLOW_PRIVATE_URLS` unset (SSRF guard blocks RFC1918/loopback/link-local after DNS resolution).
-3. Terminate TLS at a reverse proxy; the app sets security headers (`Referrer-Policy`, `Permissions-Policy`, nosniff; add `frame-ancestors` at the proxy if you need click-jacking protection) in `src/middleware.ts`.
-4. Rate limits are per-instance in-memory counters (see `docs/SECURITY.md`); put a WAF / proxy limit in front for real DDoS protection.
-5. Physical-device and robotics adapters require explicit permission grants per user; they are never granted by env. Deploy those only on a trusted LAN.
-6. Never put provider keys in prompts, client code or the repo — env or the per-user encrypted BYOK store only.
+1. Set `AETHERIS_SECRET`, `AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_ADMIN_KEY`, and real admin identities.
+2. Configure and test Google, GitHub, and named guest login using [AUTHENTICATION](AUTHENTICATION.md).
+3. Keep `AETHERIS_ALLOW_PRIVATE_URLS` unset (SSRF guard blocks RFC1918/loopback/link-local after DNS resolution).
+4. Terminate TLS at a reverse proxy; the app sets security headers (`Referrer-Policy`, `Permissions-Policy`, nosniff; add `frame-ancestors` at the proxy if you need click-jacking protection) in `src/middleware.ts`.
+5. Rate limits are per-instance in-memory counters (see `docs/SECURITY.md`); put a WAF / proxy limit in front for real DDoS protection.
+6. Physical-device and robotics adapters require explicit permission grants per user; they are never granted by env. Deploy those only on a trusted LAN.
+7. Never put provider keys in prompts, client code or the repo — env or the per-user encrypted BYOK store only.
 
 ## 8. Continuous integration
 

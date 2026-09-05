@@ -62,7 +62,8 @@ All routes live under \`src/app/api\`. Auth: cookie session (browser) or \`Autho
 
 | Method & path | Purpose |
 | --- | --- |
-| \`POST /api/chat\` | Streamed chat through the router (SSE). |
+| \`POST /api/chat\` | Streamed chat through the router (SSE), optionally using a server-resolved character id and mode. |
+| \`GET/POST /api/characters\` · \`GET/PATCH/DELETE /api/characters/:id\` | Curated personas and private character CRUD. |
 | \`POST /api/agents/run\` · \`GET /api/agents\` | Orchestrated multi-agent run · roster. |
 | \`POST /api/research\` | Deep research (SSE). |
 | \`POST /api/arena\` | Multi-provider comparison. |
@@ -76,7 +77,7 @@ All routes live under \`src/app/api\`. Auth: cookie session (browser) or \`Autho
 | \`POST/DELETE /api/share\`, \`GET /api/share/:id\` | Public chat snapshots. |
 | \`GET/PUT/DELETE /api/sync\` | Account cloud sync. |
 | \`GET/POST /api/gallery\`, \`POST/DELETE /api/gallery/:id\` | Prompt gallery. |
-| \`GET/DELETE /api/auth/session\`, \`/api/auth/{google,github}\`, \`/api/auth/{email,phone}/{start,verify}\` | Accounts. |
+| \`GET/DELETE /api/auth/session\`, \`/api/auth/{google,github}\`, \`POST /api/auth/guest\` | OAuth and named guest accounts. |
 | \`GET/POST/DELETE /api/keys\` | Personal API keys. |
 | \`GET /api/providers\`, \`POST /api/providers/keys\` | Mesh status and BYOK. |
 | \`GET /api/billing/plans\` | Plan/usage/user snapshot (always free-for-all by default). |

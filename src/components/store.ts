@@ -37,6 +37,11 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   projectId?: string;
+  /** Character chats keep a stable database id plus display snapshot for deleted custom personas. */
+  characterId?: string;
+  characterMode?: "roleplay" | "guide";
+  characterName?: string;
+  characterAvatar?: string;
   messages: UiMessage[];
   pinned?: boolean;
 }

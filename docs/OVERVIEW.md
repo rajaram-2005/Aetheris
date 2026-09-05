@@ -7,7 +7,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](../CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-182%20passing-brightgreen.svg)](../tests)
+[![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen.svg)](../tests)
 [![Version](https://img.shields.io/badge/version-2026.9.1-informational.svg)](../CHANGELOG.md)
 [![Release](https://img.shields.io/badge/release-monthly%20CalVer-informational.svg)](../CHANGELOG.md)
 
@@ -37,8 +37,9 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](MODELS.md) |
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](AGENTS.md) |
+| Character database — creator, 16 curated personas, roleplay + guide modes | IMPLEMENTED | [CHARACTERS](CHARACTERS.md) |
 | Verification engine — schema validation, independent reviewer, test loop | IMPLEMENTED | `GET/POST /api/verify`, [ARCHITECTURE](ARCHITECTURE.md) |
-| Capability Registry (387 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](ARCHITECTURE.md) |
+| Capability Registry (383 entries) + intent router + `/api/tools` | IMPLEMENTED | [ARCHITECTURE](ARCHITECTURE.md) |
 | Execution policy, confirmations, audit | IMPLEMENTED | [SECURITY](SECURITY.md) |
 | Server sandbox (process isolation, empty env, timeouts, netns when allowed) | IMPLEMENTED (not a VM) | [SECURITY](SECURITY.md) |
 | MCP hub (Aetheris as server, 106 connectors) | IMPLEMENTED | [MCP](MCP.md) |
@@ -399,14 +400,15 @@ src/lib/factory/
   workflow.ts    GitHub Actions workflow template per language
   pipeline.ts    the orchestrator (emits step events)
 src/lib/media/   image / speech / video provider mesh + adapters
+src/lib/characters/ persistent persona CRUD, curated seed records, trusted chat prompt assembly
 src/lib/mcp/     MCP client, OAuth 2.1 client, 106-connector catalog, tool-calling agent loop
 src/lib/gateway/ REST→MCP gateway engine + 44 API definitions (served at /api/gateway/<id>)
 src/lib/billing/ plans, entitlements + free-tier metering, UPI payments, admin auth
 src/lib/store.ts locked JSON file store (data/)
-src/app/api/     chat, providers, factory, auth, media, mcp, billing, admin
+src/app/api/     chat, characters, providers, factory, auth, media, mcp, billing, admin
 src/app/admin/   payments approval console
-src/components/  Chat (modes: Chat · Factory · Studio · Apps), Upgrade modal, mesh panel…
-tests/           106 tests (node:test): core registry/policy/events, router, agents, knowledge, physical, gateway, plugins, perf…
+src/components/  Chat (modes include Chat · Characters · Agents · Factory · Studio · Apps), creator, Upgrade modal, mesh panel…
+tests/           node:test suites: core registry/policy/events, router, agents, characters, knowledge, physical, gateway, plugins, perf…
 src/core/        Intelligence-OS core — see docs/DEVELOPMENT.md for the map
 src/plugins/     plugins (docs/PLUGIN_SDK.md) · bridge/ aetheris-bridge serial daemon · evals/ eval harness
 scripts/         verify-connectors.ts — live probe of every connector endpoint
@@ -421,24 +423,18 @@ scripts/         verify-connectors.ts — live probe of every connector endpoint
 
 ## Sign in — one account, every device
 
-`/login` offers **Continue with Google**, **Continue with GitHub**, **Email code** and **Phone (SMS) code**.
-All methods *join* into a single Aetheris account: a verified email or phone seen via any provider links to the
-same account (Google login with `you@x.com` + later email-OTP with `you@x.com` → one account), and signing in
-while already signed in links the new method to the current account. Your anonymous usage (plan, credits,
-memory, API keys) is adopted by the account on first sign-in.
+`/login` offers **Continue with Google**, **Continue with GitHub**, and a named **guest** option. Google/GitHub accounts work across devices. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested.
 
 | Method | Env vars | Without config |
 | --- | --- | --- |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (redirect `…/api/auth/google/callback`) | button disabled |
 | GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (redirect `…/api/auth/github/callback`) | button disabled |
-| Email  | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | dev code shown on the page (non-production only) |
-| Phone  | `TWILIO_*` or `MSG91_AUTH_KEY` + `MSG91_TEMPLATE_ID` | dev code shown on the page (non-production only) |
+| Named guest | `AETHERIS_GUEST_ACCESS=1` | guest form disabled |
 
-Bare 10-digit numbers default to `+91`. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out.
+Set `AETHERIS_REQUIRE_AUTH=1` on a hosted deployment to redirect signed-out users to `/login` and return `401` from protected APIs. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out. Full setup and callback instructions: [AUTHENTICATION](AUTHENTICATION.md).
 
 ### Admin accounts
-Sign in with an address listed in `AETHERIS_ADMIN_EMAILS` / `AETHERIS_ADMIN_PHONES` (defaults: the founder's
-`ramkpraja175@gmail.com` and `+91 9488407998`) and you get **everything**: God Mode features, no credit metering,
+Sign in through Google or GitHub with an address listed in `AETHERIS_ADMIN_EMAILS` (the founder address is the default) and you get **everything**: God Mode features, no credit metering,
 unlimited agents/API keys, and `/admin` (payments, users, plan changes) without typing `AETHERIS_ADMIN_KEY`.
 The key still works for scripts (`Authorization: Bearer …`).
 
@@ -486,7 +482,7 @@ npm run dev            # or: npm run build && npm start
 ```
 Works with zero keys (keyless providers). Add provider keys in Settings or `.env.local` for more capacity.
 Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHONES` (your admin identities) and the
-optional sign-in / payment variables from `.env.example`. Deploy with Docker or any container host (Render / Fly /
+production login variables from [AUTHENTICATION](AUTHENTICATION.md) plus any optional payment variables from `.env.example`. Deploy with Docker or any container host (Render / Fly /
 Railway blueprints in `deploy/`); serverless platforms like Vercel are not supported — Aetheris needs a long-lived
 process and a writable volume. Persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
@@ -497,7 +493,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## 🎛️ Intelligence OS core (Control Center)
 
-`src/core` holds the **Capability Registry** (387 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
+`src/core` holds the **Capability Registry** (383 models/agents/tools/connectors/subsystems/plugins with honest status), the **execution policy** (permission levels + isolated `physical` grant, single-use confirmation tokens, audit), **observability** (structured, redacted events), the **intent router**, the **agent runtime**, **sandbox**, **MCP gateway**, **knowledge fabric + memory**, **research**, **GitHub intelligence**, **browser**, **multimodal**, **physical devices**, **robotics**, **twins**, **automation**, **workspaces**, **security guard** and the **plugin SDK**. The **Control Center** (16 panels) shows all of it live, from real events — nothing on it is mocked. Audit + roadmap: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## ⏰ Scheduled automations
 
@@ -526,3 +522,4 @@ Adaptive quizzes and flashcards with spaced repetition. Create a deck for any su
 
 ## License
 MIT © 2026 Rajaram K — see [LICENSE](../LICENSE).
+CENSE).

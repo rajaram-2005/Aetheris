@@ -14,6 +14,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
 |---|---|---|
 | Model layer | `src/lib/router`: 27 HTTP providers behind 3 adapter kinds (OpenAI-compatible, Gemini, Cohere); health-scored failover, cooldowns, vision filter, tier allow-lists, streaming. Provider-neutral already. No local-model provider registered. | Keep. Exposed as `model:*` capabilities; `ModelProvider` interface documented; local OpenAI-compatible endpoints (Ollama/vLLM/LM Studio) can be added as a `ProviderConfig` without code changes to callers. |
 | Agents | `src/lib/agents`: 102 specs, Prime planner → single/pipeline/parallel → Metis lessons. No budgets, checkpoints, cancellation of sub-tasks, or background jobs. | Keep; marked `PARTIAL`. Instrumented with events. |
+| Characters | `src/lib/characters`: persistent curated/private personas resolved server-side for chat; dual roleplay/guide behavior. | `IMPLEMENTED`; owner-scoped CRUD and transparent mythology safeguards. See [CHARACTERS](CHARACTERS.md). |
 | Tools / MCP | `src/lib/mcp`: hub aggregating 106 connectors (remote MCP + REST gateway with 111 typed tools), per-user credentials, OAuth. Static catalog; no user-added servers, health, versioning. | Keep; `PARTIAL`. Every tool now a registry entry with permission level inferred from verb (`send/create/delete` → `safe_write`, `delete/remove` → confirmation). |
 | Knowledge | `src/lib/kb`: BM25, heading-aware chunking, PDF/DOCX/CSV/HTML, citations. No vectors, graph, temporal store. | Keep; `PARTIAL`. `RetrievalProvider` interface for a vector adapter (hybrid). |
 | Memory | Client-side user memory + Metis lessons. No episodic/project/agent memory, ranking, expiry, provenance. | `PARTIAL`. |
@@ -41,7 +42,7 @@ Scope: `src/` ≈ 14.5k lines TypeScript, Next.js 15 App Router, 80+ API routes,
                                                     │
                      ┌──────────────────────────────┼──────────────────────────────┐
               Capability Registry           Execution Policy                  Observability
-              387 entries, honest status    levels + physical + confirm       events (redacted) · audit
+              383 entries, honest status    levels + physical + confirm       events (redacted) · audit
               plugins register here         authorize() on every action       Control Center feed
                      └──────────────────────────────┼──────────────────────────────┘
                                              Intent Router
