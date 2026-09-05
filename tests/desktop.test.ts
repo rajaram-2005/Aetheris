@@ -607,8 +607,15 @@ test("capability registry: the desktop app is listed, and the embedded server is
   if (process.env.AETHERIS_DESKTOP !== "1") {
     assert.equal(found.some((c) => c.id === "desktop:embedded-server"), false, "not_available scores 0 in search");
   }
+  const { CONNECTORS } = await import("../src/lib/mcp/catalog");
   const summary = await registrySummary();
-  assert.ok(summary.total > 380, `registry holds ${summary.total} capabilities`);
+  assert.equal(summary.byCategory.connector, CONNECTORS.length, "registry follows the current Apps catalog");
+  for (const category of ["model", "agent", "tool", "system"] as const) {
+    assert.ok(summary.byCategory[category] > 0, `${category} capabilities are still registered`);
+  }
+  for (const id of ["edgeone-pages", "cloudflare", "netlify", "render", "vercel"]) {
+    assert.equal(await getCapability(`connector:${id}`), null, `${id} is not a built-in capability`);
+  }
 });
 
 test("release coherence: one version everywhere, and the API reports it", async () => {

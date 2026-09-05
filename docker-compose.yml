@@ -1,16 +1,17 @@
-# docker compose up -d   →  http://localhost:3000
+# Local use only: docker compose up -d --build → http://localhost:3000 (loopback port)
 # Keys go in .env.local (copy .env.example). Everything stays free; no key is mandatory (keyless providers exist).
 services:
   aetheris:
     build: .
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     env_file: [.env.local]
     environment:
       AETHERIS_DATA_DIR: /data
     volumes:
       - aetheris-data:/data
     restart: unless-stopped
-  # Optional: local models for provider independence (offline-first). Set OLLAMA_BASE_URL=http://ollama:11434 in .env.local
+  # Optional: local inference. Set OLLAMA_LOCAL=1, OLLAMA_BASE_URL=http://ollama:11434/v1,
+  # OLLAMA_MODEL=<downloaded model> and AETHERIS_LOCALITY=local in .env.local.
   # ollama:
   #   image: ollama/ollama
   #   volumes: [ollama:/root/.ollama]

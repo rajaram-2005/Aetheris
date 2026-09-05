@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
    * the user's machine. Opt in with AETHERIS_STANDALONE=1 — `npm run desktop:build` sets it.
    *
    * Left off by default so `npm run build && npm start` behaves exactly as documented in
-   * docs/DEPLOYMENT.md (standalone moves the output into `.next/standalone`, which would break
+   * docs/LOCAL_SETUP.md (standalone moves the output into `.next/standalone`, which would break
    * `next start`).
    */
   ...(process.env.AETHERIS_STANDALONE === "1"

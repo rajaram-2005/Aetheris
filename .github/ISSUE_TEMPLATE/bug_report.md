@@ -9,4 +9,4 @@ labels: bug
 
 **Expected**
 
-**Environment** (browser, Node version, self-hosted or hosted, plan)
+**Environment** (OS, browser, Node version, local browser / desktop / Docker)

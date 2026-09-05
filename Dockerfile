@@ -1,4 +1,4 @@
-# Aetheris One — production image (Next.js 15, Node 22; node:sqlite is used by the knowledge fabric)
+# Aetheris One — local runtime image (Next.js 15, Node 22; node:sqlite is used by the knowledge fabric)
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./

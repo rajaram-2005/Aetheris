@@ -61,10 +61,10 @@ test("gallery world seed: native-script prompts are searchable by language tag a
   assert.ok(rankItems(SEED, "español", () => 0)[0].tags.includes("spanish"));
 });
 
-test("docs set: all 15 documents exist, carry status tables, and referenced API routes exist", async () => {
+test("docs set: required documents exist, carry status tables, and referenced API routes exist", async () => {
   const fs = await import("node:fs"); const path = await import("node:path");
   const root = path.join(__dirname, "..");
-  const required = ["ARCHITECTURE", "DEVELOPMENT", "API", "AGENTS", "MCP", "MODELS", "KNOWLEDGE", "MEMORY", "SECURITY", "HARDWARE", "ROBOTICS", "RESEARCH", "DEPLOYMENT", "PLUGIN_SDK"];
+  const required = ["ARCHITECTURE", "DEVELOPMENT", "API", "AGENTS", "MCP", "MODELS", "KNOWLEDGE", "MEMORY", "SECURITY", "HARDWARE", "ROBOTICS", "RESEARCH", "LOCAL_SETUP", "PLUGIN_SDK"];
   for (const d of required) { const body = fs.readFileSync(path.join(root, "docs", `${d}.md`), "utf8"); assert.ok(body.length > 1500, d); if (!["DEVELOPMENT", "API"].includes(d)) assert.ok(/IMPLEMENTED|PARTIAL|NOT AVAILABLE/.test(body), `${d} lacks status vocabulary`); }
   assert.ok(fs.existsSync(path.join(root, "CONTRIBUTING.md")));
   // every /api/<path> mentioned in API.md must have a route file (dynamic segments normalised)
@@ -74,4 +74,48 @@ test("docs set: all 15 documents exist, carry status tables, and referenced API 
   const mentioned = [...new Set([...api.matchAll(/`(?:GET|POST|PATCH|PUT|DELETE|GET\/POST|GET\/PATCH\/DELETE|GET\/POST\/PATCH\/DELETE|GET\/DELETE)? ?(\/api\/[a-z0-9\/:_\-*]+)/gi)].map((m) => m[1].replace(/:[a-z]+/g, ":x").replace(/\/$/, "")))].filter((r) => !r.includes("*"));
   const missing = mentioned.filter((r) => !routes.has(r) && !routes.has(r + "/:x"));
   assert.deepEqual(missing, [], `API.md mentions routes that do not exist: ${missing.join(", ")}`);
+});
+
+
+test("local-only docs: setup replaces deployment recipes and active Markdown links resolve", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path");
+  const { GUIDES } = await import("../src/lib/docs/guides");
+  const { CONNECTORS } = await import("../src/lib/mcp/catalog");
+  const { referencePages } = await import("../src/lib/docs/reference");
+  const root = path.join(__dirname, "..");
+  const read = (file: string) => fs.readFileSync(path.join(root, file), "utf8");
+
+  assert.equal(fs.existsSync(path.join(root, "deploy")), false, "cloud-host recipes are removed");
+  assert.equal(fs.existsSync(path.join(root, "docs/DEPLOYMENT.md")), false);
+  for (const file of ["README.md", "docs/LOCAL_SETUP.md", "docs/AUTHENTICATION.md"]) {
+    assert.match(read(file), /local-only/i, file);
+  }
+  const setup = GUIDES.find((g) => g.slug === "local-setup");
+  assert.ok(setup, "local setup is available in the app's docs");
+  assert.match(setup.body, /--hostname 127\.0\.0\.1/);
+  assert.match(setup.body, /does not mean offline/i);
+  for (const g of GUIDES) assert.doesNotMatch(g.body, /deploy\/|DEPLOYMENT\.md|render blueprint|fly launch/i, g.slug);
+
+  const files = ["README.md", ...fs.readdirSync(path.join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => `docs/${f}`)];
+  for (const file of files) {
+    const body = read(file);
+    assert.doesNotMatch(body, /DEPLOYMENT\.md|deploy\/(?:README\.md|fly\.toml|render\.yaml)/, file);
+    for (const [, target] of body.matchAll(/\[[^\]]+\]\(([^)\s]+\.md)(?:#[^)\s]*)?\)/g)) {
+      if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+      const resolved = path.resolve(root, path.dirname(file), target);
+      assert.ok(fs.existsSync(resolved), `${file} → ${target}`);
+    }
+  }
+  for (const file of ["README.md", "docs/API.md", "docs/MCP.md", "docs/OVERVIEW.md", "docs/ARCHITECTURE.md"]) {
+    assert.ok(read(file).includes(`${CONNECTORS.length} connectors`), `${file} has the current connector count`);
+  }
+  const reference = referencePages().find((p) => p.slug === "ref-connectors")!;
+  assert.doesNotMatch(reference.body, /EdgeOne Pages|Netlify|mcp\.render\.com|mcp\.cloudflare\.com/);
+});
+
+test("local Docker: publish only on loopback and preserve the local data volume", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path");
+  const compose = fs.readFileSync(path.join(__dirname, "..", "docker-compose.yml"), "utf8");
+  assert.match(compose, /^\s*ports: \["127\.0\.0\.1:3000:3000"\]$/m);
+  assert.match(compose, /aetheris-data:\/data/);
 });

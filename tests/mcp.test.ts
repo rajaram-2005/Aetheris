@@ -76,6 +76,21 @@ test("catalog: 90+ connectors, unique ids, featured set present", async () => {
   for (const id of ["notion", "slack", "figma", "stripe", "razorpay", "github"]) assert.ok(CONNECTORS.some((c) => c.id === id), id);
 });
 
+test("catalog: deployment apps are removed without removing optional online integrations", async () => {
+  const { CONNECTORS, connectorById } = await import("../src/lib/mcp/catalog");
+  const { resolveServer } = await import("../src/lib/mcp/agent");
+  const { PROVIDERS } = await import("../src/lib/router/providers");
+  for (const id of ["edgeone-pages", "cloudflare", "netlify", "render", "vercel"]) {
+    assert.equal(connectorById(id), undefined, id);
+    assert.equal(resolveServer({ id }), null, `${id} must not resolve a retired endpoint`);
+  }
+  assert.ok(CONNECTORS.length >= 100);
+  for (const id of ["github", "notion", "slack", "docker-hub", "aetheris-factory"]) {
+    assert.ok(connectorById(id), `${id} is an integration, not an Aetheris hosting target`);
+  }
+  assert.ok(PROVIDERS.some((p) => p.id === "cloudflare"), "Workers AI is independent of the removed infrastructure app");
+});
+
 test("media router: fails over between providers and honours BYOK", async () => {
   const media = await import("../src/lib/media/providers");
   const calls: string[] = [];

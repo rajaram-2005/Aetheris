@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { connectorById } from "@/lib/mcp/catalog";
 
 interface Connector {
   id: string; name: string; category: string; description: string; url: string;
@@ -14,7 +15,16 @@ export interface EnabledServer { id: string; url?: string; credential?: string; 
 
 const STORAGE = "aetheris.mcp.v1";
 export function loadServers(): EnabledServer[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE) ?? "[]"); } catch { return []; }
+  try {
+    const stored: EnabledServer[] = JSON.parse(localStorage.getItem(STORAGE) ?? "[]");
+    if (!Array.isArray(stored)) return [];
+    // Retired catalog entries must not stay enabled in existing browser workspaces.
+    const servers = stored.filter((s) => s && typeof s.id === "string" && (
+      s.id === "hub" || s.id.startsWith("custom:") || connectorById(s.id)
+    ));
+    if (servers.length !== stored.length) localStorage.setItem(STORAGE, JSON.stringify(servers));
+    return servers;
+  } catch { return []; }
 }
 
 export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
@@ -103,8 +113,8 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
     <div className="apps">
       <div className="apps-head">
         <div>
-          <strong>Cloud MCP App Store</strong>
-          <span> — {connectors.length} connectors ({connectors.filter((c) => c.kind === "remote").length} vendor-hosted MCP servers, {connectors.filter((c) => c.kind === "gateway").length} via the Aetheris gateway). Enabled apps become tools the model can call from One Chat.</span>
+          <strong>MCP Apps</strong>
+          <span> — {connectors.length} optional connectors ({connectors.filter((c) => c.kind === "remote").length} vendor-hosted MCP servers, {connectors.filter((c) => c.kind === "gateway").length} via the local Aetheris gateway). Aetheris runs locally; connected services may use the internet. Enabled apps become tools in One Chat, not deployment targets.</span>
         </div>
         <span className="chip on">{enabled.length} enabled</span>
       </div>
@@ -192,7 +202,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
       </details>
       <p className="hint">
         <strong>MCP</strong> connectors are vendor-hosted servers — sign in with OAuth or paste a token. <strong>gateway</strong> connectors are served by Aetheris itself
-        (<code>/api/gateway/&lt;id&gt;</code>) and wrap the vendor&apos;s public REST API, so any MCP client can use them too. Pasted credentials stay in this browser; OAuth tokens live in an encrypted cookie.
+        (<code>/api/gateway/&lt;id&gt;</code>) and wrap the vendor&apos;s public REST API, so local MCP clients can use them too. Pasted credentials are kept in this browser and sealed on your local Aetheris server for Hub access; OAuth tokens live in an encrypted cookie. Requests to connected services leave your machine.
       </p>
     </div>
   );

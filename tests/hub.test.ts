@@ -34,6 +34,18 @@ test("hub search + connectors meta-tools; missing credential is a clear error", 
   assert.deepEqual(await getStoredCreds("h2"), { slack: "xoxb-secret" });
 });
 
+test("hub: retired deployment connectors cannot be discovered or called, even with old credentials", async () => {
+  const { callHubTool } = await import("../src/lib/mcp/hub");
+  const retired = ["edgeone-pages", "cloudflare", "netlify", "render", "vercel"];
+  const ctx = { uid: "local-only-hub", creds: Object.fromEntries(retired.map((id) => [id, "old-test-token"])) };
+  const catalog = await callHubTool(ctx, "hub__connectors", {});
+  for (const id of retired) {
+    assert.doesNotMatch(catalog, new RegExp(`^${id} ·`, "m"));
+    await assert.rejects(callHubTool(ctx, "hub__list_tools", { connector: id }), /unknown connector/);
+    await assert.rejects(callHubTool(ctx, `${id}__deploy`, {}), /unknown connector/);
+  }
+});
+
 test("joined: legacy hub tools go through the execution policy (destructive verbs need confirmation)", async () => {
   const { callHubTool } = await import("../src/lib/mcp/hub");
   const { issueConfirmation } = await import("../src/core/policy/permissions");

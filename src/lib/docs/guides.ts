@@ -6,9 +6,9 @@ export interface Guide { slug: string; title: string; section: string; body: str
 
 export const GUIDES: Guide[] = [
   { slug: "start", section: "Getting started", title: "What is Aetheris One?", body: `
-Aetheris One is a **free, open-source AI workspace**. One chat box in front of a mesh of free AI providers with silent failover, a hierarchy of 102 agents, a database-backed character creator, a GitHub coding factory, a media studio, a hub of 100+ MCP apps, live rooms, workflows and more.
+Aetheris One is a **free, open-source, local-only AI workspace**. Run it on your own computer in a browser or the desktop app; there is no cloud deployment step. Online providers and connected services still need internet access. One chat box in front of a mesh of free AI providers with silent failover, a hierarchy of 102 agents, a database-backed character creator, a GitHub coding factory, a media studio, a hub of 100+ MCP apps, live rooms, workflows and more.
 
-**Everything is free for everyone.** There are no plans, credits or payments on the default deployment. The only limits are the upstream providers' free tiers — and the router spreads your requests across all of them.
+**Everything is free for everyone.** There are no plans, credits or payments in the default local configuration. The only limits are the upstream providers' free tiers — and the router spreads your requests across all of them.
 
 ## 60-second tour
 1. **Chat** — type and send. The router picks a provider; if it rate-limits, another one answers. Hover the ✦ pill to see which.
@@ -95,7 +95,7 @@ The knowledge base stays attached across chats until you detach it (✕ next to 
 Inside a knowledge base, the **Test retrieval** box shows exactly which passages a question would pull up and their scores — useful for checking coverage before you rely on an answer.
 
 ## How it works (and why it's free)
-Documents are split into ~900-character passages that respect sentences and headings (with overlap), and ranked with **BM25** lexical retrieval — no embedding API, so it works on any host, offline from any provider, deterministically. The top passages (about 12k characters) are placed in the system prompt with numbered labels. Files are stored on the server for your account only (\`data/kb.json\` when self-hosting).
+Documents are split into ~900-character passages that respect sentences and headings (with overlap), and ranked with **BM25** lexical retrieval — no embedding API, so it works on any host, offline from any provider, deterministically. The top passages (about 12k characters) are placed in the system prompt with numbered labels. Files are stored on the server for your account only (\`data/kb.json\` in your local data directory).
 
 ## API
 \`GET/POST /api/kb\` · \`GET/PATCH/DELETE /api/kb/:id\` · \`POST /api/kb/:id/docs\` (multipart \`files[]\`, or JSON \`{text,name}\` / \`{url}\`) · \`GET /api/kb/:id/search?q=\` · chat: add \`kb: "<id>"\` to \`POST /api/chat\` and read the \`citations\` event/field.
@@ -214,9 +214,9 @@ Runs stream every step; each output is expandable, and **Continue in chat →** 
 ## Run history
 Each run records status, duration, output, delivery results and the share link. Open a run to read it, copy it, or **Discuss in chat** to refine the prompt. The last 50 runs per schedule are kept.
 
-## How it runs (and on serverless)
+## How it runs locally
 - While the Aetheris server process is alive it ticks every minute and runs anything due.
-- If your host sleeps the container (Cloud Run scale-to-zero, free-tier dynos) also call **\`GET /api/schedules/tick\`** every 5–15 minutes from an external cron: GitHub Actions schedule, cron-job.org, UptimeRobot. Set \`CRON_SECRET\` and send \`Authorization: Bearer <secret>\` (or \`?secret=\`). On Docker / Render / Fly with an always-on instance the built-in ticker is enough.
+- Keep the local app running and your computer awake for schedules to execute. The built-in ticker is enough; an optional local cron job can call **\`GET /api/schedules/tick\`** with \`Authorization: Bearer <CRON_SECRET>\`. An external service cannot wake a stopped local app, and no public endpoint is needed.
 - A due schedule is *claimed* before it runs, so parallel tickers never double-run it; missed slots are caught up once, not replayed.
 - Automations run unattended with a system instruction to produce the complete deliverable without questions.
 
@@ -251,7 +251,7 @@ Tips: be concrete about stack, entry points and how to test. The factory prefers
 Use \`/image\` from the chat composer to jump to Studio.
 `},
   { slug: "apps", section: "Build", title: "Apps: MCP connectors and the Hub", body: `
-**Apps** lists 100+ MCP connectors (Notion, GitHub, Linear, Slack, Stripe, Google Drive…). Enable one and the chat can call its tools when useful; you see each tool call inline.
+**Apps** lists 100+ optional MCP connectors (Notion, GitHub, Linear, Slack, Stripe, Google Drive…). Aetheris runs locally; these integrations connect to external services when enabled. Cloud deployment connectors are not included. Enable an app and the chat can call its tools when useful; you see each tool call inline.
 
 - **OAuth connectors** open the provider's consent screen in a new tab.
 - **Key connectors** ask for a token which is stored sealed.
@@ -260,19 +260,21 @@ Use \`/image\` from the chat composer to jump to Studio.
 ## The Aetheris Hub
 One MCP endpoint that exposes *all* your enabled connectors to any MCP client (Claude Desktop, Cursor, Windsurf…):
 \`\`\`json
-{ "mcpServers": { "aetheris": { "url": "https://<your-host>/api/mcp/hub", "headers": { "Authorization": "Bearer sk-aeth-…" } } } }
+{ "mcpServers": { "aetheris": { "url": "http://localhost:3000/api/mcp/hub", "headers": { "Authorization": "Bearer sk-aeth-…" } } } }
 \`\`\`
 Tools are namespaced \`<connector>__<tool>\`; \`hub__search_tools\` finds tools by description. Create an API key in Settings → API keys.
 `},
-  { slug: "rooms-share-sync", section: "Collaborate", title: "Rooms, sharing and sync", body: `
-## 👥 Live rooms
-Click 👥 (or \`/room\`) to turn the current chat into a room at \`/room/<id>\`. Anyone with the link joins; every message shows who said it; the AI answers for everyone and can address people by name. Start a message with \`//\` (or use *aside*) to talk to humans only. Transport is Server-Sent Events with a polling fallback.
+  { slug: "rooms-share-sync", section: "Collaborate", title: "Local rooms, snapshots and data", body: `
+## Local rooms
+Click 👥 (or \`/room\`) to turn the current chat into a room at \`/room/<id>\`. Messages show their author and the AI answers in the room. Start a message with \`//\` (or use *aside*) to talk to humans only. Transport is Server-Sent Events with a polling fallback.
 
-## 🔗 Share
-🔗 (or \`/share\`) creates a public, read-only snapshot at \`/s/<id>\` — revocable. Readers can *Continue this chat in Aetheris*, which imports it into their own workspace.
+Rooms belong to the running local instance. A localhost link is usable only on the same computer; it is not an internet invitation. Keep Aetheris local rather than exposing it with a tunnel.
 
-## ☁ Sync
-Sign in and your chats, projects, memory and settings merge across devices (newest wins per chat; deletions propagate; memory unions). Guests stay local-only.
+## Snapshots
+🔗 (or \`/share\`) creates a revocable, read-only snapshot at \`/s/<id>\` on your local instance. To send a conversation to someone else, export it as Markdown instead of sending a localhost link.
+
+## Data and legacy sync
+Ordinary chats, projects and settings stay in the current browser. Legacy account-sync endpoints remain in the code, but there is no hosted Aetheris sync service or automatic cross-device sync in the anonymous workspace. Export browser data and back up the local server data directory before moving to another computer.
 `},
   { slug: "accounts", section: "Collaborate", title: "Accounts and sign-in", body: `
 Aetheris opens directly to Chat with anonymous browser-local data. There is no login page and no display-name prompt. No email, phone, or provider account is needed for ordinary conversations.
@@ -280,20 +282,20 @@ Aetheris opens directly to Chat with anonymous browser-local data. There is no l
 OAuth sessions are used only by integrations that explicitly need a provider identity. Sessions are sealed cookies valid 90 days. \`DELETE /api/auth/session\` signs out.
 
 ### Admins
-OAuth identities listed in \`AETHERIS_ADMIN_EMAILS\` get \`/admin\` and full access. On the default (free-for-all) deployment everyone already has every feature, so admin mainly matters for moderation and the optional billing system.
+OAuth identities listed in \`AETHERIS_ADMIN_EMAILS\` get \`/admin\` and full access. In the default (free-for-all) local configuration everyone already has every feature, so admin mainly matters for moderation and the optional billing system.
 `},
   { slug: "api", section: "Developers", title: "OpenAI-compatible API", body: `
 Create a key in **Settings → API keys** (\`sk-aeth-…\`) and point any OpenAI SDK at \`/api/v1\`.
 
 \`\`\`bash
-curl https://<host>/api/v1/chat/completions \\
+curl http://localhost:3000/api/v1/chat/completions \\
   -H "Authorization: Bearer sk-aeth-..." -H "Content-Type: application/json" \\
   -d '{ "model": "aetheris-god", "stream": true, "messages": [{ "role": "user", "content": "Hello" }] }'
 \`\`\`
 
 \`\`\`python
 from openai import OpenAI
-client = OpenAI(base_url="https://<host>/api/v1", api_key="sk-aeth-...")
+client = OpenAI(base_url="http://localhost:3000/api/v1", api_key="sk-aeth-...")
 r = client.chat.completions.create(model="aetheris-pro", messages=[{"role": "user", "content": "Explain MCP"}])
 \`\`\`
 
@@ -326,26 +328,37 @@ Levels: \`read_only\` < \`safe_write\` < \`full_workspace\` < \`admin\`, plus \`
 ## For contributors
 Add a capability by registering a source (\`registerSource\` in \`src/core/capabilities\`) — never by editing Core. Ask the policy (\`authorize\`) before acting; call \`record\`/\`traced\` so it shows up here. Full audit, architecture map and 20-phase roadmap: \`docs/ARCHITECTURE.md\`.
 `},
-  { slug: "self-host", section: "Developers", title: "Self-hosting and configuration", body: `
+  { slug: "local-setup", section: "Developers", title: "Local setup and configuration", body: `
+Aetheris is a local-only application. Use Node.js 22.x for a source checkout:
+
 \`\`\`bash
-git clone https://github.com/rajaram-2005/Aetheris && cd Aetheris
-npm install && cp .env.example .env.local
-npm run dev            # or: npm run build && npm start
+git clone https://github.com/rajaram-2005/Aetheris.git
+cd Aetheris
+npm ci
+cp .env.example .env.local
+npm run dev -- --hostname 127.0.0.1
 \`\`\`
-Works with zero keys. Persistent data lives in \`data/\` (\`AETHERIS_DATA_DIR\`) as JSON; swap \`src/lib/store.ts\` for Postgres/KV by keeping its interface.
+
+Open **http://localhost:3000**. For an optimized local build, run \`npm run build\`, then \`npm start -- --hostname 127.0.0.1\`. The hostname override keeps the browser workflow on loopback. No public host, domain or deployment account is needed.
+
+Keyless online providers work without model keys, subject to availability and rate limits. Browser data stays in that browser; server records live in \`data/\` (\`AETHERIS_DATA_DIR\`) as JSON and SQLite. Back up both. Use one local process per data directory, and keep it running for schedules.
 
 ### Important variables
 | Variable | Purpose |
 | --- | --- |
-| \`AETHERIS_SECRET\` | Seals cookies, stored keys and credentials. Set in production. |
-| \`AETHERIS_REQUIRE_AUTH=0\` | Anonymous-first compatibility setting; the web app does not require login or a display name. |
-| \`AETHERIS_GUEST_ACCESS=0\` | Legacy guest-entry switch; no guest name prompt is shown. |
-| \`AETHERIS_ADMIN_EMAILS\` | OAuth admin identities. |
-| \`GOOGLE_CLIENT_ID/SECRET\`, \`GITHUB_CLIENT_ID/SECRET\` | OAuth sign-in (redirects \`…/api/auth/google/callback\`, \`…/api/auth/github/callback\`). |
-| \`<PROVIDER>_API_KEY\` | Server-wide provider keys (users can also add their own). |
-| \`AETHERIS_PAID_PLANS=1\` | Re-enables the optional plan/UPI billing system (off by default). |
+| \`AETHERIS_SECRET\` | Seals cookies, stored keys and credentials. Generate locally and keep stable. |
+| \`AETHERIS_REQUIRE_AUTH=0\`, \`AETHERIS_GUEST_ACCESS=0\` | Legacy compatibility settings; no login or display name is required. |
+| \`AETHERIS_ADMIN_EMAILS\` | Optional OAuth admin identities. |
+| \`GOOGLE_CLIENT_ID/SECRET\`, \`GITHUB_CLIENT_ID/SECRET\` | Optional integration credentials with exact localhost callbacks. |
+| \`<PROVIDER>_API_KEY\` | Optional online model keys. |
+| \`AETHERIS_LOCALITY=local\` | Restrict model inference to configured local providers (Ollama, LM Studio or a local OpenAI-compatible server). |
+| \`AETHERIS_PAID_PLANS=0\` | Keep legacy billing disabled for local use. |
 
-Deploy with Docker or any always-on container host (Render / Fly / Railway blueprints in \`deploy/\`). Serverless platforms such as Vercel are not supported — there is no persistent disk and no long-lived process. Rooms use an in-process event bus; for multi-instance deployments put a sticky session in front or move the bus to Redis.
+Local hosting does not mean offline: online providers, web search, GitHub and connected MCP services make outbound requests. The model-locality setting does not disable those integrations.
+
+Optional Docker: \`docker compose up -d --build\` publishes only \`127.0.0.1:3000\` and saves server data in the \`aetheris-data\` volume. Do not expose the anonymous workspace through a public host or tunnel.
+
+Full setup, backups and local model configuration: [docs/LOCAL_SETUP.md](https://github.com/rajaram-2005/Aetheris/blob/main/docs/LOCAL_SETUP.md).
 `},
   { slug: "desktop", section: "Developers", title: "Desktop app (macOS, Linux, Windows)", body: `
 Aetheris also runs as a native desktop app — the same code, wrapped in Electron. Download the installer for your platform from the [releases page](https://github.com/rajaram-2005/Aetheris/releases):
@@ -356,11 +369,11 @@ Aetheris also runs as a native desktop app — the same code, wrapped in Electro
 | Linux | \`.AppImage\`, \`.deb\`, \`.rpm\` — x64 and arm64 |
 | Windows | NSIS installer + \`.zip\` — x64 |
 
-## Two ways to run it
-- **Embedded** (default) — the app starts its own Aetheris server on \`127.0.0.1\` and your data lives in \`~/Library/Application Support/Aetheris\` (macOS), \`~/.config/Aetheris\` (Linux) or \`%APPDATA%/Aetheris\` (Windows). Works offline.
-- **Remote** — a thin client for any Aetheris server you point it at (a LAN box, your VPS, a teammate's instance). The address is checked against \`/api/health\` before it is saved.
+## Local use
+- **Embedded** (default) — the app starts its own Aetheris server on \`127.0.0.1\` and your data lives in \`~/Library/Application Support/Aetheris\` (macOS), \`~/.config/Aetheris\` (Linux) or \`%APPDATA%/Aetheris\` (Windows).
+- **Local development** — \`npm run desktop:dev\` connects the shell to a Next.js development process on the same computer for hot reload. The connection mode is internally called \`remote\`, but a public or remote Aetheris host is not a supported workflow.
 
-Switch between them from the app menu or the tray. Provider keys for the embedded server go in \`<data dir>/.env.local\` as \`KEY=value\` — a shell export does not reach an app launched from Finder or the Start menu.
+Use **Use the embedded server** in Connection settings for normal local operation. Provider keys go in \`<data dir>/.env.local\` as \`KEY=value\` — a shell export does not reach an app launched from Finder or the Start menu. Online models, integrations and update checks still use the internet; local inference requires a configured local model server.
 
 ## Versions
 Aetheris releases **every month** on CalVer \`YYYY.M.P\` (\`2026.9.1\` → \`2026.10.1\` → \`2027.1.1\`). The app checks for a new release at startup and once an hour, and links the download — it never installs anything by itself.
