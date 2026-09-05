@@ -334,7 +334,7 @@ function sseHeaders() {
 function canUseOfflineFallback(err: unknown, attempts: ProviderAttempt[]): boolean {
   const setting = process.env.AETHERIS_OFFLINE_FALLBACK?.trim().toLowerCase();
   const enabled = setting === "1" || setting === "true" || (setting !== "0" && setting !== "false" && process.env.NODE_ENV !== "production");
-  if (!enabled || !(err instanceof ProviderError)) return false;
+  if (!enabled || !(err instanceof ProviderError) || err.status === 499) return false;
   if (attempts.length === 0) return err.status === 503;
   return attempts.every((a) => (a.error ?? "").startsWith("network error"));
 }
