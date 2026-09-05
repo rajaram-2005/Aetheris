@@ -124,7 +124,7 @@ function AccountChip() {
     fetch("/api/auth/session").then((r) => r.json()).then((j) => setAcc(j.account ?? null)).catch(() => setAcc(null));
   }, []);
   if (acc === undefined) return null;
-  if (!acc) return <a className="sb-item" href="/">{t("sb.signIn")}</a>;
+  if (!acc) return null;
   const label = acc.name || acc.email || acc.phone || "Account";
   return (
     <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>

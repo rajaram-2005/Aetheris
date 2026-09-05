@@ -421,16 +421,16 @@ scripts/         verify-connectors.ts — live probe of every connector endpoint
 - `npm run typecheck` — TypeScript
 - `npm run build && npm start` — production
 
-## Sign in — one account, every device
+## Anonymous workspace and integrations
 
-When hosted authentication is enabled, the app root asks **“What should we call you?”** and continues with a named browser-local guest. No email or phone is requested, and there is no separate login page. OAuth routes remain available for configured integrations but are not shown in the entry UI.
+The web app opens directly to Chat. There is no login page and no display-name prompt. Conversations, projects, memory, and settings use anonymous browser-local data. OAuth routes remain available only for integrations that explicitly need a provider identity, such as the GitHub Coding Factory; they are not shown as entry controls.
 
-| Method | Env vars | Without config |
+| Access | Env vars | Behavior |
 | --- | --- | --- |
-| Named guest | `AETHERIS_GUEST_ACCESS=1` | name prompt disabled |
-| OAuth integration | `GOOGLE_*` / `GITHUB_*` | not exposed in the entry UI |
+| Anonymous workspace | none | available immediately in the browser |
+| OAuth integration | `GOOGLE_*` / `GITHUB_*` | available only to the integration that needs it |
 
-Set `AETHERIS_REQUIRE_AUTH=1` on a hosted deployment to show the root name prompt to signed-out visitors and return `401` from protected APIs. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out. Full setup and callback instructions: [AUTHENTICATION](AUTHENTICATION.md).
+Keep `AETHERIS_REQUIRE_AUTH=0` and `AETHERIS_GUEST_ACCESS=0`; these are legacy entry-flow switches. Full OAuth setup and callback instructions: [AUTHENTICATION](AUTHENTICATION.md).
 
 ### Admin accounts
 Sign in through Google or GitHub with an address listed in `AETHERIS_ADMIN_EMAILS` (the founder address is the default) and you get **everything**: God Mode features, no credit metering,

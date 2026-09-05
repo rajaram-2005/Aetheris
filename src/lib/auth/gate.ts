@@ -9,8 +9,9 @@
 const DEV_SECRET = "aetheris-dev-secret-do-not-use-in-prod";
 type AuthEnvironment = Readonly<Record<string, string | undefined>>;
 
-export function authenticationRequired(env: AuthEnvironment = process.env): boolean {
-  return env.AETHERIS_REQUIRE_AUTH === "1" && env.AETHERIS_DESKTOP !== "1";
+/** Web access is anonymous-first: the workspace never requires a login or display name. */
+export function authenticationRequired(_env: AuthEnvironment = process.env): boolean {
+  return false;
 }
 
 export function guestAccessEnabled(env: AuthEnvironment = process.env): boolean {

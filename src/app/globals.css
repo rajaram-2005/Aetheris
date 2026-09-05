@@ -601,15 +601,10 @@ button.chip { cursor: pointer; }
 .hub-details summary { cursor: pointer; font-size: 12px; color: var(--accent); margin-top: 4px; }
 .hub-details pre { margin-top: 8px; white-space: pre-wrap; }
 
-/* ── Guest entry ───────────────────────────────────────── */
-.guest-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, rgba(124,156,255,0.18), transparent 60%); }
-.guest-card { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 28px 26px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
-.guest-card h1 { margin: 0 0 6px; font-size: 22px; }
-.guest-form { display: grid; gap: 8px; text-align: left; }
-.guest-label { color: var(--muted); font-size: 12px; font-weight: 600; }
-.guest-form input { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font-size: 14px; }
-.guest-form .send { width: 100%; padding: 10px; border-radius: 12px; font-weight: 700; }
-.guest-card .err-text { color: var(--err); font-size: 13px; }
+/* ── Standalone notices ────────────────────────────────── */
+.notice-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, rgba(124,156,255,0.18), transparent 60%); }
+.notice-card { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 28px 26px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+.notice-card h1 { margin: 0 0 6px; font-size: 22px; }
 .sb-account { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; font-size: 12px; color: var(--muted); }
 .sb-account img, .sb-account .av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; color: #0b0d12; font-weight: 800; flex: none; }
 .sb-account .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); font-weight: 600; }

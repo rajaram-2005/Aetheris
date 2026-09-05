@@ -82,7 +82,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
                   <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
                 </div>
               ) : (
-                <div className="upsell">👤 You're using Aetheris as a guest on this browser. Guest data stays in this browser.</div>
+                <div className="upsell">👤 Your data stays in this browser.</div>
               )}
             </div>
             <div className="usage-head">

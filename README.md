@@ -32,7 +32,7 @@ cp .env.example .env.local     # optional: add a key, e.g. GROQ_API_KEY
 npm run dev                    # http://localhost:3000
 ```
 
-**Zero model-provider keys works** — Pollinations and LLM7.io are keyless. Hosted deployments use a name-only browser-local guest prompt (`AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_GUEST_ACCESS=1`); see [AUTHENTICATION](docs/AUTHENTICATION.md). Every model key you add raises quality and throughput; the router only uses providers whose key is set.
+**Zero model-provider keys works** — Pollinations and LLM7.io are keyless. The web workspace opens directly with anonymous browser-local data; no login or display name is required. Every model key you add raises quality and throughput; the router only uses providers whose key is set.
 
 ```bash
 npm test          # 182 tests, no API keys needed
@@ -69,7 +69,7 @@ npm install && cp .env.example .env.local
 npm run dev            # or: npm run build && npm start
 ```
 
-Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_GUEST_ACCESS=1`, and `AETHERIS_ADMIN_EMAILS`. Configure Google and GitHub as described in [AUTHENTICATION](docs/AUTHENTICATION.md). Deploy with Docker (`docker compose up -d --build`) or any container host — Render/Fly blueprints live in `deploy/`. Serverless (Vercel & co.) is not supported: Aetheris needs a long-lived process and a writable volume; persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+Set `AETHERIS_SECRET` (cookie/credential sealing) and `AETHERIS_ADMIN_EMAILS` when needed. Configure OAuth only for integrations that use it, as described in [AUTHENTICATION](docs/AUTHENTICATION.md). Deploy with Docker (`docker compose up -d --build`) or any container host — Render/Fly blueprints live in `deploy/`. Serverless (Vercel & co.) is not supported: Aetheris needs a long-lived process and a writable volume; persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 ## Docs
 

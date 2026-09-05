@@ -77,8 +77,8 @@ test("mandatory ownership uses the uid sealed into the account session", async (
   }
 });
 
-test("auth gate is hosted-only and preserves intentional public endpoints", () => {
-  assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1" }), true);
+test("web access stays anonymous and preserves intentional public endpoints", () => {
+  assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1" }), false);
   assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "0" }), false);
   assert.equal(authenticationRequired({ AETHERIS_REQUIRE_AUTH: "1", AETHERIS_DESKTOP: "1" }), false);
   assert.equal(guestAccessEnabled({ AETHERIS_GUEST_ACCESS: "1" }), true);
