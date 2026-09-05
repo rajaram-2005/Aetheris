@@ -139,7 +139,7 @@ export default function Schedules({ onOpenWorkflows, onAsk }: { onOpenWorkflows:
       )}
 
       <details className="hint" style={{ textAlign: "left" }}><summary style={{ cursor: "pointer" }}>Reliability: how schedules run when the server sleeps</summary>
-        <p>Aetheris ticks every minute while the server process is alive. On serverless hosts (Vercel, etc.) also point an external cron at <code>GET /api/schedules/tick</code> every 5–15 minutes — e.g. Vercel Cron, GitHub Actions, cron-job.org or UptimeRobot{data?.cronSecretSet ? " (send Authorization: Bearer CRON_SECRET)" : " (set CRON_SECRET to protect it)"}. Missed slots are caught up once, never replayed many times.</p>
+        <p>Aetheris ticks every minute while the server process is alive. If your host sleeps the container (scale-to-zero, free-tier dynos) also point an external cron at <code>GET /api/schedules/tick</code> every 5–15 minutes — e.g. GitHub Actions, cron-job.org or UptimeRobot{data?.cronSecretSet ? " (send Authorization: Bearer CRON_SECRET)" : " (set CRON_SECRET to protect it)"}. Missed slots are caught up once, never replayed many times.</p>
       </details>
     </div>
   );

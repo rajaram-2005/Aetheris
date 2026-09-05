@@ -197,7 +197,7 @@ Each run records status, duration, output, delivery results and the share link. 
 
 ## How it runs (and on serverless)
 - While the Aetheris server process is alive it ticks every minute and runs anything due.
-- On serverless hosts (Vercel, Netlify, Cloud Run scale-to-zero) also call **\`GET /api/schedules/tick\`** every 5–15 minutes from an external cron: Vercel Cron (\`vercel.json\` → \`{"crons":[{"path":"/api/schedules/tick","schedule":"*/10 * * * *"}]}\`), GitHub Actions, cron-job.org, UptimeRobot. Set \`CRON_SECRET\` and send \`Authorization: Bearer <secret>\` (or \`?secret=\`).
+- If your host sleeps the container (Cloud Run scale-to-zero, free-tier dynos) also call **\`GET /api/schedules/tick\`** every 5–15 minutes from an external cron: GitHub Actions schedule, cron-job.org, UptimeRobot. Set \`CRON_SECRET\` and send \`Authorization: Bearer <secret>\` (or \`?secret=\`). On Docker / Render / Fly with an always-on instance the built-in ticker is enough.
 - A due schedule is *claimed* before it runs, so parallel tickers never double-run it; missed slots are caught up once, not replayed.
 - Automations run unattended with a system instruction to produce the complete deliverable without questions.
 
@@ -328,7 +328,7 @@ Works with zero keys. Persistent data lives in \`data/\` (\`AETHERIS_DATA_DIR\`)
 | \`<PROVIDER>_API_KEY\` | Server-wide provider keys (users can also add their own). |
 | \`AETHERIS_PAID_PLANS=1\` | Re-enables the optional plan/UPI billing system (off by default). |
 
-Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker). Rooms use an in-process event bus; for multi-instance deployments put a sticky session in front or move the bus to Redis.
+Deploy with Docker or any always-on container host (Render / Fly / Railway blueprints in \`deploy/\`). Serverless platforms such as Vercel are not supported — there is no persistent disk and no long-lived process. Rooms use an in-process event bus; for multi-instance deployments put a sticky session in front or move the bus to Redis.
 `},
   { slug: "desktop", section: "Developers", title: "Desktop app (macOS, Linux, Windows)", body: `
 Aetheris also runs as a native desktop app — the same code, wrapped in Electron. Download the installer for your platform from the [releases page](https://github.com/rajaram-2005/Aetheris/releases):

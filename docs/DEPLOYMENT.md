@@ -50,15 +50,44 @@ docker compose up -d --build       # http://localhost:3000, data in the aetheris
 
 The image (`Dockerfile`) is a three-stage build on `node:22-bookworm-slim`, runs as a non-root user, stores state in `/data`, and exposes a health check against `GET /api/health`. Uncomment the `ollama` service in `docker-compose.yml` for fully local inference (`OLLAMA_BASE_URL=http://ollama:11434`).
 
-## 3. Vercel / serverless
+## 3. Managed container hosts (recommended)
 
-Works for the chat, router, agents, MCP gateway and GitHub features, with two caveats:
+Aetheris needs a **long-lived Node process plus a writable volume**, so the hosts that fit it are the
+ones that run the Docker image above with a disk attached. All three below are one file away:
 
-* **Ephemeral filesystem.** The JSON stores and SQLite file are not durable across cold starts. Use it for demos, or point `AETHERIS_DATA_DIR` at a mounted persistent disk (Railway, Fly, Render volumes all work; Vercel does not offer one).
-* **No long-lived process.** Set `AETHERIS_SCHEDULER=0` and drive automations with an external cron hitting `POST /api/schedules/tick` with `Authorization: Bearer $CRON_SECRET` (Vercel Cron, GitHub Actions schedule, cron-job.org).
-* **Install-script approvals (npm ≥ 11.16 / npm 12).** Vercel's build image runs an npm that skips dependency install scripts unless they are approved in `package.json` (npm 12 makes this the default everywhere). The committed `allowScripts` field covers `esbuild` (needed by tooling) and `sharp` (needed by Next image optimization, including the copy nested under `next/`); without the approval, npm prints `npm warn allow-scripts …` and silently skips the scripts, which surfaces later as a broken build or failed optimization at runtime. The entries are version-pinned: after bumping either dependency, run `npm approve-scripts <pkg>` and commit the result. Review what's pending any time with `npm approve-scripts --allow-scripts-pending`.
+| Host | File in repo | Volume | Notes |
+|---|---|---|---|
+| Render | `deploy/render.yaml` | 10 GB disk at `/data` | `render blueprint launch`, or point a Blueprint at the repo |
+| Fly.io | `deploy/fly.toml` | `fly volumes create aetheris_data --size 10` | `fly launch --copy-config --dockerfile Dockerfile` |
+| Railway / Coolify / Dokku / Kubernetes | `Dockerfile` | any persistent mount at `/data` | set `AETHERIS_DATA_DIR=/data` |
 
-Fly.io / Railway / Render (persistent volume + always-on container) are the recommended managed options.
+Whatever the host, the contract is the same:
+
+```
+image:   built from ./Dockerfile        port: 3000 (0.0.0.0)
+env:     AETHERIS_DATA_DIR=/data, AETHERIS_SECRET=<32-byte hex>, AETHERIS_ADMIN_EMAILS=...
+volume:  persistent disk mounted at /data
+health:  GET /api/health
+```
+
+Scale to **one instance**: the JSON stores and SQLite file are single-writer (see the status table).
+
+### Serverless / Vercel — not supported
+
+Vercel (and any other function-per-request platform) is **not a supported target** and is the source of
+most deployment errors reported against this repo:
+
+* **No persistent filesystem.** The JSON stores and `knowledge.sqlite` are wiped between cold starts, so
+  memory, schedules, knowledge and credentials silently disappear. Vercel offers no mountable disk.
+* **No long-lived process.** The minute scheduler, the in-process event bus (rooms/streams) and the
+  telemetry ring buffer all die with the function.
+* **Build-image friction.** Its npm skips dependency install scripts unless approved, so `sharp`/`esbuild`
+  are silently skipped and the build breaks later at runtime.
+* **`node:sqlite` / Node 22 runtime** requirements are not guaranteed on the serverless runtime.
+
+Use Docker (section 2) or a managed container host (this section). If you only need a public demo URL,
+run the container on Render/Fly free-tier or expose your local container with a tunnel
+(`cloudflared tunnel --url http://localhost:3000`).
 
 ## 4. Desktop app
 
@@ -134,6 +163,7 @@ Data files are forward-compatible JSON; the SQLite schema is created with `CREAT
 |---|---|
 | Bare-metal / Docker deployment | IMPLEMENTED (Dockerfile + compose in repo; image build verified locally only when Docker is available) |
 | Health endpoint | IMPLEMENTED |
-| Serverless (Vercel) | PARTIALLY IMPLEMENTED — works with ephemeral state and external cron |
+| Managed container hosts (Render / Fly / Railway) | IMPLEMENTED — `deploy/render.yaml`, `deploy/fly.toml`, persistent `/data` volume |
+| Serverless (Vercel / functions) | NOT SUPPORTED — no persistent disk, no long-lived process; use Docker or a container host |
 | Horizontal scaling | NOT AVAILABLE — single-writer JSON/SQLite stores; run one replica |
 | Central telemetry / log shipping | NOT AVAILABLE (in-memory ring only) |

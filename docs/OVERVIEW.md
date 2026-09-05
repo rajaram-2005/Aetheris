@@ -486,8 +486,9 @@ npm run dev            # or: npm run build && npm start
 ```
 Works with zero keys (keyless providers). Add provider keys in Settings or `.env.local` for more capacity.
 Set `AETHERIS_SECRET` (cookie/credential sealing), `AETHERIS_ADMIN_EMAILS`/`_PHONES` (your admin identities) and the
-optional sign-in / payment variables from `.env.example`. Deploys anywhere Next.js runs (Vercel, Render, Fly, Docker);
-persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
+optional sign-in / payment variables from `.env.example`. Deploy with Docker or any container host (Render / Fly /
+Railway blueprints in `deploy/`); serverless platforms like Vercel are not supported — Aetheris needs a long-lived
+process and a writable volume. Persistent data lives in `data/` (`AETHERIS_DATA_DIR`).
 
 
 ## 🎙 Voice mode
@@ -500,7 +501,7 @@ Hands-free conversation: browser speech recognition in 18 languages/accents (Eng
 
 ## ⏰ Scheduled automations
 
-Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (Vercel Cron, GitHub Actions, cron-job.org) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
+Run any agent prompt or workflow on a cron schedule (presets or custom, time-zone aware, 15-min floor) with run history, share-link publishing, email (Resend) and webhook delivery (Slack/Discord/WhatsApp gateways/Zapier/n8n). In-process ticker plus `GET /api/schedules/tick` for external crons (GitHub Actions, cron-job.org, UptimeRobot) protected by `CRON_SECRET`; claim-before-run prevents double execution. See `/docs/schedules`.
 
 ## 📁 Chat with documents
 
