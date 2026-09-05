@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { authenticationRequired, isPublicAuthPath, validSessionCookie } from "./lib/auth/gate";
 import { isLoopbackHost } from "./lib/loopback";
 
 /**
@@ -13,7 +14,7 @@ const RULES: { test: RegExp; limit: number; windowMs: number }[] = [
   { test: /^\/api\/automations\/[^/]+\/hook/, limit: 120, windowMs: 60_000 },
   { test: /^\/api\/(auth|permissions)/, limit: 90, windowMs: 60_000 },
 ];
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   /**
    * Desktop guard: when this instance is the one embedded in the Aetheris desktop app
@@ -26,6 +27,22 @@ export function middleware(req: NextRequest) {
   if (process.env.AETHERIS_DESKTOP === "1" && !isLoopbackHost(req.headers.get("host"))) {
     return new NextResponse(JSON.stringify({ error: "forbidden", detail: "this instance only accepts loopback Host headers" }), { status: 403, headers: { "content-type": "application/json" } });
   }
+
+  if (authenticationRequired() && !isPublicAuthPath(path, req.method)) {
+    const signedIn = await validSessionCookie(req.cookies.get("aetheris_session")?.value);
+    if (!signedIn) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "authentication_required", detail: "Use Google, GitHub, or a named guest session to continue." },
+          { status: 401, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      const login = new URL("/login", req.url);
+      login.searchParams.set("next", `${path}${req.nextUrl.search}`);
+      return NextResponse.redirect(login);
+    }
+  }
+
   if (req.method !== "GET" && req.method !== "HEAD") {
     const rule = RULES.find((r) => r.test.test(path));
     if (rule) {

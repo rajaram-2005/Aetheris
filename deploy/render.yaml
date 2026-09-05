@@ -20,12 +20,25 @@ services:
         value: production
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: AETHERIS_REQUIRE_AUTH
+        value: "1"
+      - key: AETHERIS_GUEST_ACCESS
+        value: "1"
       - key: AETHERIS_SECRET        # openssl rand -hex 32
         generateValue: true
       - key: AETHERIS_ADMIN_KEY     # openssl rand -hex 24
         generateValue: true
       - key: AETHERIS_ADMIN_EMAILS
         sync: false
-      # Provider keys are all optional (keyless providers work out of the box).
+      # Configure Google and GitHub in the Render dashboard (never commit these values).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      # Model-provider keys are optional (keyless providers work out of the box).
       # - key: GROQ_API_KEY
       #   sync: false

@@ -6,13 +6,14 @@
  * account; a phone number resolves to one account; providers can be linked onto an existing
  * account when the user is already signed in.
  */
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomInt, createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { store } from "@/lib/store";
 import { seal, unseal } from "@/lib/crypto";
 import { UID_COOKIE } from "@/lib/user";
+import { ACCOUNT_SESSION_COOKIE } from "@/lib/auth/constants";
 
-export type Provider = "google" | "github" | "email" | "phone";
+export type Provider = "google" | "github" | "email" | "phone" | "guest";
 
 export interface Account {
   id: string;
@@ -26,7 +27,7 @@ export interface Account {
   lastLoginAt: number;
 }
 
-export const SESSION_COOKIE = "aetheris_session";
+export const SESSION_COOKIE = ACCOUNT_SESSION_COOKIE;
 const ACC = "accounts";
 const IDX = "account_index"; // key "email:x" | "phone:x" | "google:sub" | "github:login" → accountId
 
@@ -89,7 +90,7 @@ const secure = process.env.NODE_ENV === "production";
 export function sessionCookies(acc: Account) {
   const exp = Date.now() + 90 * 86_400_000;
   return [
-    { name: SESSION_COOKIE, value: seal(JSON.stringify({ id: acc.id, exp })), httpOnly: true, sameSite: "lax" as const, secure, path: "/", maxAge: 90 * 86400 },
+    { name: SESSION_COOKIE, value: seal(JSON.stringify({ id: acc.id, uid: acc.uid, exp })), httpOnly: true, sameSite: "lax" as const, secure, path: "/", maxAge: 90 * 86400 },
     { name: UID_COOKIE, value: acc.uid, httpOnly: true, sameSite: "lax" as const, secure, path: "/", maxAge: 365 * 86400 },
   ];
 }
@@ -103,7 +104,7 @@ export async function issueCode(channel: "email" | "phone", target: string): Pro
   const key = `${channel}:${target}`;
   const cur = await store.get<Otp>(OTP, key);
   if (cur && Date.now() - cur.sentAt < 45_000) return { error: "Please wait a moment before requesting another code." };
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(randomInt(100000, 1_000_000));
   await store.set<Otp>(OTP, key, { hash: hash(code), exp: Date.now() + 10 * 60_000, tries: 0, sentAt: Date.now() });
   return { code };
 }

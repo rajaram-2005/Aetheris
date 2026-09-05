@@ -2,6 +2,8 @@
 #   fly launch --copy-config --config deploy/fly.toml --dockerfile Dockerfile --no-deploy
 #   fly volumes create aetheris_data --size 10
 #   fly secrets set AETHERIS_SECRET=$(openssl rand -hex 32) AETHERIS_ADMIN_EMAILS=you@example.com
+#   Add GOOGLE_CLIENT_ID/SECRET and GITHUB_CLIENT_ID/SECRET with `fly secrets set`.
+#   Never put those secret values in this file.
 #   fly deploy
 app = "aetheris"
 primary_region = "sin"
@@ -13,6 +15,8 @@ primary_region = "sin"
   AETHERIS_DATA_DIR = "/data"
   NODE_ENV = "production"
   NEXT_TELEMETRY_DISABLED = "1"
+  AETHERIS_REQUIRE_AUTH = "1"
+  AETHERIS_GUEST_ACCESS = "1"
   PORT = "3000"
 
 [[mounts]]

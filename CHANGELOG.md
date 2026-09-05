@@ -13,6 +13,9 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- Authentication: added a hosted access gate with sealed-session middleware validation, protected API `401` responses, safe post-login redirects, Google/GitHub OAuth, and a display-name-only guest session whose owner-scoped data stays private to that browser.
+- Characters: added an owner-scoped persistent character creator, CRUD API, character-aware chat history, and a dedicated browsable UI with separate roleplay and educational guide modes.
+- Curated 16 source-aware deity interpretations across Hindu, Greek, Norse and Egyptian traditions, with visible creative-interpretation labeling and safeguards against invented scripture, supernatural claims and divine commands.
 - Deployment: Vercel/serverless dropped as a supported target (no persistent disk, no long-lived
   process, build-image install-script skips). Docker and always-on container hosts are now the
   documented path, with ready blueprints in `deploy/` (`render.yaml`, `fly.toml`, `deploy/README.md`).

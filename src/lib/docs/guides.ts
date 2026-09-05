@@ -6,16 +6,16 @@ export interface Guide { slug: string; title: string; section: string; body: str
 
 export const GUIDES: Guide[] = [
   { slug: "start", section: "Getting started", title: "What is Aetheris One?", body: `
-Aetheris One is a **free, open-source AI workspace**. One chat box in front of a mesh of 27 free AI providers with silent failover, a hierarchy of 99 agents, a GitHub coding factory, a media studio, a hub of 100+ MCP apps, live rooms, workflows and more.
+Aetheris One is a **free, open-source AI workspace**. One chat box in front of a mesh of free AI providers with silent failover, a hierarchy of 102 agents, a database-backed character creator, a GitHub coding factory, a media studio, a hub of 100+ MCP apps, live rooms, workflows and more.
 
 **Everything is free for everyone.** There are no plans, credits or payments on the default deployment. The only limits are the upstream providers' free tiers — and the router spreads your requests across all of them.
 
 ## 60-second tour
 1. **Chat** — type and send. The router picks a provider; if it rate-limits, another one answers. Hover the ✦ pill to see which.
-2. **@** — type \`@\` to pick one of 99 specialists (\`@coder\`, \`@tutor\`, \`@tax\`…). Or just describe the task and **Prime** routes it.
+2. **@** — type \`@\` to pick one of 102 agents (\`@coder\`, \`@tutor\`, \`@tax\`…). Or just describe the task and **Prime** routes it.
 3. **/** — slash commands: \`/research\`, \`/arena\`, \`/debate\`, \`/room\`, \`/share\`, \`/workflows\`…
-4. **Sidebar modes** — Agents, Coding Factory, Studio, Apps, Gallery, Workflows, Providers.
-5. **Sign in** (optional) — Google, GitHub, email or phone. Your chats, memory and settings sync to every device.
+4. **Sidebar modes** — Characters, Agents, Coding Factory, Studio, Apps, Gallery, Workflows, Providers.
+5. **Choose access** — use Google or GitHub for cross-device sync, or enter only your name for browser-local guest access.
 `},
   { slug: "chat", section: "Getting started", title: "Chat, models and the provider mesh", body: `
 ## How routing works
@@ -39,6 +39,25 @@ Paste or drop up to 4 images; vision-capable providers (Groq, Gemini, GitHub Mod
 
 ## Keyboard
 ⌘/Ctrl+K new chat · ⌘/Ctrl+/ focus composer · ⌘/Ctrl+, settings · Esc stop · Shift+Enter newline.
+`},
+  { slug: "characters", section: "Getting started", title: "Characters: mythic roleplay & guides", body: `
+Open **🏛️ Characters** in the sidebar to browse database-backed AI personas or create one of your own.
+
+## Curated mythic collection
+The starter database has 16 source-aware interpretations across **Hindu traditions**, **Greek mythology**, **Norse mythology** and **Egyptian mythology**. Each card includes an interpretation note and conversation starters. Hindu traditions are treated as living and internally diverse, not as one fixed mythology canon.
+
+## Choose a mode
+- **🎭 Roleplay** uses a first-person, mythology-inspired voice. It is a creative AI interpretation—not a deity, channeling, supernatural contact or divine authority.
+- **📚 Guide** favors education: source context, differences among versions, historical change and explicit uncertainty.
+
+A mode badge remains visible above the conversation and you can switch modes at any time. Character conversations deliberately bypass Prime agent routing so the chosen voice remains stable. Web search, document grounding, memory and Voice remain available.
+
+## Make a private character
+Press **Create character**, then set its name, emoji avatar, collection, greeting, traits, detailed instructions, starters and supported modes. Custom characters are private to your browser/account. You can edit or delete them; curated characters are immutable. A deleted character's old transcript is retained but becomes read-only.
+
+Character prompts are looked up by id on the server. A client cannot replace them through the chat request. Shared rules prohibit invented scripture or citations, claims of supernatural certainty, divine commands, worship demands, and using fear or grief to manipulate a user.
+
+Developer API and storage details: [Characters](https://github.com/rajaram-2005/Aetheris/blob/main/docs/CHARACTERS.md).
 `},
   { slug: "voice", section: "Getting started", title: "Voice mode: talk to Aetheris", body: `
 Press **🎙 Voice** in the composer (or type \`/voice\`) for a hands-free conversation. Tap the orb, speak, and Aetheris answers out loud — then listens again.
@@ -256,14 +275,14 @@ Click 👥 (or \`/room\`) to turn the current chat into a room at \`/room/<id>\`
 Sign in and your chats, projects, memory and settings merge across devices (newest wins per chat; deletions propagate; memory unions). Guests stay local-only.
 `},
   { slug: "accounts", section: "Collaborate", title: "Accounts and sign-in", body: `
-\`/login\` offers **Google**, **GitHub**, **email code** and **phone code**. All methods join into one account: a verified email or phone seen via any provider links to the same account, and signing in while already signed in links the new method.
+\`/login\` offers **Google**, **GitHub**, and a **named guest** option. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested. Google/GitHub accounts work across devices.
 
-Your anonymous usage is adopted by the account on first sign-in, so nothing is lost.
+A guest identity lasts only while its sealed browser session exists. The display name is not a password or recovery credential; use Google or GitHub for cross-device access and recovery.
 
 Sessions are sealed cookies valid 90 days. \`DELETE /api/auth/session\` signs out.
 
 ### Admins
-Identities listed in \`AETHERIS_ADMIN_EMAILS\` / \`AETHERIS_ADMIN_PHONES\` get \`/admin\` and full access. On the default (free-for-all) deployment everyone already has every feature, so admin mainly matters for moderation and the optional billing system.
+OAuth identities listed in \`AETHERIS_ADMIN_EMAILS\` get \`/admin\` and full access. On the default (free-for-all) deployment everyone already has every feature, so admin mainly matters for moderation and the optional billing system.
 `},
   { slug: "api", section: "Developers", title: "OpenAI-compatible API", body: `
 Create a key in **Settings → API keys** (\`sk-aeth-…\`) and point any OpenAI SDK at \`/api/v1\`.
@@ -321,10 +340,10 @@ Works with zero keys. Persistent data lives in \`data/\` (\`AETHERIS_DATA_DIR\`)
 | Variable | Purpose |
 | --- | --- |
 | \`AETHERIS_SECRET\` | Seals cookies, stored keys and credentials. Set in production. |
-| \`AETHERIS_ADMIN_EMAILS\` / \`_PHONES\` | Admin identities. |
+| \`AETHERIS_REQUIRE_AUTH=1\` | Requires an OAuth or guest session on hosted pages and protected APIs. |
+| \`AETHERIS_GUEST_ACCESS=1\` | Enables the display-name-only guest option. |
+| \`AETHERIS_ADMIN_EMAILS\` | OAuth admin identities. |
 | \`GOOGLE_CLIENT_ID/SECRET\`, \`GITHUB_CLIENT_ID/SECRET\` | OAuth sign-in (redirects \`…/api/auth/google/callback\`, \`…/api/auth/github/callback\`). |
-| \`RESEND_API_KEY\`, \`AUTH_EMAIL_FROM\` | Email codes (dev code printed when unset). |
-| \`TWILIO_*\` or \`MSG91_*\` | SMS codes. |
 | \`<PROVIDER>_API_KEY\` | Server-wide provider keys (users can also add their own). |
 | \`AETHERIS_PAID_PLANS=1\` | Re-enables the optional plan/UPI billing system (off by default). |
 

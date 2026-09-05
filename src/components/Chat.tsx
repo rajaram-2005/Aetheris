@@ -25,6 +25,7 @@ import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
 import { RunOutput, runnableLang, useInterpreter, type RunResult } from "./Interpreter";
 import { useVoice, VoiceOverlay, loadVoicePrefs, saveVoicePrefs, resolveVoiceLang, type VoicePrefs } from "./Voice";
 import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from "./Agents";
+import CharactersPage, { useCharacters, type CharacterInfo, type CharacterMode } from "./Characters";
 import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
@@ -116,6 +117,14 @@ export default function Chat() {
   const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
   useEffect(() => { loadModels(); }, [loadModels]);
   const agentList = useAgents();
+  const { characters, loading: charactersLoading, reload: reloadCharacters } = useCharacters();
+  const [pendingCharacter, setPendingCharacter] = useState<{ character: CharacterInfo; mode: CharacterMode } | null>(null);
+  const selectedCharacterId = active?.characterId ?? (!active ? pendingCharacter?.character.id : undefined);
+  const selectedCharacterMode: CharacterMode | undefined = active?.characterMode ?? (!active ? pendingCharacter?.mode : undefined);
+  const selectedCharacter = characters.find((character) => character.id === selectedCharacterId) ?? (!active ? pendingCharacter?.character : undefined);
+  const selectedCharacterName = selectedCharacter?.name ?? active?.characterName;
+  const selectedCharacterAvatar = selectedCharacter?.avatar ?? active?.characterAvatar;
+  const characterUnavailable = !!selectedCharacterId && !charactersLoading && !selectedCharacter;
   const [arenaPick, setArenaPick] = useState<string[]>([]);
   const [runs, setRuns] = useState<Record<string, RunResult | "running">>({});
   const [kb, setKbState] = useState<{ id: string; name: string } | null>(null);
@@ -172,13 +181,31 @@ export default function Chat() {
   }, [commit, convos]);
 
   const startConvo = (firstUser: UiMessage): Conversation => {
-    const base = active ?? { id: crypto.randomUUID(), title: titleFrom(firstUser.content || "Image"), createdAt: Date.now(), updatedAt: Date.now(), projectId: activeProject ?? undefined, messages: [] };
+    const base: Conversation = active ?? {
+      id: crypto.randomUUID(), title: titleFrom(firstUser.content || "Image"), createdAt: Date.now(), updatedAt: Date.now(),
+      projectId: activeProject ?? undefined,
+      ...(pendingCharacter ? { characterId: pendingCharacter.character.id, characterMode: pendingCharacter.mode, characterName: pendingCharacter.character.name, characterAvatar: pendingCharacter.character.avatar } : {}),
+      messages: [],
+    };
     const c = { ...base, updatedAt: Date.now(), messages: [...base.messages, firstUser] };
     if (!active) setActiveId(c.id);
     commit(c);
     return c;
   };
-  const newChat = () => { setActiveId(null); convoRef.current = null; setArtifactsOpen(false); setMode("chat"); taRef.current?.focus(); };
+  const newChat = () => { setActiveId(null); convoRef.current = null; setPendingCharacter(null); setArtifactsOpen(false); setMode("chat"); taRef.current?.focus(); };
+  const beginCharacterChat = (character: CharacterInfo, characterMode: CharacterMode) => {
+    setActiveId(null); convoRef.current = null; setActiveProject(null); setPendingCharacter({ character, mode: characterMode });
+    setResearch(false); setArena(false); setMode("chat");
+    setInput(""); setImages([]); setArtifactsOpen(false);
+    setTimeout(() => taRef.current?.focus(), 50);
+  };
+  const changeCharacterMode = (characterMode: CharacterMode) => {
+    if (!selectedCharacterId) return;
+    if (active) {
+      const next = { ...active, characterMode, updatedAt: Date.now() };
+      commit(next);
+    } else if (pendingCharacter) setPendingCharacter({ ...pendingCharacter, mode: characterMode });
+  };
 
   // ---- factory ------------------------------------------------------------------------------
   const runFactory = useCallback(async (task: string) => {
@@ -339,16 +366,17 @@ export default function Chat() {
   const send = useCallback(async (text?: string, sendOpts?: { voice?: boolean }) => {
     const content = (text ?? input).trim();
     const viaVoice = !!sendOpts?.voice || voiceModeRef.current;
-    if ((!content && images.length === 0) || busy) return;
+    if ((!content && images.length === 0) || busy || characterUnavailable) return;
     if (/^\/explain\b/i.test(content)) { runExplain(); return; }
-    if (/^\/ethics\s+\S/i.test(content)) { setInput(""); return runAgents(`@ai-ethics Run an AI ethics impact assessment on: ${content.replace(/^\/ethics\s+/i, "")}`, []); }
+    if (!selectedCharacterId && /^\/ethics\s+\S/i.test(content)) { setInput(""); return runAgents(`@ai-ethics Run an AI ethics impact assessment on: ${content.replace(/^\/ethics\s+/i, "")}`, []); }
     if (mode === "factory") return runFactory(content);
-    if (/^\/debate\s+/i.test(content)) return runDebate(content.replace(/^\/debate\s+/i, ""));
-    if (research) return runResearch(content);
-    if (arena) return runArenaRef.current(content, images);
+    if (!selectedCharacterId && /^\/debate\s+/i.test(content)) return runDebate(content.replace(/^\/debate\s+/i, ""));
+    if (!selectedCharacterId && research) return runResearch(content);
+    if (!selectedCharacterId && arena) return runArenaRef.current(content, images);
     const tier = models.find((m) => m.id === model);
     const agentic = !!tier && tier.agents.max > 1 && !direct;
-    if (agentic || /^@[a-z][\w-]*\b/i.test(content)) return runAgents(content, images);
+    // Character conversations use their own trusted database persona rather than Prime routing.
+    if (!selectedCharacterId && (agentic || /^@[a-z][\w-]*\b/i.test(content))) return runAgents(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
     const c = startConvo(userMsg);
     const aid = crypto.randomUUID();
@@ -366,6 +394,7 @@ export default function Chat() {
           web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
           project: project ? { instructions: project.instructions, files: project.files } : null,
           memory: settings.memoryEnabled ? memory : [],
+          character: selectedCharacterId && selectedCharacterMode ? { id: selectedCharacterId, mode: selectedCharacterMode } : null,
         }),
         signal: controller.signal,
       });
@@ -405,7 +434,7 @@ export default function Chat() {
       else patchMsg(c.id, aid, (m) => ({ ...m, streaming: false }));
     } finally { setBusy(false); abortRef.current = null; refreshMesh(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, runFactory, runResearch, runAgents, runDebate]);
+  }, [input, images, busy, mode, research, arena, models, model, direct, preferred, servers, settings, memory, project, webOverride, active, activeProject, selectedCharacterId, selectedCharacterMode, characterUnavailable, runFactory, runResearch, runAgents, runDebate]);
 
   const regenerate = () => {
     if (!active || busy) return;
@@ -542,7 +571,7 @@ export default function Chat() {
   }, [loaded]);
   const exportConvo = () => {
     if (!active) return;
-    const md = [`# ${active.title}`, "", ...active.messages.filter((m) => !m.error).map((m) => `**${m.role === "user" ? "You" : `Aetheris${m.provider ? ` (${m.provider})` : ""}`}:**\n\n${m.content}`)].join("\n\n---\n\n");
+    const md = [`# ${active.title}`, active.characterName ? `> ${active.characterName} · ${active.characterMode} · AI interpretation\n` : "", ...active.messages.filter((m) => !m.error).map((m) => `**${m.role === "user" ? "You" : `${active.characterName ?? "Aetheris"}${m.provider ? ` (${m.provider})` : ""}`}:**\n\n${m.content}`)].join("\n\n---\n\n");
     const blob = new Blob([md], { type: "text/markdown" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `${active.title.replace(/[^\w\- ]+/g, "").trim() || "chat"}.md`; a.click(); URL.revokeObjectURL(url);
   };
@@ -568,6 +597,7 @@ export default function Chat() {
   const preferredName = mesh?.providers.find((p) => p.id === preferred)?.name;
   const webOn = (webOverride ?? settings.web) !== "off" && !!settings.tavilyKey;
   const placeholder = mode === "factory" ? (auth.user ? "Describe the program to build and test…" : "Connect GitHub to use the factory")
+    : selectedCharacterName ? `Message ${selectedCharacterName} · ${selectedCharacterMode === "guide" ? "guide" : "roleplay"} mode…`
     : research ? "What should I research in depth?" : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1 && !direct ? "Describe the task — Prime routes it to the right specialists (or force one with @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
   return (
@@ -576,7 +606,7 @@ export default function Chat() {
       <Sidebar convos={convos} projects={projects} activeId={activeId} activeProject={activeProject} open={sidebar} mode={mode} appsCount={servers.length}
         onMode={(m) => { setMode(m); if (window.innerWidth < 1000) setSidebar(false); }}
         onOpen={() => setSidebar(true)} onClose={() => setSidebar(false)} onNew={newChat}
-        onSelect={(id) => { setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 1000) setSidebar(false); }}
+        onSelect={(id) => { setPendingCharacter(null); setActiveId(id); convoRef.current = convos.find((c) => c.id === id) ?? null; setMode("chat"); if (window.innerWidth < 1000) setSidebar(false); }}
         onDelete={(id) => { markDeleted(id); remove(id); if (id === activeId) newChat(); }}
         onPin={(id) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, pinned: !c.pinned }); }}
         onRename={(id, t) => { const c = convos.find((x) => x.id === id); if (c) upsert({ ...c, title: t }); }}
@@ -588,8 +618,9 @@ export default function Chat() {
         <header className="header">
           <div className="brand">
             {!sidebar && <button className="icon-btn" title="Open sidebar" onClick={() => setSidebar(true)}>☰</button>}
-            <h1>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : t(`mode.${mode}` as "mode.chat")}</h1>
+            <h1>{mode === "chat" && selectedCharacterName ? <>{selectedCharacterAvatar ?? "✨"} {active?.title ?? selectedCharacterName}</> : <>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : t(`mode.${mode}` as "mode.chat")}</>}</h1>
             {mode === "chat" && project && <span className="proj-pill" title={project.instructions || "No instructions"}>📁 project</span>}
+            {mode === "chat" && selectedCharacterName && <span className="proj-pill character-pill" title="AI character interpretation">{selectedCharacterMode === "guide" ? "📚 guide" : "🎭 roleplay"}</span>}
           </div>
           <div className="header-right">
             {!sidebar && (
@@ -599,7 +630,7 @@ export default function Chat() {
             )}
             {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={exportConvo} title={t("chat.export")}>⤓</button>}
             {mode === "chat" && active && messages.length > 0 && <button className="mesh-pill" onClick={shareConvo} title={t("chat.share")}>🔗</button>}
-            {mode === "chat" && <button className="mesh-pill" onClick={openRoom} title={t("chat.room")}>👥</button>}
+            {mode === "chat" && !selectedCharacterId && <button className="mesh-pill" onClick={openRoom} title={t("chat.room")}>👥</button>}
             {sync.signedIn && <span className={`sync-dot ${sync.status === "on" ? "on" : ""}`} title={`Cloud sync: ${sync.status}`}>{sync.status === "syncing" ? "⟳" : sync.status === "error" ? "⚠ sync" : "☁ synced"}</span>}
             {artifacts.length > 0 && <button className={`mesh-pill ${artifactsOpen ? "on" : ""}`} onClick={() => setArtifactsOpen((o) => !o)} title="Artifacts">📎 {artifacts.length}</button>}
             {account && (account.plan
@@ -614,7 +645,8 @@ export default function Chat() {
         <div ref={listRef} className="messages" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addImages(e.dataTransfer.files); }}
           onClick={(e) => { const b = (e.target as HTMLElement).closest("button[data-copy]") as HTMLButtonElement | null; if (b) { const code = b.closest(".codeblock")?.querySelector("code")?.textContent ?? ""; navigator.clipboard.writeText(code); b.textContent = "copied"; setTimeout(() => { b.textContent = "copy"; }, 1200); } }}>
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
-          {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
+          {mode === "characters" && <div className="pane"><CharactersPage characters={characters} loading={charactersLoading} reload={reloadCharacters} onChat={beginCharacterChat} /></div>}
+          {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setPendingCharacter(null); setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "control" && <div className="pane"><ControlCenter onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "schedules" && <div className="pane"><Schedules onOpenWorkflows={() => setMode("workflows")} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
@@ -626,6 +658,18 @@ export default function Chat() {
           {mode === "apps" && <div className="pane"><Apps enabled={servers} onChange={setServers} hasPremium={features.includes("mcp_premium")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {(mode === "chat" || mode === "factory") && <>
             {showMesh && mesh && <div className="mesh-inline"><MeshPanel providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /><div style={{ textAlign: "right" }}><button className="link" onClick={() => setMode("providers")}>open full Providers page →</button></div></div>}
+            {mode === "chat" && selectedCharacterName && (
+              <div className="character-chat-banner">
+                <div className="character-mini-avatar" aria-hidden>{selectedCharacterAvatar ?? "✨"}</div>
+                <div><b>{selectedCharacterName}</b><span>{selectedCharacter?.title || "Custom character"}</span></div>
+                {selectedCharacter ? <div className="mode-toggle character-chat-modes">
+                  {selectedCharacter.modes.includes("roleplay") && <button className={selectedCharacterMode === "roleplay" ? "active" : ""} onClick={() => changeCharacterMode("roleplay")}>🎭 Roleplay</button>}
+                  {selectedCharacter.modes.includes("guide") && <button className={selectedCharacterMode === "guide" ? "active" : ""} onClick={() => changeCharacterMode("guide")}>📚 Guide</button>}
+                </div> : <span className="character-missing">Character deleted · transcript only</span>}
+                <button className="link" onClick={() => setMode("characters")}>Browse</button>
+                <button className="link" onClick={newChat}>Exit</button>
+              </div>
+            )}
             {mode === "factory" && (
               <div className="factory-bar">
                 <div><strong>Cloud Coding Factory</strong><span> — describe a program; Aetheris writes it, pushes it to a private <code>{factoryRepo.trim() || "aetheris-factory"}</code> repo, runs the tests on GitHub Actions, and reports back.</span></div>
@@ -639,7 +683,15 @@ export default function Chat() {
             )}
             {messages.length === 0 && !busy ? (
               <div className="empty">
-                {mode === "chat" ? (<>
+                {mode === "chat" ? (selectedCharacterName ? <>
+                  <div className="character-empty-avatar" aria-hidden>{selectedCharacterAvatar ?? "✨"}</div>
+                  <h2>{selectedCharacterName}</h2>
+                  <p>{selectedCharacter?.greeting || (selectedCharacter ? `Start a ${selectedCharacterMode} conversation with ${selectedCharacter.name}.` : "This custom character has been deleted. The existing transcript remains available.")}</p>
+                  {selectedCharacter && <div className="character-starters">
+                    {selectedCharacter.suggestedPrompts.map((prompt) => <button key={prompt} onClick={() => send(prompt)}>{prompt}<span>→</span></button>)}
+                  </div>}
+                  <small className="character-ai-note">AI {selectedCharacterMode === "guide" ? "educational interpretation" : "creative interpretation"} · not supernatural contact</small>
+                </> : <>
                   <div className="hero-orb" />
                   <h2>{project ? project.name : <>Hello. What shall we <em>make</em> today?</>}</h2>
                   <p>{project ? (project.instructions ? project.instructions.slice(0, 160) : "Project chats share these instructions and files.") : "One chat across a mesh of free AI providers with silent failover — artifacts, vision, web search, deep research, projects and memory built in."}</p>
@@ -648,7 +700,8 @@ export default function Chat() {
                   </div>
                   <div className="agent-starts">
                     {AGENT_STARTS.map((a) => <button key={a.agent} className="chip" title={a.prompt} onClick={() => send(a.prompt)}>{a.icon} {a.label} <span className="meta">@{a.agent}</span></button>)}
-                    <button className="chip" onClick={() => setMode("agents")}>all 29 agents →</button>
+                    <button className="chip" onClick={() => setMode("agents")}>all {agentList.length} agents →</button>
+                    <button className="chip" onClick={() => setMode("characters")}>🏛️ mythic characters →</button>
                   </div>
                 </>) : (<>
                   <div className="hero-orb" />
@@ -659,7 +712,7 @@ export default function Chat() {
               </div>
             ) : messages.map((m, idx) => (
               <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
-                {m.role === "assistant" && <div className="avatar" aria-hidden><span /></div>}
+                {m.role === "assistant" && (selectedCharacterName ? <div className="character-message-avatar" aria-hidden>{selectedCharacterAvatar ?? "✨"}</div> : <div className="avatar" aria-hidden><span /></div>)}
                 <div className="msg-body">
                 {m.images && m.images.length > 0 && <div className="msg-images">{m.images.map((src, i) => <img key={i} src={src} alt="" />)}</div>}
                 {m.agentRun && <AgentTrail run={m.agentRun} agents={agentList} />}
@@ -743,14 +796,14 @@ export default function Chat() {
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
         {(mode === "chat" || mode === "factory") && <div className="composer">
-          {mode === "chat" && !pickerOff && <MentionPicker value={input} caret={caret} agents={agentList} onClose={() => setPickerOff(true)} onCommand={runCommand}
+          {mode === "chat" && !selectedCharacterId && !pickerOff && <MentionPicker value={input} caret={caret} agents={agentList} onClose={() => setPickerOff(true)} onCommand={runCommand}
             onPick={(next, c) => { setInput(next); setCaret(c); setTimeout(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(c, c); } }, 0); }} />}
           {images.length > 0 && <div className="attach-row">{images.map((src, i) => <span key={i} className="attach"><img src={src} alt="" /><button onClick={() => setImages(images.filter((_, j) => j !== i))}>✕</button></span>)}</div>}
           <div className="composer-box">
             {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
-            <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} disabled={busy || (mode === "factory" && !auth.user)} />
-            {mode === "chat" && /(^|\s)@([\w-]*)$/.test(input) && !busy && (
+            <textarea ref={taRef} rows={1} value={voice.listening && interim ? interim : input} placeholder={voice.listening ? "Listening…" : placeholder} onChange={autoGrow} onKeyDown={onKey} onPaste={onPaste} onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)} disabled={busy || characterUnavailable || (mode === "factory" && !auth.user)} />
+            {mode === "chat" && !selectedCharacterId && /(^|\s)@([\w-]*)$/.test(input) && !busy && (
               <MentionMenu agents={agentList} query={/(^|\s)@([\w-]*)$/.exec(input)![2]} onPick={(id) => { setInput((v) => v.replace(/(^|\s)@([\w-]*)$/, `$1@${id} `)); taRef.current?.focus(); }} />
             )}
             {mode === "chat" && !busy && voice.supported && (
@@ -758,20 +811,22 @@ export default function Chat() {
             )}
             {voice.speaking && !voiceMode && <button className="ghost" onClick={voice.stopSpeaking}>Mute</button>}
             {busy ? <button className="ghost" onClick={() => abortRef.current?.abort()}>Stop</button>
-              : <button className="send" onClick={() => send()} disabled={(!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? t("chat.build") : research ? t("chat.research") : arena ? t("chat.compare") : t("chat.send")}</button>}
+              : <button className="send" onClick={() => send()} disabled={characterUnavailable || (!input.trim() && images.length === 0) || (mode === "factory" && !auth.user)}>{mode === "factory" ? t("chat.build") : research ? t("chat.research") : arena ? t("chat.compare") : t("chat.send")}</button>}
           </div>
           {mode === "chat" && arena && mesh && <ArenaPicker providers={mesh.providers} selected={arenaPick} onChange={setArenaPick} />}
           {mode === "chat" && (
             <div className="composer-tools">
               <button className={`chip ${webOn ? "on" : ""}`} title={settings.tavilyKey ? `Web search: ${webOverride ?? settings.web}` : "Add a Tavily key in Settings to enable web search"} onClick={() => settings.tavilyKey ? setWebOverride((w) => (w ? null : "on")) : setShowSettings(true)}>🌐 {settings.tavilyKey ? (webOverride === "on" ? "Search: on" : `Search: ${settings.web}`) : "Search"}</button>
-              {(models.find((m) => m.id === model)?.agents.max ?? 1) > 1
-                ? <button className={`chip ${!direct ? "on" : ""}`} title={direct ? "Agents off for quick replies (1 credit). Click to re-enable Prime routing." : "Prime routes each message to specialists (2 credits). Click for a direct single-model reply."} onClick={() => setDirect((d) => !d)}>🤖 {direct ? "Agents: off" : "Agents: on"}</button>
-                : <button className="chip" title="Aetheris Free answers directly with Hermes. Type @tutor, @coder… to call one specialist, or upgrade for Prime multi-agent routing." onClick={() => setInput((v) => (v.startsWith("@") ? v : "@" + v))}>🤖 @agent</button>}
+              {selectedCharacterName
+                ? <button className="chip on" title="Open the character collection" onClick={() => setMode("characters")}>{selectedCharacterAvatar ?? "✨"} {selectedCharacterName} · {selectedCharacterMode}</button>
+                : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1
+                  ? <button className={`chip ${!direct ? "on" : ""}`} title={direct ? "Agents off for quick replies (1 credit). Click to re-enable Prime routing." : "Prime routes each message to specialists (2 credits). Click for a direct single-model reply."} onClick={() => setDirect((d) => !d)}>🤖 {direct ? "Agents: off" : "Agents: on"}</button>
+                  : <button className="chip" title="Aetheris Free answers directly with Hermes. Type @tutor, @coder… to call one specialist, or upgrade for Prime multi-agent routing." onClick={() => setInput((v) => (v.startsWith("@") ? v : "@" + v))}>🤖 @agent</button>}
               <button className={`chip ${kb ? "on" : ""}`} title={kb ? `Answers grounded in "${kb.name}" with citations. Click to manage or detach.` : "Chat with your documents: attach a knowledge base"} onClick={() => setMode("docs")}>📁 {kb ? kb.name.slice(0, 18) : "Docs"}</button>
               {kb && <button className="link" title="Detach knowledge base" onClick={() => setKb(null)}>✕</button>}
-              <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>
+              {!selectedCharacterId && <button className={`chip ${research ? "on" : ""}`} title="Multi-step research with citations (uses 5 message credits)" onClick={() => setResearch((r) => !r)}>🔬 Deep Research</button>}
               <button className={`chip ${memory.length ? "on" : ""}`} title="Memory" onClick={() => setShowSettings(true)}>🧠 {memory.length ? `${memory.length} memories` : "Memory"}</button>
-              <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>
+              {!selectedCharacterId && <button className={`chip ${arena ? "on" : ""}`} title="Send one prompt to several providers side-by-side" onClick={() => { setArena((a) => !a); setResearch(false); }}>⚔️ Arena</button>}
               {voice.supported && <button className={`chip ${voiceMode ? "on" : ""}`} title="Voice mode: hands-free conversation — speak, hear replies, interrupt anytime" onClick={() => (voiceMode ? exitVoice() : enterVoice())}>🎙 Voice</button>}
               <span style={{ marginLeft: "auto", position: "relative" }}>
                 <button className="chip model-chip" title="Aetheris model tier" onClick={() => setShowModels((v) => !v)}>◈ {models.find((m) => m.id === model)?.name ?? "Model"} ▾</button>

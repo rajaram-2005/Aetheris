@@ -11,6 +11,7 @@ import { connectorById } from "@/lib/mcp/catalog";
 import { getSession } from "@/lib/github/auth";
 import { readTokens, refreshToken, tokensCookie } from "@/lib/mcp/oauth";
 import { groundingBlock, looksTimeSensitive, searchKeyFor, searchWeb, type SearchResult } from "@/lib/search/tavily";
+import { characterSystemPrompt, getCharacter, type CharacterMode } from "@/lib/characters";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +65,8 @@ interface Body {
   kb?: unknown;
   fabric?: unknown;
   workspace?: unknown;
+  /** Server-resolved database character. Client sends only an accessible id and interaction mode. */
+  character?: { id?: unknown; mode?: unknown } | null;
 }
 
 export async function POST(req: Request) {
@@ -101,6 +104,22 @@ export async function POST(req: Request) {
   }
 
   const { uid, isNew } = await getUserId();
+
+  // Character instructions are always loaded by id from trusted server-side storage. The client
+  // cannot submit or override a system prompt, and private characters are owner-scoped.
+  let characterBlock: string | undefined;
+  let characterMode: CharacterMode | undefined;
+  if (body.character != null) {
+    const id = typeof body.character.id === "string" ? body.character.id : "";
+    const mode = body.character.mode === "roleplay" || body.character.mode === "guide" ? body.character.mode : undefined;
+    if (!id || !mode) return NextResponse.json({ error: "character requires a valid id and mode" }, { status: 400 });
+    const character = await getCharacter(uid, id);
+    if (!character) return NextResponse.json({ error: "character not found" }, { status: 404 });
+    if (!character.modes.includes(mode)) return NextResponse.json({ error: `${mode} mode is not enabled for this character` }, { status: 400 });
+    characterMode = mode;
+    characterBlock = characterSystemPrompt(character, mode);
+  }
+
   const plan = await planFor(uid);
   const { tier } = resolveTier(typeof body.model === "string" ? body.model : undefined, plan.id);
   const tierOpts = { allow: tier.providers, allowKeyless: tier.allowKeyless, maxTokens: tier.maxTokens, priority: plan.features.includes("priority_routing") };
@@ -116,6 +135,7 @@ export async function POST(req: Request) {
 
   // ---- System prompt assembly: base + artifacts + project + memory + web grounding ----------
   const sysParts: string[] = [SYSTEM_PROMPT, ARTIFACT_PROMPT];
+  if (characterBlock) sysParts.push(characterBlock);
   const proj = body.project ?? null;
   if (proj && typeof proj.instructions === "string" && proj.instructions.trim()) {
     sysParts.push(`PROJECT INSTRUCTIONS (from the user, follow them):\n${proj.instructions.trim().slice(0, 6000)}`);
@@ -173,7 +193,7 @@ export async function POST(req: Request) {
 
   const messages: ChatMessage[] = [{ role: "system", content: sysParts.join("\n\n") }, ...kept];
   const preferred = typeof body.preferred === "string" ? body.preferred : undefined;
-  const temperature = typeof body.temperature === "number" ? body.temperature : undefined;
+  const temperature = typeof body.temperature === "number" ? body.temperature : characterMode === "roleplay" ? 0.75 : characterMode === "guide" ? 0.35 : undefined;
   const wantStream = body.stream !== false;
 
   const servers = (Array.isArray(body.servers) ? body.servers : []) as EnabledServer[];

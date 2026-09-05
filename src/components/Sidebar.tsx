@@ -4,9 +4,10 @@ import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
-export type Mode = "chat" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
+export type Mode = "chat" | "characters" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
+  { id: "characters", label: "Characters", icon: "🏛️", blurb: "Mythic guides & your own personas" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
   { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
   { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
@@ -55,14 +56,15 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
         <button className="sb-new" onClick={onNew}>＋ New chat</button>
         <button className="ghost sb-close" onClick={onClose} title="Hide sidebar">⟨</button>
       </div>
-      <div className="sb-nav">
-        {MODES.map((m) => (
-          <button key={m.id} className={`sb-navitem ${mode === m.id ? "active" : ""}`} onClick={() => onMode(m.id)}>
-            <span className="sb-ico">{m.icon}</span>
-            <span className="sb-navtext"><span>{t(`mode.${m.id}` as "mode.chat")}{m.id === "apps" && appsCount ? <span className="sb-count-pill">{appsCount}</span> : null}</span><small>{m.blurb}</small></span>
-          </button>
-        ))}
-      </div>
+      <div className="sb-scroll">
+        <div className="sb-nav">
+          {MODES.map((m) => (
+            <button key={m.id} className={`sb-navitem ${mode === m.id ? "active" : ""}`} onClick={() => onMode(m.id)}>
+              <span className="sb-ico">{m.icon}</span>
+              <span className="sb-navtext"><span>{t(`mode.${m.id}` as "mode.chat")}{m.id === "apps" && appsCount ? <span className="sb-count-pill">{appsCount}</span> : null}</span><small>{m.blurb}</small></span>
+            </button>
+          ))}
+        </div>
       <input className="sb-search" placeholder="Search chats…" value={q} onChange={(e) => setQ(e.target.value)} />
 
       <div className="sb-section">
@@ -91,8 +93,8 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
                     onBlur={() => { onRename(c.id, draft.trim() || c.title); setEditing(null); }}
                     onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }} />
                 ) : (
-                  <button className="sb-item-main" onClick={() => onSelect(c.id)} onDoubleClick={() => { setEditing(c.id); setDraft(c.title); }} title={c.title}>
-                    {c.title}
+                  <button className="sb-item-main" onClick={() => onSelect(c.id)} onDoubleClick={() => { setEditing(c.id); setDraft(c.title); }} title={c.characterName ? `${c.characterName} · ${c.title}` : c.title}>
+                    {c.characterAvatar ? <span aria-hidden>{c.characterAvatar} </span> : null}{c.title}
                   </button>
                 )}
                 <span className="sb-item-actions">
@@ -104,6 +106,7 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
             ))}
           </div>
         ))}
+      </div>
       </div>
       <div className="sb-bottom">
         <AccountChip />
