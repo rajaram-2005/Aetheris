@@ -17,7 +17,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; overflow: hidden; }
+html, body { height: 100%; margin: 0; }
+body { overflow-y: auto; }
 body {
   background: radial-gradient(1100px 500px at 70% -10%, #1b2250 0%, transparent 60%), radial-gradient(800px 500px at -10% 110%, #2a1a4a 0%, transparent 55%), var(--bg);
   background-attachment: fixed;

@@ -14,3 +14,6 @@ desktop/dist/
 desktop/release/
 desktop/resources/server/
 desktop/node_modules/
+
+# Local Netlify folder
+.netlify
