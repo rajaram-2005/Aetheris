@@ -1,12 +1,8 @@
 # Authentication setup
 
-The Aetheris login page supports:
+The hosted Aetheris app starts with a name-only guest prompt at `/`; there is no separate login page. A visitor enters a display name and continues directly into the workspace without an email or phone. Google and GitHub OAuth endpoints remain available for configured integrations, but they are not shown in the entry UI.
 
-- **Google OAuth**
-- **GitHub OAuth**
-- **Named guest access** — a visitor enters a display name; no email or phone is requested
-
-Email-code and SMS-code login are not exposed. Google and GitHub identities create verified, cross-device accounts. A guest receives a sealed browser session and a private owner ID, but the identity cannot be recovered on another device.
+Email-code and SMS-code login are not exposed. Google and GitHub identities create verified, cross-device accounts when used by an integration. A guest receives a sealed browser session and a private owner ID, but the identity cannot be recovered on another device.
 
 ## 1. Use a stable HTTPS address
 
@@ -35,7 +31,7 @@ AETHERIS_REQUIRE_AUTH=1
 AETHERIS_GUEST_ACCESS=1
 ```
 
-Unauthenticated page requests redirect to `/login`; protected API requests return HTTP `401`. Login/OAuth callbacks, health checks, documentation, public share links, API-key endpoints, hooks, and the protected scheduler callback remain reachable. The embedded desktop server intentionally bypasses the gate so it can work offline.
+The root app remains reachable to signed-out visitors so it can show the name prompt; protected API requests return HTTP `401` until the guest session is created. OAuth callbacks, health checks, documentation, public share links, API-key endpoints, hooks, and the protected scheduler callback remain reachable. The embedded desktop server intentionally bypasses the gate so it can work offline.
 
 ## 3. Google OAuth
 
@@ -77,14 +73,14 @@ A separate OAuth app is recommended for local development because callback confi
 
 ## 5. Named guest behavior
 
-When `AETHERIS_GUEST_ACCESS=1`, the login page asks only **“What should we call you?”**. Submitting a 2–50 character display name creates:
+When `AETHERIS_GUEST_ACCESS=1`, the app root asks only **“What should we call you?”** before showing the workspace. Submitting a 2–50 character display name creates:
 
 - a random private owner ID;
 - a sealed HTTP-only session cookie;
 - an account record marked as a guest;
 - access to characters, chats, and other owner-scoped features.
 
-Guest data remains available while that sealed browser session exists. Signing out ends access to that guest identity; the display name is not a password or recovery credential. Use Google or GitHub whenever cross-device access or account recovery is needed.
+Guest data remains available while that sealed browser session exists. Signing out ends access to that guest identity; the display name is not a password or recovery credential.
 
 Set `AETHERIS_GUEST_ACCESS=0` if a deployment should allow OAuth accounts only.
 
@@ -127,9 +123,8 @@ Without exposing credentials, it reports readiness:
 
 Then test:
 
-1. Opening `/` while signed out redirects to `/login`.
-2. Google returns to the originally requested page.
-3. GitHub returns to the originally requested page.
-4. A guest can continue after entering only a name.
-5. A guest sees only their owner-scoped custom characters.
-6. Signing out makes protected APIs return `401`.
+1. Opening `/` while signed out shows the name prompt.
+2. A guest can continue after entering only a name.
+3. The workspace loads with the new sealed session.
+4. A guest sees only their owner-scoped custom characters.
+5. Signing out makes protected APIs return `401`.

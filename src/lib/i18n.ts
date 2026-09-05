@@ -12,7 +12,7 @@ export const LANGS: { id: Lang; label: string; native: string }[] = [
 
 const en = {
   "mode.chat": "Chat", "mode.characters": "Characters", "mode.agents": "Agents", "mode.factory": "Coding Factory", "mode.studio": "Studio", "mode.apps": "Apps", "mode.providers": "Providers", "mode.gallery": "Gallery", "mode.workflows": "Workflows", "mode.learn": "Learn", "mode.study": "Study", "mode.docs": "Docs", "mode.schedules": "Schedules", "mode.control": "Control Center",
-  "sb.newChat": "New chat", "sb.search": "Search chats…", "sb.settings": "⚙ Settings, memory & keys", "sb.signIn": "👤 Sign in / Create account", "sb.signOut": "sign out", "sb.projects": "Projects",
+  "sb.newChat": "New chat", "sb.search": "Search chats…", "sb.settings": "⚙ Settings, memory & keys", "sb.signIn": "👤 Enter your name", "sb.signOut": "sign out", "sb.projects": "Projects",
   "chat.placeholder": "Message Aetheris… (Shift+Enter for newline)", "chat.send": "Send", "chat.stop": "Stop", "chat.research": "Research", "chat.compare": "Compare", "chat.build": "Build",
   "chat.free": "free", "chat.today": "today", "chat.share": "Create a public read-only link to this chat", "chat.room": "Open a live room where others can join this chat", "chat.export": "Download this chat as Markdown",
   "login.title": "Welcome to Aetheris", "login.sub": "Enter your name to continue.", "login.google": "Continue with Google", "login.github": "Continue with GitHub",
@@ -25,7 +25,7 @@ export type Key = keyof typeof en;
 
 const ta: Partial<Record<Key, string>> = {
   "mode.chat": "அரட்டை", "mode.characters": "பாத்திரங்கள்", "mode.agents": "ஏஜென்ட்கள்", "mode.factory": "கோடிங் தொழிற்சாலை", "mode.studio": "ஸ்டுடியோ", "mode.apps": "ஆப்ஸ்", "mode.providers": "வழங்குநர்கள்", "mode.gallery": "கேலரி", "mode.workflows": "பணிப்பாய்வுகள்", "mode.learn": "கற்றல்", "mode.study": "படிப்பு", "mode.docs": "ஆவணங்கள்", "mode.schedules": "அட்டவணைகள்", "mode.control": "கட்டுப்பாட்டு மையம்",
-  "sb.newChat": "புதிய அரட்டை", "sb.search": "அரட்டைகளைத் தேடு…", "sb.settings": "⚙ அமைப்புகள், நினைவகம் & கீகள்", "sb.signIn": "👤 உள்நுழை / கணக்கு உருவாக்கு", "sb.signOut": "வெளியேறு", "sb.projects": "திட்டங்கள்",
+  "sb.newChat": "புதிய அரட்டை", "sb.search": "அரட்டைகளைத் தேடு…", "sb.settings": "⚙ அமைப்புகள், நினைவகம் & கீகள்", "sb.signIn": "👤 உங்கள் பெயரை உள்ளிடுங்கள்", "sb.signOut": "வெளியேறு", "sb.projects": "திட்டங்கள்",
   "chat.placeholder": "Aetheris-க்கு செய்தி அனுப்பு… (புதிய வரிக்கு Shift+Enter)", "chat.send": "அனுப்பு", "chat.stop": "நிறுத்து", "chat.research": "ஆராய்", "chat.compare": "ஒப்பிடு", "chat.build": "உருவாக்கு",
   "chat.free": "இலவசம்", "chat.today": "இன்று", "chat.share": "இந்த அரட்டைக்கு பொது இணைப்பு உருவாக்கு", "chat.room": "மற்றவர்கள் சேரக்கூடிய நேரடி அறையைத் திற", "chat.export": "இந்த அரட்டையை Markdown ஆக பதிவிறக்கு",
   "login.title": "Aetheris-க்கு வரவேற்கிறோம்", "login.sub": "தொடர உங்கள் பெயரை உள்ளிடுங்கள்.", "login.google": "Google மூலம் தொடரவும்", "login.github": "GitHub மூலம் தொடரவும்",
@@ -37,7 +37,7 @@ const ta: Partial<Record<Key, string>> = {
 
 const hi: Partial<Record<Key, string>> = {
   "mode.chat": "चैट", "mode.characters": "पात्र", "mode.agents": "एजेंट", "mode.factory": "कोडिंग फ़ैक्टरी", "mode.studio": "स्टूडियो", "mode.apps": "ऐप्स", "mode.providers": "प्रोवाइडर", "mode.gallery": "गैलरी", "mode.workflows": "वर्कफ़्लो", "mode.learn": "सीखें", "mode.study": "अध्ययन", "mode.docs": "दस्तावेज़", "mode.schedules": "शेड्यूल", "mode.control": "कंट्रोल सेंटर",
-  "sb.newChat": "नई चैट", "sb.search": "चैट खोजें…", "sb.settings": "⚙ सेटिंग्स, मेमोरी और कुंजियाँ", "sb.signIn": "👤 साइन इन / खाता बनाएँ", "sb.signOut": "साइन आउट", "sb.projects": "प्रोजेक्ट",
+  "sb.newChat": "नई चैट", "sb.search": "चैट खोजें…", "sb.settings": "⚙ सेटिंग्स, मेमोरी और कुंजियाँ", "sb.signIn": "👤 अपना नाम दर्ज करें", "sb.signOut": "साइन आउट", "sb.projects": "प्रोजेक्ट",
   "chat.placeholder": "Aetheris को संदेश भेजें… (नई पंक्ति के लिए Shift+Enter)", "chat.send": "भेजें", "chat.stop": "रोकें", "chat.research": "रिसर्च", "chat.compare": "तुलना", "chat.build": "बनाएँ",
   "chat.free": "मुफ़्त", "chat.today": "आज", "chat.share": "इस चैट का सार्वजनिक लिंक बनाएँ", "chat.room": "लाइव रूम खोलें जहाँ दूसरे इस चैट में शामिल हो सकें", "chat.export": "इस चैट को Markdown में डाउनलोड करें",
   "login.title": "Aetheris में आपका स्वागत है", "login.sub": "जारी रखने के लिए अपना नाम दर्ज करें।", "login.google": "Google से जारी रखें", "login.github": "GitHub से जारी रखें",

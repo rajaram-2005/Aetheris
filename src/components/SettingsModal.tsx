@@ -78,12 +78,11 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
                   {account.user.avatar ? <img src={account.user.avatar} alt="" /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
                   <span className="who">{account.user.name}{account.admin && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
                   <span className="hint" style={{ margin: 0 }}>{[account.user.email, account.user.phone].filter(Boolean).join(" · ")} · via {account.user.providers.join(", ")}</span>
-                  <a className="link" href="/login">+ link another</a>
                   {account.admin && <a className="link" href="/admin">admin</a>}
                   <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>sign out</button>
                 </div>
               ) : (
-                <div className="upsell">👤 You're using Aetheris as a guest on this browser. <a className="link" href="/login">Sign in</a> to keep your plan, memory and API keys on every device.</div>
+                <div className="upsell">👤 You're using Aetheris as a guest on this browser. Guest data stays in this browser.</div>
               )}
             </div>
             <div className="usage-head">

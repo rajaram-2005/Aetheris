@@ -423,15 +423,14 @@ scripts/         verify-connectors.ts — live probe of every connector endpoint
 
 ## Sign in — one account, every device
 
-`/login` offers **Continue with Google**, **Continue with GitHub**, and a named **guest** option. Google/GitHub accounts work across devices. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested.
+When hosted authentication is enabled, the app root asks **“What should we call you?”** and continues with a named browser-local guest. No email or phone is requested, and there is no separate login page. OAuth routes remain available for configured integrations but are not shown in the entry UI.
 
 | Method | Env vars | Without config |
 | --- | --- | --- |
-| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (redirect `…/api/auth/google/callback`) | button disabled |
-| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (redirect `…/api/auth/github/callback`) | button disabled |
-| Named guest | `AETHERIS_GUEST_ACCESS=1` | guest form disabled |
+| Named guest | `AETHERIS_GUEST_ACCESS=1` | name prompt disabled |
+| OAuth integration | `GOOGLE_*` / `GITHUB_*` | not exposed in the entry UI |
 
-Set `AETHERIS_REQUIRE_AUTH=1` on a hosted deployment to redirect signed-out users to `/login` and return `401` from protected APIs. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out. Full setup and callback instructions: [AUTHENTICATION](AUTHENTICATION.md).
+Set `AETHERIS_REQUIRE_AUTH=1` on a hosted deployment to show the root name prompt to signed-out visitors and return `401` from protected APIs. Sessions are sealed cookies valid 90 days; `DELETE /api/auth/session` signs out. Full setup and callback instructions: [AUTHENTICATION](AUTHENTICATION.md).
 
 ### Admin accounts
 Sign in through Google or GitHub with an address listed in `AETHERIS_ADMIN_EMAILS` (the founder address is the default) and you get **everything**: God Mode features, no credit metering,

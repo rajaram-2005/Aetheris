@@ -275,9 +275,9 @@ Click 👥 (or \`/room\`) to turn the current chat into a room at \`/room/<id>\`
 Sign in and your chats, projects, memory and settings merge across devices (newest wins per chat; deletions propagate; memory unions). Guests stay local-only.
 `},
   { slug: "accounts", section: "Collaborate", title: "Accounts and sign-in", body: `
-\`/login\` offers **Google**, **GitHub**, and a **named guest** option. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested. Google/GitHub accounts work across devices.
+When hosted authentication is enabled, Aetheris opens a name-only guest prompt at the app root before the first chat. A guest enters only a display name and receives a private browser-local owner identity; no email or phone is requested.
 
-A guest identity lasts only while its sealed browser session exists. The display name is not a password or recovery credential; use Google or GitHub for cross-device access and recovery.
+A guest identity lasts only while its sealed browser session exists. The display name is not a password or recovery credential.
 
 Sessions are sealed cookies valid 90 days. \`DELETE /api/auth/session\` signs out.
 

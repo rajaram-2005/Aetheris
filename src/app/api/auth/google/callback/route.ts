@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const jar = await cookies();
   const expected = jar.get(GOOGLE_STATE)?.value;
   const next = safeReturnTo(jar.get(AUTH_RETURN_COOKIE)?.value);
-  const fail = (reason: string) => NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(reason)}&next=${encodeURIComponent(next)}`);
+  const fail = (reason: string) => NextResponse.redirect(`${origin}/?error=${encodeURIComponent(reason)}&next=${encodeURIComponent(next)}`);
   if (!code || !state || state !== expected) return fail("Sign-in state mismatch. Please try again.");
   const tok = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },

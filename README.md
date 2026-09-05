@@ -32,7 +32,7 @@ cp .env.example .env.local     # optional: add a key, e.g. GROQ_API_KEY
 npm run dev                    # http://localhost:3000
 ```
 
-**Zero model-provider keys works** — Pollinations and LLM7.io are keyless. Hosted deployments use Google/GitHub OAuth or a named browser-local guest (`AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_GUEST_ACCESS=1`); see [AUTHENTICATION](docs/AUTHENTICATION.md). Every model key you add raises quality and throughput; the router only uses providers whose key is set.
+**Zero model-provider keys works** — Pollinations and LLM7.io are keyless. Hosted deployments use a name-only browser-local guest prompt (`AETHERIS_REQUIRE_AUTH=1`, `AETHERIS_GUEST_ACCESS=1`); see [AUTHENTICATION](docs/AUTHENTICATION.md). Every model key you add raises quality and throughput; the router only uses providers whose key is set.
 
 ```bash
 npm test          # 182 tests, no API keys needed

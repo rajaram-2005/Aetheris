@@ -18,7 +18,7 @@ function wantsHtml(req: Request): boolean {
 }
 
 function redirectAfterGuest(req: Request, next: string, error?: string) {
-  const destination = new URL(error ? "/login" : safeReturnTo(next), `${requestOrigin(req)}/`);
+  const destination = new URL(error ? "/" : safeReturnTo(next), `${requestOrigin(req)}/`);
   if (error) {
     destination.searchParams.set("error", error);
     destination.searchParams.set("next", safeReturnTo(next));

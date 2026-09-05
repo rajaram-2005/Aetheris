@@ -69,7 +69,7 @@ export default function RoomPage() {
     if (!r.ok) setErr((await r.json()).error);
   };
 
-  if (err) return <div className="login-wrap"><div className="login-card"><h1>{err}</h1><a className="send" href="/">Aetheris</a></div></div>;
+  if (err) return <div className="guest-wrap"><div className="guest-card"><h1>{err}</h1><a className="send" href="/">Aetheris</a></div></div>;
   return (
     <div className="room">
       <header className="room-head">

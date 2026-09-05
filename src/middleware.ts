@@ -33,13 +33,13 @@ export async function middleware(req: NextRequest) {
     if (!signedIn) {
       if (path.startsWith("/api/")) {
         return NextResponse.json(
-          { error: "authentication_required", detail: "Use Google, GitHub, or a named guest session to continue." },
+          { error: "authentication_required", detail: "Continue from the Aetheris app and enter a name to create a guest session." },
           { status: 401, headers: { "Cache-Control": "no-store" } },
         );
       }
-      const login = new URL("/login", req.url);
-      login.searchParams.set("next", `${path}${req.nextUrl.search}`);
-      return NextResponse.redirect(login);
+      const entry = new URL("/", req.url);
+      entry.searchParams.set("next", `${path}${req.nextUrl.search}`);
+      return NextResponse.redirect(entry);
     }
   }
 
