@@ -5,7 +5,7 @@
  */
 import type { Capability, CapabilitySource } from "./types";
 import { registerSource } from "./registry";
-import { PROVIDERS, isConfigured, resolveModel } from "@/lib/router/providers";
+import { allProviders, isConfigured, resolveModel } from "@/lib/router/providers";
 import { meshStatus } from "@/lib/router/router";
 import { AGENTS } from "@/lib/agents/catalog";
 import { CONNECTORS } from "@/lib/mcp/catalog";
@@ -18,7 +18,7 @@ const modelSource: CapabilitySource = {
   id: "models",
   list() {
     const mesh = new Map(meshStatus().map((m) => [m.id, m]));
-    return PROVIDERS.map<Capability>((p) => {
+    return allProviders().map<Capability>((p) => {
       const m = mesh.get(p.id); const total = (m?.successes ?? 0) + (m?.failures ?? 0);
       return {
         id: `model:${p.id}`, name: `${p.name} · ${resolveModel(p)}`, category: "model", provider: "router",
@@ -124,6 +124,8 @@ let booted = false;
 export function bootCapabilities() {
   if (booted) return; booted = true;
   registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource); registerSource(userMcpSource);
+  // RAVANA (Aetheris Core #1) registers its own source at import; pull it in here.
+  try { require("@/core/ravana/capabilities"); } catch (e) { console.warn("[aetheris] ravana capabilities load failed", (e as Error).message); }
   loadPlugins();
 }
 /** Plugins register their own CapabilitySources on import (src/plugins/index.ts). */

@@ -28,6 +28,7 @@ import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from ".
 import CharactersPage, { useCharacters, type CharacterInfo, type CharacterMode } from "./Characters";
 import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 import HomeDashboard from "./HomeDashboard";
+import Ravana from "./Ravana";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
@@ -116,7 +117,7 @@ export default function Chat() {
   const [factoryRepo, setFactoryRepo] = useState("");
   const [model, setModel] = useState<string>("");
   const [showModels, setShowModels] = useState(false);
-  const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
+  const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].find((x: { id: string; available: boolean }) => x.id === "aetheris-one" && x.available)?.id || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-one"); }).catch(() => undefined), []);
   useEffect(() => { loadModels(); }, [loadModels]);
   const agentList = useAgents();
   const { characters, loading: charactersLoading, reload: reloadCharacters } = useCharacters();
@@ -172,6 +173,8 @@ export default function Chat() {
     try { const r = await fetch("/api/providers", { cache: "no-store" }); if (r.ok) setMesh(await r.json()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { refreshMesh(); const t = setInterval(refreshMesh, 20_000); return () => clearInterval(t); }, [refreshMesh]);
+  // Providers page / Settings dispatch this after adding or removing a provider by link.
+  useEffect(() => { const h = () => refreshMesh(); window.addEventListener("aetheris:refresh-providers", h); return () => window.removeEventListener("aetheris:refresh-providers", h); }, [refreshMesh]);
 
   // ---- conversation helpers -----------------------------------------------------------------
   const convoRef = useRef<Conversation | null>(null);
@@ -376,7 +379,9 @@ export default function Chat() {
     if (!selectedCharacterId && research) return runResearch(content);
     if (!selectedCharacterId && arena) return runArenaRef.current(content, images);
     const tier = models.find((m) => m.id === model);
-    const agentic = !!tier && tier.agents.max > 1 && !direct;
+    // Aetheris One advertises full agent policy; only treat it as agentic when the user's plan
+    // can actually chain agents (server clamps maxAgents to the plan's too).
+    const agentic = !!tier && tier.agents.max > 1 && !direct && (account?.maxAgents ?? 1) > 1;
     // Character conversations use their own trusted database persona rather than Prime routing.
     if (!selectedCharacterId && (agentic || /^@[a-z][\w-]*\b/i.test(content))) return runAgents(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
@@ -612,21 +617,30 @@ export default function Chat() {
     : selectedCharacterName ? `Message ${selectedCharacterName} · ${selectedCharacterMode === "guide" ? "guide" : "roleplay"} mode…`
     : research ? "What should I research in depth?" : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1 && !direct ? "Describe the task — Prime routes it to the right specialists (or force one with @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
+  const settingsModal = showSettings && (
+    <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />
+  );
+
   if (mode === "home") {
-    return <HomeDashboard
-      models={models}
-      mesh={mesh}
-      convos={convos}
-      projects={projects}
-      servers={servers}
-      onMode={setMode}
-      onAsk={(prompt) => {
-        newChat();
-        if (prompt.trim()) setHomeRequest(prompt.trim());
-      }}
-      onNewChat={newChat}
-      onSettings={() => setShowSettings(true)}
-    />;
+    return (
+      <>
+        <HomeDashboard
+          models={models}
+          mesh={mesh}
+          convos={convos}
+          projects={projects}
+          servers={servers}
+          onMode={setMode}
+          onAsk={(prompt) => {
+            newChat();
+            if (prompt.trim()) setHomeRequest(prompt.trim());
+          }}
+          onNewChat={newChat}
+          onSettings={() => setShowSettings(true)}
+        />
+        {settingsModal}
+      </>
+    );
   }
 
   return (
@@ -676,6 +690,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "characters" && <div className="pane"><CharactersPage characters={characters} loading={charactersLoading} reload={reloadCharacters} onChat={beginCharacterChat} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setPendingCharacter(null); setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
+          {mode === "ravana" && <div className="pane"><Ravana onAsk={(q) => { setMode("chat"); setInput(q); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "control" && <div className="pane"><ControlCenter onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "schedules" && <div className="pane"><Schedules onOpenWorkflows={() => setMode("workflows")} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
@@ -821,7 +836,7 @@ export default function Chat() {
         )}
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
         {voiceMode && <VoiceOverlay state={busy ? "thinking" : voice.state} level={voice.level} interim={voice.listening ? interim : ""} lastUser={lastUserText} lastAssistant={lastAssistantText} error={voice.error} prefs={voicePrefs} onPrefs={setVoicePrefs} langLabel={voiceLang} voices={voice.voices} onTap={() => (voice.listening ? voice.stopListening() : voice.startListening())} onStop={() => { if (busy) abortRef.current?.abort(); voice.stopSpeaking(); if (voicePrefs.handsFree) setTimeout(() => voice.startListening(), 200); }} onClose={exitVoice} />}
-        {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
+        {settingsModal}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
         {(mode === "chat" || mode === "factory") && <div className="composer">
@@ -863,7 +878,7 @@ export default function Chat() {
                   <div className="model-menu" onMouseLeave={() => setShowModels(false)}>
                     {models.map((m) => (
                       <button key={m.id} className={`${m.id === model ? "on" : ""} ${m.available ? "" : "locked"}`} onClick={() => { if (m.available) { setModel(m.id); setShowModels(false); } else { setShowModels(false); setUpgrade(`${m.name} needs the ${m.minPlan.replace("-", " ")} plan.`); } }}>
-                        <b>{m.name}</b><span className="meta">{m.description}</span>
+                        <b>{m.name}{m.id === "aetheris-one" && <span className="tag" style={{ color: "var(--ok)" }}>one model · all providers</span>}</b><span className="meta">{m.description}</span>
                         <span className="meta">{m.agents.max === 1 ? "⚡ Hermes direct · @mention one specialist" : `✴️ Prime → up to ${m.agents.max} specialists${m.agents.parallel ? " in parallel + synthesis" : " (pipeline)"}${m.agents.critique ? " · 🦉 Metis critique pass" : ""}`}</span>
                         {!m.available && <span className="tag">🔒 {m.minPlan}</span>}
                       </button>

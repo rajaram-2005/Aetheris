@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { Conversation, Project } from "./store";
 import type { Mode } from "./Sidebar";
+import BrandTile from "./Brand";
 
 interface ModelSummary {
   id: string;
@@ -55,6 +56,7 @@ const MODEL_CARDS = [
   { key: "deepseek", name: "DeepSeek", provider: "DeepSeek", icon: "◈", tone: "sky" },
   { key: "qwen", name: "Qwen", provider: "Alibaba", icon: "✧", tone: "purple" },
 ];
+const MODEL_LOGO_ID: Record<string, string> = { gpt: "openai", claude: "anthropic", gemini: "gemini", grok: "xai", llama: "meta", deepseek: "deepseek", qwen: "qwen" };
 
 const QUICK_ACTIONS: { label: string; sub: string; icon: string; tone: string; prompt?: string; mode?: Mode }[] = [
   { label: "New Chat", sub: "Start a conversation", icon: "◌", tone: "cyan" },
@@ -145,7 +147,7 @@ export default function HomeDashboard({ models, mesh, convos, projects, servers,
           </section>
 
           <section className="dashboard-section models-section"><div className="dashboard-section-title"><h2>AI Models</h2><button onClick={() => onMode("providers")}>View All <span>→</span></button></div><div className="model-grid">
-            {MODEL_CARDS.map((card, index) => <button key={card.key} className="model-card" onClick={() => onMode("chat")}><Icon tone={card.tone}>{card.icon}</Icon><b>{configuredModels[index]?.name ?? card.name}</b><small>{configuredModels[index]?.description ?? card.provider}</small></button>)}
+            {MODEL_CARDS.map((card, index) => <button key={card.key} className="model-card" onClick={() => onMode("chat")}><BrandTile name={configuredModels[index]?.name ?? card.provider} id={MODEL_LOGO_ID[card.key]} size={30} /><span className="model-card-txt"><b>{configuredModels[index]?.name ?? card.name}</b><small>{configuredModels[index]?.description ?? card.provider}</small></span></button>)}
             <button className="model-card more-models" onClick={() => onMode("providers")}><span>＋</span><b>More Models</b></button>
           </div></section>
 

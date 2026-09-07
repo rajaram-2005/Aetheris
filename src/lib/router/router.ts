@@ -1,7 +1,13 @@
 import { record } from "@/core/observability/events";
 import { callProvider, hasImages, hasVideo } from "./adapters";
-import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "./providers";
+import { allProviders, apiKeyFor, isConfigured, providerKey, providerKeySource, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
+
+/** Short display prefix for a key (never the secret itself). */
+export function maskKey(key?: string): string | null {
+  if (!key) return null;
+  return key.length > 12 ? `${key.slice(0, 5)}…${key.slice(-4)}` : `${key.slice(0, 2)}…`;
+}
 
 /** Cooldown applied after a rate limit / server error, per provider. */
 const RATE_LIMIT_COOLDOWN_MS = Number(process.env.AETHERIS_COOLDOWN_MS ?? 60_000);
@@ -123,15 +129,17 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
   const now = Date.now();
   // Video is a stricter requirement than vision: only providers that take video inline qualify, and
   // the fallback is nothing (a video sent to an image-only provider is a guaranteed 400).
-  let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
+  let configured = allProviders().filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
   // leave the user with nothing: fall back to the full configured set if the policy empties it.
+  // Providers the user added themselves (custom by-link endpoints) are always eligible on every
+  // tier: they are their own machines/gateways, not community endpoints.
   if (opts?.allow?.length) {
-    const pick = configured.filter((p) => opts.allow!.includes(p.id));
+    const pick = configured.filter((p) => p.custom || opts.allow!.includes(p.id));
     if (pick.length) configured = pick;
   }
   if (opts?.allowKeyless === false) {
-    const keyed = configured.filter((p) => !p.keyless || !!process.env[p.envKey]?.trim());
+    const keyed = configured.filter((p) => p.custom || !p.keyless || !!providerKey(p));
     if (keyed.length) configured = keyed;
   }
 
@@ -278,7 +286,7 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
 /** Snapshot of the mesh for the /api/providers endpoint and the UI status strip. */
 export function meshStatus() {
   const now = Date.now();
-  return PROVIDERS.map((p) => {
+  return allProviders().map((p) => {
     const configured = isConfigured(p);
     const h = entry(p.id);
     const coolingDown = h.cooldownUntil > now;
@@ -288,9 +296,14 @@ export function meshStatus() {
       model: resolveModel(p),
       priority: p.priority,
       envKey: p.envKey,
+      baseUrl: p.baseUrl,
+      custom: !!p.custom,
+      local: !!p.local,
       notes: p.notes,
       keyless: !!p.keyless,
-      hasKey: !!(process.env[p.envKey] && process.env[p.envKey]!.trim()),
+      hasKey: !!providerKey(p),
+      keySource: providerKeySource(p) ?? null,
+      maskedKey: maskKey(providerKey(p)),
       keyUrl: p.keyUrl,
       freeTier: p.freeTier,
       configured,

@@ -25,7 +25,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { route } from "@/lib/router/router";
 import { extractText } from "@/lib/kb";
-import { PROVIDERS, isConfigured } from "@/lib/router/providers";
+import { allProviders, isConfigured } from "@/lib/router/providers";
+import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { readContainer, describeContainer } from "./container";
 import { sampleFramesWithWasm, wasmFfmpegAvailable, wasmFfmpegReason, wasmFfmpegVersion } from "./wasmffmpeg";
 import { traced } from "../observability/events";
@@ -37,8 +38,8 @@ export interface Perception { ok: boolean; modality: Modality; text: string; str
 
 async function which(bin: string) { try { await run("which", [bin]); return true; } catch { return false; } }
 /** Providers that take video inline — the path that makes video work without ffmpeg. */
-const videoProviders = () => PROVIDERS.filter((p) => p.video && isConfigured(p)).map((p) => p.id);
-const visionProviders = () => PROVIDERS.filter((p) => p.vision && isConfigured(p)).map((p) => p.id);
+const videoProviders = () => allProviders().filter((p) => p.video && isConfigured(p)).map((p) => p.id);
+const visionProviders = () => allProviders().filter((p) => p.vision && isConfigured(p)).map((p) => p.id);
 export async function status() {
   const vision = visionProviders();
   const stt = process.env.STT_URL && process.env.STT_KEY ? "custom STT_URL" : process.env.GROQ_API_KEY ? "groq whisper-large-v3" : undefined;
@@ -184,12 +185,13 @@ export function coverArtOf(data: Buffer): Buffer | null {
 
 /** OpenAI-compatible speech-to-text. Groq's free tier hosts whisper-large-v3. */
 export async function transcribe(data: Buffer, name: string, mime?: string): Promise<{ ok: true; text: string; language?: string; provider: string; model: string } | { ok: false; reason: string }> {
-  const custom = process.env.STT_URL && process.env.STT_KEY; const groq = process.env.GROQ_API_KEY;
+  const sttKey = resolvedEnv("STT_KEY"); const groq = resolvedEnv("GROQ_API_KEY");
+  const custom = process.env.STT_URL && sttKey;
   if (!custom && !groq) return { ok: false, reason: "no speech-to-text provider configured (set GROQ_API_KEY — free — or STT_URL/STT_KEY)" };
   const url = custom ? `${process.env.STT_URL!.replace(/\/$/, "")}/audio/transcriptions` : "https://api.groq.com/openai/v1/audio/transcriptions";
   const model = process.env.STT_MODEL ?? (custom ? "whisper-1" : "whisper-large-v3");
   const fd = new FormData(); fd.append("file", new Blob([new Uint8Array(data)], { type: mime ?? "application/octet-stream" }), name); fd.append("model", model); fd.append("response_format", "verbose_json");
-  const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${custom ? process.env.STT_KEY : groq}` }, body: fd, signal: AbortSignal.timeout(120_000) });
+  const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${custom ? sttKey : groq}` }, body: fd, signal: AbortSignal.timeout(120_000) });
   if (!r.ok) return { ok: false, reason: `STT ${r.status}: ${(await r.text()).slice(0, 200)}` };
   const j = (await r.json()) as { text: string; language?: string };
   return { ok: true, text: j.text, language: j.language, provider: custom ? "custom" : "groq", model };

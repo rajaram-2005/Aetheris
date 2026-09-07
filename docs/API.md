@@ -24,12 +24,48 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | Endpoint | Description |
 |---|---|
 | `GET /api/models` | providers/tiers available (all free) |
-| `GET /api/providers` | mesh health, cooldowns |
+| `GET /api/providers` | mesh health, cooldowns, per-provider `keySource` (`app` \| `env`) + masked key |
+| `GET/PUT/DELETE /api/providers/keys` | manage every API key from Settings instead of `.env` — chat-model providers + service keys (Tavily, Resend, Hugging Face, Fal, ElevenLabs, Luma, Runway, embeddings, custom STT); stored in `data/runtime_keys.json`, applied instantly, runtime keys override `.env` |
 | `POST /api/chat` | One Chat: streaming SSE, images, KB grounding, agent auto-delegation, `@agent`; optional database persona via `character:{id,mode:"roleplay"|"guide"}` |
 | `GET/POST /api/characters` · `GET/PATCH/DELETE /api/characters/:id` | curated mythic personas + owner-private character creator ([CHARACTERS](CHARACTERS.md)) |
 | `POST /api/v1/chat/completions` · `GET /api/v1/models` | OpenAI-compatible |
 | `POST /api/explain` | fact-vs-inference explainability for an answer |
 | `POST /api/debate` | two positions + judge |
+
+## RAVANA — Aetheris Core #1 (Reasoning)
+
+RAVANA is the first intelligence core of the Aetheris platform: an intelligence layer above models
+(never one model). It classifies the task, builds a DAG plan, routes each step to a model role
+(fast / reasoning / coding / vision), executes with tools behind the capability-permission layer,
+verifies each step and the final deliverable, and streams an **execution trace** (never hidden
+chain-of-thought) over SSE. Full design: [RAVANA](RAVANA.md).
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/ravana` | manifest: core status + honest subsystem states + engine (mesh \| preview) |
+| `POST /api/v1/ravana/chat {message, engine?, project_id?, images?}` | quick task: classify → plan → run, returns `task_id` |
+| `GET /api/v1/ravana/tasks?status=&project_id=&limit=` | task list (own uid) |
+| `POST /api/v1/ravana/tasks {objective, context?, engine?, budget?, auto_start?}` | create a task |
+| `GET /api/v1/ravana/tasks/:id` · `DELETE` | full snapshot (plan, events, result) · cancel |
+| `POST /api/v1/ravana/tasks/:id/run` | start a queued task |
+| `GET /api/v1/ravana/tasks/:id/stream` | SSE: snapshot + live execution-trace events |
+| `POST /api/v1/ravana/tasks/:id/confirm {approve, confirmation_token?}` | resolve a tool confirmation gate |
+| `GET /api/v1/ravana/projects` · `POST` · `GET/PATCH/DELETE /api/v1/ravana/projects/:id` | RAVANA projects |
+| `GET /api/v1/ravana/memory?type=&project_id=` · `POST` · `DELETE /api/v1/ravana/memory/:id` | episodic/semantic memory CRUD |
+| `POST /api/v1/ravana/memory/search {query, project_id?, top_k?, types?}` | layered retrieval + rerank + context compression |
+| `GET /api/v1/ravana/models` | role pool: how each role maps to the mesh (env `RAVANA_MODEL_<ROLE>=provider[:model]`) |
+| `GET /api/v1/ravana/tools` | unified tool protocol catalog + permission policy per tool |
+| `GET /api/v1/ravana/stats` | dashboard numbers: tasks, success rate, memory, models, tools |
+
+Streaming event vocabulary (stable, spec §16): `task.created · engine.selected · task.planned ·
+task.started · model.selected · tool.requested · tool.started · tool.completed ·
+memory.retrieved · memory.saved · reasoning.completed · verification.started ·
+verification.completed · task.replanned · task.awaiting_confirmation · task.resumed ·
+node.passed · node.failed · task.completed · task.failed · task.cancelled · note`.
+
+Honest modes: with no provider key configured the **preview responder** drives the full pipeline
+(deterministic, every trace and answer is labelled preview); with any provider key the **model
+mesh** runs the same pipeline with real model calls.
 
 ## Agents & execution
 

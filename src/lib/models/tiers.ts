@@ -26,6 +26,17 @@ const STRONG = ["groq", "cerebras", "sambanova", "gemini", "github", "mistral", 
 const WIDE = [...STRONG, "cloudflare", "huggingface", "deepseek", "ai21", "ovh", "ollama-cloud", "zai", "siliconflow", "nebius", "chutes", "glhf", "nscale", "perplexity"];
 
 export const MODEL_TIERS: ModelTier[] = [
+  {
+    id: "aetheris-one",
+    name: "Aetheris One",
+    minPlan: "free",
+    description: "One model over every provider — all your keys, local servers and community endpoints fused. The best available provider answers, load spreads across all of them, rate limits fail over silently. The engine behind every Aetheris model, RAVANA Core and the agents.",
+    providers: [],
+    allowKeyless: true,
+    maxTokens: 8192,
+    agents: { max: 6, parallel: true, critique: true },
+    contextMessages: 40,
+  },
   { id: "aetheris-free", name: "Aetheris Free", minPlan: "free", description: "Hermes answers directly on community + free-tier models.", providers: [], allowKeyless: true, maxTokens: 1024, agents: { max: 1, parallel: false, critique: false }, contextMessages: 12 },
   { id: "aetheris-lite", name: "Aetheris Lite", minPlan: "lite", description: "Prime routes to 1–2 specialists on keyed free-tier providers.", providers: WIDE, allowKeyless: false, maxTokens: 2048, agents: { max: 2, parallel: false, critique: false }, contextMessages: 20 },
   { id: "aetheris-pro", name: "Aetheris Pro", minPlan: "pro", description: "Prime + 3-specialist pipelines on the strongest free-tier models.", providers: STRONG, allowKeyless: false, maxTokens: 4096, agents: { max: 3, parallel: false, critique: false }, contextMessages: 30 },

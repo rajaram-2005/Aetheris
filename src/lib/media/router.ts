@@ -1,17 +1,19 @@
 import { traced } from "@/core/observability/events";
 import { ADAPTERS, mediaProviders } from "./providers";
+import { runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import { MediaError, type MediaKind, type MediaResult } from "./types";
 
 const cooldown = new Map<string, number>();
 
 /**
- * Resolve the key for a provider: user-supplied BYOK key first, then server env.
- * BYOK keys travel only in the request and are never persisted.
+ * Resolve the key for a provider: user-supplied BYOK key first, then the app's runtime key
+ * store (Settings → API keys), then server env. BYOK keys travel only in the request and are
+ * never persisted.
  */
 function keyFor(id: string, envKey: string, byok: boolean | undefined, userKeys: Record<string, string>) {
   const u = userKeys[id]?.trim();
   if (byok && u) return u;
-  return process.env[envKey]?.trim() || u || undefined;
+  return runtimeKeyFor(envKey) || process.env[envKey]?.trim() || u || undefined;
 }
 
 export function mediaMeshStatus(userKeys: Record<string, string> = {}) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { callProvider } from "@/lib/router/adapters";
-import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "@/lib/router/providers";
+import { allProviders, apiKeyFor, isConfigured, resolveModel } from "@/lib/router/providers";
 import type { ChatMessage } from "@/lib/router/types";
 import { getUserId, uidCookie } from "@/lib/user";
 import { consumeChat } from "@/lib/billing/entitlements";
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   if (!msgs.length) return NextResponse.json({ error: "messages required" }, { status: 400 });
   const hasImages = msgs.some((m) => m.images?.length);
   let ids = Array.from(new Set((body.providers ?? []).filter((x) => typeof x === "string"))).slice(0, 4);
-  const configured = PROVIDERS.filter((p) => isConfigured(p) && (!hasImages || p.vision));
+  const configured = allProviders().filter((p) => isConfigured(p) && (!hasImages || p.vision));
   if (ids.length < 2) ids = configured.sort((a, b) => a.priority - b.priority).slice(0, 3).map((p) => p.id);
   const lanes = ids.map((id) => configured.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
   if (lanes.length < 2) return NextResponse.json({ error: "Arena needs at least two configured providers." }, { status: 400 });

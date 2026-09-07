@@ -15,6 +15,7 @@ import path from "node:path";
 import { mkdirSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { record } from "../observability/events";
+import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import * as semantic from "./semantic";
 
 export type SourceKind = "user" | "document" | "web" | "agent" | "device" | "github" | "research" | "memory" | "import";
@@ -68,7 +69,7 @@ function persistModel(d: Db) {
   } catch { semDirty = true; }
 }
 async function embed(text: string): Promise<Float32Array> {
-  const url = process.env.EMBEDDINGS_URL, key = process.env.EMBEDDINGS_KEY, model = process.env.EMBEDDINGS_MODEL ?? "text-embedding-3-small";
+  const url = process.env.EMBEDDINGS_URL, key = resolvedEnv("EMBEDDINGS_KEY"), model = process.env.EMBEDDINGS_MODEL ?? "text-embedding-3-small";
   if (url && key) {
     try {
       const r = await fetch(url.replace(/\/$/, "") + "/embeddings", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, input: text.slice(0, 8000) }), signal: AbortSignal.timeout(15_000) });

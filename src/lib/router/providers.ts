@@ -1,10 +1,13 @@
 import type { ProviderConfig } from "./types";
+import { resolvedEnv, runtimeKeyFor } from "./runtimeKeys";
+import { listCustomProviders, toProviderConfig } from "./customProviders";
 
 /**
  * The Aetheris provider mesh.
  *
  * Every provider here has a free tier (or free developer credits) at the time of writing.
- * A provider is only *active* if its API key env var is set. The router tries providers in
+ * A provider is only *active* if its API key is set — in .env (classic) or in the app's
+ * runtime key store (Settings → API keys, no restart needed). The router tries providers in
  * priority order (lower first), shuffling within the same priority, and fails over on
  * rate limits / errors.
  *
@@ -380,7 +383,13 @@ export const PROVIDERS: ProviderConfig[] = [
 ];
 
 export function providerById(id: string): ProviderConfig | undefined {
-  return PROVIDERS.find((p) => p.id === id);
+  return allProviders().find((p) => p.id === id);
+}
+
+/** Built-ins + user-added providers (added by link in Settings). Read on every call, so new
+ *  providers appear instantly with no restart. */
+export function allProviders(): ProviderConfig[] {
+  return [...PROVIDERS, ...listCustomProviders().map(toProviderConfig)];
 }
 
 /** Resolve the model for a provider, honouring AETHERIS_MODEL_<ID> overrides. */
@@ -396,14 +405,30 @@ export function resolveModel(p: ProviderConfig, opts?: { vision?: boolean }): st
 
 export function isConfigured(p: ProviderConfig): boolean {
   if (p.keyless) return true;
-  const key = process.env[p.envKey];
-  if (!key || !key.trim()) return false;
+  if (!providerKey(p)) return false;
   if (p.kind === "cloudflare" && !process.env.CLOUDFLARE_ACCOUNT_ID) return false;
   return true;
 }
 
-/** API key to send: env value, or a placeholder for keyless providers (they ignore it). */
+/**
+ * API key to send: runtime override (Settings UI) first, then .env, then a placeholder for
+ * keyless providers (they ignore it).
+ */
 export function apiKeyFor(p: ProviderConfig): string {
-  const k = process.env[p.envKey];
-  return k && k.trim() ? k.trim() : p.keyless ? "anonymous" : "";
+  const k = providerKey(p);
+  return k ?? (p.keyless ? "anonymous" : "");
+}
+
+/** Where the active key for a provider comes from — "app" (runtime store) or "env" (.env). */
+export type ProviderKeySource = "app" | "env";
+
+/** Resolved key for a provider: in-app runtime override first, then the environment. */
+export function providerKey(p: ProviderConfig): string | undefined {
+  return resolvedEnv(p.envKey);
+}
+
+export function providerKeySource(p: ProviderConfig): ProviderKeySource | undefined {
+  if (runtimeKeyFor(p.envKey)) return "app";
+  const e = process.env[p.envKey];
+  return e && e.trim() ? "env" : undefined;
 }

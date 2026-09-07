@@ -13,6 +13,26 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- API keys, one place: Settings → API keys now manages every service key, not just chat
+  models — Tavily (search), Resend (email), Hugging Face / Fal.ai / ElevenLabs / Luma /
+  Runway (Studio), semantic-embeddings and custom STT keys all live in
+  `data/runtime_keys.json`, apply instantly, and override `.env` (removing one falls back to
+  `.env`). All key-backed features read runtime keys on every request, and RAVANA's tool list
+  re-checks its key live instead of at boot. OAuth/SMS/server-security secrets stay in `.env`.
+- RAVANA (Aetheris Core #1) v0.1 — first intelligence core of the platform: deterministic task
+  classifier; DAG planning engine (model-drafted graphs on the mesh, per-kind templates
+  otherwise); role-based model router (fast/reasoning/coding/vision over the provider mesh with
+  RAVANA_MODEL_<ROLE> env pins and independent-reviewer avoidance); agent loop with wave
+  scheduler, budgets, per-node sandboxed verification and plan-level recovery; memory hierarchy
+  (working/session in-process, episodic/semantic persisted, layered retrieval with rerank);
+  unified tool protocol behind the capability-permission layer with single-use confirmation
+  gates (filesystem confined to a per-user RAVANA workspace, sandboxed python/shell, web search);
+  execution-trace SSE with a frozen event vocabulary; REST surface `/api/v1/ravana/*` (chat,
+  tasks, run/stream/confirm, memory+search, models, tools, projects, stats); 🔱 RAVANA workspace
+  UI with live trace, plan graph, verification card and dashboard; honest preview responder so
+  the full pipeline runs with zero provider keys (every preview trace/answer is labelled).
+  Registered in the capability registry (`ravana:*`). Tests: 7 new (203 total), all green.
+
 - Authentication: added a hosted access gate with sealed-session middleware validation, protected API `401` responses, safe post-login redirects, Google/GitHub OAuth, and a display-name-only guest session whose owner-scoped data stays private to that browser.
 - Characters: added an owner-scoped persistent character creator, CRUD API, character-aware chat history, and a dedicated browsable UI with separate roleplay and educational guide modes.
 - Curated 16 source-aware deity interpretations across Hindu, Greek, Norse and Egyptian traditions, with visible creative-interpretation labeling and safeguards against invented scripture, supernatural claims and divine commands.

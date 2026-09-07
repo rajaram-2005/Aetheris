@@ -14,6 +14,7 @@
  * Every run is persisted with per-stage status; nothing is retried blindly (max 3 attempts, backoff).
  */
 import { randomBytes } from "node:crypto";
+import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { store } from "@/lib/store";
 import { nextRun, parseCron } from "@/lib/schedules/cron";
 import { route } from "@/lib/router/router";
@@ -122,7 +123,7 @@ export async function fire(a: Automation, trigger: string, payload: Record<strin
       await stage("action", async () => {
         switch (act.kind) {
           case "webhook": { const r = await fetch(act.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ automation: { id: a.id, name: a.name }, run: { id: run.id, trigger, payload, output } , text: `*${a.name}*\n${output ?? JSON.stringify(payload).slice(0, 1500)}`, content: (output ?? JSON.stringify(payload)).slice(0, 1900) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `${act.kind} ${new URL(act.url).hostname} ${r.status}` }; }
-          case "email": { if (!process.env.RESEND_API_KEY) return { ok: false, detail: "email not configured (RESEND_API_KEY)" }; const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [act.to], subject: `[Aetheris] ${a.name}`, text: output ?? JSON.stringify(payload, null, 1) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `email ${act.to} ${r.status}` }; }
+          case "email": { const resendKey = resolvedEnv("RESEND_API_KEY"); if (!resendKey) return { ok: false, detail: "email not configured (RESEND_API_KEY)" }; const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [act.to], subject: `[Aetheris] ${a.name}`, text: output ?? JSON.stringify(payload, null, 1) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `email ${act.to} ${r.status}` }; }
           case "remember": { const { remember } = await import("../memory/memory"); const m = await remember(a.uid, act.type, fill(act.template, payload, output), { source: "agent", ref: `automation:${a.id}`, confidence: 0.75 }); return { ok: !!m, detail: `remembered ${m?.id}` }; }
           case "twin_event": { const t = await getTwin(act.twinId); if (!t || t.uid !== a.uid) return { ok: false, detail: "twin not found" }; t.events.push({ at: Date.now(), kind: act.eventKind, detail: fill(act.template, payload, output).slice(0, 300) }); const { saveTwin } = await import("../twins/twins"); await saveTwin(t); return { ok: true, detail: `twin ${t.name} event` }; }
           case "job": { const { submitJob } = await import("../agents/runtime"); const j = await submitJob({ uid: a.uid, task: fill(act.task, payload, output), agents: act.agents, title: `automation: ${a.name}` }); return { ok: true, detail: `job ${j.id}` }; }
