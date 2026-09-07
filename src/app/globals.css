@@ -2127,3 +2127,10 @@ button.chip { cursor: pointer; }
 .rt-hint code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
 .rt-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .rt-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Cost section */
+.cr-cost { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin: 16px 0; }
+.cr-cost h2 { margin: 0 0 6px; font-size: 14px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.cr-cost-meta { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.cr-cost-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cr-cost-meta strong { color: var(--fg); }

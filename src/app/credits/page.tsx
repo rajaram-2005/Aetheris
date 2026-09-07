@@ -11,6 +11,7 @@
  */
 import Link from "next/link";
 import { creditLedger, KINDS } from "@/core/credits/ledger";
+import { costReport } from "@/core/credits/cost";
 import { getUserId } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ function bar(value: number, max: number, colour: string) {
 export default async function CreditsPage() {
   const { uid } = await getUserId({ allowAnonymous: true });
   const l = await creditLedger(uid);
+  const today = await costReport(uid, { window: "today" });
+  const history = await costReport(uid, { window: "history" });
   const maxByKind = Math.max(1, ...KINDS.map((k) => l.today.byKind[k.kind] ?? 0));
   return (
     <div className="cr-page">
@@ -68,6 +71,27 @@ export default async function CreditsPage() {
             );
           })}
         </div>
+      </section>
+
+      <section className="cr-cost">
+        <h2>Cost arithmetic</h2>
+        <p className="cr-cost-meta">Per-kind cost = <code>count × defaultCost</code>. Today: <strong>{today.breakdown.totalCredits}</strong> credits · History (30d): <strong>{history.historyTotal ?? 0}</strong> · Avg/day: <strong>{(history.averagePerDay ?? 0).toFixed(1)}</strong> · Projected month: <strong>{(history.projectedMonthlyCost ?? 0).toFixed(0)}</strong></p>
+        <table className="cr-table">
+          <thead><tr><th>Kind</th><th>Today (count)</th><th>Unit</th><th>Today (cost)</th></tr></thead>
+          <tbody>
+            {KINDS.map((k) => {
+              const r = today.breakdown.byKind[k.kind]!;
+              return (
+                <tr key={k.kind}>
+                  <td><code>{k.kind}</code> · {k.label}</td>
+                  <td>{r.count}</td>
+                  <td>{k.defaultCost}</td>
+                  <td><strong>{r.cost}</strong></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </section>
 
       <section className="cr-history">
