@@ -1734,3 +1734,31 @@ button.chip { cursor: pointer; }
 .te-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
 .te-foot a:hover { text-decoration: underline; }
 @media (max-width: 760px) { .te-grid { grid-template-columns: 1fr; } }
+
+/* Reasoning Trace page */
+.trc-page { padding: 24px 28px; max-width: 1100px; margin: 0 auto; color: var(--fg); }
+.trc-head h1 { margin: 0 0 6px; font-size: 22px; }
+.trc-head p { margin: 0 0 12px; color: var(--muted); max-width: 800px; line-height: 1.5; }
+.trc-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.trc-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.trc-form input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; width: 140px; }
+.trc-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.trc-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+.trc-meta strong { color: var(--fg); }
+.trc-groups h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
+.trc-group { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; background: var(--panel); margin-bottom: 10px; }
+.trc-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.trc-group-head strong { color: var(--fg); }
+.trc-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.trc-step { display: grid; grid-template-columns: 150px 1.4fr 100px 80px 1fr; gap: 8px; padding: 3px 6px; border-radius: 3px; }
+.trc-step.ok { background: rgba(74, 222, 128, 0.04); }
+.trc-step.err { background: rgba(248, 113, 113, 0.06); }
+.trc-step-time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+.trc-step-cap code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.trc-step-type { color: var(--muted); }
+.trc-step-ms { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.trc-step-detail { color: var(--muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trc-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.trc-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+.trc-foot a:hover { text-decoration: underline; }
+@media (max-width: 760px) { .trc-step { grid-template-columns: 1fr; } }
