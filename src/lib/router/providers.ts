@@ -377,6 +377,44 @@ export const PROVIDERS: ProviderConfig[] = [
     model: process.env.CUSTOM_LLM_MODEL ?? "default", priority: 0, local: !/^https?:\/\/(?!127\.|localhost|10\.|192\.168\.)/.test(process.env.CUSTOM_LLM_BASE_URL ?? ""), costClass: "local", contextTokens: 32_000,
     keyUrl: "https://docs.vllm.ai", freeTier: "self-hosted", notes: "Set CUSTOM_LLM_BASE_URL, CUSTOM_LLM_MODEL and CUSTOM_LLM_API_KEY (any value if the server needs none).",
   },
+
+  // ---- Experiential Labs (UNVERIFIED) -----------------------------------------------
+  // Honesty: the model names listed on the public site (gpt-6-astra, claude-fable-5.1,
+  // gemini-3.7-flash, kimi-k3, qwen3.8-27b, glm-5.3, deepseek-v4-flash, gpt-5.6-luna,
+  // gpt-5.6-sol, …) DO NOT match any model the upstream vendors have publicly shipped
+  // at the time of writing. The site's pricing column shows strikethrough prices → $0
+  // for several of them, which is not a real provider pattern. The site's docs and
+  // API reference were behind a Cloudflare Turnstile loop and could not be verified.
+  //
+  // We still expose the entry so users who genuinely hold a working key from this
+  // provider can opt in. The entry:
+  //   • has its OWN env var (EXPERIENTIAL_API_KEY) — nothing from chat is read;
+  //   • is gated by isConfigured() — the key MUST be present or this provider is
+  //     absent from the mesh;
+  //   • sits at priority 9 so it never preempts a working Tier-1/2 provider;
+  //   • only ever attempts a single default model (gpt-6-astra) so an unverified
+  //     provider cannot accidentally route other models through itself.
+  //
+  // Until the API contract is verified end-to-end, treat this as "experimental,
+  // opt-in, key-required, last-priority, may misbehave". The four capability modules
+  // added in this commit do not depend on it.
+  {
+    id: "experiential",
+    name: "Experiential Labs (UNVERIFIED, opt-in)",
+    kind: "openai",
+    baseUrl: "https://api.experientiallabs.ai/v1",
+    envKey: "EXPERIENTIAL_API_KEY",
+    model: "gpt-6-astra",
+    priority: 9,
+    keyUrl: "https://platform.experientiallabs.ai",
+    freeTier: "claimed free tier; not independently verified",
+    strengths: ["reasoning"],
+    contextTokens: 1_050_000,
+    notes: "EXPERIMENTAL. Default model and provider metadata are taken from the public site; the API contract has not been independently verified. Set EXPERIENTIAL_API_KEY to opt in. Priority 9 = last in the mesh; will not preempt working providers. Override the model with AETHERIS_MODEL_EXPERIENTIAL=<name> if you have tested additional models.",
+    headers: {
+      "X-Provider-Warning": "experiential entry is unverified; do not rely on it in production",
+    },
+  },
 ];
 
 export function providerById(id: string): ProviderConfig | undefined {

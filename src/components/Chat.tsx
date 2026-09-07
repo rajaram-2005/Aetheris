@@ -19,6 +19,7 @@ import Apps, { loadServers, type EnabledServer } from "./Apps";
 import Upgrade, { useAccount } from "./Upgrade";
 import Sidebar, { MODES, type Mode } from "./Sidebar";
 import SettingsModal from "./SettingsModal";
+import CommandPalette from "./CommandPalette";
 import ProjectModal from "./ProjectModal";
 import ArtifactsPanel, { extractArtifacts, stripArtifacts, type Artifact } from "./Artifacts";
 import { ArenaPicker, ArenaResult, recordVote, type ArenaRun } from "./Arena";
@@ -145,6 +146,18 @@ export default function Chat() {
   const [upgrade, setUpgrade] = useState<string | null>(null);
   const [servers, setServers] = useState<EnabledServer[]>([]);
   useEffect(() => { setServers(loadServers()); if (window.innerWidth < 1000) setSidebar(false); }, []);
+  // DEMO mode status: fetched once on mount. The server side is the source of
+  // truth; the badge just reflects it. If AETHERIS_DEMO is set server-side
+  // and the seed is missing, the call also writes it.
+  const [demo, setDemo] = useState<{ enabled: boolean; seeded: boolean; pinnedProvider: string | null; description: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/demo", { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => { if (!cancelled && j && typeof j === "object") setDemo(j); })
+      .catch(() => { /* demo is best-effort; ignore failures */ });
+    return () => { cancelled = true; };
+  }, []);
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1000px)");
@@ -650,6 +663,7 @@ export default function Chat() {
             <h1>{mode === "chat" && selectedCharacterName ? <>{selectedCharacterAvatar ?? "✨"} {active?.title ?? selectedCharacterName}</> : <>{MODES.find((m) => m.id === mode)?.icon} {mode === "chat" ? (project ? project.name : active?.title ?? "Aetheris One") : t(`mode.${mode}` as "mode.chat")}</>}</h1>
             {mode === "chat" && project && <span className="proj-pill" title={project.instructions || "No instructions"}>📁 project</span>}
             {mode === "chat" && selectedCharacterName && <span className="proj-pill character-pill" title="AI character interpretation">{selectedCharacterMode === "guide" ? "📚 guide" : "🎭 roleplay"}</span>}
+            {demo?.enabled && <span className="demo-pill" title={demo.description}>DEMO{demo.pinnedProvider ? ` · ${demo.pinnedProvider}` : ""}</span>}
           </div>
           <div className="header-right">
             {!sidebar && (
@@ -820,6 +834,16 @@ export default function Chat() {
           </div>
         )}
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
+        <CommandPalette
+          setMode={setMode}
+          navigate={(p) => { window.location.href = p; }}
+          callApi={async (path, init) => {
+            const r = await fetch(path, { ...(init ?? {}), credentials: "include" });
+            const ct = r.headers.get("content-type") ?? "";
+            if (ct.includes("application/json")) return await r.json();
+            return await r.text();
+          }}
+        />
         {voiceMode && <VoiceOverlay state={busy ? "thinking" : voice.state} level={voice.level} interim={voice.listening ? interim : ""} lastUser={lastUserText} lastAssistant={lastAssistantText} error={voice.error} prefs={voicePrefs} onPrefs={setVoicePrefs} langLabel={voiceLang} voices={voice.voices} onTap={() => (voice.listening ? voice.stopListening() : voice.startListening())} onStop={() => { if (busy) abortRef.current?.abort(); voice.stopSpeaking(); if (voicePrefs.handsFree) setTimeout(() => voice.startListening(), 200); }} onClose={exitVoice} />}
         {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
