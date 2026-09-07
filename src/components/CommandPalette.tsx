@@ -206,6 +206,7 @@ function buildIndex(
     { path: "/lab-history", label: "Lab Experiment History", blurb: "Every lab run with source, output, stop reason, and p50/p95 latency", tag: ["lab", "experiment", "history"] },
     { path: "/maintenance-calendar", label: "Maintenance Calendar", blurb: "Forward 90-day projection of every maintenance entry, bucketed by overdue/week/month", tag: ["maintenance", "calendar", "projection"] },
     { path: "/evidence", label: "Evidence Ledger", blurb: "Append-only view across twin events, diagnostic history, and system events; filterable by twin and source", tag: ["evidence", "audit", "log"] },
+    { path: "/audit", label: "Audit Export", blurb: "Download the production observability log as JSON or CSV with type, since, limit, okOnly filters", tag: ["audit", "export", "csv", "json"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },
