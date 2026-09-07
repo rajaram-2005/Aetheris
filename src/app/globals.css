@@ -2154,3 +2154,21 @@ button.chip { cursor: pointer; }
 .ac-reason { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .ac-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .ac-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Core health */
+.ch-page { padding: 24px 28px; max-width: 1180px; margin: 0 auto; color: var(--fg); }
+.ch-head h1 { margin: 0 0 6px; font-size: 24px; }
+.ch-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 800px; }
+.ch-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 16px; align-items: center; }
+.ch-meta strong { color: var(--fg); }
+.ch-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.ch-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.ch-table th, .ch-table td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.ch-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.ch-table a { color: #38bdf8; text-decoration: none; }
+.ch-table a:hover { text-decoration: underline; }
+.ch-build { font-size: 10px; padding: 2px 6px; border-radius: 4px; color: #002436; font-weight: 700; }
+.ch-missing { margin: 0; padding-left: 14px; }
+.ch-missing code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: #f87171; }
+.ch-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.ch-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
