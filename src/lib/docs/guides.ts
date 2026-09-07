@@ -29,7 +29,9 @@ Every request goes through the **omni-router** (\`src/lib/router/router.ts\`):
 You never need a key, but adding free keys raises your limits. Open **Providers** → paste keys. Links open in a new tab (provider pages refuse to load in frames). Keys are stored sealed with \`AETHERIS_SECRET\`.
 
 ## Model tiers
-\`aetheris-free\` · \`aetheris-lite\` · \`aetheris-pro\` · \`aetheris-pro-max\` · \`aetheris-god\` are *policies*, not single models: each maps to a provider allow-list, a token budget and an agent policy (how many specialists Prime may chain, parallel or pipeline, whether Metis critiques). All tiers are available to everyone.
+**\`aetheris-one\` is the combined mesh model** — one model that fuses every provider: all your API keys, local servers (Ollama, LM Studio, llama.cpp, anything added by link) and keyless community endpoints. Each request is answered by the best available provider, load spreads across all of them, and rate limits fail over silently. It is the default model and the brain behind every other Aetheris model, RAVANA Core and the agent hierarchy.
+
+\`aetheris-free\` · \`aetheris-lite\` · \`aetheris-pro\` · \`aetheris-pro-max\` · \`aetheris-god\` are *policies*, not single models: each maps to a provider allow-list, a token budget and an agent policy (how many specialists Prime may chain, parallel or pipeline, whether Metis critiques). Providers you added by link are always eligible on every tier. All tiers are available to everyone.
 
 ## Web grounding
 Settings → General → Web search: **auto** searches when the question looks time-sensitive, **on** always, **off** never. Uses Tavily if you add a key; otherwise the keyless fallback.

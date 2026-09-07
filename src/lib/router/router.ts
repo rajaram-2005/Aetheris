@@ -132,12 +132,14 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
   let configured = allProviders().filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
   // leave the user with nothing: fall back to the full configured set if the policy empties it.
+  // Providers the user added themselves (custom by-link endpoints) are always eligible on every
+  // tier: they are their own machines/gateways, not community endpoints.
   if (opts?.allow?.length) {
-    const pick = configured.filter((p) => opts.allow!.includes(p.id));
+    const pick = configured.filter((p) => p.custom || opts.allow!.includes(p.id));
     if (pick.length) configured = pick;
   }
   if (opts?.allowKeyless === false) {
-    const keyed = configured.filter((p) => !p.keyless || !!providerKey(p));
+    const keyed = configured.filter((p) => p.custom || !p.keyless || !!providerKey(p));
     if (keyed.length) configured = keyed;
   }
 

@@ -30,9 +30,9 @@ export interface Plan {
 export const PLANS: Plan[] = [
   {
     id: "free", name: "Free", priceInr: 0, days: 0, dailyCredits: Number(process.env.AETHERIS_FREE_DAILY_MESSAGES ?? 50),
-    maxModel: "aetheris-free", apiKeys: 0, maxAgents: 1, features: [],
-    blurb: "Try Aetheris. Community models, single agent.",
-    highlights: ["50 credits / day", "aetheris-free model", "Hermes single-agent", "27-provider failover"],
+    maxModel: "aetheris-one", apiKeys: 0, maxAgents: 1, features: [],
+    blurb: "Try Aetheris. One model over every provider.",
+    highlights: ["50 credits / day", "Aetheris One model — every provider fused", "Single agent on the combined mesh"],
   },
   {
     id: "lite", name: "Lite", priceInr: 200, days: 30, dailyCredits: 300,

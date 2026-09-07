@@ -117,7 +117,7 @@ export default function Chat() {
   const [factoryRepo, setFactoryRepo] = useState("");
   const [model, setModel] = useState<string>("");
   const [showModels, setShowModels] = useState(false);
-  const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-free"); }).catch(() => undefined), []);
+  const loadModels = useCallback(() => fetch("/api/models").then((r) => r.json()).then((j) => { setModels(j.models ?? []); setModel((m) => m || [...(j.models ?? [])].find((x: { id: string; available: boolean }) => x.id === "aetheris-one" && x.available)?.id || [...(j.models ?? [])].reverse().find((x: { available: boolean }) => x.available)?.id || "aetheris-one"); }).catch(() => undefined), []);
   useEffect(() => { loadModels(); }, [loadModels]);
   const agentList = useAgents();
   const { characters, loading: charactersLoading, reload: reloadCharacters } = useCharacters();
@@ -379,7 +379,9 @@ export default function Chat() {
     if (!selectedCharacterId && research) return runResearch(content);
     if (!selectedCharacterId && arena) return runArenaRef.current(content, images);
     const tier = models.find((m) => m.id === model);
-    const agentic = !!tier && tier.agents.max > 1 && !direct;
+    // Aetheris One advertises full agent policy; only treat it as agentic when the user's plan
+    // can actually chain agents (server clamps maxAgents to the plan's too).
+    const agentic = !!tier && tier.agents.max > 1 && !direct && (account?.maxAgents ?? 1) > 1;
     // Character conversations use their own trusted database persona rather than Prime routing.
     if (!selectedCharacterId && (agentic || /^@[a-z][\w-]*\b/i.test(content))) return runAgents(content, images);
     const userMsg: UiMessage = { id: crypto.randomUUID(), role: "user", content, images: images.length ? images : undefined };
@@ -876,7 +878,7 @@ export default function Chat() {
                   <div className="model-menu" onMouseLeave={() => setShowModels(false)}>
                     {models.map((m) => (
                       <button key={m.id} className={`${m.id === model ? "on" : ""} ${m.available ? "" : "locked"}`} onClick={() => { if (m.available) { setModel(m.id); setShowModels(false); } else { setShowModels(false); setUpgrade(`${m.name} needs the ${m.minPlan.replace("-", " ")} plan.`); } }}>
-                        <b>{m.name}</b><span className="meta">{m.description}</span>
+                        <b>{m.name}{m.id === "aetheris-one" && <span className="tag" style={{ color: "var(--ok)" }}>one model · all providers</span>}</b><span className="meta">{m.description}</span>
                         <span className="meta">{m.agents.max === 1 ? "⚡ Hermes direct · @mention one specialist" : `✴️ Prime → up to ${m.agents.max} specialists${m.agents.parallel ? " in parallel + synthesis" : " (pipeline)"}${m.agents.critique ? " · 🦉 Metis critique pass" : ""}`}</span>
                         {!m.available && <span className="tag">🔒 {m.minPlan}</span>}
                       </button>

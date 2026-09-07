@@ -16,7 +16,16 @@ test("plan rank is monotonic and tiers cap by plan", () => {
   const r = resolveTier("aetheris-god", "lite");
   assert.equal(r.tier.id, "aetheris-lite"); assert.equal(r.downgraded, true);
   assert.equal(resolveTier(undefined, "pro-max").tier.id, "aetheris-pro-max");
-  assert.equal(MODEL_TIERS.length, 5);
+  // Aetheris One: the flagship combined-mesh model — free-min tier, unrestricted provider pool,
+  // usable on every plan without downgrade.
+  assert.equal(MODEL_TIERS.length, 6);
+  const one = MODEL_TIERS[0]!;
+  assert.equal(one.id, "aetheris-one");
+  assert.equal(one.minPlan, "free");
+  assert.deepEqual(one.providers, []);
+  assert.equal(one.allowKeyless, true);
+  const r2 = resolveTier("aetheris-one", "free");
+  assert.equal(r2.tier.id, "aetheris-one"); assert.equal(r2.downgraded, false);
 });
 
 test("credits: over-limit request is refused without inflating the counter; kinds are tracked", async () => {

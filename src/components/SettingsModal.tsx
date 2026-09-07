@@ -283,7 +283,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
             )}
 
             <h4 className="pkey-divider">Your Aetheris API keys <small>OpenAI-compatible gateway</small></h4>
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Point any SDK at <code>{origin}/api/v1</code> and use models <code>aetheris-free … aetheris-god</code>. Credits and model tiers follow your plan.</p>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Point any SDK at <code>{origin}/api/v1</code> and use <code>aetheris-one</code> (the combined mesh model — every provider at once) or the classic tiers <code>aetheris-free … aetheris-god</code>. Credits and model tiers follow your plan.</p>
             {fresh && (
               <div className="fresh-key">
                 <div><strong>Copy it now — it will not be shown again.</strong></div>
