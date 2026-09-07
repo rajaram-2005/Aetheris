@@ -2032,3 +2032,29 @@ button.chip { cursor: pointer; }
 .demo-fusion-grid h4 { margin: 0 0 4px; font-size: 11px; color: #38bdf8; text-transform: uppercase; }
 .demo-fusion-grid p { margin: 0; font-size: 12px; }
 .demo-fusion-grid code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+/* Runbook + Capabilities */
+.rb-page, .cap-page { padding: 24px 28px; max-width: 1080px; margin: 0 auto; color: var(--fg); }
+.rb-head h1, .cap-head h1 { margin: 0 0 6px; font-size: 24px; }
+.rb-head p, .cap-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 800px; }
+.rb-section, .cap-section { margin: 18px 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.rb-section h2, .cap-section h2 { margin: 0 0 8px; font-size: 14px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.rb-section p, .cap-section p { margin: 0 0 6px; line-height: 1.5; }
+.rb-section ul, .rb-section ol, .cap-section ul { margin: 6px 0 6px 18px; padding: 0; line-height: 1.6; }
+.rb-section li, .cap-section li { margin: 4px 0; font-size: 13.5px; }
+.rb-section code, .cap-section code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.rb-section a, .cap-section a { color: #38bdf8; text-decoration: none; }
+.rb-section a:hover, .cap-section a:hover { text-decoration: underline; }
+.rb-cant li, .cap-cant li { color: #fca5a5; }
+.cap-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); margin: 16px 0; }
+.cap-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.cap-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.cap-card-head h3 { margin: 0; font-size: 16px; letter-spacing: 0.04em; }
+.cap-build { font-size: 10px; padding: 2px 6px; border-radius: 4px; color: #002436; font-weight: 700; }
+.cap-role { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.cap-row { margin: 6px 0; }
+.cap-row-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 2px; }
+.cap-row p { margin: 0; font-size: 12.5px; line-height: 1.45; }
+.cap-row code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.rb-foot, .cap-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.rb-foot a, .cap-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }

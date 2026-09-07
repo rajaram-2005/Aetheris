@@ -212,6 +212,8 @@ function buildIndex(
     { path: "/vayu", label: "VAYU-1", blurb: "Wind & aerodynamics intelligence service: PBNN + anomaly + arena + FFT behind a single named query (proxy, not a trained model)", tag: ["vayu", "wind", "domain"] },
     { path: "/fuse", label: "Fusion Engine", blurb: "Single entry point that composes a structured answer from real modules: telemetry, twin, evidence, memory, verification, optional VAYU. No fabrication", tag: ["fusion", "orchestration", "decision"] },
     { path: "/shell", label: "Aetheris Shell", blurb: "The Section-5 architecture layout: left rail of cores, centre 3D twin, right intelligence, bottom strip", tag: ["shell", "ui", "layout"] },
+    { path: "/runbook", label: "Operator Runbook", blurb: "What an operator can do today, what they cannot, what the system guarantees, what it does not", tag: ["runbook", "operator", "honest"] },
+    { path: "/capabilities", label: "Capabilities", blurb: "Honest capabilities statement: per-core can-do / does-not-yet, plus the boundary Aetheris can keep", tag: ["capabilities", "honest", "scope"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },
