@@ -1960,3 +1960,30 @@ button.chip { cursor: pointer; }
 .v-card-fail { color: #f87171; font-size: 12px; margin: 0; }
 .vayu-foot { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .vayu-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Fusion page */
+.fuse-page { padding: 24px 28px; max-width: 1240px; margin: 0 auto; color: var(--fg); }
+.fuse-head h1 { margin: 0 0 6px; font-size: 24px; }
+.fuse-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+.fuse-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.fuse-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.fuse-form input[type="text"] { width: 380px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.fuse-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.fuse-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 16px; align-items: center; }
+.fuse-meta strong { color: var(--fg); }
+.fuse-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.fuse-summary { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
+.fuse-summary h2 { margin: 0 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.fuse-summary p { margin: 0; line-height: 1.5; }
+.fuse-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.fuse-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.fuse-card h3 { margin: 0 0 8px; font-size: 13px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.f-meta { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.f-meta strong { color: var(--fg); }
+.f-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); font-size: 11px; }
+.f-fail { color: #f87171; font-size: 12px; margin: 4px 0 0; }
+.f-reason { font-size: 12px; margin: 4px 0 0; color: var(--muted); line-height: 1.45; }
+.f-list { margin: 6px 0 0; padding-left: 16px; font-size: 11px; max-height: 100px; overflow: auto; }
+.f-list code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.fuse-foot { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.fuse-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }

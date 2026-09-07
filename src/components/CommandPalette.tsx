@@ -210,6 +210,7 @@ function buildIndex(
     { path: "/terminal", label: "Sandboxed Terminal", blurb: "Run a single command per request in a fresh temp workspace, env-scrubbed, SIGKILL timeout. Read-only commands run unconfirmed; everything else needs safe_write + a token", tag: ["terminal", "sandbox", "shell"] },
     { path: "/cores", label: "Cores", blurb: "The 10 cores in the Aetheris v1 architecture, with what each can and cannot do today, and where its source code lives", tag: ["cores", "architecture", "registry"] },
     { path: "/vayu", label: "VAYU-1", blurb: "Wind & aerodynamics intelligence service: PBNN + anomaly + arena + FFT behind a single named query (proxy, not a trained model)", tag: ["vayu", "wind", "domain"] },
+    { path: "/fuse", label: "Fusion Engine", blurb: "Single entry point that composes a structured answer from real modules: telemetry, twin, evidence, memory, verification, optional VAYU. No fabrication", tag: ["fusion", "orchestration", "decision"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },

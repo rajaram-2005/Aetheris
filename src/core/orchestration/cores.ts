@@ -62,7 +62,7 @@ export const CORES: Core[] = [
     buildCall: "Build now",
     canDo: "Decomposes a task, selects tools, runs a budgeted agent loop, records checkpoints, and emits a structured answer traceable to the modules it called.",
     cannotDo: "Reason at AGI level. It composes existing models and modules; it does not invent capabilities they do not have.",
-    surface: { pages: ["/agents", "/trace"], apis: ["/api/agents"], modules: ["src/core/agents/runtime.ts", "src/core/orchestration/fusion.ts (planned: Fusion Engine in this round)"] },
+    surface: { pages: ["/agents", "/trace", "/fuse"], apis: ["/api/agents", "/api/fuse (planned)"], modules: ["src/core/agents/runtime.ts", "src/core/orchestration/fusion.ts"] },
   },
   {
     id: "VAYU-1",
