@@ -28,6 +28,7 @@ import AgentsPage, { AgentTrail, MentionMenu, useAgents, type AgentRun } from ".
 import CharactersPage, { useCharacters, type CharacterInfo, type CharacterMode } from "./Characters";
 import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations, useMemory, useProjects, useSettings, type Conversation, type Project, type UiMessage } from "./store";
 import HomeDashboard from "./HomeDashboard";
+import Ravana from "./Ravana";
 
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
@@ -676,6 +677,7 @@ export default function Chat() {
           {mode === "studio" && <div className="pane"><Studio hasVideo={features.includes("video")} onUpgrade={(r) => setUpgrade(r)} /></div>}
           {mode === "characters" && <div className="pane"><CharactersPage characters={characters} loading={charactersLoading} reload={reloadCharacters} onChat={beginCharacterChat} /></div>}
           {mode === "agents" && <div className="pane"><AgentsPage agents={agentList} onUse={(id) => { setPendingCharacter(null); setMode("chat"); setInput((v) => (v.startsWith("@") ? v : `@${id} ${v}`)); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
+          {mode === "ravana" && <div className="pane"><Ravana onAsk={(q) => { setMode("chat"); setInput(q); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "providers" && <div className="pane">{mesh ? <MeshPanel full providers={mesh.providers} preferred={preferred} onSelect={(id) => setPreferred(id === preferred ? undefined : id)} /> : <div className="sb-empty">Loading mesh…</div>}</div>}
           {mode === "control" && <div className="pane"><ControlCenter onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}
           {mode === "schedules" && <div className="pane"><Schedules onOpenWorkflows={() => setMode("workflows")} onAsk={(p) => { setMode("chat"); setInput(p); setTimeout(() => taRef.current?.focus(), 50); }} /></div>}

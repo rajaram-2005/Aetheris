@@ -36,6 +36,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 
 | Subsystem | Status | Notes / doc |
 |---|---|---|
+| RAVANA — Aetheris Core #1 (Reasoning): classifier, DAG planner, role router, agent loop, mandatory verification, memory hierarchy, tool policy, execution-trace SSE, 🔱 workspace UI | IMPLEMENTED | [RAVANA](RAVANA.md) |
 | ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](MODELS.md) |
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](AGENTS.md) |
@@ -60,7 +61,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 | Control Center (16 panels) | IMPLEMENTED | in-app 🎛️ |
 | Security — SSRF guard, rate limits, redaction, audit export | IMPLEMENTED (per-instance limits, no WAF) | [SECURITY](SECURITY.md) |
 | Plugin SDK | IMPLEMENTED | [PLUGIN_SDK](PLUGIN_SDK.md) |
-| Evals (intent, policy, sandbox, retrieval) + 182 tests + perf budgets | IMPLEMENTED | `npm run eval` |
+| Evals (intent, policy, sandbox, retrieval) + 203 tests + perf budgets | IMPLEMENTED | `npm run eval` |
 | Local runtime — browser, Docker Compose, health endpoint | IMPLEMENTED | [LOCAL SETUP](LOCAL_SETUP.md) |
 | Desktop app — macOS / Linux / Windows, embedded loopback server, local development, tray, deep links, update check | IMPLEMENTED (unsigned; no self-update) | [DESKTOP](DESKTOP.md) |
 | Monthly CalVer release pipeline — `VERSION`, changelog, tagged GitHub Release, per-OS installers | IMPLEMENTED | [CHANGELOG](../CHANGELOG.md) |
@@ -84,6 +85,7 @@ Aetheris began as *One Chat over a mesh of free providers* and grew phase by pha
 | 5 | UPI monetisation code — **off by default; everything is free** | ✅ (flag) |
 | 6 | **One Chat flagship UX** (streaming, vision, artifacts, web search, Deep Research, projects, memory, Arena, voice, code interpreter) | ✅ |
 | 7–22 | **Intelligence OS**: registry, policy, observability, router policy, agent runtime, sandbox, MCP gateway, knowledge/memory, GitHub intelligence, research engine, multimodal, browser, physical AI, robotics/twins, automation, Control Center, security, evals, perf, local runtime, plugin SDK, docs | ✅ see status table |
+| 23 | **RAVANA — Core #1** (Reasoning): intent/context analysis, DAG task planner, scheduler, model-role routing, tool router + policy + sandbox, agent loop with mandatory verification and recovery, memory hierarchy, execution-trace SSE, execution + dashboard UI | ✅ [RAVANA](RAVANA.md) |
 
 ## Quick start
 

@@ -4,12 +4,13 @@ import { useMemo, useState , useEffect} from "react";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
-export type Mode = "home" | "chat" | "characters" | "agents" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
+export type Mode = "home" | "chat" | "characters" | "agents" | "ravana" | "factory" | "studio" | "apps" | "gallery" | "workflows" | "learn" | "study" | "docs" | "schedules" | "control" | "providers";
 export const MODES: { id: Mode; label: string; icon: string; blurb: string }[] = [
   { id: "home", label: "Home", icon: "⌂", blurb: "Your Aetheris command center" },
   { id: "chat", label: "Chat", icon: "💬", blurb: "One chat, every free model" },
   { id: "characters", label: "Characters", icon: "🏛️", blurb: "Mythic guides & your own personas" },
   { id: "agents", label: "Agents", icon: "🤖", blurb: "Prime, Hermes, Metis + specialists" },
+  { id: "ravana", label: "RAVANA", icon: "🔱", blurb: "Core #1 — plan, act, verify" },
   { id: "factory", label: "Coding Factory", icon: "🏭", blurb: "Write, push, test on GitHub" },
   { id: "studio", label: "Studio", icon: "🎨", blurb: "Images, speech, video" },
   { id: "apps", label: "Apps", icon: "🧩", blurb: "100+ MCP connectors" },

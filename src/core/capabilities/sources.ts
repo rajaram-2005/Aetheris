@@ -124,6 +124,8 @@ let booted = false;
 export function bootCapabilities() {
   if (booted) return; booted = true;
   registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource); registerSource(userMcpSource);
+  // RAVANA (Aetheris Core #1) registers its own source at import; pull it in here.
+  try { require("@/core/ravana/capabilities"); } catch (e) { console.warn("[aetheris] ravana capabilities load failed", (e as Error).message); }
   loadPlugins();
 }
 /** Plugins register their own CapabilitySources on import (src/plugins/index.ts). */
