@@ -1807,3 +1807,28 @@ button.chip { cursor: pointer; }
 .lh-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
 .lh-foot a:hover { text-decoration: underline; }
 @media (max-width: 760px) { .lh-cols { grid-template-columns: 1fr; } }
+
+/* Maintenance Calendar page */
+.mc-page { padding: 24px 28px; max-width: 1180px; margin: 0 auto; color: var(--fg); }
+.mc-head h1 { margin: 0 0 6px; font-size: 22px; }
+.mc-head p { margin: 0 0 12px; color: var(--muted); max-width: 800px; line-height: 1.5; }
+.mc-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.mc-meta { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.mc-meta strong { color: var(--fg); }
+.mc-entries h2, .mc-projection h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
+.mc-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+.mc-table th, .mc-table td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.mc-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.mc-table a { color: #38bdf8; text-decoration: none; }
+.mc-table a:hover { text-decoration: underline; }
+.mc-proj-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; }
+.mc-proj-day { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; display: flex; flex-direction: column; align-items: center; font-size: 10px; }
+.mc-proj-day.has { background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; }
+.mc-proj-date { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+.mc-proj-day.has .mc-proj-date { color: var(--fg); }
+.mc-proj-count { font-size: 12px; font-weight: 700; color: #38bdf8; }
+.mc-projection .hint { font-size: 11px; color: var(--muted); margin: 6px 0 0; }
+.mc-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.mc-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+.mc-foot a:hover { text-decoration: underline; }
+@media (max-width: 760px) { .mc-proj-grid { grid-template-columns: repeat(7, 1fr); } }
