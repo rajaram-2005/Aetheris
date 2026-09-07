@@ -70,7 +70,7 @@ export const CORES: Core[] = [
     buildCall: "Build as proxy",
     canDo: "Composes the existing wind/aero modules (FFT, anomaly, PBNN, model arena) behind a single named query interface. Returns a structured bundle, each part sourced from a real module.",
     cannotDo: "Act as a trained, evaluated wind-domain foundation model. It is a service that routes to existing modules, not a fine-tuned model.",
-    surface: { pages: ["/learning", "/diagnostics", "/arena"], apis: ["/api/fuse (planned)"], modules: ["src/core/vayu/service.ts (planned: VAYU-1 in this round)", "src/core/windturbine/model.ts", "src/core/diagnostics", "src/core/learning", "src/core/anomaly"] },
+    surface: { pages: ["/vayu", "/learning", "/diagnostics", "/arena"], apis: ["/api/fuse (planned)"], modules: ["src/core/vayu/service.ts", "src/core/windturbine/model.ts", "src/core/diagnostics/fft.ts", "src/core/learning/predictions.ts", "src/core/anomaly/detector.ts", "src/core/arena/compare.ts"] },
   },
   {
     id: "DRISHTI",

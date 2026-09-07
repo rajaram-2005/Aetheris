@@ -1930,3 +1930,33 @@ button.chip { cursor: pointer; }
 .core-surface-block a:hover { text-decoration: underline; }
 .cores-foot { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .cores-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* VAYU-1 service page */
+.vayu-page { padding: 24px 28px; max-width: 1180px; margin: 0 auto; color: var(--fg); }
+.vayu-head h1 { margin: 0 0 6px; font-size: 22px; }
+.vayu-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+.vayu-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.vayu-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.vayu-form select, .vayu-form input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.vayu-form input[type="number"] { width: 80px; }
+.vayu-form input[type="text"] { width: 220px; }
+.vayu-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.vayu-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 16px; align-items: center; }
+.vayu-meta strong { color: var(--fg); }
+.vayu-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.vayu-summary { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
+.vayu-summary h2 { margin: 0 0 6px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.vayu-summary p { margin: 0; line-height: 1.5; }
+.vayu-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.vayu-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.vayu-card h3 { margin: 0 0 8px; font-size: 13px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.v-card-meta { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.v-card-meta strong { color: var(--fg); }
+.v-card-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); font-size: 11px; }
+.v-card-num { background: #0a1218; color: #cbd5e1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 11px; max-height: 160px; overflow: auto; margin: 0; }
+.v-card-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.v-card-table th, .v-card-table td { padding: 3px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+.v-card-table code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.v-card-fail { color: #f87171; font-size: 12px; margin: 0; }
+.vayu-foot { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.vayu-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
