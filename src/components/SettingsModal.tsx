@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { Settings } from "./store";
 import type { Account } from "./Upgrade";
 import { LANGS, useLang } from "@/lib/i18n";
+import BrandTile from "./Brand";
+import AddProviderBox from "./AddProviderBox";
 
 export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemory, onClearMemory, onAddMemory, onClose, onExport, onClearChats, account, onUpgrade }: {
   settings: Settings; onUpdate: (p: Partial<Settings>) => void; account?: Account | null; onUpgrade?: () => void;
@@ -22,7 +24,9 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
   useEffect(() => { if (tab === "keys") loadKeys(); }, [tab]);
 
   // ---- API keys manager (model providers + service keys — no .env editing) ----
-  interface KeyItem { id: string; name: string; group: "models" | "service"; kind: string; envKey: string; model?: string; powers?: string; keyless: boolean; local: boolean; vision: boolean; costClass: string; keyUrl?: string; freeTier?: string; notes?: string; hasKey: boolean; source: "app" | "env" | null; maskedKey: string | null; cloudflare: boolean; cloudflareAccountSet: boolean }
+  interface KeyItem { id: string; name: string; group: "models" | "service"; kind: string; envKey: string; model?: string; powers?: string; keyless: boolean; local: boolean; vision: boolean; costClass: string; keyUrl?: string; freeTier?: string; notes?: string; hasKey: boolean; source: "app" | "env" | null; maskedKey: string | null; custom?: boolean; baseUrl?: string; cloudflare: boolean; cloudflareAccountSet: boolean }
+  const [showAddBox, setShowAddBox] = useState(false);
+  const [editCustom, setEditCustom] = useState<KeyItem | null>(null);
   const [providers, setProviders] = useState<KeyItem[] | null>(null);
   const [services, setServices] = useState<KeyItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -54,6 +58,13 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
   const removeKey = async (p: KeyItem) => {
     setPkErr(null); setBusyId(p.id);
     try {
+      if (p.custom) {
+        const r = await fetch("/api/providers/custom", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+        const j = await r.json();
+        if (!r.ok) return setPkErr(j.error ?? "remove failed");
+        loadProviders();
+        return;
+      }
       const r = await fetch("/api/providers/keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
       const j = await r.json();
       if (!r.ok) return setPkErr(j.error ?? "remove failed");
@@ -61,18 +72,25 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
       note(p.id, p.source === "env" ? "✓ removed app key — using the .env key again" : "✓ key removed");
     } catch { setPkErr("could not reach the server"); } finally { setBusyId(null); }
   };
-  const keyProviders = (providers ?? []).filter((p) => !p.keyless);
-  const keylessProviders = (providers ?? []).filter((p) => p.keyless);
+  const customProviders = (providers ?? []).filter((p) => p.custom);
+  const keyProviders = (providers ?? []).filter((p) => !p.keyless && !p.custom);
+  const keylessProviders = (providers ?? []).filter((p) => p.keyless && !p.custom);
   const renderKeyCard = (p: KeyItem) => (
     <div key={p.id} className="pkey-card">
       <div className="pkey-top">
-        <div>
-          <b>{p.name}</b>
-          {p.local && <span className="pkey-pill local">local</span>}
-          <span className="pkey-sub">{p.group === "service" ? p.powers ?? p.envKey : `${p.model ?? ""}${p.vision ? " · vision" : ""}`}</span>
+        <div className="pkey-name-row">
+          <BrandTile name={p.name} id={p.custom ? undefined : p.id} category={p.group === "service" ? p.kind : p.custom ? "custom" : "models"} size={26} />
+          <div style={{ minWidth: 0 }}>
+            <div className="pkey-name-line">
+              <b>{p.name}</b>
+              {p.custom && <span className="pkey-pill local">added by you</span>}
+              {p.local && !p.custom && <span className="pkey-pill local">local</span>}
+            </div>
+            <span className="pkey-sub">{p.group === "service" ? p.powers ?? p.envKey : `${p.model ?? ""}${p.vision ? " · vision" : ""}${p.custom && p.baseUrl ? " · " + p.baseUrl : ""}`}</span>
+          </div>
         </div>
         <span className={`pkey-pill ${p.source === "app" ? "app" : p.source === "env" ? "env" : "off"}`}>
-          {p.source === "app" ? "Saved in app" : p.source === "env" ? "From .env" : "No key"}
+          {p.source === "app" ? "Saved in app" : p.source === "env" ? "From .env" : p.keyless ? "Keyless" : "No key"}
         </span>
       </div>
       <div className="pkey-meta">
@@ -84,7 +102,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
       <div className="pkey-actions">
         <input
           type="password"
-          placeholder={p.hasKey ? "Paste a new key to replace…" : `Paste ${p.envKey}…`}
+          placeholder={p.hasKey ? "Paste a new key to replace…" : p.keyless ? `Optional key (${p.envKey})…` : `Paste ${p.envKey}…`}
           value={drafts[p.id] ?? ""}
           autoComplete="off"
           spellCheck={false}
@@ -92,7 +110,8 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
           onKeyDown={(e) => { if (e.key === "Enter" && (drafts[p.id] ?? "").trim().length >= 6) saveKey(p); }}
         />
         <button className="send" disabled={busyId === p.id || (drafts[p.id] ?? "").trim().length < 6} onClick={() => saveKey(p)}>{busyId === p.id ? "…" : "Save"}</button>
-        {(p.source === "app" || (drafts[p.id] ?? "").trim()) && <button className="ghost danger pkey-remove" disabled={busyId === p.id} onClick={() => removeKey(p)} title="Remove the app-saved key (falls back to .env if set)">✕</button>}
+        {p.custom && <button className="ghost pkey-remove" disabled={busyId === p.id} onClick={() => { setEditCustom(p); setShowAddBox(true); }} title="Edit name, URL, model…">✎</button>}
+        {(p.source === "app" || (drafts[p.id] ?? "").trim() || p.custom) && <button className="ghost danger pkey-remove" disabled={busyId === p.id} onClick={() => removeKey(p)} title={p.custom ? "Remove this provider entirely" : "Remove the app-saved key (falls back to .env if set)"}>✕</button>}
       </div>
       <div className="pkey-notes">
         {pkOk[p.id] ? <span className="ok-text">{pkOk[p.id]}</span> : p.notes ? <span className="hint">{p.notes}</span> : null}
@@ -215,7 +234,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
             {providers === null ? <div className="sb-empty">Loading…</div> : (
               <>
-                <h4 className="pkey-section-title">Chat model providers <small>{keyProviders.length}</small></h4>
+                <h4 className="pkey-section-title">Chat model providers <small>{keyProviders.length} built-in</small></h4>
                 {keyProviders.length === 0 ? <div className="sb-empty">No providers found.</div> : (
                   <div className="pkey-grid">{keyProviders.map(renderKeyCard)}</div>
                 )}
@@ -224,6 +243,32 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
                     <span>Works without a key:</span>
                     {keylessProviders.map((p) => <span key={p.id} className={`pkey-chip ${p.source === "app" ? "on" : ""}`}>{p.name}{p.source === "app" ? " · key saved" : ""}</span>)}
                   </div>
+                )}
+                <div className="pkey-addrow">
+                  <button className="ghost" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => { setEditCustom(null); setShowAddBox((v) => !v); }}>
+                    {showAddBox && !editCustom ? "Close" : "＋ Add a provider by link"}
+                  </button>
+                  <span className="hint">Ollama, LM Studio, llama.cpp, any OpenAI-compatible server — test the connection and pick its real models.</span>
+                </div>
+                {showAddBox && !editCustom && (
+                  <AddProviderBox
+                    onCancel={() => setShowAddBox(false)}
+                    onSaved={() => { setShowAddBox(false); setEditCustom(null); loadProviders(); }}
+                  />
+                )}
+
+                {customProviders.length > 0 && (
+                  <>
+                    <h4 className="pkey-section-title">Added by you <small>{customProviders.length} · live now</small></h4>
+                    <div className="pkey-grid">{customProviders.map(renderKeyCard)}</div>
+                  </>
+                )}
+                {editCustom && showAddBox && (
+                  <AddProviderBox
+                    initial={{ id: editCustom.id, name: editCustom.name, baseUrl: editCustom.baseUrl ?? "", model: editCustom.model ?? "", vision: editCustom.vision, local: editCustom.local }}
+                    onCancel={() => { setShowAddBox(false); setEditCustom(null); }}
+                    onSaved={() => { setShowAddBox(false); setEditCustom(null); loadProviders(); }}
+                  />
                 )}
 
                 {services.length > 0 && (

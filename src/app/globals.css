@@ -1211,3 +1211,40 @@ button.chip { color: var(--text); cursor: pointer; text-align: left; }
 /* Settings → API keys: grouped section titles */
 .pkey-section-title { margin: 8px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim); display: flex; align-items: baseline; gap: 6px; }
 .pkey-section-title small { font-size: 11px; letter-spacing: 0; text-transform: none; }
+
+/* ---- Brand tile (monogram logo) ---- */
+.brand-tile { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-weight: 800; letter-spacing: -0.02em; flex: 0 0 auto; user-select: none; line-height: 1; }
+.brand-sm { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
+.brand-md { width: 30px; height: 30px; border-radius: 8px; font-size: 12px; }
+.brand-lg { width: 42px; height: 42px; border-radius: 11px; font-size: 17px; }
+.brand-xl { width: 54px; height: 54px; border-radius: 14px; font-size: 22px; }
+.brand-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-row b { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Add-provider-by-link box ---- */
+.apb { border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 14px; padding: 14px; background: color-mix(in srgb, var(--accent) 6%, transparent); display: flex; flex-direction: column; gap: 10px; }
+.apb-head { display: flex; flex-direction: column; gap: 2px; }
+.apb-head b { font-size: 14px; }
+.apb-tpl-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
+.apb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.apb-chips button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px 4px 5px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: transparent; color: var(--text); cursor: pointer; }
+.apb-chips button:hover { border-color: var(--accent); }
+.apb-chips.models button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.apb-chips.models button { border-radius: 8px; font-family: var(--mono); font-size: 11px; padding: 3px 8px; }
+.apb-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 10px; }
+.apb-grid .field { margin: 0; }
+.apb-model { grid-column: 3; }
+.apb-test { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.apb-test .ghost { padding: 4px 12px; font-size: 12px; }
+.apb-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.apb-row .field.row { flex-direction: row; }
+.apb-actions { display: flex; gap: 8px; }
+.mesh-addbox { margin-bottom: 12px; }
+@media (max-width: 720px) { .apb-grid { grid-template-columns: 1fr; } .apb-model { grid-column: 1; } }
+
+/* Settings keys: name row + add-by-link row */
+.pkey-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pkey-name-row .brand-tile { flex: 0 0 auto; }
+.pkey-name-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pkey-addrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.model-card-txt { display: flex; flex-direction: column; align-items: center; min-width: 0; }

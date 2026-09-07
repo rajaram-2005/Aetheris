@@ -1,6 +1,6 @@
 import { record } from "@/core/observability/events";
 import { callProvider, hasImages, hasVideo } from "./adapters";
-import { PROVIDERS, apiKeyFor, isConfigured, providerKey, providerKeySource, resolveModel } from "./providers";
+import { allProviders, apiKeyFor, isConfigured, providerKey, providerKeySource, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
 
 /** Short display prefix for a key (never the secret itself). */
@@ -129,7 +129,7 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
   const now = Date.now();
   // Video is a stricter requirement than vision: only providers that take video inline qualify, and
   // the fallback is nothing (a video sent to an image-only provider is a guaranteed 400).
-  let configured = PROVIDERS.filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
+  let configured = allProviders().filter((p) => isConfigured(p) && !opts?.exclude?.includes(p.id) && (!opts?.vision || p.vision) && (!opts?.video || p.video));
   // Tier policy: restrict to an allow-list and/or drop keyless community endpoints — but never
   // leave the user with nothing: fall back to the full configured set if the policy empties it.
   if (opts?.allow?.length) {
@@ -284,7 +284,7 @@ export async function route(opts: RouteOptions): Promise<RouteResult> {
 /** Snapshot of the mesh for the /api/providers endpoint and the UI status strip. */
 export function meshStatus() {
   const now = Date.now();
-  return PROVIDERS.map((p) => {
+  return allProviders().map((p) => {
     const configured = isConfigured(p);
     const h = entry(p.id);
     const coolingDown = h.cooldownUntil > now;
@@ -294,6 +294,9 @@ export function meshStatus() {
       model: resolveModel(p),
       priority: p.priority,
       envKey: p.envKey,
+      baseUrl: p.baseUrl,
+      custom: !!p.custom,
+      local: !!p.local,
       notes: p.notes,
       keyless: !!p.keyless,
       hasKey: !!providerKey(p),

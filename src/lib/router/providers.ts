@@ -1,5 +1,6 @@
 import type { ProviderConfig } from "./types";
 import { resolvedEnv, runtimeKeyFor } from "./runtimeKeys";
+import { listCustomProviders, toProviderConfig } from "./customProviders";
 
 /**
  * The Aetheris provider mesh.
@@ -382,7 +383,13 @@ export const PROVIDERS: ProviderConfig[] = [
 ];
 
 export function providerById(id: string): ProviderConfig | undefined {
-  return PROVIDERS.find((p) => p.id === id);
+  return allProviders().find((p) => p.id === id);
+}
+
+/** Built-ins + user-added providers (added by link in Settings). Read on every call, so new
+ *  providers appear instantly with no restart. */
+export function allProviders(): ProviderConfig[] {
+  return [...PROVIDERS, ...listCustomProviders().map(toProviderConfig)];
 }
 
 /** Resolve the model for a provider, honouring AETHERIS_MODEL_<ID> overrides. */

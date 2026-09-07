@@ -5,7 +5,7 @@
  */
 import type { Capability, CapabilitySource } from "./types";
 import { registerSource } from "./registry";
-import { PROVIDERS, isConfigured, resolveModel } from "@/lib/router/providers";
+import { allProviders, isConfigured, resolveModel } from "@/lib/router/providers";
 import { meshStatus } from "@/lib/router/router";
 import { AGENTS } from "@/lib/agents/catalog";
 import { CONNECTORS } from "@/lib/mcp/catalog";
@@ -18,7 +18,7 @@ const modelSource: CapabilitySource = {
   id: "models",
   list() {
     const mesh = new Map(meshStatus().map((m) => [m.id, m]));
-    return PROVIDERS.map<Capability>((p) => {
+    return allProviders().map<Capability>((p) => {
       const m = mesh.get(p.id); const total = (m?.successes ?? 0) + (m?.failures ?? 0);
       return {
         id: `model:${p.id}`, name: `${p.name} · ${resolveModel(p)}`, category: "model", provider: "router",

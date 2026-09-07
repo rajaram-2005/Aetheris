@@ -53,6 +53,8 @@ export interface ProviderConfig {
   local?: boolean;
   /** Extra headers required by the provider */
   headers?: Record<string, string>;
+  /** Added by the user from the app (Settings → API keys → add by link), not a built-in. */
+  custom?: boolean;
   /** Notes shown in the UI / docs */
   notes?: string;
 }

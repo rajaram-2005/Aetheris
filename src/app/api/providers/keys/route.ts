@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
-import { PROVIDERS, providerKey, providerKeySource, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
+import { allProviders, providerKey, providerKeySource, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
 import { setRuntimeKey, runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import { maskKey } from "@/lib/router/router";
 
@@ -43,6 +43,8 @@ export interface KeyEntryView {
   hasKey: boolean;
   source: ProviderKeySource | null;
   maskedKey: string | null;
+  custom?: boolean;
+  baseUrl?: string;
   cloudflare: boolean;
   cloudflareAccountSet: boolean;
 }
@@ -72,12 +74,14 @@ function viewForService(s: ServiceDef): KeyEntryView {
 }
 
 function viewForProviderId(id: string): KeyEntryView | null {
-  const p = PROVIDERS.find((x) => x.id === id);
+  const p = allProviders().find((x) => x.id === id);
   if (!p) return null;
   return {
     id: p.id, name: p.name, group: "models", kind: p.kind, envKey: p.envKey,
     model: resolveModel(p), keyless: !!p.keyless, local: !!p.local, vision: !!p.vision,
     costClass: p.costClass ?? "free", keyUrl: p.keyUrl, freeTier: p.freeTier, notes: p.notes,
+    custom: !!p.custom,
+    baseUrl: p.baseUrl,
     ...live(p.envKey),
     cloudflare: p.kind === "cloudflare", cloudflareAccountSet: !!process.env.CLOUDFLARE_ACCOUNT_ID?.trim(),
   };
@@ -92,7 +96,7 @@ function entryById(id: string): KeyEntryView | null {
 
 export async function GET() {
   const { uid, isNew } = await getUserId();
-  const providers = PROVIDERS.map((p) => viewForProviderId(p.id)!);
+  const providers = allProviders().map((p) => viewForProviderId(p.id)!);
   const services = SERVICES.map(viewForService);
   const res = NextResponse.json({ providers, services });
   if (isNew) {

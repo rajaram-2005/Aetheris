@@ -10,11 +10,11 @@
  * RAVANA_MODEL_CODING=groq or RAVANA_MODEL_REASONING=openrouter/deepseek:r1
  */
 import { orderedCandidates } from "@/lib/router/router";
-import { PROVIDERS } from "@/lib/router/providers";
+import { allProviders } from "@/lib/router/providers";
 import type { ProviderConfig } from "@/lib/router/types";
 import type { RavanaRole } from "../types";
 
-const PROVIDER_IDS = new Set(PROVIDERS.map((p) => p.id));
+const providerIds = () => new Set(allProviders().map((p) => p.id));
 
 export interface RouterConstraints {
   locality?: "local" | "prefer_local" | "remote" | "any";
@@ -67,7 +67,7 @@ export function roleOverride(role: RavanaRole): { provider?: string; model?: str
  */
 export function selectCandidates(role: RavanaRole, constraints: RouterConstraints = {}): ModelSelection {
   const env = roleOverride(role);
-  const pinBroken = !!env.provider && !PROVIDER_IDS.has(env.provider);
+  const pinBroken = !!env.provider && !providerIds().has(env.provider);
   if (pinBroken) {
     return {
       role,

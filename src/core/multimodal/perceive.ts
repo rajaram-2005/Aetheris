@@ -25,7 +25,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { route } from "@/lib/router/router";
 import { extractText } from "@/lib/kb";
-import { PROVIDERS, isConfigured } from "@/lib/router/providers";
+import { allProviders, isConfigured } from "@/lib/router/providers";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { readContainer, describeContainer } from "./container";
 import { sampleFramesWithWasm, wasmFfmpegAvailable, wasmFfmpegReason, wasmFfmpegVersion } from "./wasmffmpeg";
@@ -38,8 +38,8 @@ export interface Perception { ok: boolean; modality: Modality; text: string; str
 
 async function which(bin: string) { try { await run("which", [bin]); return true; } catch { return false; } }
 /** Providers that take video inline — the path that makes video work without ffmpeg. */
-const videoProviders = () => PROVIDERS.filter((p) => p.video && isConfigured(p)).map((p) => p.id);
-const visionProviders = () => PROVIDERS.filter((p) => p.vision && isConfigured(p)).map((p) => p.id);
+const videoProviders = () => allProviders().filter((p) => p.video && isConfigured(p)).map((p) => p.id);
+const visionProviders = () => allProviders().filter((p) => p.vision && isConfigured(p)).map((p) => p.id);
 export async function status() {
   const vision = visionProviders();
   const stt = process.env.STT_URL && process.env.STT_KEY ? "custom STT_URL" : process.env.GROQ_API_KEY ? "groq whisper-large-v3" : undefined;

@@ -1,5 +1,5 @@
 import { AGENTS } from "@/lib/agents/catalog";
-import { PROVIDERS } from "@/lib/router/providers";
+import { allProviders } from "@/lib/router/providers";
 import { CONNECTORS, CATEGORIES } from "@/lib/mcp/catalog";
 import { MODEL_TIERS } from "@/lib/models/tiers";
 import { COMMANDS } from "@/lib/commands";
@@ -22,11 +22,11 @@ ${domains.map((d) => {
 `;
 
   const providers = `
-${PROVIDERS.length} providers. Lower priority number = tried first. Keyless providers work with no key at all.
+${allProviders().length} providers. Lower priority number = tried first. Keyless providers work with no key at all.
 
 | Provider | Priority | Default model | Free tier | Vision | Get a key |
 | --- | --- | --- | --- | --- | --- |
-${PROVIDERS.slice().sort((a, b) => a.priority - b.priority).map((p) => `| **${p.name}** (\`${p.id}\`)${p.keyless ? " · keyless" : ""} | P${p.priority} | \`${esc(p.model)}\` | ${esc(p.freeTier ?? "—")} | ${p.vision ? "✓" : ""} | ${p.keyUrl ? `[key](${p.keyUrl})` : "—"} |`).join("\n")}
+${allProviders().slice().sort((a, b) => a.priority - b.priority).map((p) => `| **${p.name}** (\`${p.id}\`)${p.keyless ? " · keyless" : ""} | P${p.priority} | \`${esc(p.model)}\` | ${esc(p.freeTier ?? "—")} | ${p.vision ? "✓" : ""} | ${p.keyUrl ? `[key](${p.keyUrl})` : "—"} |`).join("\n")}
 
 ## Model tiers (policies)
 | Tier | Providers | Max tokens | Agents | Keyless ok |
@@ -96,7 +96,7 @@ ${groups.map((g) => `## ${GROUP_LABEL[g]}\n\n${CONCEPTS.filter((c) => c.group ==
     { slug: "concepts", section: "Explained AI", title: `Explained AI — ${CONCEPTS.length} concepts`, body: conceptsIndex },
     ...conceptPages,
     { slug: "ref-agents", section: "Reference", title: `Agents (${AGENTS.length})`, body: agents },
-    { slug: "ref-providers", section: "Reference", title: `Providers (${PROVIDERS.length})`, body: providers },
+    { slug: "ref-providers", section: "Reference", title: `Providers (${allProviders().length})`, body: providers },
     { slug: "ref-connectors", section: "Reference", title: `MCP connectors (${CONNECTORS.length})`, body: connectors },
     { slug: "ref-commands", section: "Reference", title: "Commands & templates", body: commands },
     { slug: "ref-endpoints", section: "Reference", title: "HTTP endpoints", body: endpoints },

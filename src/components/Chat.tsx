@@ -173,6 +173,8 @@ export default function Chat() {
     try { const r = await fetch("/api/providers", { cache: "no-store" }); if (r.ok) setMesh(await r.json()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { refreshMesh(); const t = setInterval(refreshMesh, 20_000); return () => clearInterval(t); }, [refreshMesh]);
+  // Providers page / Settings dispatch this after adding or removing a provider by link.
+  useEffect(() => { const h = () => refreshMesh(); window.addEventListener("aetheris:refresh-providers", h); return () => window.removeEventListener("aetheris:refresh-providers", h); }, [refreshMesh]);
 
   // ---- conversation helpers -----------------------------------------------------------------
   const convoRef = useRef<Conversation | null>(null);

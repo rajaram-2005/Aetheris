@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { connectorById } from "@/lib/mcp/catalog";
+import BrandTile from "./Brand";
 
 interface Connector {
   id: string; name: string; category: string; description: string; url: string;
@@ -122,7 +123,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
 
       <div className={`hubcard ${hubOn ? "on" : ""}`}>
         <div className="app-top">
-          <div className="app-name">🧿 Aetheris Hub <span className="tag">all {connectors.length} in one MCP</span>{hubOn && <span className="tag" style={{ color: "var(--ok)" }}>enabled</span>}</div>
+          <div className="app-name"><BrandTile name="Aetheris Hub" id="hub" size={22} /> Aetheris Hub <span className="tag">all {connectors.length} in one MCP</span>{hubOn && <span className="tag" style={{ color: "var(--ok)" }}>enabled</span>}</div>
           <button className={hubOn ? "ghost" : "send"} onClick={toggleHub} style={{ padding: "5px 10px", fontSize: 12 }}>{hubOn ? "Disable" : "Enable all"}</button>
         </div>
         <div className="app-desc">One server, every connector. The model discovers tools with <code>hub__search_tools</code> and calls them as <code>&lt;connector&gt;__&lt;tool&gt;</code>. Connectors you have connected below are ready; others are listed as "needs credential" so the model can ask you.</div>
@@ -156,7 +157,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
           return (
             <div key={c.id} className={`appcard ${on ? "on" : ""}`}>
               <div className="app-top">
-                <div className="app-name">{c.name} {c.premium && <span className="badge">PRO</span>}<span className="tag">{c.kind === "gateway" ? "gateway" : "MCP"}</span>{connected.includes(c.id) && <span className="tag" style={{ color: "var(--ok)" }}>signed in</span>}</div>
+                <div className="app-name"><BrandTile name={c.name} id={c.id} category={c.category} size={22} /> {c.name} {c.premium && <span className="badge">PRO</span>}<span className="tag">{c.kind === "gateway" ? "gateway" : "MCP"}</span>{connected.includes(c.id) && <span className="tag" style={{ color: "var(--ok)" }}>signed in</span>}</div>
                 <button className={on ? "ghost" : "send"} onClick={() => toggle(c)} style={{ padding: "5px 10px", fontSize: 12 }}>{on ? "Disable" : c.auth && !connected.includes(c.id) ? "Connect" : "Enable"}</button>
               </div>
               <div className="app-desc">{c.description}</div>
@@ -194,7 +195,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
         </div>
         {enabled.filter((s) => s.id.startsWith("custom:")).map((s) => (
           <div key={s.id} className="app on" style={{ marginTop: 8 }}>
-            <div className="app-top"><div className="app-name">{s.name}</div><button className="ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => save(enabled.filter((x) => x.id !== s.id))}>Remove</button></div>
+            <div className="app-top"><div className="app-name"><BrandTile name={s.name ?? s.id} category="custom" size={22} /> {s.name}</div><button className="ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => save(enabled.filter((x) => x.id !== s.id))}>Remove</button></div>
             <div className="app-desc">{s.url}</div>
             <div className="app-foot"><button className="link" onClick={() => test(s)}>test connection</button>{testResult[s.id] && <span className={testResult[s.id].ok ? "ok-text" : "err-text"}>{testResult[s.id].msg}</span>}</div>
           </div>

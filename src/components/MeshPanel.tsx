@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import BrandTile from "./Brand";
+import AddProviderBox from "./AddProviderBox";
 
 export interface ProviderStatus {
   id: string;
@@ -20,6 +22,9 @@ export interface ProviderStatus {
   hasKey?: boolean;
   keyUrl?: string;
   freeTier?: string;
+  baseUrl?: string;
+  custom?: boolean;
+  local?: boolean;
 }
 
 const KEY_URLS: Record<string, string> = {
@@ -70,6 +75,7 @@ export default function MeshPanel({
   /** Render as a full page (Providers tab) instead of an inline card. */
   full?: boolean;
 }) {
+  const [showAdd, setShowAdd] = useState(false);
   const configured = providers.filter((p) => p.configured);
   const unconfigured = providers.filter((p) => !p.configured);
   return (
@@ -77,16 +83,31 @@ export default function MeshPanel({
       <div className="mesh-title">
         <h2>Provider mesh</h2>
         <span className="hint" style={{ margin: 0 }}>{configured.length}/{providers.length} configured · {providers.filter((p) => p.state === "ready").length} ready{preferred ? ` · pinned: ${providers.find((p) => p.id === preferred)?.name}` : ""}</span>
+        {full && (
+          <button className="send" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12 }} onClick={() => setShowAdd((v) => !v)}>
+            {showAdd ? "Close" : "＋ Add provider by link"}
+          </button>
+        )}
       </div>
+      {full && showAdd && (
+        <div className="mesh-addbox">
+          <AddProviderBox
+            onCancel={() => setShowAdd(false)}
+            onSaved={() => {
+              setShowAdd(false);
+              if (typeof window !== "undefined") window.dispatchEvent(new Event("aetheris:refresh-providers"));
+            }}
+          />
+        </div>
+      )}
       {configured.length === 0 ? (
         <div className="mesh-empty">
           <strong style={{ color: "var(--text)" }}>No keyed providers yet.</strong>
           <ol style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.8 }}>
-            <li>Copy <code>.env.example</code> to <code>.env.local</code></li>
-            <li>Add at least one key — the free ones below take under a minute (Groq, Cerebras, Gemini are the fastest)</li>
-            <li>Restart <code>npm run dev</code></li>
+            <li>Open <b>Settings → API keys</b> and paste a free key — Groq, Cerebras and Gemini take under a minute (no .env, no restart)</li>
+            <li>Running something locally (Ollama, LM Studio, llama.cpp…)? Hit <b>＋ Add provider by link</b> above and point it at your server</li>
           </ol>
-          <p style={{ margin: "8px 0 0" }}>The router only uses providers whose key is present, tries them in priority order and fails over automatically on rate limits.</p>
+          <p style={{ margin: "8px 0 0" }}>The router tries providers in priority order and fails over automatically on rate limits.</p>
         </div>
       ) : (
         <div className="mesh-grid">
@@ -97,10 +118,14 @@ export default function MeshPanel({
               onClick={() => onSelect(p.id)}
               title={preferred === p.id ? "Unpin" : "Pin this provider first"}
             >
-              <span className={`dot ${p.state === "ready" ? "ok" : "warn"}`} />
-              <span>
-                <div className="name">{p.name}{p.keyless && !p.hasKey ? <span className="tag">keyless</span> : null}{p.state === "cooldown" ? ` · cooldown ${p.cooldownSecs}s` : ""}</div>
-                <div className="meta">{p.model}</div>
+              <BrandTile name={p.name} id={p.custom ? undefined : p.id} category={p.custom ? "custom" : undefined} />
+              <span style={{ minWidth: 0 }}>
+                <div className="name">
+                  {p.custom ? <span className="tag" style={{ color: "var(--ok)" }}>yours</span> : null}
+                  {p.local ? <span className="tag">local</span> : null}
+                  {p.name}{p.keyless && !p.hasKey ? <span className="tag">keyless</span> : null}{p.state === "cooldown" ? ` · cooldown ${p.cooldownSecs}s` : ""}
+                </div>
+                <div className="meta">{p.model}{p.custom && p.baseUrl ? ` · ${p.baseUrl}` : ""}</div>
                 {p.freeTier && <div className="meta" style={{ fontFamily: "var(--font)" }}>{p.freeTier}</div>}
                 {p.keyless && !p.hasKey && p.keyUrl && <div className="meta"><KeyLink href={p.keyUrl}>add a free token for higher limits ↗</KeyLink></div>}
                 <div className="meta">
@@ -118,7 +143,7 @@ export default function MeshPanel({
           <div className="mesh-grid">
             {unconfigured.map((p) => (
               <div key={p.id} className="mesh-item off">
-                <span className="dot" />
+                <BrandTile name={p.name} id={p.custom ? undefined : p.id} />
                 <span style={{ minWidth: 0 }}>
                   <div className="name">{p.name} <span className="tag">P{p.priority}</span></div>
                   <div className="meta">{p.model}</div>
