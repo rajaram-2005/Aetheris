@@ -2172,3 +2172,27 @@ button.chip { cursor: pointer; }
 .ch-missing code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: #f87171; }
 .ch-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .ch-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Accuracy page */
+.acc-page { padding: 24px 28px; max-width: 1180px; margin: 0 auto; color: var(--fg); }
+.acc-head h1 { margin: 0 0 6px; font-size: 24px; }
+.acc-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+.acc-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.acc-head a { color: #38bdf8; }
+.acc-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 12px; align-items: center; }
+.acc-meta strong { color: var(--fg); }
+.acc-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.acc-banner { padding: 10px 12px; background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.3); border-radius: 6px; font-size: 13px; line-height: 1.5; margin-bottom: 16px; color: var(--muted); }
+.acc-banner strong { color: var(--fg); }
+.acc-section { margin: 16px 0; }
+.acc-section h2 { margin: 0 0 6px; font-size: 14px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; }
+.acc-section p { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.acc-section code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.acc-table, .acc-cm { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.acc-table th, .acc-table td, .acc-cm th, .acc-cm td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.acc-table th, .acc-cm th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.acc-table code, .acc-cm code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.acc-cm td { text-align: center; }
+.acc-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.acc-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+.hint { color: var(--muted); font-size: 12px; }
