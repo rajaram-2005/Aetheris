@@ -217,6 +217,7 @@ function buildIndex(
     { path: "/fusion-trace", label: "Fusion Trace", blurb: "Every recorded fusion:orchestrate call, with decision and uncertainty, plus the underlying observability events", tag: ["fusion", "trace", "observability"] },
     { path: "/thresholds", label: "Thresholds", blurb: "Per-twin, per-channel fault-detection thresholds fit from the user's own diagnostic history (mean + k·sigma bands)", tag: ["thresholds", "diagnostics", "anomaly"] },
     { path: "/residual-thresholds", label: "Residual Thresholds", blurb: "Anomaly thresholds from the trained PBNN model's residual variance: mean ± k·sqrt(sigma2)", tag: ["residual", "pbnn", "anomaly"] },
+    { path: "/arena-compare", label: "Arena Compare", blurb: "Pairwise statistical comparison between two arena rows: jaccard, length ratio, latency ratio, winner with confidence", tag: ["arena", "compare", "stats"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },
