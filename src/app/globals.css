@@ -2104,3 +2104,26 @@ button.chip { cursor: pointer; }
 .thr-hint code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
 .thr-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .thr-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Residual thresholds */
+.rt-page { padding: 24px 28px; max-width: 1080px; margin: 0 auto; color: var(--fg); }
+.rt-head h1 { margin: 0 0 6px; font-size: 22px; }
+.rt-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+.rt-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.rt-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.rt-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.rt-form select, .rt-form input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.rt-form input[type="number"] { width: 70px; }
+.rt-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.rt-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 16px; align-items: center; }
+.rt-meta strong { color: var(--fg); }
+.rt-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.rt-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.rt-table th, .rt-table td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.rt-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.rt-table code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.rt-table small { font-size: 10px; opacity: 0.8; }
+.rt-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.rt-hint code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.rt-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.rt-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
