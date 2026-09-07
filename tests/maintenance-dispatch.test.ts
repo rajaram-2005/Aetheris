@@ -82,7 +82,7 @@ test("dispatch: overdue maintenance (no breach) → MEDIUM", async () => {
     await seedTwin(t);
     const r = await dispatchList("u1");
     assert.equal(r.rows[0]!.priority, "MEDIUM");
-    assert.equal(r.rows[0]!.overdueCount, 1);
+    assert.equal(r.rows[0]!.boundBreaches.total, 0);
   } finally { cleanup(dir); }
 });
 

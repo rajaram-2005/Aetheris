@@ -205,6 +205,7 @@ function buildIndex(
     { path: "/permissions-matrix", label: "Permission Matrix", blurb: "Capability × security-level count matrix + per-capability table", tag: ["permission", "matrix", "capability"] },
     { path: "/lab-history", label: "Lab Experiment History", blurb: "Every lab run with source, output, stop reason, and p50/p95 latency", tag: ["lab", "experiment", "history"] },
     { path: "/maintenance-calendar", label: "Maintenance Calendar", blurb: "Forward 90-day projection of every maintenance entry, bucketed by overdue/week/month", tag: ["maintenance", "calendar", "projection"] },
+    { path: "/tasks", label: "Operator Tasks", blurb: "Open and done maintenance entries across your fleet, with a Mark-done action that stamps doneAt and removes the row from the dispatch list", tag: ["tasks", "maintenance", "todo", "close"] },
     { path: "/evidence", label: "Evidence Ledger", blurb: "Append-only view across twin events, diagnostic history, and system events; filterable by twin and source", tag: ["evidence", "audit", "log"] },
     { path: "/audit", label: "Audit Export", blurb: "Download the production observability log as JSON or CSV with type, since, limit, okOnly filters", tag: ["audit", "export", "csv", "json"] },
     { path: "/terminal", label: "Sandboxed Terminal", blurb: "Run a single command per request in a fresh temp workspace, env-scrubbed, SIGKILL timeout. Read-only commands run unconfirmed; everything else needs safe_write + a token", tag: ["terminal", "sandbox", "shell"] },
