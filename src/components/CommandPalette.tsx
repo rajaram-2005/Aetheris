@@ -200,6 +200,7 @@ function buildIndex(
     { path: "/credits", label: "Credit Ledger", blurb: "Today's usage, per-kind breakdown (chat/agents/research/arena/factory/media/api), 30-day history", tag: ["credits", "usage", "billing"] },
     { path: "/arena", label: "Model Arena", blurb: "Run the same prompt against every provider in parallel, side-by-side compare", tag: ["arena", "model", "router"] },
     { path: "/learning", label: "PBNN Prediction Graph", blurb: "Forecast next N steps from the production PBNN model with ±1.96σ band", tag: ["learning", "pbnn", "forecast"] },
+    { path: "/twins/edit", label: "Twin Edit", blurb: "Typed mutations: setName, setState, addBound, removeBound, addRule, addMaintenance", tag: ["twin", "edit", "write"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },

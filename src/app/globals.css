@@ -1710,3 +1710,27 @@ button.chip { cursor: pointer; }
 .lr-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .lr-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
 .lr-foot a:hover { text-decoration: underline; }
+
+/* Twin Edit page */
+.te-page { padding: 24px 28px; max-width: 1100px; margin: 0 auto; color: var(--fg); }
+.te-head h1 { margin: 0 0 6px; font-size: 22px; }
+.te-head p { margin: 0 0 12px; color: var(--muted); max-width: 800px; line-height: 1.5; }
+.te-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.te-pick { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.te-pick input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; min-width: 220px; }
+.te-pick button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.te-flash { padding: 8px 12px; border-radius: 6px; margin: 0 0 12px; }
+.te-flash.ok { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.te-flash.err { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.te-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.te-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; background: var(--panel); }
+.te-card h2 { font-size: 14px; margin: 0 0 8px; }
+.te-card h2 code { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.te-form { display: flex; flex-direction: column; gap: 6px; }
+.te-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.te-form input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.te-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 5px 12px; font-weight: 600; cursor: pointer; margin-top: 4px; }
+.te-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.te-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+.te-foot a:hover { text-decoration: underline; }
+@media (max-width: 760px) { .te-grid { grid-template-columns: 1fr; } }
