@@ -6,6 +6,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+// Isolate the SQLite connection per test file. The knowledge fabric caches
+// the DatabaseSync at module level, so without an explicit AETHERIS_KNOWLEDGE_DB
+// path every test in this file (and every other test file that loads the
+// fabric) would share one DB. Set the env before importing graph.ts.
+process.env.AETHERIS_KNOWLEDGE_DB = path.join(mkdtempSync(path.join(tmpdir(), "aeth-kg-")), "knowledge.sqlite");
 import { knowledgeGraph, subgraph, seedDemoGraph } from "../src/core/knowledge/graph";
 
 function freshEnv() {
