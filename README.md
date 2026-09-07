@@ -91,6 +91,29 @@ Aetheris is **free by default**: every feature, no Aetheris credits or daily quo
 
 Full setup, local inference, backups and troubleshooting: **[LOCAL SETUP](docs/LOCAL_SETUP.md)**.
 
+## What Aetheris can say today (Section 3 labeling)
+
+The system has 10 named cores, each labeled with the build-call from the architecture document. None of the labels claim more than the data supports. Run `npm test` and the per-core surface at `/cores` and `/cores-health` for live evidence; the operator runbook at `/runbook` and the capabilities statement at `/capabilities` carry the human-readable form.
+
+| Core | Build call | Surface | Honest scope |
+|---|---|---|---|
+| RAVANA | Build as orchestration | `/agents` `/trace` `/fuse` `/shell` | Decomposes tasks, runs the agent loop, fuses telemetry/twin/evidence/memory/verification into a single decision. Does not claim AGI. |
+| VAYU-1 | Build as proxy | `/vayu` | Composes PBNN + anomaly + arena + FFT. It is a service that routes to existing modules, not a fine-tuned domain model. |
+| DRISHTI | Build the integration now; train later | `/diagnostics` | Multimodal interface that calls existing vision-capable models. Does not claim proprietary visual intelligence. |
+| YANTRA | Build now | `/twin-3d` `/twins` `/twins/edit` | 3D asset graph, the canonical turbine, twin state with bounds/rules. Not a validated engineering digital twin. |
+| PRAVAAH | Build now | `/devices` `/fleet` | Ingestion, normalization, time-series. Engineering, not validated. |
+| NIRIKSHAN | Build as analytics/diagnostic engine | `/diagnostics` `/learning` `/anomaly` `/thresholds` `/residual-thresholds` | FFT, thresholds from history, residual thresholds from PBNN. Not production-accuracy. |
+| CHAKRA | Build initially as recommendation/optimization layer | `/arena` `/arena-compare` `/credits` | Model arena, recommendations. Recommends; does not actuate. |
+| SMRITI | Build now | `/knowledge-graph` `/evidence` `/handoff` | Memory fabric, knowledge graph, evidence ledger. Retrieves what was actually written. |
+| SETU | Build now | `/terminal` `/lab-history` `/warroom` | WSO2, MCP, sandboxed commands. The allowlist is real. |
+| NIRNAYA | Build now, but don't claim | `/audit` `/trace` `/permissions-matrix` `/trust` | Verifier with evidence/constraint/test execution. Does not provide a proof of correctness. |
+
+Full per-core honest-scope notes: [`/cores`](src/app/cores/page.tsx) · [`/capabilities`](src/app/capabilities/page.tsx) · [`/runbook`](src/app/runbook/page.tsx).
+
+## What Aetheris does not yet claim
+
+The architecture document labels 9 capabilities as not buildable without data, hardware, or training we do not have. They are listed on the `/capabilities` page. We do not build them.
+
 ## Development and status
 
 ```bash
