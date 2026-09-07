@@ -207,6 +207,7 @@ function buildIndex(
     { path: "/maintenance-calendar", label: "Maintenance Calendar", blurb: "Forward 90-day projection of every maintenance entry, bucketed by overdue/week/month", tag: ["maintenance", "calendar", "projection"] },
     { path: "/evidence", label: "Evidence Ledger", blurb: "Append-only view across twin events, diagnostic history, and system events; filterable by twin and source", tag: ["evidence", "audit", "log"] },
     { path: "/audit", label: "Audit Export", blurb: "Download the production observability log as JSON or CSV with type, since, limit, okOnly filters", tag: ["audit", "export", "csv", "json"] },
+    { path: "/terminal", label: "Sandboxed Terminal", blurb: "Run a single command per request in a fresh temp workspace, env-scrubbed, SIGKILL timeout. Read-only commands run unconfirmed; everything else needs safe_write + a token", tag: ["terminal", "sandbox", "shell"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },
