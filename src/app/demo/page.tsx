@@ -17,6 +17,8 @@
  */
 import { buildDemoSequence, CORE_LABELS, VERDICT_COLORS, loadDemoTwin, type DemoStep } from "@/core/demo/sequence";
 import { getHistory } from "@/core/diagnostics/history";
+import { fuse, type FusionResult } from "@/core/orchestration/fusion";
+import { getUserId } from "@/lib/user";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,16 @@ export default async function DemoPage() {
   const seq = twin ? await buildDemoSequence({ twin, rotorRpm: 1500 }) : null;
   const history = twin ? await getHistory(twin.id, { limit: 10 }).catch(() => []) : [];
   const cores = Array.from(new Set(seq?.steps.map((s) => s.core) ?? []));
+  // Run the Fusion Engine end-to-end against the demo seed.
+  // This is the same fuse() that /fuse uses; the demo just
+  // gives it a wind/aero question so VAYU auto-includes.
+  let fusion: FusionResult | null = null;
+  try {
+    const { uid } = await getUserId({ allowAnonymous: true });
+    fusion = await fuse({ uid, question: "what is the state of the wind turbine vibration?", demo: true });
+  } catch {
+    fusion = null;
+  }
 
   return (
     <div className="demo-page">
@@ -88,6 +100,26 @@ export default async function DemoPage() {
         <section className="demo-fusion">
           <h2>🟣 FUSION · one unified Aetheris result</h2>
           <p>{seq.finalResult}</p>
+        </section>
+      )}
+
+      {fusion && (
+        <section className="demo-fusion-engine">
+          <h2>🧠 Fusion Engine · live end-to-end run on the demo seed</h2>
+          <p className="demo-fusion-meta">
+            mode: <strong style={{ color: fusion.mode === "live" ? "#4ade80" : "#facc15" }}>{fusion.mode}</strong> ·
+            verifier: <strong>{fusion.verification.decision}</strong> ·
+            uncertainty: <strong>{fusion.verification.uncertainty.toFixed(2)}</strong> ·
+            cap: <code>{fusion.capability}</code>
+          </p>
+          <p className="demo-fusion-summary">{fusion.summary}</p>
+          <div className="demo-fusion-grid">
+            <article><h4>Telemetry</h4><p>twins: <strong>{fusion.telemetry.twinCount}</strong> · jobs: <strong>{fusion.telemetry.agentJobs}</strong></p></article>
+            <article><h4>Twin</h4><p><code>{fusion.twin.twinId}</code> · {fusion.twin.name} · bounds: <strong>{fusion.twin.boundsCount}</strong></p></article>
+            <article><h4>Evidence</h4><p>total: <strong>{fusion.evidence.total}</strong></p></article>
+            <article><h4>Memory</h4><p>recall: <strong>{fusion.memory.recall.length}</strong> · edges: <strong>{fusion.memory.graphNeighbours.length}</strong></p></article>
+            {fusion.vayu && <article><h4>VAYU-1</h4><p>{fusion.vayu.summary}</p></article>}
+          </div>
         </section>
       )}
 

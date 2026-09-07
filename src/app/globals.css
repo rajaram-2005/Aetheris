@@ -2019,3 +2019,16 @@ button.chip { cursor: pointer; }
 .shell-strip { grid-area: strip; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--border); font-size: 11px; overflow-x: auto; }
 .shell-strip a { color: #94a3b8; text-decoration: none; white-space: nowrap; }
 .shell-strip a:hover { color: #e2e8f0; }
+
+/* Demo: Fusion Engine run */
+.demo-fusion-engine { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; }
+.demo-fusion-engine h2 { margin: 0 0 6px; font-size: 16px; }
+.demo-fusion-meta { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.demo-fusion-meta strong { color: var(--fg); }
+.demo-fusion-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.demo-fusion-summary { margin: 0 0 8px; line-height: 1.5; }
+.demo-fusion-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.demo-fusion-grid article { padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; }
+.demo-fusion-grid h4 { margin: 0 0 4px; font-size: 11px; color: #38bdf8; text-transform: uppercase; }
+.demo-fusion-grid p { margin: 0; font-size: 12px; }
+.demo-fusion-grid code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
