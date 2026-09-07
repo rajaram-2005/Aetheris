@@ -203,6 +203,7 @@ function buildIndex(
     { path: "/twins/edit", label: "Twin Edit", blurb: "Typed mutations: setName, setState, addBound, removeBound, addRule, addMaintenance", tag: ["twin", "edit", "write"] },
     { path: "/trace", label: "Reasoning Trace", blurb: "Read the observability log as a per-capability reasoning trace with ok/fail, ms, detail", tag: ["trace", "reasoning", "observability"] },
     { path: "/permissions-matrix", label: "Permission Matrix", blurb: "Capability × security-level count matrix + per-capability table", tag: ["permission", "matrix", "capability"] },
+    { path: "/lab-history", label: "Lab Experiment History", blurb: "Every lab run with source, output, stop reason, and p50/p95 latency", tag: ["lab", "experiment", "history"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },

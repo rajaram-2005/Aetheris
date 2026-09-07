@@ -1782,3 +1782,28 @@ button.chip { cursor: pointer; }
 .pm-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .pm-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
 .pm-foot a:hover { text-decoration: underline; }
+
+/* Lab History page */
+.lh-page { padding: 24px 28px; max-width: 1180px; margin: 0 auto; color: var(--fg); }
+.lh-head h1 { margin: 0 0 6px; font-size: 22px; }
+.lh-head p { margin: 0 0 12px; color: var(--muted); max-width: 800px; line-height: 1.5; }
+.lh-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.lh-meta { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.lh-meta strong { color: var(--fg); }
+.lh-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+.lh-cols h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
+.lh-cols h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 4px; }
+.lh-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.lh-table th, .lh-table td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.lh-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.lh-table tr.lh-current { background: rgba(56, 189, 248, 0.08); }
+.lh-table a { color: #38bdf8; text-decoration: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.lh-table a:hover { text-decoration: underline; }
+.lh-detail { padding: 10px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.lh-detail p { margin: 0 0 4px; }
+.lh-detail code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+.lh-code { background: var(--panel-2); padding: 8px 10px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; max-height: 320px; overflow: auto; white-space: pre-wrap; }
+.lh-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.lh-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+.lh-foot a:hover { text-decoration: underline; }
+@media (max-width: 760px) { .lh-cols { grid-template-columns: 1fr; } }
