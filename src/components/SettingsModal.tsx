@@ -20,6 +20,42 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
   const [keyErr, setKeyErr] = useState<string | null>(null);
   const loadKeys = () => fetch("/api/keys").then((r) => r.json()).then((j) => { setKeys(j.keys ?? []); setKeyLimit(j.limit ?? 0); }).catch(() => undefined);
   useEffect(() => { if (tab === "keys") loadKeys(); }, [tab]);
+
+  // ---- model-provider keys (Settings-managed, no .env editing) ----
+  interface ProviderKeyItem { id: string; name: string; kind: string; envKey: string; model: string; keyless: boolean; local: boolean; vision: boolean; costClass: string; keyUrl?: string; freeTier?: string; notes?: string; hasKey: boolean; source: "app" | "env" | null; maskedKey: string | null; cloudflare: boolean; cloudflareAccountSet: boolean }
+  const [providers, setProviders] = useState<ProviderKeyItem[] | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pkErr, setPkErr] = useState<string | null>(null);
+  const [pkOk, setPkOk] = useState<Record<string, string>>({});
+  const loadProviders = () => fetch("/api/providers/keys").then((r) => r.json()).then((j) => { setProviders(j.providers ?? []); }).catch(() => setProviders([]));
+  useEffect(() => { if (tab === "keys") loadProviders(); }, [tab]);
+  const patchProvider = (p: ProviderKeyItem | null) => { if (p) setProviders((cur) => (cur ?? []).map((x) => (x.id === p.id ? p : x))); };
+  const saveKey = async (p: ProviderKeyItem) => {
+    setPkErr(null); setBusyId(p.id);
+    try {
+      const r = await fetch("/api/providers/keys", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, key: drafts[p.id] ?? "" }) });
+      const j = await r.json();
+      if (!r.ok) return setPkErr(j.error ?? "save failed");
+      patchProvider(j.provider);
+      setDrafts((d) => { const n = { ...d }; delete n[p.id]; return n; });
+      setPkOk((m) => ({ ...m, [p.id]: `✓ ${p.name} is live — no restart needed` }));
+      setTimeout(() => setPkOk((m) => { const n = { ...m }; delete n[p.id]; return n; }), 4000);
+    } catch { setPkErr("could not reach the server"); } finally { setBusyId(null); }
+  };
+  const removeKey = async (p: ProviderKeyItem) => {
+    setPkErr(null); setBusyId(p.id);
+    try {
+      const r = await fetch("/api/providers/keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+      const j = await r.json();
+      if (!r.ok) return setPkErr(j.error ?? "remove failed");
+      patchProvider(j.provider);
+      setPkOk((m) => ({ ...m, [p.id]: p.source === "env" ? `✓ removed app key — using the .env key again` : "✓ key removed" }));
+      setTimeout(() => setPkOk((m) => { const n = { ...m }; delete n[p.id]; return n; }), 4000);
+    } catch { setPkErr("could not reach the server"); } finally { setBusyId(null); }
+  };
+  const keyProviders = (providers ?? []).filter((p) => !p.keyless);
+  const keylessProviders = (providers ?? []).filter((p) => p.keyless);
   const mint = async () => {
     setKeyErr(null);
     const r = await fetch("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: keyName }) });
@@ -124,7 +160,66 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "keys" && (
           <div className="settings">
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Your own Aetheris API key. OpenAI-compatible — point any SDK at <code>{origin}/api/v1</code> and use models <code>aetheris-free … aetheris-god</code>. Credits and model tiers follow your plan.</p>
+            <div className="keys-hero">
+              <span className="keys-hero-icon">🔑</span>
+              <div>
+                <b>Model provider keys</b>
+                <small>Add keys right here instead of editing .env — applied instantly, no restart. Saved on this device in <code>data/runtime_keys.json</code> and used by Chat, Studio, Agents and RAVANA.</small>
+              </div>
+            </div>
+            {providers === null ? <div className="sb-empty">Loading providers…</div> : keyProviders.length === 0 ? <div className="sb-empty">No providers found.</div> : (
+              <>
+                <div className="pkey-grid">
+                  {keyProviders.map((p) => (
+                    <div key={p.id} className="pkey-card">
+                      <div className="pkey-top">
+                        <div>
+                          <b>{p.name}</b>
+                          {p.local && <span className="pkey-pill local">local</span>}
+                          <span className="pkey-sub">{p.model}{p.vision ? " · vision" : ""}</span>
+                        </div>
+                        <span className={`pkey-pill ${p.source === "app" ? "app" : p.source === "env" ? "env" : "off"}`}>
+                          {p.source === "app" ? "Saved in app" : p.source === "env" ? "From .env" : "No key"}
+                        </span>
+                      </div>
+                      <div className="pkey-meta">
+                        {p.maskedKey ? <code title="stored key, masked">{p.maskedKey}</code> : <span className="hint">—</span>}
+                        {p.keyUrl && <a href={p.keyUrl} target="_blank" rel="noreferrer" className="pkey-link">Get free key ↗</a>}
+                      </div>
+                      {p.freeTier && <div className="pkey-hint">{p.freeTier}</div>}
+                      {p.cloudflare && <div className="pkey-hint warn">{p.cloudflareAccountSet ? "Also needs your account id in .env (CLOUDFLARE_ACCOUNT_ID)." : "⚠ also needs CLOUDFLARE_ACCOUNT_ID in .env to activate."}</div>}
+                      <div className="pkey-actions">
+                        <input
+                          type="password"
+                          placeholder={p.hasKey ? "Paste a new key to replace…" : `Paste ${p.envKey}…`}
+                          value={drafts[p.id] ?? ""}
+                          autoComplete="off"
+                          spellCheck={false}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter" && (drafts[p.id] ?? "").trim().length >= 6) saveKey(p); }}
+                        />
+                        <button className="send" disabled={busyId === p.id || (drafts[p.id] ?? "").trim().length < 6} onClick={() => saveKey(p)}>{busyId === p.id ? "…" : "Save"}</button>
+                        {(p.source === "app" || (drafts[p.id] ?? "").trim()) && <button className="ghost danger pkey-remove" disabled={busyId === p.id} onClick={() => removeKey(p)} title="Remove the app-saved key (falls back to .env if set)">✕</button>}
+                      </div>
+                      <div className="pkey-notes">
+                        {pkOk[p.id] ? <span className="ok-text">{pkOk[p.id]}</span> : p.notes ? <span className="hint">{p.notes}</span> : null}
+                        {!p.notes && !pkOk[p.id] && <span className="hint" style={{ visibility: "hidden" }}>·</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {pkErr && <div className="err-text">{pkErr}</div>}
+                {keylessProviders.length > 0 && (
+                  <div className="pkey-keyless">
+                    <span>Works without a key:</span>
+                    {keylessProviders.map((p) => <span key={p.id} className={`pkey-chip ${p.source === "app" ? "on" : ""}`}>{p.name}{p.source === "app" ? " · key saved" : ""}</span>)}
+                  </div>
+                )}
+              </>
+            )}
+
+            <h4 className="pkey-divider">Your Aetheris API keys <small>OpenAI-compatible gateway</small></h4>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Point any SDK at <code>{origin}/api/v1</code> and use models <code>aetheris-free … aetheris-god</code>. Credits and model tiers follow your plan.</p>
             {fresh && (
               <div className="fresh-key">
                 <div><strong>Copy it now — it will not be shown again.</strong></div>

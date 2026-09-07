@@ -34,7 +34,7 @@ interface ModelPolicy {
 | Keyless community | pollinations · llm7 (optional token raises limits) |
 | **Local / self-hosted** (offline-first) | ollama (`OLLAMA_BASE_URL`, `OLLAMA_MODEL`) · lmstudio (`LMSTUDIO_BASE_URL`) · vllm / any OpenAI-compatible (`CUSTOM_LLM_BASE_URL`, `CUSTOM_LLM_MODEL`) |
 
-Adapter kinds: OpenAI-compatible chat, Gemini native, Cohere v2 (`adapters.ts`). Adding a provider = one `ProviderConfig` entry (base URL, env var, default model, strengths, contextTokens, costClass, local?) — no caller changes. Key pages and limits are listed in `.env.example`; keys are read from env or the user's encrypted BYOK store, never from prompts.
+Adapter kinds: OpenAI-compatible chat, Gemini native, Cohere v2 (`adapters.ts`). Adding a provider = one `ProviderConfig` entry (base URL, env var, default model, strengths, contextTokens, costClass, local?) — no caller changes. Key pages and limits are listed in `.env.example`; keys are read from env or the user's encrypted BYOK store, never from prompts. **Keys can also be added from the app itself:** Settings → API keys stores model-provider keys in `data/runtime_keys.json` (mode 0600) and applies them instantly — no `.env` editing or restart. A key set in the app overrides the same env var; removing it falls back to `.env` when present.
 
 Provider capability entries in the registry are `model:<id>` with status `implemented` when a key/endpoint is configured and `not_available` otherwise — the Control Center shows exactly which are live.
 

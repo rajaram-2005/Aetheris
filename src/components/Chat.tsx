@@ -613,21 +613,30 @@ export default function Chat() {
     : selectedCharacterName ? `Message ${selectedCharacterName} · ${selectedCharacterMode === "guide" ? "guide" : "roleplay"} mode…`
     : research ? "What should I research in depth?" : (models.find((m) => m.id === model)?.agents.max ?? 1) > 1 && !direct ? "Describe the task — Prime routes it to the right specialists (or force one with @coder, @tutor…)" : arena ? "Ask once, compare several models…" : project ? `Ask anything in ${project.name}…` : "Ask anything… (paste or drop images)";
 
+  const settingsModal = showSettings && (
+    <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />
+  );
+
   if (mode === "home") {
-    return <HomeDashboard
-      models={models}
-      mesh={mesh}
-      convos={convos}
-      projects={projects}
-      servers={servers}
-      onMode={setMode}
-      onAsk={(prompt) => {
-        newChat();
-        if (prompt.trim()) setHomeRequest(prompt.trim());
-      }}
-      onNewChat={newChat}
-      onSettings={() => setShowSettings(true)}
-    />;
+    return (
+      <>
+        <HomeDashboard
+          models={models}
+          mesh={mesh}
+          convos={convos}
+          projects={projects}
+          servers={servers}
+          onMode={setMode}
+          onAsk={(prompt) => {
+            newChat();
+            if (prompt.trim()) setHomeRequest(prompt.trim());
+          }}
+          onNewChat={newChat}
+          onSettings={() => setShowSettings(true)}
+        />
+        {settingsModal}
+      </>
+    );
   }
 
   return (
@@ -823,7 +832,7 @@ export default function Chat() {
         )}
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
         {voiceMode && <VoiceOverlay state={busy ? "thinking" : voice.state} level={voice.level} interim={voice.listening ? interim : ""} lastUser={lastUserText} lastAssistant={lastAssistantText} error={voice.error} prefs={voicePrefs} onPrefs={setVoicePrefs} langLabel={voiceLang} voices={voice.voices} onTap={() => (voice.listening ? voice.stopListening() : voice.startListening())} onStop={() => { if (busy) abortRef.current?.abort(); voice.stopSpeaking(); if (voicePrefs.handsFree) setTimeout(() => voice.startListening(), 200); }} onClose={exitVoice} />}
-        {showSettings && <SettingsModal settings={settings} onUpdate={updateSettings} memory={memory} onRemoveMemory={forget} onClearMemory={clearMemory} onAddMemory={(f) => addMemory([f])} onClose={() => setShowSettings(false)} account={account} onUpgrade={() => { setShowSettings(false); setUpgrade(""); }} onExport={exportAll} onClearChats={() => { clearAll(); newChat(); }} />}
+        {settingsModal}
         {editProject !== null && <ProjectModal project={editProject === "new" ? null : editProject} onClose={() => setEditProject(null)} onSave={(p) => { saveProject(p); setEditProject(null); setActiveProject(p.id); if (!active) newChat(); }} />}
 
         {(mode === "chat" || mode === "factory") && <div className="composer">

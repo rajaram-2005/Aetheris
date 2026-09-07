@@ -1,7 +1,13 @@
 import { record } from "@/core/observability/events";
 import { callProvider, hasImages, hasVideo } from "./adapters";
-import { PROVIDERS, apiKeyFor, isConfigured, resolveModel } from "./providers";
+import { PROVIDERS, apiKeyFor, isConfigured, providerKey, providerKeySource, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
+
+/** Short display prefix for a key (never the secret itself). */
+export function maskKey(key?: string): string | null {
+  if (!key) return null;
+  return key.length > 12 ? `${key.slice(0, 5)}…${key.slice(-4)}` : `${key.slice(0, 2)}…`;
+}
 
 /** Cooldown applied after a rate limit / server error, per provider. */
 const RATE_LIMIT_COOLDOWN_MS = Number(process.env.AETHERIS_COOLDOWN_MS ?? 60_000);
@@ -131,7 +137,7 @@ export function orderedCandidates(opts?: { preferred?: string; exclude?: string[
     if (pick.length) configured = pick;
   }
   if (opts?.allowKeyless === false) {
-    const keyed = configured.filter((p) => !p.keyless || !!process.env[p.envKey]?.trim());
+    const keyed = configured.filter((p) => !p.keyless || !!providerKey(p));
     if (keyed.length) configured = keyed;
   }
 
@@ -290,7 +296,9 @@ export function meshStatus() {
       envKey: p.envKey,
       notes: p.notes,
       keyless: !!p.keyless,
-      hasKey: !!(process.env[p.envKey] && process.env[p.envKey]!.trim()),
+      hasKey: !!providerKey(p),
+      keySource: providerKeySource(p) ?? null,
+      maskedKey: maskKey(providerKey(p)),
       keyUrl: p.keyUrl,
       freeTier: p.freeTier,
       configured,

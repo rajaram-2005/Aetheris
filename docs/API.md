@@ -24,7 +24,8 @@ Every capability is reachable over typed JSON endpoints under `/api`. Convention
 | Endpoint | Description |
 |---|---|
 | `GET /api/models` | providers/tiers available (all free) |
-| `GET /api/providers` | mesh health, cooldowns |
+| `GET /api/providers` | mesh health, cooldowns, per-provider `keySource` (`app` \| `env`) + masked key |
+| `GET/PUT/DELETE /api/providers/keys` | manage provider keys from Settings (stored in `data/runtime_keys.json`, applied instantly, override `.env`) |
 | `POST /api/chat` | One Chat: streaming SSE, images, KB grounding, agent auto-delegation, `@agent`; optional database persona via `character:{id,mode:"roleplay"|"guide"}` |
 | `GET/POST /api/characters` · `GET/PATCH/DELETE /api/characters/:id` | curated mythic personas + owner-private character creator ([CHARACTERS](CHARACTERS.md)) |
 | `POST /api/v1/chat/completions` · `GET /api/v1/models` | OpenAI-compatible |

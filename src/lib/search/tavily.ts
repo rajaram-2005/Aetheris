@@ -1,12 +1,14 @@
 /**
  * Web search grounding via Tavily (1,000 free searches / month per key).
- * The key comes from the request (BYOK, stored client-side) or TAVILY_API_KEY as a server default.
+ * The key comes from the request (BYOK, stored client-side), the app's runtime key store
+ * (Settings → API keys), or TAVILY_API_KEY as a server default.
  */
+import { runtimeKeyFor } from "@/lib/router/runtimeKeys";
 export interface SearchResult { title: string; url: string; content: string; score?: number }
 export interface SearchResponse { query: string; answer?: string; results: SearchResult[] }
 
 export function searchKeyFor(reqKey?: string): string | undefined {
-  const k = (reqKey ?? "").trim() || (process.env.TAVILY_API_KEY ?? "").trim();
+  const k = (reqKey ?? "").trim() || runtimeKeyFor("TAVILY_API_KEY") || (process.env.TAVILY_API_KEY ?? "").trim();
   return k || undefined;
 }
 
