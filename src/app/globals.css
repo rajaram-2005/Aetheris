@@ -1207,3 +1207,7 @@ button.chip { color: var(--text); cursor: pointer; text-align: left; }
 .pkey-chip.on { border-color: color-mix(in srgb, var(--ok, #22c55e) 50%, transparent); color: var(--ok, #22c55e); }
 .pkey-divider { border-top: 1px solid var(--line, rgba(255, 255, 255, 0.09)); padding-top: 14px; margin: 6px 0 4px; font-size: 13px; display: flex; align-items: baseline; gap: 8px; }
 .pkey-divider small { color: var(--dim); font-weight: 400; }
+
+/* Settings → API keys: grouped section titles */
+.pkey-section-title { margin: 8px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim); display: flex; align-items: baseline; gap: 6px; }
+.pkey-section-title small { font-size: 11px; letter-spacing: 0; text-transform: none; }

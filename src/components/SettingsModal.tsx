@@ -21,41 +21,86 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
   const loadKeys = () => fetch("/api/keys").then((r) => r.json()).then((j) => { setKeys(j.keys ?? []); setKeyLimit(j.limit ?? 0); }).catch(() => undefined);
   useEffect(() => { if (tab === "keys") loadKeys(); }, [tab]);
 
-  // ---- model-provider keys (Settings-managed, no .env editing) ----
-  interface ProviderKeyItem { id: string; name: string; kind: string; envKey: string; model: string; keyless: boolean; local: boolean; vision: boolean; costClass: string; keyUrl?: string; freeTier?: string; notes?: string; hasKey: boolean; source: "app" | "env" | null; maskedKey: string | null; cloudflare: boolean; cloudflareAccountSet: boolean }
-  const [providers, setProviders] = useState<ProviderKeyItem[] | null>(null);
+  // ---- API keys manager (model providers + service keys — no .env editing) ----
+  interface KeyItem { id: string; name: string; group: "models" | "service"; kind: string; envKey: string; model?: string; powers?: string; keyless: boolean; local: boolean; vision: boolean; costClass: string; keyUrl?: string; freeTier?: string; notes?: string; hasKey: boolean; source: "app" | "env" | null; maskedKey: string | null; cloudflare: boolean; cloudflareAccountSet: boolean }
+  const [providers, setProviders] = useState<KeyItem[] | null>(null);
+  const [services, setServices] = useState<KeyItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pkErr, setPkErr] = useState<string | null>(null);
   const [pkOk, setPkOk] = useState<Record<string, string>>({});
-  const loadProviders = () => fetch("/api/providers/keys").then((r) => r.json()).then((j) => { setProviders(j.providers ?? []); }).catch(() => setProviders([]));
+  const loadProviders = () => fetch("/api/providers/keys").then((r) => r.json()).then((j) => { setProviders(j.providers ?? []); setServices(j.services ?? []); }).catch(() => setProviders([]));
   useEffect(() => { if (tab === "keys") loadProviders(); }, [tab]);
-  const patchProvider = (p: ProviderKeyItem | null) => { if (p) setProviders((cur) => (cur ?? []).map((x) => (x.id === p.id ? p : x))); };
-  const saveKey = async (p: ProviderKeyItem) => {
+  const patchItem = (item: KeyItem | null) => {
+    if (!item) return;
+    if (item.group === "service") setServices((cur) => cur.map((x) => (x.id === item.id ? item : x)));
+    else setProviders((cur) => (cur ?? []).map((x) => (x.id === item.id ? item : x)));
+  };
+  const note = (id: string, text: string) => {
+    setPkOk((m) => ({ ...m, [id]: text }));
+    setTimeout(() => setPkOk((m) => { const n = { ...m }; delete n[id]; return n; }), 4000);
+  };
+  const saveKey = async (p: KeyItem) => {
     setPkErr(null); setBusyId(p.id);
     try {
       const r = await fetch("/api/providers/keys", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, key: drafts[p.id] ?? "" }) });
       const j = await r.json();
       if (!r.ok) return setPkErr(j.error ?? "save failed");
-      patchProvider(j.provider);
+      patchItem(j.item);
       setDrafts((d) => { const n = { ...d }; delete n[p.id]; return n; });
-      setPkOk((m) => ({ ...m, [p.id]: `✓ ${p.name} is live — no restart needed` }));
-      setTimeout(() => setPkOk((m) => { const n = { ...m }; delete n[p.id]; return n; }), 4000);
+      note(p.id, `✓ ${p.name} is live — no restart needed`);
     } catch { setPkErr("could not reach the server"); } finally { setBusyId(null); }
   };
-  const removeKey = async (p: ProviderKeyItem) => {
+  const removeKey = async (p: KeyItem) => {
     setPkErr(null); setBusyId(p.id);
     try {
       const r = await fetch("/api/providers/keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
       const j = await r.json();
       if (!r.ok) return setPkErr(j.error ?? "remove failed");
-      patchProvider(j.provider);
-      setPkOk((m) => ({ ...m, [p.id]: p.source === "env" ? `✓ removed app key — using the .env key again` : "✓ key removed" }));
-      setTimeout(() => setPkOk((m) => { const n = { ...m }; delete n[p.id]; return n; }), 4000);
+      patchItem(j.item);
+      note(p.id, p.source === "env" ? "✓ removed app key — using the .env key again" : "✓ key removed");
     } catch { setPkErr("could not reach the server"); } finally { setBusyId(null); }
   };
   const keyProviders = (providers ?? []).filter((p) => !p.keyless);
   const keylessProviders = (providers ?? []).filter((p) => p.keyless);
+  const renderKeyCard = (p: KeyItem) => (
+    <div key={p.id} className="pkey-card">
+      <div className="pkey-top">
+        <div>
+          <b>{p.name}</b>
+          {p.local && <span className="pkey-pill local">local</span>}
+          <span className="pkey-sub">{p.group === "service" ? p.powers ?? p.envKey : `${p.model ?? ""}${p.vision ? " · vision" : ""}`}</span>
+        </div>
+        <span className={`pkey-pill ${p.source === "app" ? "app" : p.source === "env" ? "env" : "off"}`}>
+          {p.source === "app" ? "Saved in app" : p.source === "env" ? "From .env" : "No key"}
+        </span>
+      </div>
+      <div className="pkey-meta">
+        {p.maskedKey ? <code title="stored key, masked">{p.maskedKey}</code> : <span className="hint">—</span>}
+        {p.keyUrl && <a href={p.keyUrl} target="_blank" rel="noreferrer" className="pkey-link">Get free key ↗</a>}
+      </div>
+      {p.freeTier && <div className="pkey-hint">{p.freeTier}</div>}
+      {p.cloudflare && <div className="pkey-hint warn">{p.cloudflareAccountSet ? "Also needs your account id in .env (CLOUDFLARE_ACCOUNT_ID)." : "⚠ also needs CLOUDFLARE_ACCOUNT_ID in .env to activate."}</div>}
+      <div className="pkey-actions">
+        <input
+          type="password"
+          placeholder={p.hasKey ? "Paste a new key to replace…" : `Paste ${p.envKey}…`}
+          value={drafts[p.id] ?? ""}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+          onKeyDown={(e) => { if (e.key === "Enter" && (drafts[p.id] ?? "").trim().length >= 6) saveKey(p); }}
+        />
+        <button className="send" disabled={busyId === p.id || (drafts[p.id] ?? "").trim().length < 6} onClick={() => saveKey(p)}>{busyId === p.id ? "…" : "Save"}</button>
+        {(p.source === "app" || (drafts[p.id] ?? "").trim()) && <button className="ghost danger pkey-remove" disabled={busyId === p.id} onClick={() => removeKey(p)} title="Remove the app-saved key (falls back to .env if set)">✕</button>}
+      </div>
+      <div className="pkey-notes">
+        {pkOk[p.id] ? <span className="ok-text">{pkOk[p.id]}</span> : p.notes ? <span className="hint">{p.notes}</span> : null}
+        {!p.notes && !pkOk[p.id] && <span className="hint" style={{ visibility: "hidden" }}>·</span>}
+      </div>
+    </div>
+  );
+
   const mint = async () => {
     setKeyErr(null);
     const r = await fetch("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: keyName }) });
@@ -95,9 +140,9 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
               </select>
             </label>
             <label className="field">
-              <span>Tavily API key <a href="https://app.tavily.com" target="_blank" rel="noreferrer">(free: 1,000 searches/month)</a></span>
+              <span>Tavily key for this browser <a href="https://app.tavily.com" target="_blank" rel="noreferrer">(free: 1,000 searches/month)</a></span>
               <input type="password" placeholder="tvly-…" value={settings.tavilyKey} onChange={(e) => onUpdate({ tavilyKey: e.target.value.trim() })} />
-              <small>Stored only in this browser and sent with your requests. Powers web grounding, citations and Deep Research.</small>
+              <small>Optional: stored only in this browser and sent with your requests. Prefer the server-wide Tavily card in the <button className="link" onClick={() => setTab("keys")}>API keys</button> tab so every browser on this instance uses it.</small>
             </label>
             <label className="field row">
               <input type="checkbox" checked={settings.memoryEnabled} onChange={(e) => onUpdate({ memoryEnabled: e.target.checked })} />
@@ -163,58 +208,32 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
             <div className="keys-hero">
               <span className="keys-hero-icon">🔑</span>
               <div>
-                <b>Model provider keys</b>
-                <small>Add keys right here instead of editing .env — applied instantly, no restart. Saved on this device in <code>data/runtime_keys.json</code> and used by Chat, Studio, Agents and RAVANA.</small>
+                <b>Every API key, one place</b>
+                <small>Add keys right here instead of editing .env — applied instantly, no restart. Saved on this device in <code>data/runtime_keys.json</code> (mode 0600) and used by Chat, Agents, Studio, Research, automations and RAVANA.</small>
               </div>
             </div>
-            {providers === null ? <div className="sb-empty">Loading providers…</div> : keyProviders.length === 0 ? <div className="sb-empty">No providers found.</div> : (
+
+            {providers === null ? <div className="sb-empty">Loading…</div> : (
               <>
-                <div className="pkey-grid">
-                  {keyProviders.map((p) => (
-                    <div key={p.id} className="pkey-card">
-                      <div className="pkey-top">
-                        <div>
-                          <b>{p.name}</b>
-                          {p.local && <span className="pkey-pill local">local</span>}
-                          <span className="pkey-sub">{p.model}{p.vision ? " · vision" : ""}</span>
-                        </div>
-                        <span className={`pkey-pill ${p.source === "app" ? "app" : p.source === "env" ? "env" : "off"}`}>
-                          {p.source === "app" ? "Saved in app" : p.source === "env" ? "From .env" : "No key"}
-                        </span>
-                      </div>
-                      <div className="pkey-meta">
-                        {p.maskedKey ? <code title="stored key, masked">{p.maskedKey}</code> : <span className="hint">—</span>}
-                        {p.keyUrl && <a href={p.keyUrl} target="_blank" rel="noreferrer" className="pkey-link">Get free key ↗</a>}
-                      </div>
-                      {p.freeTier && <div className="pkey-hint">{p.freeTier}</div>}
-                      {p.cloudflare && <div className="pkey-hint warn">{p.cloudflareAccountSet ? "Also needs your account id in .env (CLOUDFLARE_ACCOUNT_ID)." : "⚠ also needs CLOUDFLARE_ACCOUNT_ID in .env to activate."}</div>}
-                      <div className="pkey-actions">
-                        <input
-                          type="password"
-                          placeholder={p.hasKey ? "Paste a new key to replace…" : `Paste ${p.envKey}…`}
-                          value={drafts[p.id] ?? ""}
-                          autoComplete="off"
-                          spellCheck={false}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter" && (drafts[p.id] ?? "").trim().length >= 6) saveKey(p); }}
-                        />
-                        <button className="send" disabled={busyId === p.id || (drafts[p.id] ?? "").trim().length < 6} onClick={() => saveKey(p)}>{busyId === p.id ? "…" : "Save"}</button>
-                        {(p.source === "app" || (drafts[p.id] ?? "").trim()) && <button className="ghost danger pkey-remove" disabled={busyId === p.id} onClick={() => removeKey(p)} title="Remove the app-saved key (falls back to .env if set)">✕</button>}
-                      </div>
-                      <div className="pkey-notes">
-                        {pkOk[p.id] ? <span className="ok-text">{pkOk[p.id]}</span> : p.notes ? <span className="hint">{p.notes}</span> : null}
-                        {!p.notes && !pkOk[p.id] && <span className="hint" style={{ visibility: "hidden" }}>·</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {pkErr && <div className="err-text">{pkErr}</div>}
+                <h4 className="pkey-section-title">Chat model providers <small>{keyProviders.length}</small></h4>
+                {keyProviders.length === 0 ? <div className="sb-empty">No providers found.</div> : (
+                  <div className="pkey-grid">{keyProviders.map(renderKeyCard)}</div>
+                )}
                 {keylessProviders.length > 0 && (
                   <div className="pkey-keyless">
                     <span>Works without a key:</span>
                     {keylessProviders.map((p) => <span key={p.id} className={`pkey-chip ${p.source === "app" ? "on" : ""}`}>{p.name}{p.source === "app" ? " · key saved" : ""}</span>)}
                   </div>
                 )}
+
+                {services.length > 0 && (
+                  <>
+                    <h4 className="pkey-section-title">Search · Studio · email & more <small>{services.length}</small></h4>
+                    <div className="pkey-grid">{services.map(renderKeyCard)}</div>
+                  </>
+                )}
+                {pkErr && <div className="err-text">{pkErr}</div>}
+                <p className="hint" style={{ textAlign: "left" }}>Sign-in providers (Google/GitHub OAuth), SMS gateways and server security tokens (<code>AETHERIS_SECRET</code>, <code>CRON_SECRET</code>, <code>AETHERIS_ADMIN_KEY</code>) stay in .env — they gate auth and admin access, not model usage.</p>
               </>
             )}
 
@@ -236,9 +255,9 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
               <button className="send" disabled={keyLimit > 0 && keys.length >= keyLimit} onClick={mint}>Create key {keyLimit ? `(${keys.length}/${keyLimit})` : ""}</button>
             </div>
             {keyErr && <div className="err-text">{keyErr}</div>}
-            <pre className="codeblock" style={{ fontSize: 12 }}>{`curl ${origin}/api/v1/chat/completions \\
-  -H "Authorization: Bearer sk-aeth-..." \\
-  -H "Content-Type: application/json" \\
+            <pre className="codeblock" style={{ fontSize: 12 }}>{`curl ${origin}/api/v1/chat/completions \\\\
+  -H "Authorization: Bearer sk-aeth-..." \\\\
+  -H "Content-Type: application/json" \\\\
   -d '{"model":"aetheris-pro","messages":[{"role":"user","content":"@coder write fizzbuzz in Go"}]}'`}</pre>
           </div>
         )}

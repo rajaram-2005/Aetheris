@@ -9,6 +9,7 @@
  *  • Missed runs (server asleep) are caught up once, not replayed N times.
  */
 import { randomBytes } from "node:crypto";
+import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { store } from "@/lib/store";
 import { record } from "@/core/observability/events";
 import { agentById, HERMES_BASE } from "@/lib/agents/catalog";
@@ -122,9 +123,10 @@ async function publishShare(s: Schedule, run: ScheduleRun): Promise<string> {
   return id;
 }
 async function sendEmail(to: string, subject: string, body: string, link?: string): Promise<boolean> {
-  if (!process.env.RESEND_API_KEY) throw new Error("Email not configured on this server (set RESEND_API_KEY). Use a share link or webhook instead.");
+  const resendKey = resolvedEnv("RESEND_API_KEY");
+  if (!resendKey) throw new Error("Email not configured on this server (add a Resend key in Settings → API keys, or set RESEND_API_KEY). Use a share link or webhook instead.");
   const html = `<div style="font-family:system-ui;max-width:680px;margin:auto"><pre style="white-space:pre-wrap;font-family:inherit;line-height:1.5">${body.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!)}</pre>${link ? `<p><a href="${link}">Open in Aetheris</a></p>` : ""}<p style="color:#888;font-size:12px">Sent by an Aetheris scheduled automation.</p></div>`;
-  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [to], subject, html, text: body }), signal: AbortSignal.timeout(15_000) });
+  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [to], subject, html, text: body }), signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`email failed (${r.status})`);
   return true;
 }

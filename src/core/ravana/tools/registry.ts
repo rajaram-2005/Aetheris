@@ -6,6 +6,7 @@
  * directly: it goes through the permission layer (Capability & Permission Manager, spec §14).
  */
 import type { RavanaTool } from "../types";
+import { searchKeyFor } from "@/lib/search/tavily";
 
 export interface ToolArgs {
   [k: string]: unknown;
@@ -47,7 +48,15 @@ export function tool(name: string): RavanaToolRuntime | undefined {
 export function toolStatus(): RavanaTool[] {
   return [...registry.values()]
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
-    .map(({ run: _run, ...desc }) => desc);
+    .map(({ run: _run, ...desc }) => {
+      // Key-backed tools re-check their key on every read, so the status list is never stale
+      // after a key is added or removed from Settings (no restart needed either way).
+      if (desc.name === "web.search") {
+        const has = !!searchKeyFor();
+        return { ...desc, status: has ? "implemented" : "not_configured", note: has ? undefined : "no Tavily key — add one in Settings → API keys, or set TAVILY_API_KEY" };
+      }
+      return desc;
+    });
 }
 
 /** Tool→capability id for the permission layer. */

@@ -13,6 +13,12 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- API keys, one place: Settings → API keys now manages every service key, not just chat
+  models — Tavily (search), Resend (email), Hugging Face / Fal.ai / ElevenLabs / Luma /
+  Runway (Studio), semantic-embeddings and custom STT keys all live in
+  `data/runtime_keys.json`, apply instantly, and override `.env` (removing one falls back to
+  `.env`). All key-backed features read runtime keys on every request, and RAVANA's tool list
+  re-checks its key live instead of at boot. OAuth/SMS/server-security secrets stay in `.env`.
 - RAVANA (Aetheris Core #1) v0.1 — first intelligence core of the platform: deterministic task
   classifier; DAG planning engine (model-drafted graphs on the mesh, per-kind templates
   otherwise); role-based model router (fast/reasoning/coding/vision over the provider mesh with

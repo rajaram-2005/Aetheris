@@ -53,6 +53,16 @@ export function runtimeKeyFor(envVar: string): string | undefined {
   return v || undefined;
 }
 
+/**
+ * Resolve a configuration value the way the app reads it everywhere: in-app runtime override
+ * first (Settings → API keys), then .env. Use this instead of touching `process.env` directly
+ * so features pick up keys added from the UI without a restart.
+ */
+export function resolvedEnv(envVar: string): string | undefined {
+  const env = process.env[envVar];
+  return runtimeKeyFor(envVar) ?? (env && env.trim() ? env.trim() : undefined);
+}
+
 /** All runtime keys as { envVar, key } — for the management UI. */
 export function listRuntimeKeys(): { envVar: string; key: string }[] {
   return [...load().entries()].map(([envVar, key]) => ({ envVar, key }));

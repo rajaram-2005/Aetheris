@@ -1,5 +1,5 @@
 import type { ProviderConfig } from "./types";
-import { runtimeKeyFor } from "./runtimeKeys";
+import { resolvedEnv, runtimeKeyFor } from "./runtimeKeys";
 
 /**
  * The Aetheris provider mesh.
@@ -417,8 +417,7 @@ export type ProviderKeySource = "app" | "env";
 
 /** Resolved key for a provider: in-app runtime override first, then the environment. */
 export function providerKey(p: ProviderConfig): string | undefined {
-  const k = runtimeKeyFor(p.envKey) ?? process.env[p.envKey];
-  return k && k.trim() ? k.trim() : undefined;
+  return resolvedEnv(p.envKey);
 }
 
 export function providerKeySource(p: ProviderConfig): ProviderKeySource | undefined {
