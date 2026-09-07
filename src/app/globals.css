@@ -2081,3 +2081,26 @@ button.chip { cursor: pointer; }
 .ft-table .fail { color: #f87171; }
 .ft-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
 .ft-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }
+
+/* Thresholds page */
+.thr-page { padding: 24px 28px; max-width: 1080px; margin: 0 auto; color: var(--fg); }
+.thr-head h1 { margin: 0 0 6px; font-size: 22px; }
+.thr-head p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+.thr-head code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.thr-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.thr-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.thr-form select, .thr-form input { background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.thr-form input[type="number"] { width: 70px; }
+.thr-form button { background: #0ea5e9; color: #002436; border: 0; border-radius: 4px; padding: 4px 12px; font-weight: 600; cursor: pointer; }
+.thr-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 16px; align-items: center; }
+.thr-meta strong { color: var(--fg); }
+.thr-meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+.thr-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.thr-table th, .thr-table td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.thr-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.thr-table code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.thr-table small { font-size: 10px; opacity: 0.8; }
+.thr-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.thr-hint code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.thr-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.thr-foot a { color: #38bdf8; text-decoration: none; margin-right: 12px; }

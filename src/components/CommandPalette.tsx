@@ -215,6 +215,7 @@ function buildIndex(
     { path: "/runbook", label: "Operator Runbook", blurb: "What an operator can do today, what they cannot, what the system guarantees, what it does not", tag: ["runbook", "operator", "honest"] },
     { path: "/capabilities", label: "Capabilities", blurb: "Honest capabilities statement: per-core can-do / does-not-yet, plus the boundary Aetheris can keep", tag: ["capabilities", "honest", "scope"] },
     { path: "/fusion-trace", label: "Fusion Trace", blurb: "Every recorded fusion:orchestrate call, with decision and uncertainty, plus the underlying observability events", tag: ["fusion", "trace", "observability"] },
+    { path: "/thresholds", label: "Thresholds", blurb: "Per-twin, per-channel fault-detection thresholds fit from the user's own diagnostic history (mean + k·sigma bands)", tag: ["thresholds", "diagnostics", "anomaly"] },
     { path: "/diagnostics", label: "Diagnostics", blurb: "FFT spectrum + bearing-fault panel", tag: ["fft", "twin"] },
     { path: "/twin-3d", label: "Twin Viewer 3D", blurb: "Wireframe digital-twin viewer with severity overlay", tag: ["3d", "twin", "wireframe"] },
     { path: "/world-model", label: "World Model", blurb: "What-if scenarios with trajectory sparklines (do nothing, derate, shutdown, cool+)", tag: ["world", "counterfactual", "simulate"] },
