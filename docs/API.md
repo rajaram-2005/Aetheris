@@ -56,6 +56,7 @@ chain-of-thought) over SSE. Full design: [RAVANA](RAVANA.md).
 | `GET /api/v1/ravana/models` | role pool: how each role maps to the mesh (env `RAVANA_MODEL_<ROLE>=provider[:model]`) |
 | `GET /api/v1/ravana/tools` | unified tool protocol catalog + permission policy per tool |
 | `GET /api/v1/ravana/stats` | dashboard numbers: tasks, success rate, memory, models, tools |
+| `GET /api/v1/ravana/episodes?status=&kind=&since=&limit=&format=json\|csv&id=` | Episode Ledger: finished tasks only (completed/failed/cancelled/timeout); list, detail (`?id=`), JSON/CSV export. Honest notes block. Live tasks excluded. UI: `/episodes` |
 
 Streaming event vocabulary (stable, spec §16): `task.created · engine.selected · task.planned ·
 task.started · model.selected · tool.requested · tool.started · tool.completed ·

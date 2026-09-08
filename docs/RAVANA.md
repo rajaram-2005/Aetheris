@@ -62,9 +62,19 @@ engine ran and why.
 ## API
 
 `/api/v1/ravana/*` (full table in [API](API.md)) — chat, tasks, run, stream (SSE), confirm,
-memory (+search), models, tools, projects, stats. The manifest (`GET /api/v1/ravana`) reports
+memory (+search), models, tools, projects, stats, **episodes**. The manifest (`GET /api/v1/ravana`) reports
 subsystem statuses; `GET /api/capabilities?id=ravana:*` lists RAVANA through the platform's
 capability registry.
+
+### Episode Ledger
+
+`GET /api/v1/ravana/episodes` and the server-rendered page at `/episodes` project finished
+RAVANA tasks (completed / failed / cancelled / timeout) into a stable list + detail + JSON/CSV
+export. Every row is grounded in a stored task record — plan, execution-trace events,
+verification, models/tools, duration. Live/running tasks are excluded. The response carries an
+honest notes block: the ledger does **not** invent accuracy, quality scores, or training-set
+labels. It is the seed surface for a future RAVANA-Bench export, not a benchmark itself.
+Capability: `ravana:episodes` (`read_only`).
 
 ## UI
 
@@ -72,7 +82,9 @@ Sidebar → **RAVANA** (🔱). Default experience: objective composer + task lis
 shows the objective, plan graph, **live execution trace**, verification card, execution summary
 and the result (with code artifacts). Dashboard tab: status cards, subsystems, role pool, tool
 protocol table. Memory tab: layered search + episodic/semantic lists. Confirmation-gated tool
-requests surface inline as Allow/Deny (the single-use token never leaves the engine).
+requests surface inline as Allow/Deny (the single-use token never leaves the engine). Finished
+tasks also appear on the **Episode Ledger** at `/episodes` (export via
+`/api/v1/ravana/episodes?format=json|csv`).
 
 ## Honest limits (v0.1)
 

@@ -107,6 +107,20 @@ export function ravanaList(): Capability[] {
       supported_operations: toolStatus().map((t) => t.name),
       invoke: { kind: "internal", ref: "/api/v1/ravana/tools" },
     },
+    {
+      ...base,
+      id: "ravana:episodes",
+      name: "RAVANA Episode Ledger",
+      category: "system",
+      description: "Read-side ledger of finished RAVANA tasks (completed/failed/cancelled/timeout). Projects plan, execution-trace events, verification, models/tools and duration into list + detail + JSON/CSV export. Live tasks excluded. Does not invent accuracy or training labels — seed surface for a future RAVANA-Bench, not a benchmark itself. GET /api/v1/ravana/episodes, /episodes.",
+      status: "implemented",
+      tags: ["ravana", "episodes", "audit", "export", "trace"],
+      security_level: "read_only",
+      latency: "fast",
+      supported_operations: ["list", "get", "export"],
+      locality: "local",
+      invoke: { kind: "internal", ref: "/api/v1/ravana/episodes" },
+    },
   ];
 }
 

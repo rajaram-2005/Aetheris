@@ -36,7 +36,7 @@ Vocabulary used everywhere, including the live registry: **IMPLEMENTED · PARTIA
 
 | Subsystem | Status | Notes / doc |
 |---|---|---|
-| RAVANA — Aetheris Core #1 (Reasoning): classifier, DAG planner, role router, agent loop, mandatory verification, memory hierarchy, tool policy, execution-trace SSE, 🔱 workspace UI | IMPLEMENTED | [RAVANA](RAVANA.md) |
+| RAVANA — Aetheris Core #1 (Reasoning): classifier, DAG planner, role router, agent loop, mandatory verification, memory hierarchy, tool policy, execution-trace SSE, 🔱 workspace UI, Episode Ledger (`/episodes`, `/api/v1/ravana/episodes`) | IMPLEMENTED | [RAVANA](RAVANA.md) |
 | ModelRouter — 31 providers, task/locality policy, health, failover, streaming | IMPLEMENTED | [MODELS](MODELS.md) |
 | Agent core — Prime/Hermes/Metis, 102 specialists, 4 modes, lessons | IMPLEMENTED | [AGENTS](AGENTS.md) |
 | Agent runtime — background jobs, budgets, checkpoints, cancel/retry, SSE | IMPLEMENTED | [AGENTS](AGENTS.md) |
