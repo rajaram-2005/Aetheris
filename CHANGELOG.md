@@ -13,6 +13,15 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- RAVANA Episode Ledger — read-side view of every finished RAVANA task
+  (completed / failed / cancelled / timeout): list + detail at `/episodes`,
+  JSON/CSV export at `GET /api/v1/ravana/episodes`, pure projection of stored
+  plan / execution-trace events / verification / models / tools / duration.
+  Live tasks excluded; cross-uid isolation enforced; honest notes block (does
+  not invent accuracy or training labels — seed surface for a future
+  RAVANA-Bench, not a benchmark). Capability `ravana:episodes`. Tests: 10 new.
+- Store: lazy `AETHERIS_DATA_DIR` resolution so test files that set the env at
+  module top-of-file no longer leak data across suites.
 - API keys, one place: Settings → API keys now manages every service key, not just chat
   models — Tavily (search), Resend (email), Hugging Face / Fal.ai / ElevenLabs / Luma /
   Runway (Studio), semantic-embeddings and custom STT keys all live in

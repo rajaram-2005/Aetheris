@@ -5,7 +5,7 @@
  *
  * Default experience: objective → RAVANA classifies, plans (DAG), routes by role, uses tools,
  * verifies and corrects — shown as an execution trace, never as hidden chain-of-thought.
- * Tabs: Tasks · Dashboard · Memory.
+ * Tabs: Tasks · Dashboard · Memory. Finished tasks also land on /episodes.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderMarkdown } from "./markdown";
@@ -78,6 +78,7 @@ export default function Ravana({ onAsk }: { onAsk?: (q: string) => void }) {
         {(["tasks", "dash", "memory"] as const).map((t) => (
           <button key={t} className={`rv-tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t === "tasks" ? "⚡ Tasks" : t === "dash" ? "📊 Dashboard" : "🧠 Memory"}</button>
         ))}
+        <a className="rv-tab" href="/episodes" title="Finished tasks — plan, trace, verification, export">🧾 Episodes</a>
         <span className="rv-online">RAVANA <i className="dot" /> ONLINE</span>
       </div>
       {tab === "tasks" && <TasksView onAsk={onAsk} />}
@@ -264,6 +265,11 @@ function TaskDetail({ task: initial, onGone, onAsk }: { task: TaskT; onGone: () 
         </div>
         <div className="rv-head-actions">
           {["queued", "planning", "running", "awaiting_confirmation"].includes(task.status) && <button className="rv-danger" disabled={cancelling} onClick={() => void cancel()}>■ Stop</button>}
+          {["completed", "failed", "cancelled", "timeout"].includes(task.status) && (
+            <a className="rv-run" href={`/episodes?id=${task.id}`} style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+              🧾 Episode
+            </a>
+          )}
           {task.status === "completed" && onAsk && <button className="rv-run" onClick={followUp}>Continue in chat ↗</button>}
         </div>
       </div>
