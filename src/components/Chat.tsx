@@ -30,6 +30,7 @@ import { imageToDataUrl, markDeleted, titleFrom, useCloudSync, useConversations,
 import HomeDashboard from "./HomeDashboard";
 import Ravana from "./Ravana";
 
+import CommandPalette from "./CommandPalette";
 interface Attempt { provider: string; ok: boolean; error?: string }
 interface MeshSummary { total: number; configured: number; ready: number; providers: ProviderStatus[] }
 
@@ -834,6 +835,16 @@ export default function Chat() {
             </div>
           </div>
         )}
+        <CommandPalette
+          setMode={setMode}
+          navigate={(p) => { window.location.href = p; }}
+          callApi={async (path, init) => {
+            const r = await fetch(path, { ...(init ?? {}), credentials: "include" });
+            const ct = r.headers.get("content-type") ?? "";
+            if (ct.includes("application/json")) return await r.json();
+            return await r.text();
+          }}
+        />
         {upgrade !== null && account && !account.freeForAll && <Upgrade account={account} reason={upgrade || undefined} onClose={() => setUpgrade(null)} onChanged={refreshAccount} />}
         {voiceMode && <VoiceOverlay state={busy ? "thinking" : voice.state} level={voice.level} interim={voice.listening ? interim : ""} lastUser={lastUserText} lastAssistant={lastAssistantText} error={voice.error} prefs={voicePrefs} onPrefs={setVoicePrefs} langLabel={voiceLang} voices={voice.voices} onTap={() => (voice.listening ? voice.stopListening() : voice.startListening())} onStop={() => { if (busy) abortRef.current?.abort(); voice.stopSpeaking(); if (voicePrefs.handsFree) setTimeout(() => voice.startListening(), 200); }} onClose={exitVoice} />}
         {settingsModal}
