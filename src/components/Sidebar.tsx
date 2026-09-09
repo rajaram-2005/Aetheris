@@ -112,6 +112,10 @@ export default function Sidebar({ convos, projects, activeId, activeProject, ope
       </div>
       <div className="sb-bottom">
         <AccountChip />
+        <a className="sb-item" href="/network" style={{ color: "#38bdf8", fontWeight: 600 }}>🕸️ Intelligence Fabric</a>
+        <a className="sb-item" href="/control-plane" style={{ color: "#818cf8" }}>🛡️ Control Plane</a>
+        <a className="sb-item" href="/test-lab" style={{ color: "#34d399" }}>🧪 Test Lab</a>
+        <a className="sb-item" href="/incidents" style={{ color: "#f87171" }}>🚨 Incident Command</a>
         <a className="sb-item" href="/docs" target="_blank" rel="noreferrer">📖 Docs</a>
         <button className="sb-item sb-item-main" onClick={onSettings}>{t("sb.settings")}</button>
       </div>

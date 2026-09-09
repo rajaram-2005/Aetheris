@@ -321,10 +321,10 @@ function DetailView({ ep }: { ep: EpisodeDetail }) {
 export default async function EpisodesPage({
   searchParams,
 }: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { uid } = await getUserId({ allowAnonymous: true });
-  const sp = (await Promise.resolve(searchParams)) ?? {};
+  const sp = (await searchParams) ?? {};
   const idRaw = sp.id;
   const id = typeof idRaw === "string" ? idRaw : Array.isArray(idRaw) ? idRaw[0] : undefined;
 

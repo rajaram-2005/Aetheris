@@ -21,7 +21,7 @@ export interface TwinBound { key: string; min?: number; max?: number; unit?: str
 export interface Twin {
   id: string; uid: string; name: string; kind: string; deviceIds: string[]; state: Record<string, number | string | boolean>;
   history: { at: number; state: Record<string, number | string | boolean> }[]; bounds: TwinBound[]; rules: TwinRule[]; stepSeconds: number;
-  relationships: { kind: "feeds" | "controls" | "part_of" | "near" | "depends_on"; targetId: string }[]; maintenance: { at: number; note: string; nextDue?: number }[];
+  relationships: { kind: "feeds" | "controls" | "part_of" | "near" | "depends_on"; targetId: string }[]; maintenance: { at: number; note: string; nextDue?: number; doneAt?: number; doneNote?: string }[];
   events: { at: number; kind: string; detail: string }[]; createdAt: number; updatedAt: number;
 }
 const COL = "twins"; const HIST = 300;
@@ -66,7 +66,7 @@ export function simulate(t: Pick<Twin, "state" | "rules" | "bounds" | "stepSecon
   return { safe: !breaches.some((b) => b.critical), breaches: breaches.slice(0, 20), firstBreachAtSeconds: first ? first.step * t.stepSeconds : undefined, final: trajectory.at(-1)!, trajectory: trajectory.filter((_, i) => i % Math.max(1, Math.floor(steps / 10)) === 0 || i === trajectory.length - 1), errors: [...new Set(errors)] };
 }
 export function twinHealth(t: Twin) {
-  const lastAt = t.history.at(-1)?.at; const stale = !lastAt || Date.now() - lastAt > 15 * 60_000; const breaches = checkBounds(t.state, t.bounds); const overdue = t.maintenance.filter((m) => m.nextDue && m.nextDue < Date.now());
+  const lastAt = t.history.at(-1)?.at; const stale = !lastAt || Date.now() - lastAt > 15 * 60_000; const breaches = checkBounds(t.state, t.bounds); const overdue = t.maintenance.filter((m) => !m.doneAt && m.nextDue && m.nextDue < Date.now());
   const score = Math.max(0, 100 - (stale ? 30 : 0) - breaches.reduce((n, b) => n + (b.critical ? 40 : 15), 0) - overdue.length * 10);
   return { score, stale, lastAt, breaches, overdueMaintenance: overdue, criticalEvents24h: t.events.filter((e) => e.kind === "critical" && Date.now() - e.at < 86_400_000).length };
 }
