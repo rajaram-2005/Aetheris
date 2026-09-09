@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["*.e2b.app"],
   /**
+   * `@ffmpeg/core` is loaded at runtime by walking node_modules (see
+   * src/core/multimodal/wasmffmpeg.ts). Marking it external keeps webpack from tracing the
+   * 62 MB wasm into a JS chunk. Combined with dropping createRequire, the production build
+   * no longer emits Critical dependency warnings for this package.
+   */
+  serverExternalPackages: ["@ffmpeg/core"],
+  /**
    * The desktop app (desktop/) ships the server as a self-contained bundle: it runs
    * `.next/standalone/server.js` under Electron's own Node runtime, so no Node install is needed on
    * the user's machine. Opt in with AETHERIS_STANDALONE=1 — `npm run desktop:build` sets it.

@@ -8,6 +8,8 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Audit production dependencies (critical)
+        run: npm audit --omit=dev --audit-level=critical
       - run: npm run typecheck
       # The Electron shell is its own TypeScript project (desktop/tsconfig.json). The root tsc
       # program deliberately excludes desktop/, so typecheck it here against the real electron

@@ -1,10 +1,12 @@
 :root {
-  --bg: #0a0c12;
+  --bg: #0b0e14;
   --panel: #11141c;
   --panel-2: #171b26;
   --border: #232838;
   --text: #e8eaf1;
+  --fg: #e8eaf1;
   --muted: #8f96a9;
+  --dim: #8f96a9;
   --user: linear-gradient(135deg, #2f3f8f 0%, #4a2f8a 100%);
   --accent: #7c9cff;
   --accent-2: #b48cff;
@@ -3855,5 +3857,35 @@ button.chip { color: var(--text); cursor: pointer; text-align: left; }
 }
 .log-line {
   line-height: 1.45;
+}
+
+/* Failure / not-found surfaces (src/app/error.tsx, src/app/not-found.tsx) */
+.fail-kicker {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--err);
+}
+.fail-card { text-align: left; max-width: 520px; }
+.fail-dl { margin: 16px 0 0; display: grid; gap: 10px; }
+.fail-dl > div { display: grid; gap: 2px; }
+.fail-dl dt {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.fail-dl dd { margin: 0; font-size: 14px; color: var(--fg); line-height: 1.45; }
+.fail-actions { display: flex; gap: 8px; justify-content: flex-start; margin-top: 18px; flex-wrap: wrap; }
+.fail-actions .send, .fail-actions .ghost { text-decoration: none; display: inline-flex; align-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

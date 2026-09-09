@@ -129,14 +129,22 @@ export default function CommandPalette({ setMode, navigate, callApi }: CommandPa
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onInputKey}
           data-testid="cmd-input"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls="cmd-list"
+          aria-activedescendant={matches[selected] ? `cmd-row-${matches[selected].id}` : undefined}
         />
-        {busy ? <div className="cmd-busy">{busy}…</div> : null}
-        {err ? <div className="cmd-err">⚠ {err}</div> : null}
-        <div className="cmd-list" data-testid="cmd-list">
+        {busy ? <div className="cmd-busy" role="status">{busy}…</div> : null}
+        {err ? <div className="cmd-err" role="alert">⚠ {err}</div> : null}
+        <div className="cmd-list" id="cmd-list" role="listbox" data-testid="cmd-list">
           {matches.length === 0 ? <div className="cmd-empty">No matches. Try a different word.</div> : null}
           {matches.map((m, i) => (
             <button
               key={m.id}
+              id={`cmd-row-${m.id}`}
+              role="option"
+              aria-selected={i === selected}
               className={`cmd-row${i === selected ? " on" : ""}`}
               onMouseEnter={() => setSelected(i)}
               onClick={() => void run(m)}
@@ -255,7 +263,7 @@ function buildIndex(
     { path: "/api/symbolic", label: "GET /api/symbolic", blurb: "Neurosymbolic verifier status", tag: ["symbolic", "verify"] },
     { path: "/api/lab", label: "GET /api/lab", blurb: "Sandboxed self-modification lab status", tag: ["lab", "sandbox"] },
     { path: "/api/capabilities", label: "GET /api/capabilities", blurb: "List all capability cards (sources, statuses)", tag: ["capability", "registry"] },
-    { path: "/api/mesh", label: "GET /api/mesh", blurb: "Provider mesh status (configured / ready / errors)", tag: ["mesh", "provider"] },
+    { path: "/api/providers", label: "GET /api/providers", blurb: "Provider mesh status (configured / ready / errors)", tag: ["mesh", "provider"] },
     { path: "/api/debate", label: "GET /api/debate", blurb: "List saved War Room debates (newest first)", tag: ["debate", "war", "history"] },
     { path: "/api/demo", label: "GET /api/demo", blurb: "DEMO mode status (enabled, seeded, pinned provider)", tag: ["demo", "status"] },
     { path: "/api/v1/ravana/episodes", label: "GET /api/v1/ravana/episodes", blurb: "List finished RAVANA task episodes (JSON / CSV)", tag: ["episodes", "ravana", "tasks", "export"] },
@@ -306,10 +314,13 @@ function buildIndex(
       action: async () => {
         setBusy(`Fetching ${c.label}…`);
         try {
-          const out = await callApi(`/api/capabilities/${encodeURIComponent(c.id)}`) as { card?: { id: string; name: string; description: string; tags?: string[]; verification_status?: string } } | undefined;
-          if (out?.card) {
-            const card = out.card;
-            window.alert(`${card.name}  (${card.id})\n\n${card.description}\n\nStatus: ${card.verification_status ?? "?"}\nTags: ${(card.tags ?? []).join(", ")}`);
+          const out = await callApi(`/api/capabilities?id=${encodeURIComponent(c.id)}`) as {
+            capability?: { id: string; name: string; description: string; tags?: string[]; verification_status?: string; status?: string };
+            error?: string;
+          } | undefined;
+          if (out?.capability) {
+            const card = out.capability;
+            window.alert(`${card.name}  (${card.id})\n\n${card.description}\n\nStatus: ${card.status ?? "?"} · verification: ${card.verification_status ?? "?"}\nTags: ${(card.tags ?? []).join(", ")}`);
           } else {
             window.alert(`Capability ${c.id}: not found in the registry.`);
           }

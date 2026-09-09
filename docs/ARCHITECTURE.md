@@ -170,8 +170,10 @@ With those, `M.exec("-i", "/in.mp4", "-vf", "fps=1,scale=160:-1", "-frames:v", "
 genuine JPEGs (`ffd8ff`) — verified against a real 13 KB H.264 MP4, which the WASM core also
 generated (`tools/gen-fixture.ts`). The wrapper (`core/multimodal/wasmffmpeg`) runs each job in a
 `worker_thread` so a slow decode never blocks the server's event loop, kills it at a timeout, and
-keeps everything in memory. The specifier is assembled at runtime because webpack otherwise resolves
-`require.resolve("@ffmpeg/core/wasm")` statically and tries to bundle the 62 MB wasm as JavaScript.
+keeps everything in memory. The core is located by walking `node_modules` on disk — never
+`createRequire` / `require.resolve`, which webpack treats as a critical dependency and tries to
+bundle the 62 MB wasm as JavaScript. `next.config.ts` also lists `@ffmpeg/core` in
+`serverExternalPackages` so the production compiler leaves the package on the filesystem.
 
 What is still genuinely out of reach is a *real browser*: `ffmpeg-static` and `@sparticuz/chromium`
 fetch GitHub **release assets**, and `release-assets.githubusercontent.com:443` fails at
