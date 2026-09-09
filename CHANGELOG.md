@@ -13,6 +13,50 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- Production build is now warning-free: `wasmffmpeg.ts` resolves `@ffmpeg/core` by walking
+  `node_modules` and reading the package manifest instead of calling `require.resolve()` with a
+  computed specifier. The bundler-flagged path was also the unreliable one — webpack replaces
+  `createRequire` with a shim that cannot see a runtime-built specifier, so every bundled call
+  already fell through to the filesystem walk. One resolution path now, and the two
+  `Critical dependency` warnings on every `next build` are gone.
+- Security, `POST /api/control-plane`: `maxLoopbacks` arrived from the request body unchecked and is
+  the only bound on the Phase 7 → Phase 3 recovery loop, so one request could ask a server worker to
+  re-run five phases a billion times. Now validated at the route (422, capped at 10) and clamped in
+  the supervisor for every caller. `injectedFailure` had two competing definitions (four values in
+  the supervisor and route, a three-value copy in the page) and was cast rather than checked; there
+  is now one canonical vocabulary in `core/controlplane/types.ts` with a runtime guard.
+- Security, `GET /api/control-plane`: task reads were not scoped to the caller, so any visitor could
+  read another visitor's pipeline runs — objective, evidence bundle, decision — from a `cpt_…` id,
+  even though every record already carried its `uid`. `getTask`/`listTasks` now take the uid and
+  answer 404 rather than 403, matching the rule the RAVANA engine already enforced.
+- Safety, `POST /api/incident`: `recommendedAction.requiresHumanSignoff` was settable from the
+  request body, so a caller could drop the sign-off requirement from a physical derate
+  recommendation. It is now untypable in `IncidentInput` and forced `true` by the engine. Partial
+  payloads also stopped blanking the fields they did not supply (the panel rendered "-undefined K").
+- Input validation, one mechanism: new `core/security/validate.ts` primitives plus per-domain
+  parsers for the control plane, incident and test-lab surfaces. `POST /api/test-lab` no longer
+  spreads an arbitrary object into the failure database, and `action: "record_failure"` with a
+  missing failure is now a 422 instead of silently running the whole eight-category suite.
+- Type safety: the six `gateVerdict: any` annotations in the control-plane supervisor are the real
+  `GateVerdict` union, and the control-plane page narrows its select through a type guard instead of
+  `as any`. No `any` remains in those three routes.
+- Dependencies, both trees to zero advisories. Root 3 → 0: `postcss` overridden to ^8.5.28 (next@15
+  pins the vulnerable 8.4.31 exactly, which is also the sole reason `next` itself was flagged) and
+  `sharp` 0.33.5 → 0.35.4, dev-only. Next.js stays on 15.x — the 16.x major was inspected and
+  deferred. Desktop 14 → 0 (one critical, in `tar`): `electron` 33.4.11 → 44.3.0 and
+  `electron-builder` 25 → 26.15.3; Electron 33 carried a context-isolation bypass, an ASAR integrity
+  bypass and a custom-protocol CORS flaw among others.
+- CI: three jobs instead of one. `security` audits both trees on every push; `desktop-runtime`
+  installs the real Electron binary and runs the new `desktop/src/smoke.ts` under `xvfb-run`, which
+  asserts the contextBridge surface and renderer isolation; and `verify` now fails if the production
+  build emits any warning. `verify` also compiles `desktop/` so `tests/desktop.main.test.ts` — which
+  executes the real `main.js` and skips when `desktop/dist` is absent — actually runs on main.
+- Tests: 39 new. `tests/app-router-contract.test.ts` checks every page and route in `src/app` with
+  the TypeScript compiler — `params`/`searchParams` must be Promises, never a union with a plain
+  `Record`, and a route module may not export anything but HTTP methods and config. That is the class
+  of failure that broke the build on `episodes/page.tsx`; it was only caught by `next build`, because
+  `tsc --noEmit` cannot see the contracts Next generates into `.next/types`. It is now caught in the
+  test step.
 - RAVANA Episode Ledger — read-side view of every finished RAVANA task
   (completed / failed / cancelled / timeout): list + detail at `/episodes`,
   JSON/CSV export at `GET /api/v1/ravana/episodes`, pure projection of stored
