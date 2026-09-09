@@ -185,6 +185,9 @@ function buildIndex(
 
   // 2. Routes (full-page navigation)
   const routes: { path: string; label: string; blurb: string; tag?: string[] }[] = [
+    { path: "/control-plane", label: "Outer Control Plane", blurb: "12-phase pipeline supervisor with mandatory gates, live phase rail & execution provenance", tag: ["control", "plane", "phase", "gate", "supervisor", "v2"] },
+    { path: "/test-lab", label: "Test Lab & Regression", blurb: "8-category failure testing, composite evaluation scoring, and failure database", tag: ["test", "lab", "regression", "evaluation", "failure"] },
+    { path: "/incident", label: "Incident Command", blurb: "Emergency supervisory console for critical asset anomalies and guarded derating", tag: ["incident", "command", "emergency", "derate"] },
     { path: "/dashboard", label: "Dashboard", blurb: "10-core status, mesh, recent diagnostics, quick links", tag: ["home", "system", "health"] },
     { path: "/agents", label: "Agent Inspector", blurb: "Every agent in the catalog (Prime, Hermes, Metis, ...) with tier + skills + system prompt", tag: ["agent", "inspector", "catalog"] },
     { path: "/abstain", label: "Abstention (I don't know)", blurb: "NIRNAYA's 8-item evidence checklist + COLLECT / ESCALATE / SAFE STATE recommendation", tag: ["abstain", "evidence", "nirnaya"] },
@@ -256,6 +259,9 @@ function buildIndex(
     { path: "/api/debate", label: "GET /api/debate", blurb: "List saved War Room debates (newest first)", tag: ["debate", "war", "history"] },
     { path: "/api/demo", label: "GET /api/demo", blurb: "DEMO mode status (enabled, seeded, pinned provider)", tag: ["demo", "status"] },
     { path: "/api/v1/ravana/episodes", label: "GET /api/v1/ravana/episodes", blurb: "List finished RAVANA task episodes (JSON / CSV)", tag: ["episodes", "ravana", "tasks", "export"] },
+    { path: "/api/control-plane", label: "GET /api/control-plane", blurb: "Control plane task state & 12-phase pipeline status", tag: ["control", "plane", "phase", "gate"] },
+    { path: "/api/test-lab", label: "GET /api/test-lab", blurb: "Test Lab failure database & composite evaluation scores", tag: ["test", "lab", "regression"] },
+    { path: "/api/incident", label: "GET /api/incident", blurb: "Active Incident Command status & mitigation actions", tag: ["incident", "command"] },
   ];
   for (const a of apis) {
     items.push({
