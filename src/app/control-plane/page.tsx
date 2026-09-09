@@ -13,16 +13,17 @@ import Link from "next/link";
 import PhaseRail from "@/components/PhaseRail";
 import ControlPlaneInspector from "@/components/ControlPlaneInspector";
 import ExecutionGraph from "@/components/ExecutionGraph";
-import type { ControlPlaneTaskRecord, PhaseId } from "@/core/controlplane/types";
+import { isInjectedFailure, type ControlPlaneTaskRecord, type InjectedFailure, type PhaseId } from "@/core/controlplane/types";
 
 export default function ControlPlanePage() {
   const [task, setTask] = useState<ControlPlaneTaskRecord | null>(null);
   const [selectedPhaseId, setSelectedPhaseId] = useState<PhaseId | null>(null);
   const [inputQuery, setInputQuery] = useState("Analyze WTG-04 gearbox bearing vibration telemetry");
   const [running, setRunning] = useState(false);
-  const [failureScenario, setFailureScenario] = useState<"none" | "contradiction" | "safety_block">("none");
+  // One canonical fault-injection vocabulary, shared with the supervisor and POST /api/control-plane.
+  const [failureScenario, setFailureScenario] = useState<InjectedFailure>("none");
 
-  const runPipeline = async (customReq?: string, scenario?: "none" | "contradiction" | "safety_block") => {
+  const runPipeline = async (customReq?: string, scenario?: InjectedFailure) => {
     setRunning(true);
     const reqText = customReq ?? inputQuery;
     const scen = scenario ?? failureScenario;
@@ -77,7 +78,12 @@ export default function ControlPlanePage() {
         <select
           className="cp-select"
           value={failureScenario}
-          onChange={(e) => setFailureScenario(e.target.value as any)}
+          onChange={(e) => {
+            // The DOM hands back a string, not an InjectedFailure. Guard it instead of casting it:
+            // an unknown value falls back to "none" rather than entering the pipeline unvalidated.
+            const next = e.target.value;
+            setFailureScenario(isInjectedFailure(next) ? next : "none");
+          }}
           disabled={running}
         >
           <option value="none">Standard Pipeline (Normal)</option>

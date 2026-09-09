@@ -2,13 +2,19 @@
  * API Route: /api/test-lab
  *
  * GET: Retrieve test failures, regression stats, or composite evaluation score
- * POST: Execute Test Lab regression suite across 8 failure categories
+ * POST: Run the Test Lab regression suite, or record one validated failure
+ *
+ * The body is validated by `parseTestLabRequest` in `@/core/controlplane/testlab/request`, which lives
+ * outside this module because a Next.js route may only export HTTP methods and route config.
  */
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
 import { failureStats, listFailures, recordFailure } from "@/core/controlplane/testlab/database";
+import { parseTestLabRequest } from "@/core/controlplane/testlab/request";
 import { runTestLabSuite } from "@/core/controlplane/testlab/runner";
 import { computeEvaluationScore } from "@/core/controlplane/testlab/scoring";
+import { record } from "@/core/observability/events";
+import { validationError } from "@/core/security/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,10 +40,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const { uid, isNew } = await getUserId();
-  const body = (await req.json().catch(() => ({}))) as { action?: string; failure?: any };
+  const parsed = parseTestLabRequest(await req.json().catch(() => null));
 
-  if (body.action === "record_failure" && body.failure) {
-    const rec = recordFailure(body.failure);
+  if (!parsed.ok) {
+    const res = NextResponse.json(validationError(parsed.errors), { status: parsed.status });
+    if (isNew) res.cookies.set(uidCookie(uid));
+    return res;
+  }
+
+  if (parsed.value.action === "record_failure") {
+    const rec = recordFailure(parsed.value.failure);
+    record({ type: "execution", uid, capability: "testlab:record_failure", ok: true, detail: `${rec.testId} ${rec.failureType}/${rec.severity}` });
     const res = NextResponse.json({ failure: rec }, { status: 201 });
     if (isNew) res.cookies.set(uidCookie(uid));
     return res;

@@ -19,6 +19,45 @@
 
 export type PhaseId = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
+// --------------------------------------------------------------------------- fault injection
+
+/**
+ * The canonical fault-injection vocabulary for a pipeline run.
+ *
+ * One definition, three consumers: `ControlPlaneSupervisor.executeTask`, `POST /api/control-plane`
+ * and the /control-plane runner UI. The route and the page used to restate this union inline, and the
+ * page restated a *narrower* copy of it — so the same value had two different types depending on which
+ * side of the boundary you were standing on. Values a client sends are checked with
+ * `isInjectedFailure` before they reach the supervisor; nothing is cast into this union.
+ */
+export const INJECTED_FAILURES = ["none", "missing_evidence", "contradiction", "safety_block"] as const;
+export type InjectedFailure = (typeof INJECTED_FAILURES)[number];
+
+/** Runtime guard for the fault-injection vocabulary. Never trust a cast from parsed JSON. */
+export function isInjectedFailure(value: unknown): value is InjectedFailure {
+  return typeof value === "string" && (INJECTED_FAILURES as readonly string[]).includes(value);
+}
+
+/**
+ * Loopback ceiling for one run, and the normalizer that enforces it.
+ *
+ * `task.loopbackCount < task.maxLoopbacksAllowed` is the only thing that stops the Phase 7 → Phase 3
+ * recovery loop, so the ceiling is a resource limit, not a preference: a request that supplies
+ * `maxLoopbacks: 1e9` together with `injectedFailure: "contradiction"` would otherwise re-run phases
+ * 3–7 for as long as the process lived, holding a server worker and growing the task record on every
+ * pass. `normalizeMaxLoopbacks` is the single place that turns an untrusted number into a safe
+ * integer; the supervisor applies it even for programmatic callers, so the limit cannot be bypassed
+ * by going around the route.
+ */
+export const DEFAULT_MAX_LOOPBACKS = 3;
+export const MAX_LOOPBACKS_LIMIT = 10;
+
+/** Clamp an untrusted loopback ceiling to a safe integer in [0, MAX_LOOPBACKS_LIMIT]. */
+export function normalizeMaxLoopbacks(value: unknown, fallback = DEFAULT_MAX_LOOPBACKS): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(MAX_LOOPBACKS_LIMIT, Math.max(0, Math.trunc(value)));
+}
+
 export type ControlPlaneState =
   | "RECEIVED"
   | "UNDERSTANDING"
