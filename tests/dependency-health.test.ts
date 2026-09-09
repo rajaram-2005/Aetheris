@@ -102,6 +102,27 @@ test("dependencies: the desktop tree is off the Electron and electron-builder li
   for (const v of tars) assert.ok(cmpVersion(v, "7.5.21") >= 0, `tar ${v} is below 7.5.21, the first release clear of GHSA-r292-9mhp-454m`);
 });
 
+test("dependencies: desktop declares its own TypeScript, so its compile cannot borrow a compiler", () => {
+  // `desktop/` has its own tsconfig and lockfile but used to have no typescript dependency, so
+  // `npm run compile` resolved whatever `tsc` was on PATH: root's 5.9.3 when the root tree happened
+  // to be installed, a runner-global TypeScript 6+ when it was not. TS 6 removed
+  // `moduleResolution: node10`, so the desktop build failed before reading a source file — and only
+  // in the CI job that did not install the root tree first. A project that compiles itself must own
+  // its compiler.
+  const declared = desktopPkg.devDependencies.typescript;
+  assert.ok(declared, "desktop/package.json must declare typescript as a devDependency");
+  assert.equal(declared.startsWith("^5."), true, `desktop is pinned to the 5.x line (node10 resolution still exists there); got ${declared}`);
+  assert.equal(declared, rootPkg.devDependencies.typescript, "both trees use the same TypeScript line, so desktop and root cannot disagree");
+
+  const lock = json<{ packages: Record<string, { version?: string }> }>("desktop/package-lock.json");
+  const resolved = lock.packages["node_modules/typescript"]?.version;
+  assert.ok(resolved, "typescript is in the desktop lockfile, so `npm ci` installs a local .bin/tsc");
+  assert.equal(resolved.startsWith("5."), true, `the lockfile resolved ${resolved}, not a 5.x release`);
+
+  // And the constraint is written down where the next person will see it.
+  assert.match(read("desktop/tsconfig.json"), /REMOVED in 6\.x/, "desktop/tsconfig.json explains why the 5.x line is required");
+});
+
 test("dependencies: the two versions are coherent everywhere the release tooling reads them", () => {
   // VERSION is the source of truth; tools/bump-version.mjs copies it. tests/desktop.test.ts already
   // asserts the copy, so this only checks the desktop app did not drift during the dependency work.

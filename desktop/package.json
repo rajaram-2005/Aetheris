@@ -25,7 +25,8 @@
   },
   "devDependencies": {
     "electron": "^44.3.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.6.0"
   },
   "build": {
     "appId": "io.aetheris.one",

@@ -1,4 +1,11 @@
 {
+  // This project compiles itself: `typescript` is a desktop devDependency, not something borrowed
+  // from the root tree or from whatever compiler happens to be on the runner's PATH. That matters
+  // because "moduleResolution": "Node" (node10) is deprecated in TypeScript 5.x and REMOVED in 6.x —
+  // a compile that resolves a newer tsc fails on this file before it reads a single source file,
+  // which is exactly what happened the first time CI compiled desktop/ without the root installed.
+  // CommonJS + node10 resolution is what an Electron main process needs; moving to node16 emit is a
+  // separate, deliberate change, not something to inherit from a compiler bump.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],

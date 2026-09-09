@@ -46,6 +46,13 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
   deferred. Desktop 14 → 0 (one critical, in `tar`): `electron` 33.4.11 → 44.3.0 and
   `electron-builder` 25 → 26.15.3; Electron 33 carried a context-isolation bypass, an ASAR integrity
   bypass and a custom-protocol CORS flaw among others.
+- Build integrity, `desktop/`: the project had its own `tsconfig.json` and lockfile but no
+  `typescript` dependency, so `npm run compile` used whatever `tsc` was on `PATH` — the root
+  tree's 5.9.3 when it happened to be installed, a runner-global TypeScript 6+ when it was
+  not. TypeScript 6 removed `moduleResolution: node10`, so the desktop build failed on its
+  own config before reading a source file, and only in a CI job that did not install the
+  root tree first. `desktop/` now declares TypeScript 5.x and owns its compiler; the
+  constraint is written into `desktop/tsconfig.json`.
 - CI: three jobs instead of one. `security` audits both trees on every push; `desktop-runtime`
   installs the real Electron binary and runs the new `desktop/src/smoke.ts` under `xvfb-run`, which
   asserts the contextBridge surface and renderer isolation; and `verify` now fails if the production
