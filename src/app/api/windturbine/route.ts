@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const { uid, isNew } = await getUserId();
   const twins = (await listTwins(uid)).filter((t) => t.kind === "wind-turbine");
-  const res = NextResponse.json({ twins: twins.map((t) => ({ id: t.id, name: t.name, state: t.state })) });
+  const res = NextResponse.json({ twins: twins.map((t) => ({ id: t.id, name: t.name, kind: t.kind, state: t.state, bounds: t.bounds })) });
   if (isNew) res.cookies.set(uidCookie(uid));
   return res;
 }

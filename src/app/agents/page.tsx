@@ -40,15 +40,10 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
-export default function AgentsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  // We can't await inside a non-async function; wrap in a top-level async:
-  return <AgentsPageAsync searchParams={searchParams} />;
-}
-
-async function AgentsPageAsync({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+export default async function AgentsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const sp = await searchParams;
   const sorted = AGENTS.slice().sort(sortByTier);
-  const selected = (sp.id ? AGENTS.find((a) => a.id === sp.id) : null) ?? sorted.find((a) => a.tier === "ultra") ?? sorted[0];
+  const selected = (sp?.id ? AGENTS.find((a) => a.id === sp.id) : null) ?? sorted.find((a) => a.tier === "ultra") ?? sorted[0];
 
   return (
     <div className="ag-page">

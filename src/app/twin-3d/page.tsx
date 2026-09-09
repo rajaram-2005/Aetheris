@@ -47,7 +47,16 @@ export default async function Twin3DPage({ searchParams }: { searchParams: Promi
         </aside>
         <main className="twin3d-page-main">
           {selected ? (
-            <TwinViewer3D twinId={selected.id} />
+            <TwinViewer3D
+              twinId={selected.id}
+              initialTwin={{
+                id: selected.id,
+                name: selected.name,
+                kind: selected.kind,
+                state: selected.state,
+                bounds: selected.bounds ?? [],
+              }}
+            />
           ) : (
             <p className="hint">Create or select a wind-turbine twin to view it in 3D.</p>
           )}

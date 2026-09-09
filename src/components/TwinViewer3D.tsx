@@ -22,21 +22,25 @@ import {
   canonicalTurbineGeometry, projectScene, drawScene, overlayFromState,
   SEVERITY_COLOURS, bearingFaultFrequencies,
 } from "@/core/windturbine/wireframe";
-import { getTwin, type Twin } from "@/core/twins/twins";
-import { diagnoseTwin } from "@/core/diagnostics/integration";
-import type { DiagnosticResult } from "@/core/diagnostics/engine";
+
+export interface TwinSummary {
+  id: string;
+  name: string;
+  kind?: string;
+  state: Record<string, number | string | boolean>;
+  bounds: { key: string; min?: number; max?: number; critical?: boolean; unit?: string }[];
+}
 
 interface ViewerProps {
   twinId: string;
+  initialTwin?: TwinSummary;
   width?: number;
   height?: number;
-  /** Allow the parent to set this so the page can pass twinId in the URL. */
 }
 
-export default function TwinViewer3D({ twinId, width = 720, height = 480 }: ViewerProps) {
+export default function TwinViewer3D({ twinId, initialTwin, width = 720, height = 480 }: ViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [twin, setTwin] = useState<Twin | null>(null);
-  const [diag, setDiag] = useState<DiagnosticResult | null>(null);
+  const [twin, setTwin] = useState<TwinSummary | null>(initialTwin ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [yaw, setYaw] = useState(0);
@@ -49,19 +53,37 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
   const refresh = useCallback(async () => {
     setBusy(true); setError(null);
     try {
-      const t = await getTwin(twinId);
-      if (!t) { setError("Twin not found"); setTwin(null); return; }
-      setTwin(t);
-      try {
-        const d = diagnoseTwin(t, { sampleRateHz: 256, durationSec: 10, rotorRpm: 1500, anomalyScore: 0.2 });
-        setDiag(d);
-        rotorRpmRef.current = 1500;
-      } catch { /* diagnostic is optional */ setDiag(null); }
+      const res = await fetch(`/api/windturbine`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { twins?: TwinSummary[] };
+      const found = data.twins?.find((t) => t.id === twinId);
+      if (!found) { setError("Twin not found"); setTwin(null); return; }
+      setTwin(found);
+      const rpm = typeof found.state?.rotor_rpm === "number" ? (found.state.rotor_rpm as number) : 1500;
+      rotorRpmRef.current = rpm;
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }, [twinId]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (initialTwin) {
+      setTwin(initialTwin);
+      const rpm = typeof initialTwin.state?.rotor_rpm === "number" ? (initialTwin.state.rotor_rpm as number) : 1500;
+      rotorRpmRef.current = rpm;
+    } else {
+      void refresh();
+    }
+  }, [initialTwin, refresh]);
+
+  const overlays = twin ? overlayFromState(twin.state, twin.bounds) : [];
+  const isCritical = overlays.some((o) => o.severity === "critical");
+  const overallSeverity = isCritical
+    ? "critical"
+    : overlays.some((o) => o.severity === "warning")
+      ? "warning"
+      : overlays.some((o) => o.severity === "watch")
+        ? "watch"
+        : "ok";
 
   // Animation loop
   useEffect(() => {
@@ -70,7 +92,6 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
       const dt = (t - last) / 1000;
       lastFrameRef.current = t;
       // Trip the rotor if any channel is critical.
-      const isCritical = diag?.severity === "critical";
       const omega = (isCritical || !playing) ? 0 : (rotorRpmRef.current / 60) * 2 * Math.PI;
       setSpin((s) => s + omega * dt);
       drawToCanvas();
@@ -79,7 +100,7 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
     animRef.current = requestAnimationFrame(frame);
     return () => { if (animRef.current !== null) cancelAnimationFrame(animRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, diag?.severity, twin, yaw]);
+  }, [playing, isCritical, twin, yaw]);
 
   function drawToCanvas() {
     const canvas = canvasRef.current;
@@ -96,8 +117,8 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
     drawScene(ctx, scene, { edgeColor: "#64748b", lineWidth: 1.5 });
     // Overlays
     if (twin) {
-      const overlays = overlayFromState(twin.state, twin.bounds);
-      for (const o of overlays) {
+      const activeOverlays = overlayFromState(twin.state, twin.bounds);
+      for (const o of activeOverlays) {
         // Project the overlay world position with the same yaw/spin
         const localScene = projectScene({ vertices: [[o.x, o.y, o.z] as [number, number, number]], edges: [], width, height, yaw, spin });
         const pt = localScene.points[0]!;
@@ -122,18 +143,15 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
       ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
       const labelY = 16;
       ctx.fillText(`BPFO ${f.outerRace.toFixed(1)} Hz  ·  BPFI ${f.innerRace.toFixed(1)} Hz  ·  BSF ${f.ballSpin.toFixed(1)} Hz  ·  FTF ${f.cage.toFixed(1)} Hz`, 8, labelY);
-    }
-    // Severity banner
-    if (diag) {
-      const sev = diag.severity;
-      const colour = SEVERITY_COLOURS[sev];
-      const peak = diag.peaks.length ? Math.max(...diag.peaks.map((p) => p.magnitude)) : 0;
-      const dom = diag.dominantHz ?? 0;
+
+      // Severity banner
+      const colour = SEVERITY_COLOURS[overallSeverity];
+      const vib = typeof twin.state.vib_rms === "number" ? (twin.state.vib_rms as number) : typeof twin.state.vib_bearing_mms === "number" ? (twin.state.vib_bearing_mms as number) : 0;
       ctx.fillStyle = colour;
       ctx.fillRect(0, height - 22, width, 22);
       ctx.fillStyle = "#0b0d12";
       ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
-      ctx.fillText(`severity: ${sev.toUpperCase()}   peak: ${peak.toFixed(2)} mm/s   dominant: ${dom.toFixed(1)} Hz`, 8, height - 7);
+      ctx.fillText(`severity: ${overallSeverity.toUpperCase()}   vibration: ${vib.toFixed(2)} mm/s   rotor: ${rotorRpmRef.current.toFixed(0)} RPM`, 8, height - 7);
     }
   }
 
@@ -152,7 +170,7 @@ export default function TwinViewer3D({ twinId, width = 720, height = 480 }: View
       <canvas ref={canvasRef} style={{ width, height, background: "#0b0d12", border: "1px solid #1f2937", borderRadius: 8 }} />
       {twin && (
         <div className="twin3d-legend">
-          <div><strong>{twin.name}</strong> · {twin.kind} · id {twin.id}</div>
+          <div><strong>{twin.name}</strong> · {twin.kind ?? "twin"} · id {twin.id}</div>
           <div className="twin3d-bounds">
             {twin.bounds.map((b) => {
               const v = twin.state[b.key];

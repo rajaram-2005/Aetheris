@@ -31,8 +31,9 @@ interface DebateMeta {
   totalTurns: number;
 }
 
-export default async function WarRoomPage({ searchParams }: { searchParams?: { id?: string } }) {
+export default async function WarRoomPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const { uid } = await getUserId();
+  const sp = await searchParams;
   const all = await store.all<WarRoomDebate & { uid: string }>("debates");
   const list: DebateMeta[] = Object.values(all)
     .filter((d) => d.uid === uid)
@@ -50,7 +51,7 @@ export default async function WarRoomPage({ searchParams }: { searchParams?: { i
       totalTurns: d.totalTurns,
     }));
 
-  const activeId = searchParams?.id;
+  const activeId = sp?.id;
   const active = activeId ? Object.values(all).find((d) => d.uid === uid && d.id === activeId) : null;
 
   return (

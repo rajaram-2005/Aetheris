@@ -206,6 +206,7 @@ function buildIndex(
     { path: "/lab-history", label: "Lab Experiment History", blurb: "Every lab run with source, output, stop reason, and p50/p95 latency", tag: ["lab", "experiment", "history"] },
     { path: "/maintenance-calendar", label: "Maintenance Calendar", blurb: "Forward 90-day projection of every maintenance entry, bucketed by overdue/week/month", tag: ["maintenance", "calendar", "projection"] },
     { path: "/tasks", label: "Operator Tasks", blurb: "Open and done maintenance entries across your fleet, with a Mark-done action that stamps doneAt and removes the row from the dispatch list", tag: ["tasks", "maintenance", "todo", "close"] },
+    { path: "/episodes", label: "RAVANA Episodes", blurb: "Ledger of finished RAVANA tasks: plan, execution timeline, verification, models, tools, and JSON/CSV export", tag: ["episodes", "ravana", "tasks", "ledger", "audit"] },
     { path: "/evidence", label: "Evidence Ledger", blurb: "Append-only view across twin events, diagnostic history, and system events; filterable by twin and source", tag: ["evidence", "audit", "log"] },
     { path: "/audit", label: "Audit Export", blurb: "Download the production observability log as JSON or CSV with type, since, limit, okOnly filters", tag: ["audit", "export", "csv", "json"] },
     { path: "/terminal", label: "Sandboxed Terminal", blurb: "Run a single command per request in a fresh temp workspace, env-scrubbed, SIGKILL timeout. Read-only commands run unconfirmed; everything else needs safe_write + a token", tag: ["terminal", "sandbox", "shell"] },
@@ -254,6 +255,7 @@ function buildIndex(
     { path: "/api/mesh", label: "GET /api/mesh", blurb: "Provider mesh status (configured / ready / errors)", tag: ["mesh", "provider"] },
     { path: "/api/debate", label: "GET /api/debate", blurb: "List saved War Room debates (newest first)", tag: ["debate", "war", "history"] },
     { path: "/api/demo", label: "GET /api/demo", blurb: "DEMO mode status (enabled, seeded, pinned provider)", tag: ["demo", "status"] },
+    { path: "/api/v1/ravana/episodes", label: "GET /api/v1/ravana/episodes", blurb: "List finished RAVANA task episodes (JSON / CSV)", tag: ["episodes", "ravana", "tasks", "export"] },
   ];
   for (const a of apis) {
     items.push({
