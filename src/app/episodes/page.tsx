@@ -11,6 +11,7 @@
  */
 import Link from "next/link";
 import { getUserId } from "@/lib/user";
+import { firstSearchParam } from "@/lib/search-params";
 import { getEpisode, listEpisodes, type Episode, type EpisodeDetail } from "@/core/ravana/episodes";
 
 export const dynamic = "force-dynamic";
@@ -321,12 +322,11 @@ function DetailView({ ep }: { ep: EpisodeDetail }) {
 export default async function EpisodesPage({
   searchParams,
 }: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<{ id?: string | string[] }>;
 }) {
   const { uid } = await getUserId({ allowAnonymous: true });
-  const sp = (await searchParams) ?? {};
-  const idRaw = sp.id;
-  const id = typeof idRaw === "string" ? idRaw : Array.isArray(idRaw) ? idRaw[0] : undefined;
+  const sp = await searchParams;
+  const id = firstSearchParam(sp.id);
 
   if (id) {
     const ep = await getEpisode(uid, id);

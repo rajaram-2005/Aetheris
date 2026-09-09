@@ -20,7 +20,6 @@
  * The dependency is optional. `wasmFfmpegAvailable()` reports false when the core is not installed,
  * and every caller falls back to the next video path rather than failing.
  */
-import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
@@ -118,23 +117,20 @@ let cached: CorePaths | null | undefined;
 let cachedReason: string | undefined;
 
 /**
- * The package specifiers, assembled at runtime.
- *
- * Deliberately not string literals: webpack resolves `require.resolve("@ffmpeg/core/wasm")`
- * statically, tries to bundle the 62 MB .wasm as a JavaScript module, and fails the build. Building
- * the name from parts keeps the lookup where it belongs — at runtime, against real node_modules.
+ * Package directory name, assembled at runtime from parts so the source never contains a
+ * `require.resolve(<expression>)` call. webpack treats those as critical dependencies and emits
+ * a build warning while trying to bundle the 62 MB .wasm as JavaScript. Resolution is a filesystem
+ * walk of node_modules (see findCoreDir) — never Node's module resolver, never createRequire.
  */
 const coreSpec = () => ["@ffmpeg", "core"].join("/");
-const wasmSpec = () => `${coreSpec()}/wasm`;
 
 /**
  * Walk up from a starting directory looking for the installed core package.
  *
- * This is the resolution path that survives bundling. webpack replaces `createRequire` with a shim
- * that only resolves specifiers it could see at build time, and the whole point of `coreSpec()` is
- * that it could not — so inside a Next server chunk `require.resolve` reports the package missing
- * even though it is sitting in node_modules. Walking the tree with `fs` asks the filesystem, which
- * always gives the true answer.
+ * This is the only resolution path. A Next server chunk must not call `createRequire` /
+ * `require.resolve` on a runtime specifier: webpack rewrites those into a shim that only
+ * resolves packages it could see at build time, and then warns. Walking with `fs` asks the
+ * real tree and always gives the true answer.
  */
 function findCoreDir(): string | null {
   const starts = new Set<string>();
@@ -172,21 +168,7 @@ function pathsFromManifest(pkgDir: string): { glue: string; wasm: string } {
 /** Locate the installed core. `undefined` while unresolved, `null` once known-absent. */
 function core(): CorePaths | null {
   if (cached !== undefined) return cached;
-  const attempts: string[] = [];
   try {
-    // 1. Plain Node resolution — correct and cheapest when it works (tsx, node, unbundled).
-    try {
-      const req = createRequire(typeof __filename === "string" ? __filename : process.cwd() + "/");
-      const glue = req.resolve(coreSpec());
-      const wasmPath = req.resolve(wasmSpec());
-      const wasm = readFileSync(wasmPath);
-      cached = { dir: path.dirname(glue), wasm, version: null };
-      cachedReason = undefined;
-      return cached;
-    } catch (e) {
-      attempts.push(`require.resolve: ${String((e as Error)?.message ?? e).split("\n")[0]}`);
-    }
-    // 2. Filesystem walk — the bundler-proof path.
     const pkgDir = findCoreDir();
     if (!pkgDir) throw new Error(`no node_modules/${coreSpec()} found from ${[...starts()].join(" or ")}`);
     const { glue, wasm: wasmPath } = pathsFromManifest(pkgDir);
@@ -196,10 +178,9 @@ function core(): CorePaths | null {
     return cached;
   } catch (e) {
     cached = null;
-    // Keep the reason: "not available" on its own is not actionable, and a bundler that failed to
-    // trace the package looks identical to a missing one unless the error is shown.
-    attempts.push(`${(e as Error)?.name ?? "Error"}: ${String((e as Error)?.message ?? e).slice(0, 200)}`);
-    cachedReason = attempts.join(" | ");
+    // Keep the reason: "not available" on its own is not actionable, and a missing package looks
+    // identical to a truncated install unless the error is shown.
+    cachedReason = `${(e as Error)?.name ?? "Error"}: ${String((e as Error)?.message ?? e).slice(0, 200)}`;
     return null;
   }
 }

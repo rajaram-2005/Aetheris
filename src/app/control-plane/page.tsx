@@ -77,7 +77,10 @@ export default function ControlPlanePage() {
         <select
           className="cp-select"
           value={failureScenario}
-          onChange={(e) => setFailureScenario(e.target.value as any)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "none" || v === "contradiction" || v === "safety_block") setFailureScenario(v);
+          }}
           disabled={running}
         >
           <option value="none">Standard Pipeline (Normal)</option>

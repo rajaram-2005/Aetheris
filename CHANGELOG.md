@@ -13,6 +13,13 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- Production repair: WASM ffmpeg no longer uses `createRequire`/`require.resolve` (filesystem walk
+  only; `@ffmpeg/core` is a `serverExternalPackages` entry) so `next build` does not emit Critical
+  dependency warnings; `/episodes` `searchParams` is a required Next 15 Promise; command palette
+  talks to `GET /api/providers` and `GET /api/capabilities?id=` (the routes that exist);
+  `:root` defines `--fg`/`--dim`; App Router `error.tsx`/`not-found.tsx`; `prefers-reduced-motion`;
+  CI audits production deps at `--audit-level=critical`; regression tests in
+  `tests/production-contracts.test.ts`. Audit: `docs/REPOSITORY-AUDIT.md`.
 - RAVANA Episode Ledger — read-side view of every finished RAVANA task
   (completed / failed / cancelled / timeout): list + detail at `/episodes`,
   JSON/CSV export at `GET /api/v1/ravana/episodes`, pure projection of stored
