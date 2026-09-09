@@ -20,11 +20,12 @@
     "dist:linux": "npm run compile && npm run prepare:app && electron-builder --linux",
     "dist:win": "npm run compile && npm run prepare:app && electron-builder --win",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "npm run compile && electron dist/smoke.js",
     "icons": "node ../tools/gen-icons.mjs"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "io.aetheris.one",
@@ -36,7 +37,8 @@
     "files": [
       "dist/**/*",
       "src/renderer/**/*",
-      "package.json"
+      "package.json",
+      "!dist/smoke.js"
     ],
     "extraResources": [
       {
