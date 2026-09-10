@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test --test-timeout=120000 --import ./tests/hermetic.mjs tests/*.test.ts",
     "eval": "tsx evals/run.ts",
     "verify:connectors": "tsx scripts/verify-connectors.ts",
     "desktop:dev": "node desktop/scripts/dev.mjs",
@@ -38,12 +38,12 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.4",
     "tsx": "^4.23.13",
     "typescript": "^5.6.0"
   },
   "license": "MIT",
-  "description": "Aetheris One — open-source AI workspace: one chat over 27 free LLM providers, hierarchical agents, GitHub coding factory, media studio, 100+ MCP app hub.",
+  "description": "Aetheris One \u2014 open-source AI workspace: one chat over 27 free LLM providers, hierarchical agents, GitHub coding factory, media studio, 100+ MCP app hub.",
   "repository": {
     "type": "git",
     "url": "https://github.com/rajaram-2005/Aetheris.git"
@@ -70,5 +70,8 @@
     "esbuild@0.28.2": true,
     "sharp@0.35.4": true,
     "sharp@0.33.5": true
+  },
+  "overrides": {
+    "postcss": "^8.5.28"
   }
 }

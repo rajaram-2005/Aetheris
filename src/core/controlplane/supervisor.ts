@@ -32,6 +32,8 @@ import type {
   ControlPlaneTaskRecord,
   EvidenceBundle,
   ExecutionProvenanceNode,
+  GateVerdict,
+  InjectedFailure,
   PhaseExecutionRecord,
   PhaseId,
   SimulationRecord,
@@ -40,6 +42,7 @@ import type {
   VerificationMatrix,
 } from "./types";
 import { getContract, PHASE_CONTRACTS } from "./contracts";
+import { normalizeMaxLoopbacks } from "./types";
 import { runPhase0Intake, type IntakeAnalysis } from "./phases/intake";
 import { runPhase1Understanding, type TaskUnderstanding } from "./phases/understanding";
 import { runPhase2Decomposition } from "./phases/decomposition";
@@ -59,8 +62,10 @@ const TASK_STORE: Map<string, ControlPlaneTaskRecord> = new Map();
 
 export interface RunTaskOptions {
   uid?: string;
+  /** Loopback ceiling for the Phase 7 → Phase 3 recovery loop; clamped to MAX_LOOPBACKS_LIMIT. */
   maxLoopbacks?: number;
-  injectedFailure?: "missing_evidence" | "contradiction" | "safety_block" | "none";
+  /** Fault to inject, for the Test Lab and the /control-plane runner. Validated by the caller. */
+  injectedFailure?: InjectedFailure;
 }
 
 export class ControlPlaneSupervisor {
@@ -73,7 +78,9 @@ export class ControlPlaneSupervisor {
   ): Promise<ControlPlaneTaskRecord> {
     const taskId = `cpt_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
     const uid = options.uid ?? "anon_operator";
-    const maxLoopbacks = options.maxLoopbacks ?? 3;
+    // Resource limit, not a preference: this is the only bound on the recovery loop, so it is
+    // normalized here as well as at the route — a programmatic caller cannot bypass it either.
+    const maxLoopbacks = normalizeMaxLoopbacks(options.maxLoopbacks);
 
     // Initialize blank Phase records
     const phases: Record<PhaseId, PhaseExecutionRecord> = {} as Record<PhaseId, PhaseExecutionRecord>;
@@ -185,11 +192,11 @@ export class ControlPlaneSupervisor {
     // PIPELINE LOOPBACK RECOVERY WRAPPER
     // ==========================================
     let currentLoopPhase: PhaseId = 2;
-    let decomposition: (TaskDecomposition & { gateVerdict: any }) | null = null;
-    let retrieval: (EvidenceBundle & { gateVerdict: any; summary: string }) | null = null;
+    let decomposition: (TaskDecomposition & { gateVerdict: GateVerdict }) | null = null;
+    let retrieval: (EvidenceBundle & { gateVerdict: GateVerdict; summary: string }) | null = null;
     let routing: IntelligenceRoutingPlan | null = null;
     let coreResults: CoreExecutionBatchResult | null = null;
-    let simulation: (SimulationRecord & { gateVerdict: any; summary: string }) | null = null;
+    let simulation: (SimulationRecord & { gateVerdict: GateVerdict; summary: string }) | null = null;
 
     while (currentLoopPhase <= 6) {
       if (currentLoopPhase === 2) {
@@ -349,7 +356,7 @@ export class ControlPlaneSupervisor {
     p8Rec.status = "running";
     p8Rec.activeAgents = ["NIRNAYA"];
 
-    const verification: VerificationMatrix & { gateVerdict: any; summary: string } = runPhase8Verification(
+    const verification: VerificationMatrix & { gateVerdict: GateVerdict; summary: string } = runPhase8Verification(
       retrieval!,
       coreResults!,
       simulation!,
@@ -376,7 +383,7 @@ export class ControlPlaneSupervisor {
     p9Rec.activeAgents = ["NIRNAYA"];
 
     const forceProh = options.injectedFailure === "safety_block";
-    const safety: UncertaintySafetyReport & { gateVerdict: any; summary: string } = runPhase9Safety(
+    const safety: UncertaintySafetyReport & { gateVerdict: GateVerdict; summary: string } = runPhase9Safety(
       understanding,
       retrieval!,
       simulation!,
@@ -412,7 +419,7 @@ export class ControlPlaneSupervisor {
     p10Rec.status = "running";
     p10Rec.activeAgents = ["NIRNAYA", "RAVANA"];
 
-    const decision: ControlPlaneDecision & { gateVerdict: any } = runPhase10Decision(
+    const decision: ControlPlaneDecision & { gateVerdict: GateVerdict } = runPhase10Decision(
       understanding,
       coreResults!,
       simulation!,
@@ -538,11 +545,23 @@ export class ControlPlaneSupervisor {
     task.provenanceGraph = root;
   }
 
-  public static getTask(id: string): ControlPlaneTaskRecord | null {
-    return TASK_STORE.get(id) ?? null;
+  /**
+   * One task, for its owner only.
+   *
+   * Returns null both when the id is unknown and when it belongs to a different uid, so the route
+   * answers 404 either way and a task id cannot be used to probe whether someone else's run exists.
+   * This is the same rule `src/core/ravana/engine.ts` applies to RAVANA tasks; the control plane
+   * stored `uid` on every record but never checked it.
+   */
+  public static getTask(id: string, uid: string): ControlPlaneTaskRecord | null {
+    const task = TASK_STORE.get(id);
+    return task && task.uid === uid ? task : null;
   }
 
-  public static listTasks(): ControlPlaneTaskRecord[] {
-    return Array.from(TASK_STORE.values()).sort((a, b) => b.createdAt - a.createdAt);
+  /** Every task owned by `uid`, newest first. Cross-uid isolation, as above. */
+  public static listTasks(uid: string): ControlPlaneTaskRecord[] {
+    return Array.from(TASK_STORE.values())
+      .filter((t) => t.uid === uid)
+      .sort((a, b) => b.createdAt - a.createdAt);
   }
 }

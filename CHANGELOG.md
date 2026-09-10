@@ -13,6 +13,81 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- CI, `npm test` is hermetic. The suite was calling the internet: with no API keys set the router
+  still reaches for **keyless** community providers, and nine test files did — `tests/warroom.test.ts`
+  alone made 286 outbound calls, because one debate is up to nine turns. Each attempt may burn the
+  full `AETHERIS_PROVIDER_TIMEOUT_MS` (45 s by default), so on a GitHub runner the file blew past
+  `--test-timeout=120000` and failed as `testTimeoutFailure`, while on a machine with restricted
+  egress every attempt failed in milliseconds and the same file finished in under a second.
+  `tests/hermetic.mjs` now blocks outbound `fetch` in every test process (loopback still allowed), so
+  "no provider is reachable" — the exact condition the War Room's synthetic-fallback tests assert —
+  is true by construction. `tests/hermetic.test.ts` fails if the guard is dropped.
+- CI, `npm test` no longer fails on GitHub runners while passing locally. The cause was shared state,
+  not a slow test. `node --test` runs test files **in parallel** on a 4-core runner (concurrency
+  follows the CPU count) and serially on a 2-core machine, and `src/core/observability/events.ts` and
+  `src/core/knowledge/fabric.ts` each read `AETHERIS_DATA_DIR` once, at module load. Setting the
+  variable afterwards therefore did nothing: every test process wrote into one shared
+  `data/*.sqlite`, and a parallel file's telemetry landed inside another file's `{ sinceMs }` window
+  (`trace: per-group totalMs is the sum of step ms` — `340 !== 300`). Both stores now resolve the
+  data directory when they are used, which is what `src/lib/store.ts` and
+  `src/lib/router/runtimeKeys.ts` already did; `tests/data-dir-isolation.test.ts` fails without the
+  fix. The same defect made the durable log ignore `AETHERIS_DATA_DIR` at runtime in production, not
+  only in tests.
+- CI, diagnostics: the test and build steps now `tee` their output under `set -o pipefail`, and an
+  `if: failure()` step re-emits the failing test names, the runner's `# tests/pass/fail/skipped`
+  summary and any assertion detail as `::error::` annotations, so a red job names the test instead of
+  leaving an exit code to be guessed at.
+- Production build is now warning-free: `wasmffmpeg.ts` resolves `@ffmpeg/core` by walking
+  `node_modules` and reading the package manifest instead of calling `require.resolve()` with a
+  computed specifier. The bundler-flagged path was also the unreliable one — webpack replaces
+  `createRequire` with a shim that cannot see a runtime-built specifier, so every bundled call
+  already fell through to the filesystem walk. One resolution path now, and the two
+  `Critical dependency` warnings on every `next build` are gone.
+- Security, `POST /api/control-plane`: `maxLoopbacks` arrived from the request body unchecked and is
+  the only bound on the Phase 7 → Phase 3 recovery loop, so one request could ask a server worker to
+  re-run five phases a billion times. Now validated at the route (422, capped at 10) and clamped in
+  the supervisor for every caller. `injectedFailure` had two competing definitions (four values in
+  the supervisor and route, a three-value copy in the page) and was cast rather than checked; there
+  is now one canonical vocabulary in `core/controlplane/types.ts` with a runtime guard.
+- Security, `GET /api/control-plane`: task reads were not scoped to the caller, so any visitor could
+  read another visitor's pipeline runs — objective, evidence bundle, decision — from a `cpt_…` id,
+  even though every record already carried its `uid`. `getTask`/`listTasks` now take the uid and
+  answer 404 rather than 403, matching the rule the RAVANA engine already enforced.
+- Safety, `POST /api/incident`: `recommendedAction.requiresHumanSignoff` was settable from the
+  request body, so a caller could drop the sign-off requirement from a physical derate
+  recommendation. It is now untypable in `IncidentInput` and forced `true` by the engine. Partial
+  payloads also stopped blanking the fields they did not supply (the panel rendered "-undefined K").
+- Input validation, one mechanism: new `core/security/validate.ts` primitives plus per-domain
+  parsers for the control plane, incident and test-lab surfaces. `POST /api/test-lab` no longer
+  spreads an arbitrary object into the failure database, and `action: "record_failure"` with a
+  missing failure is now a 422 instead of silently running the whole eight-category suite.
+- Type safety: the six `gateVerdict: any` annotations in the control-plane supervisor are the real
+  `GateVerdict` union, and the control-plane page narrows its select through a type guard instead of
+  `as any`. No `any` remains in those three routes.
+- Dependencies, both trees to zero advisories. Root 3 → 0: `postcss` overridden to ^8.5.28 (next@15
+  pins the vulnerable 8.4.31 exactly, which is also the sole reason `next` itself was flagged) and
+  `sharp` 0.33.5 → 0.35.4, dev-only. Next.js stays on 15.x — the 16.x major was inspected and
+  deferred. Desktop 14 → 0 (one critical, in `tar`): `electron` 33.4.11 → 44.3.0 and
+  `electron-builder` 25 → 26.15.3; Electron 33 carried a context-isolation bypass, an ASAR integrity
+  bypass and a custom-protocol CORS flaw among others.
+- Build integrity, `desktop/`: the project had its own `tsconfig.json` and lockfile but no
+  `typescript` dependency, so `npm run compile` used whatever `tsc` was on `PATH` — the root
+  tree's 5.9.3 when it happened to be installed, a runner-global TypeScript 6+ when it was
+  not. TypeScript 6 removed `moduleResolution: node10`, so the desktop build failed on its
+  own config before reading a source file, and only in a CI job that did not install the
+  root tree first. `desktop/` now declares TypeScript 5.x and owns its compiler; the
+  constraint is written into `desktop/tsconfig.json`.
+- CI: three jobs instead of one. `security` audits both trees on every push; `desktop-runtime`
+  installs the real Electron binary and runs the new `desktop/src/smoke.ts` under `xvfb-run`, which
+  asserts the contextBridge surface and renderer isolation; and `verify` now fails if the production
+  build emits any warning. `verify` keeps a two-minute
+  per-test timeout so a hanging test can never consume a runner for an hour again.
+- Tests: 39 new. `tests/app-router-contract.test.ts` checks every page and route in `src/app` with
+  the TypeScript compiler — `params`/`searchParams` must be Promises, never a union with a plain
+  `Record`, and a route module may not export anything but HTTP methods and config. That is the class
+  of failure that broke the build on `episodes/page.tsx`; it was only caught by `next build`, because
+  `tsc --noEmit` cannot see the contracts Next generates into `.next/types`. It is now caught in the
+  test step.
 - Production repair: WASM ffmpeg no longer uses `createRequire`/`require.resolve` (filesystem walk
   only; `@ffmpeg/core` is a `serverExternalPackages` entry) so `next build` does not emit Critical
   dependency warnings; `/episodes` `searchParams` is a required Next 15 Promise; command palette

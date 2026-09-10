@@ -117,29 +117,42 @@ let cached: CorePaths | null | undefined;
 let cachedReason: string | undefined;
 
 /**
- * Package directory name, assembled at runtime from parts so the source never contains a
- * `require.resolve(<expression>)` call. webpack treats those as critical dependencies and emits
- * a build warning while trying to bundle the 62 MB .wasm as JavaScript. Resolution is a filesystem
- * walk of node_modules (see findCoreDir) — never Node's module resolver, never createRequire.
+ * The installed core package, and the directories the lookup starts from.
+ *
+ * Resolution is deliberately **filesystem-only**: nothing in this module calls `require()`,
+ * `import()` or `require.resolve()` with a computed specifier. That is not a stylistic choice — it is
+ * what keeps the module bundler-independent:
+ *
+ *   - A computed `require.resolve(expr)` makes webpack emit
+ *     `Critical dependency: the request of a dependency is an expression` for this file, because the
+ *     request cannot be resolved at build time. Two such calls used to produce two build warnings on
+ *     every `next build`.
+ *   - Worse, webpack *replaces* `createRequire` with a shim that only resolves specifiers it could see
+ *     at build time. Inside a compiled Next server chunk the "plain Node resolution" branch therefore
+ *     reported the package missing even when it was installed — so the branch that was supposed to be
+ *     the fast, correct path was the unreliable one, and every bundled call fell through to the
+ *     filesystem walk anyway.
+ *
+ * Walking `node_modules` with `fs` and reading the package's own manifest asks the filesystem, which
+ * gives the same true answer under `tsx`, under `node`, inside a Next server chunk and inside the
+ * desktop app's standalone bundle. One code path, one behaviour, no bundler warnings.
+ *
+ * The 62 MB `@ffmpeg/core` tarball is still never bundled: `next.config.ts` pins it into the
+ * standalone output with `outputFileTracingIncludes`, and this module reads it from disk at runtime.
  */
-const coreSpec = () => ["@ffmpeg", "core"].join("/");
+const CORE_PACKAGE = "@ffmpeg/core";
+const CORE_PATH_PARTS = CORE_PACKAGE.split("/");
 
 /**
- * Walk up from a starting directory looking for the installed core package.
- *
- * This is the only resolution path. A Next server chunk must not call `createRequire` /
- * `require.resolve` on a runtime specifier: webpack rewrites those into a shim that only
- * resolves packages it could see at build time, and then warns. Walking with `fs` asks the
- * real tree and always gives the true answer.
+ * Walk up from the module's own directory and from the process cwd looking for the installed core
+ * package. Returns the package directory, or null when it is genuinely not installed anywhere above
+ * either root.
  */
 function findCoreDir(): string | null {
-  const starts = new Set<string>();
-  if (typeof __dirname === "string") starts.add(__dirname);
-  starts.add(process.cwd());
-  for (const start of starts) {
+  for (const start of resolutionRoots()) {
     let dir = path.resolve(start);
     for (let i = 0; i < 16; i++) {
-      const cand = path.join(dir, "node_modules", ...coreSpec().split("/"));
+      const cand = path.join(dir, "node_modules", ...CORE_PATH_PARTS);
       if (existsSync(path.join(cand, "package.json"))) return cand;
       const parent = path.dirname(dir);
       if (parent === dir) break;
@@ -170,22 +183,25 @@ function core(): CorePaths | null {
   if (cached !== undefined) return cached;
   try {
     const pkgDir = findCoreDir();
-    if (!pkgDir) throw new Error(`no node_modules/${coreSpec()} found from ${[...starts()].join(" or ")}`);
+    if (!pkgDir) throw new Error(`no node_modules/${CORE_PACKAGE} found from ${[...resolutionRoots()].join(" or ")}`);
     const { glue, wasm: wasmPath } = pathsFromManifest(pkgDir);
-    const wasm = readFileSync(wasmPath);
-    cached = { dir: path.dirname(glue), wasm, version: null };
+    if (!existsSync(glue)) throw new Error(`${CORE_PACKAGE} manifest points at a missing entry: ${glue}`);
+    if (!existsSync(wasmPath)) throw new Error(`${CORE_PACKAGE} is installed without its wasm binary: ${wasmPath}`);
+    cached = { dir: path.dirname(glue), wasm: readFileSync(wasmPath), version: null };
     cachedReason = undefined;
     return cached;
   } catch (e) {
     cached = null;
-    // Keep the reason: "not available" on its own is not actionable, and a missing package looks
-    // identical to a truncated install unless the error is shown.
+    // Keep the reason: "not available" on its own is not actionable, and a half-installed package
+    // (or one the bundler failed to trace into a standalone output) looks identical to a missing one
+    // unless the underlying error is shown.
     cachedReason = `${(e as Error)?.name ?? "Error"}: ${String((e as Error)?.message ?? e).slice(0, 200)}`;
     return null;
   }
 }
 
-function starts(): Set<string> {
+/** The directories the node_modules walk starts from: this module's own, then the process cwd. */
+function resolutionRoots(): Set<string> {
   const s = new Set<string>();
   if (typeof __dirname === "string") s.add(__dirname);
   s.add(process.cwd());

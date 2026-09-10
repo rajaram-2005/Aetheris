@@ -10,6 +10,13 @@ const hits = new Map<string, number[]>();
 const RULES: { test: RegExp; limit: number; windowMs: number }[] = [
   { test: /^\/api\/(devices|robots)\//, limit: 60, windowMs: 60_000 },
   { test: /^\/api\/(executions|browser|jobs|research|multimodal|github\/repos\/intel)/, limit: 30, windowMs: 60_000 },
+  /**
+   * The two heaviest endpoints in the app: one POST to /api/control-plane runs the whole 12-phase
+   * pipeline (including its Phase 7 → Phase 3 recovery loop), and one POST to /api/test-lab runs the
+   * eight-category regression suite. Both are capped at LIMITS.heavy so a client cannot pin a server
+   * worker by clicking in a loop.
+   */
+  { test: /^\/api\/(control-plane|test-lab)(\/|$)/, limit: 12, windowMs: 60_000 },
   { test: /^\/api\/automations\/[^/]+\/hook/, limit: 120, windowMs: 60_000 },
   { test: /^\/api\/(auth|permissions)/, limit: 90, windowMs: 60_000 },
 ];

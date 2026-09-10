@@ -117,7 +117,14 @@ than a crash.
 | `updateCheckIntervalMinutes` | `60` | `0` disables background update checks |
 
 Environment overrides (not persisted, handy for automation and CI):
-`AETHERIS_DESKTOP_MODE`, `AETHERIS_DESKTOP_SERVER`, `AETHERIS_DESKTOP_DEV=1`.
+`AETHERIS_DESKTOP_MODE`, `AETHERIS_DESKTOP_SERVER`, `AETHERIS_DESKTOP_DEV=1`,
+`AETHERIS_DATA_DIR` (where the JSON stores and SQLite files live).
+
+`AETHERIS_DATA_DIR` is resolved **when a store is used**, not once at import time. A store that froze
+the variable when its module was first loaded would ignore every later change to it and send each
+process started from the same working directory into one shared SQLite file — which is exactly the
+bug that made `npm test` fail on parallel CI runners while passing locally. `tests/data-dir-isolation.test.ts`
+guards it.
 
 ## Security model
 
@@ -188,8 +195,15 @@ below and [ci/README.md](../ci/README.md). `.github/workflows/release.yml` build
 * **One embedded server per app.** A second launch focuses the first window rather than starting
   another server (single-instance lock).
 * **Tray icon is optional.** If the platform has no tray, the menu still has every action.
-* **The GUI itself is not exercised by the test suite.** `tests/desktop.main.test.ts` runs the real
-  compiled `main.js` against a stubbed `electron` module (so the IPC handlers, boot flow, settings
-  round-trip and navigation policy are covered), but no test drives real pixels.
+* **The GUI is not exercised by the unit suite — but the real binary is exercised by CI.**
+  `tests/desktop.main.test.ts` runs the real compiled `main.js` against a stubbed `electron` module
+  (so the IPC handlers, boot flow, settings round-trip and navigation policy are covered) — but it
+  skips itself when `desktop/dist` is absent, and CI does not currently emit it, so **that test runs
+  locally, not on the runner**; see `ci/README.md` for why. The `desktop-runtime` CI job covers the
+  real binary instead: `desktop/src/smoke.ts` boots the real Electron binary under `xvfb-run`, creates a
+  window with the production `webPreferences`, loads the real `preload.js`, and asserts from inside
+  the renderer that the `contextBridge` surface is complete and that `require`/`process`/`Buffer` are
+  unreachable. What still drives no pixels is the app UI itself — no test renders a chart or clicks a
+  button in the Next.js front end.
 * **The embedded server is the same code as the hosted one** — so anything marked `NOT AVAILABLE` in
   the status table (OPC-UA, CAN, horizontal scaling) is equally unavailable here.
