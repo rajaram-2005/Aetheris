@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/user";
 import { cancelJob, getJob, isLive, retryJob, subscribe } from "@/core/agents/runtime";
-export const runtime = "nodejs"; export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s) export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** GET → job (add ?stream=1 for SSE of live events while running). DELETE → cancel. POST → retry. */

@@ -14,6 +14,7 @@ import { getLessons } from "@/lib/agents/lessons";
 import type { ChatMessage } from "@/lib/router/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 const oaiErr = (message: string, status: number, type = "invalid_request_error", code?: string) =>

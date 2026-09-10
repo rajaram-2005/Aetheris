@@ -6,6 +6,7 @@ import { route } from "@/lib/router/router";
 import { buildExplainPrompt } from "@/lib/explain";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 /**

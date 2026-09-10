@@ -5,6 +5,7 @@ import { getUserId, uidCookie } from "@/lib/user";
 import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {

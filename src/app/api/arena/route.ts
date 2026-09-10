@@ -6,6 +6,7 @@ import { getUserId, uidCookie } from "@/lib/user";
 import { consumeChat } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 const SYSTEM = process.env.AETHERIS_SYSTEM_PROMPT ?? "You are Aetheris One, a helpful, concise AI assistant. Format answers in Markdown when useful.";

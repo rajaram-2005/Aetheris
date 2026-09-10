@@ -12,6 +12,7 @@ import { readTokens } from "@/lib/mcp/oauth";
 import { searchKeyFor } from "@/lib/search/tavily";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = process.env.AETHERIS_SYSTEM_PROMPT ?? "You are Aetheris One, a helpful, concise AI assistant. Format answers in Markdown when useful.";

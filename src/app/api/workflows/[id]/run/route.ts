@@ -5,6 +5,7 @@ import { resolveTier } from "@/lib/models/tiers";
 import { getWorkflow, runWorkflow } from "@/lib/workflows/engine";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 /** POST { input } → SSE of WfEvent. Costs 1 credit per agent step (irrelevant when free-for-all). */

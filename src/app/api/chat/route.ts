@@ -14,6 +14,7 @@ import { groundingBlock, looksTimeSensitive, searchKeyFor, searchWeb, type Searc
 import { characterSystemPrompt, getCharacter, type CharacterMode } from "@/lib/characters";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT =

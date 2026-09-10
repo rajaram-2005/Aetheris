@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eventsSince, getRoom, subscribe } from "@/lib/rooms/rooms";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 /** GET ?since=N — SSE stream of room events (falls back to JSON list with ?poll=1). */
