@@ -19,12 +19,19 @@ jobs:
       #
       # NOTE: this job deliberately does NOT run `npm run compile` in desktop/. Emitting
       # desktop/dist makes tests/desktop.main.test.ts execute instead of skipping, and on a
-      # GitHub runner that test hangs — `npm test` ran 47 minutes before the job was killed,
-      # while the same suite finishes in about a minute locally and in CI with dist absent.
-      # The cause is not yet diagnosed (the runner's step log was not retrievable), so the
-      # coverage stays off rather than blocking main on a hang nobody understands. What makes
-      # that safe to defer is the timeout below: a hang now fails in two minutes, named, instead
-      # of consuming a runner for an hour. Turning the compile step back on is the follow-up.
+      # GitHub runner `npm test` then ran 47 minutes before the job was killed, while the same
+      # suite finishes in about a minute with dist absent.
+      #
+      # What is now known about that hang: it is not the test being slow or broken in itself —
+      # with dist compiled it passes locally in under a second. The test binds a loopback HTTP
+      # server and drives the real main process through it, so the runner's loopback networking
+      # is the next place to look. It is still not diagnosed, so the coverage stays off rather
+      # than blocking main on a hang nobody understands; the step below now annotates the
+      # failing test by name, so re-enabling this is testable instead of a 47-minute guess.
+      #
+      # Separately: `node --test` runs test files in PARALLEL on a 4-core runner and serially on
+      # a 2-core machine, so any state shared between test files is a runner-only race. That is
+      # what the data-dir fix in tests/data-dir-isolation.test.ts is about — see ci/README.md.
       - name: Install desktop deps (no Electron binary)
         working-directory: desktop
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: "1" }
@@ -32,7 +39,38 @@ jobs:
       - name: Typecheck the desktop app
         working-directory: desktop
         run: npm run typecheck
-      - run: npm test
+      # pipefail matters twice here: without it the step's exit code would be tee's and a failing
+      # suite would pass, and without the log the `if: failure()` step below has nothing to read.
+      # The log exists because step logs are not always retrievable (they time out for large runs)
+      # while check-run annotations are — so a failing test is named on the job page instead of
+      # having to be inferred from an exit code.
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log
+      - name: Name the failing tests
+        if: failure()
+        shell: bash
+        run: |
+          if [ ! -s /tmp/test.log ]; then
+            echo "::error::npm test produced no output — the step was killed before the runner printed anything"
+            exit 0
+          fi
+          echo "::group::npm test summary"
+          grep -E "^# (tests|pass|fail|skipped|duration_ms)" /tmp/test.log \
+            || echo "(no summary line: the run was killed before it finished)"
+          echo "::endgroup::"
+          mapfile -t failures < <(grep -E "^not ok" /tmp/test.log | head -40)
+          if [ "${#failures[@]}" -eq 0 ]; then
+            echo "::error::npm test failed without naming a failing test — a crash, a timeout kill, or an unhandled rejection"
+          else
+            for line in "${failures[@]}"; do echo "::error::${line#not ok }"; done
+          fi
+          echo "::group::assertion detail"
+          grep -E "test timed out|AssertionError|Expected values|actual:|expected:" /tmp/test.log | head -40
+          echo "::endgroup::"
+          exit 0
       - run: npm run eval
       # `npm run typecheck` runs tsc over the sources, but Next.js generates the App Router prop
       # contracts into .next/types/** only during a build — so a page can pass typecheck and still
@@ -52,6 +90,17 @@ jobs:
             exit 1
           fi
           echo "build emitted no warnings"
+      - name: Name the build failure
+        if: failure()
+        run: |
+          if [ -s /tmp/build.log ]; then
+            echo "::group::build log tail"
+            tail -40 /tmp/build.log
+            echo "::endgroup::"
+            grep -nE "Failed to compile|Type error|error during build|Error:" /tmp/build.log | head -20 \
+              | while read -r line; do echo "::error::${line#*:}"; done
+          fi
+          exit 0
 
   # Both dependency trees are currently clean (0 vulnerabilities, root and desktop). These steps are a
   # ratchet: they fail when a new high/critical advisory lands in a tree, which is the point at which

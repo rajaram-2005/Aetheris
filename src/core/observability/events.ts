@@ -17,43 +17,68 @@ import path from "node:path";
 export type EventType = "model" | "agent" | "tool" | "mcp" | "permission" | "execution" | "schedule" | "device" | "knowledge" | "memory" | "auth" | "error";
 export interface AetherisEvent { id: string; at: number; type: EventType; uid?: string; capability?: string; ok: boolean; ms?: number; detail?: string; meta?: Record<string, unknown> }
 
-const MAX = Number(process.env.AETHERIS_EVENT_BUFFER ?? 5000);
+/**
+ * These four are configuration, so they are read when they are used — not when this module happens to
+ * be imported. A module-load-time `const` freezes whatever the environment held at import time, which
+ * silently sends every process started from the same working directory into one shared
+ * `data/telemetry.sqlite`, no matter what `AETHERIS_DATA_DIR` is set to afterwards.
+ *
+ * That is not a theoretical concern: it is what made `npm test` fail on GitHub runners while passing
+ * locally. `node --test` runs test files in parallel there (concurrency follows the CPU count — three
+ * at a time on a 4-CPU runner), and every test file sets `AETHERIS_DATA_DIR` *after* importing this
+ * module. All of them therefore shared one durable log, and each process's first read pulled another
+ * process's events into its own report, inside the `{ sinceMs }` window that was supposed to scope it:
+ *
+ *     not ok - trace: per-group totalMs is the sum of step ms
+ *       Expected values to be strictly equal: 340 !== 300
+ *
+ * `src/lib/store.ts` and `src/lib/router/runtimeKeys.ts` already resolve the data directory lazily for
+ * exactly this reason; this module was the outlier. See tests/data-dir-isolation.test.ts.
+ */
+const MAX = () => Number(process.env.AETHERIS_EVENT_BUFFER ?? 5000);
 /** Hard cap on retained durable rows. */
-const PERSIST_MAX = Number(process.env.AETHERIS_EVENT_MAX ?? 50_000);
-const DIR = process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
-const DB_FILE = process.env.AETHERIS_EVENTS_DB ?? path.join(DIR, "telemetry.sqlite");
+const PERSIST_MAX = () => Number(process.env.AETHERIS_EVENT_MAX ?? 50_000);
+const DIR = () => process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
+const DB_FILE = () => process.env.AETHERIS_EVENTS_DB ?? path.join(DIR(), "telemetry.sqlite");
 
 interface Db { exec(sql: string): void; prepare(sql: string): { run(...a: unknown[]): void; all(...a: unknown[]): Record<string, unknown>[]; get(...a: unknown[]): Record<string, unknown> | undefined } }
 const g = globalThis as unknown as {
   __aetherisEvents?: AetherisEvent[];
   __aetherisCounters?: Record<string, { n: number; ok: number; ms: number }>;
-  __aetherisEventDb?: Db | null;
+  /** Keyed by the resolved database file: the path is configuration, so it can change between calls. */
+  __aetherisEventDbs?: Map<string, Db | null>;
 };
 const buf = (g.__aetherisEvents ??= []);
 const counters = (g.__aetherisCounters ??= {});
+const dbs = (g.__aetherisEventDbs ??= new Map<string, Db | null>());
 
-/** Open the durable log once. `undefined` = not tried yet, `null` = unavailable (in-memory only). */
+/**
+ * Open the durable log, once per resolved path. A missing entry = not tried yet; `null` = unavailable
+ * (in-memory only) for that path.
+ */
 function db(): Db | null {
-  if (g.__aetherisEventDb !== undefined) return g.__aetherisEventDb;
+  const file = DB_FILE();
+  const cached = dbs.get(file);
+  if (cached !== undefined) return cached;
   let opened: Db | null = null;
   try {
     if (process.env.AETHERIS_EVENT_PERSIST === "0") throw new Error("persistence disabled");
-    mkdirSync(DIR, { recursive: true });
+    mkdirSync(path.dirname(file), { recursive: true });
     const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: new (p: string) => Db };
-    opened = new DatabaseSync(DB_FILE);
+    opened = new DatabaseSync(file);
     opened.exec("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, at INTEGER NOT NULL, type TEXT NOT NULL, uid TEXT, capability TEXT, ok INTEGER NOT NULL, ms INTEGER, detail TEXT, meta TEXT)");
     opened.exec("CREATE INDEX IF NOT EXISTS events_at ON events(at)");
     opened.exec("CREATE INDEX IF NOT EXISTS events_type ON events(type)");
   } catch {
     opened = null;
   }
-  g.__aetherisEventDb = opened;
+  dbs.set(file, opened);
   if (opened && buf.length === 0) loadPersisted();
   return opened;
 }
 
 /** Pull the newest persisted events back into the ring buffer (called on boot / first read). */
-export function loadPersisted(limit = MAX): number {
+export function loadPersisted(limit = MAX()): number {
   const d = db();
   if (!d) return 0;
   try {
@@ -82,11 +107,11 @@ export function eventStoreStatus() {
   return {
     persistent: !!d,
     driver: d ? "node:sqlite" : "in-memory only",
-    file: d ? DB_FILE : undefined,
+    file: d ? DB_FILE() : undefined,
     rows,
-    cap: PERSIST_MAX,
+    cap: PERSIST_MAX(),
     bufferSize: buf.length,
-    bufferCap: MAX,
+    bufferCap: MAX(),
     reason: d ? undefined : process.env.AETHERIS_EVENT_PERSIST === "0" ? "AETHERIS_EVENT_PERSIST=0" : "could not open the telemetry database",
   };
 }
@@ -95,14 +120,14 @@ export function eventStoreStatus() {
 const scrub = (t: string) => t.replace(/\b(sk|gsk|xai|hf|ghp|gho|github_pat|nvapi|AIza|pk|rk)[-_][A-Za-z0-9_\-]{12,}/g, (m) => m.slice(0, 6) + "…" + m.slice(-3)).replace(/\b(Bearer\s+)[A-Za-z0-9._\-]{16,}/gi, "$1•••");
 export function record(e: Omit<AetherisEvent, "id" | "at">): AetherisEvent {
   const ev: AetherisEvent = { id: Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3), at: Date.now(), ...e, detail: e.detail ? scrub(e.detail).slice(0, 500) : undefined };
-  buf.push(ev); if (buf.length > MAX) buf.splice(0, buf.length - MAX);
+  buf.push(ev); if (buf.length > MAX()) buf.splice(0, buf.length - MAX());
   const k = `${e.type}:${e.capability ?? "*"}`; const c = (counters[k] ??= { n: 0, ok: 0, ms: 0 }); c.n++; if (e.ok) c.ok++; c.ms += e.ms ?? 0;
   const d = db();
   if (d) {
     try {
       d.prepare("INSERT OR REPLACE INTO events (id, at, type, uid, capability, ok, ms, detail, meta) VALUES (?,?,?,?,?,?,?,?,?)")
         .run(ev.id, ev.at, ev.type, ev.uid ?? null, ev.capability ?? null, ev.ok ? 1 : 0, ev.ms ?? null, ev.detail ?? null, ev.meta ? JSON.stringify(ev.meta) : null);
-      if (Math.random() < 0.02) d.exec(`DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY at ASC LIMIT MAX(0, (SELECT COUNT(*) FROM events) - ${PERSIST_MAX}))`);
+      if (Math.random() < 0.02) d.exec(`DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY at ASC LIMIT MAX(0, (SELECT COUNT(*) FROM events) - ${PERSIST_MAX()}))`);
     } catch { /* a full disk or a locked file must not break the call that emitted the event */ }
   }
   return ev;

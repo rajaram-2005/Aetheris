@@ -13,6 +13,21 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- CI, `npm test` no longer fails on GitHub runners while passing locally. The cause was shared state,
+  not a slow test. `node --test` runs test files **in parallel** on a 4-core runner (concurrency
+  follows the CPU count) and serially on a 2-core machine, and `src/core/observability/events.ts` and
+  `src/core/knowledge/fabric.ts` each read `AETHERIS_DATA_DIR` once, at module load. Setting the
+  variable afterwards therefore did nothing: every test process wrote into one shared
+  `data/*.sqlite`, and a parallel file's telemetry landed inside another file's `{ sinceMs }` window
+  (`trace: per-group totalMs is the sum of step ms` — `340 !== 300`). Both stores now resolve the
+  data directory when they are used, which is what `src/lib/store.ts` and
+  `src/lib/router/runtimeKeys.ts` already did; `tests/data-dir-isolation.test.ts` fails without the
+  fix. The same defect made the durable log ignore `AETHERIS_DATA_DIR` at runtime in production, not
+  only in tests.
+- CI, diagnostics: the test and build steps now `tee` their output under `set -o pipefail`, and an
+  `if: failure()` step re-emits the failing test names, the runner's `# tests/pass/fail/skipped`
+  summary and any assertion detail as `::error::` annotations, so a red job names the test instead of
+  leaving an exit code to be guessed at.
 - Production build is now warning-free: `wasmffmpeg.ts` resolves `@ffmpeg/core` by walking
   `node_modules` and reading the package manifest instead of calling `require.resolve()` with a
   computed specifier. The bundler-flagged path was also the unreliable one — webpack replaces

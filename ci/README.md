@@ -16,18 +16,40 @@ build must never compile `main.ts`/`preload.ts`, and the root program has no `el
 The desktop project therefore typechecks itself with its own `tsconfig.json` — CI runs it, and
 so can you (`npm run desktop:typecheck` from the root).
 
-## Two known CI limits, stated plainly
+## Three things CI does that a laptop does not
+
+* **`node --test` runs test files in parallel on the runner, and serially on a 2-core machine.**
+  Concurrency follows the CPU count, so `ubuntu-latest` (4 cores) executes three test files at a
+  time. Every test file is its own process, so any state they share — a file, a port, a database —
+  is a race that only appears on the runner. This is not hypothetical: it is what made `npm test`
+  fail on GitHub while passing locally, and the fix was to make the two SQLite-backed stores
+  (`src/core/observability/events.ts`, `src/core/knowledge/fabric.ts`) resolve `AETHERIS_DATA_DIR`
+  when they are *used* instead of at import time. A module-load-time read froze the variable, so
+  every test process wrote into one shared `data/*.sqlite` and a parallel file's telemetry landed
+  inside another file's `{ sinceMs }` window. `tests/data-dir-isolation.test.ts` guards it, and
+  `npm test -- --test-concurrency=4` reproduces the old failure locally.
+* **The test step writes a log and annotates its own failures.** `npm test` pipes into
+  `tee /tmp/test.log` under `set -o pipefail` (without `pipefail` the step's exit code would be
+  `tee`'s and a failed suite would pass), and an `if: failure()` step re-emits the runner's
+  `# tests/pass/fail/skipped` summary and each `not ok` line as an `::error::` annotation. Run logs
+  are not always retrievable; annotations are, so a failing test is named on the job page instead of
+  being inferred.
+* **`--test-timeout=120000` bounds any hang to two minutes**, named, instead of a runner burning an
+  hour.
+
+## The one known CI limit, stated plainly
 
 * **`tests/desktop.main.test.ts` does not run in CI.** It executes the real compiled
   `desktop/dist/main.js` against a stubbed `electron` module, and skips itself when `desktop/dist`
-  is absent. Emitting `dist` in CI was tried: on a GitHub runner the test hangs, and `npm test`
-  burned 47 minutes before the job was killed, while the same suite finishes in about a minute
-  locally and in CI with `dist` absent. The cause is not yet diagnosed, so the coverage is off
-  rather than main being blocked on a hang nobody understands. It runs locally whenever you have
-  compiled the desktop app (`cd desktop && npm run compile`), which `npm run desktop:build` does.
-  Turning the compile step back on in `verify` is the follow-up.
-* **What keeps that from being expensive** is `--test-timeout=120000` in the `test` script: any
-  hanging test now fails in two minutes, named, instead of consuming a runner for an hour.
+  is absent. Emitting `dist` in CI was tried: on a GitHub runner `npm test` burned 47 minutes before
+  the job was killed, while the same suite finishes in about a minute with `dist` absent. The cause
+  is still not diagnosed — but it is *not* that the test is slow or broken in itself: with
+  `desktop/dist` compiled it passes locally in under a second. What is known is that it binds a
+  loopback HTTP server and drives the real main process through it, so the runner's networking is
+  the next place to look. Until then the coverage stays off rather than main being blocked on a hang
+  nobody understands. It runs locally whenever you have compiled the desktop app
+  (`cd desktop && npm run compile`), which `npm run desktop:build` does. Turning the compile step
+  back on in `verify` is the follow-up.
 
 ## The desktop smoke test
 

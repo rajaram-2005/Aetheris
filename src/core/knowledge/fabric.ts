@@ -29,7 +29,16 @@ export interface Hit { fact: Fact; score: number; via: ("keyword" | "vector" | "
 export interface QueryOpts { workspace?: string; k?: number; asOf?: number; entity?: string; tags?: string[]; mode?: "hybrid" | "keyword" | "vector" | "graph" }
 
 const DIM = 256;
-const DIR = process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
+/**
+ * Resolved per call, not at import: `AETHERIS_DATA_DIR` and `AETHERIS_KNOWLEDGE_DB` are
+ * configuration. A module-load-time read freezes whatever the environment held when this module was
+ * first imported, so every process started from the same working directory would share one
+ * `data/knowledge.sqlite` no matter what the data directory was set to afterwards. That is the same
+ * defect that made `npm test` fail on parallel GitHub runners via `core/observability/events.ts`; see
+ * tests/data-dir-isolation.test.ts.
+ */
+const DIR = () => process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
+const DB_FILE = () => process.env.AETHERIS_KNOWLEDGE_DB ?? path.join(DIR(), "knowledge.sqlite");
 
 // ---- embeddings ---------------------------------------------------------------------------------
 const tok = (s: string) => s.toLowerCase().normalize("NFKC").match(/[\p{L}\p{N}]+/gu) ?? [];
@@ -86,13 +95,20 @@ async function embed(text: string): Promise<Float32Array> {
 
 // ---- storage ------------------------------------------------------------------------------------
 interface Db { exec(sql: string): void; prepare(sql: string): { run(...a: unknown[]): unknown; all(...a: unknown[]): Record<string, unknown>[]; get(...a: unknown[]): Record<string, unknown> | undefined } }
-let db: Db | undefined; let dbErr: string | undefined;
+/** One handle per resolved database file: the path is configuration, so it can change between calls. */
+const dbs = new Map<string, Db>();
+/** Why a given file could not be opened, so a failure is reported once per path instead of retried. */
+const dbErrs = new Map<string, string>();
 async function open(): Promise<Db> {
-  if (db) return db; if (dbErr) throw new Error(dbErr);
+  const file = DB_FILE();
+  const cached = dbs.get(file);
+  if (cached) return cached;
+  const failed = dbErrs.get(file);
+  if (failed) throw new Error(failed);
   try {
     const { DatabaseSync } = (await import("node:sqlite")) as unknown as { DatabaseSync: new (p: string) => Db };
-    mkdirSync(DIR, { recursive: true });
-    const d = new DatabaseSync(process.env.AETHERIS_KNOWLEDGE_DB ?? path.join(DIR, "knowledge.sqlite"));
+    mkdirSync(path.dirname(file), { recursive: true });
+    const d = new DatabaseSync(file);
     d.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS facts(id TEXT PRIMARY KEY, uid TEXT, workspace TEXT, text TEXT, entities TEXT, tags TEXT, valid_from INTEGER, valid_to INTEGER, supersedes TEXT, prov TEXT, created_at INTEGER, vec BLOB, vec_dim INTEGER, vec_space TEXT);
       CREATE TABLE IF NOT EXISTS semantic_model(id INTEGER PRIMARY KEY CHECK (id = 1), model TEXT NOT NULL, updated_at INTEGER);
@@ -101,8 +117,12 @@ async function open(): Promise<Db> {
       CREATE TABLE IF NOT EXISTS edges(id TEXT PRIMARY KEY, uid TEXT, workspace TEXT, src TEXT, rel TEXT, dst TEXT, fact_id TEXT, weight REAL, prov TEXT);
       CREATE INDEX IF NOT EXISTS edges_src ON edges(uid, src); CREATE INDEX IF NOT EXISTS edges_dst ON edges(uid, dst);`);
     try { d.exec("ALTER TABLE facts ADD COLUMN vec_space TEXT"); } catch { /* column already present */ }
-    db = d; return d;
-  } catch (e) { dbErr = `knowledge fabric unavailable: ${(e as Error).message}`; throw new Error(dbErr); }
+    dbs.set(file, d); return d;
+  } catch (e) {
+    const reason = `knowledge fabric unavailable: ${(e as Error).message}`;
+    dbErrs.set(file, reason);
+    throw new Error(reason);
+  }
 }
 const rowToFact = (r: Record<string, unknown>): Fact => ({ id: r.id as string, uid: r.uid as string, workspace: r.workspace as string, text: r.text as string, entities: JSON.parse(r.entities as string), tags: JSON.parse(r.tags as string), validFrom: (r.valid_from as number) ?? undefined, validTo: (r.valid_to as number) ?? undefined, supersedes: (r.supersedes as string) ?? undefined, provenance: JSON.parse(r.prov as string), createdAt: r.created_at as number });
 const vecOf = (r: Record<string, unknown>) => new Float32Array(new Uint8Array(r.vec as Uint8Array).buffer.slice(0));

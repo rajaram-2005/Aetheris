@@ -117,7 +117,14 @@ than a crash.
 | `updateCheckIntervalMinutes` | `60` | `0` disables background update checks |
 
 Environment overrides (not persisted, handy for automation and CI):
-`AETHERIS_DESKTOP_MODE`, `AETHERIS_DESKTOP_SERVER`, `AETHERIS_DESKTOP_DEV=1`.
+`AETHERIS_DESKTOP_MODE`, `AETHERIS_DESKTOP_SERVER`, `AETHERIS_DESKTOP_DEV=1`,
+`AETHERIS_DATA_DIR` (where the JSON stores and SQLite files live).
+
+`AETHERIS_DATA_DIR` is resolved **when a store is used**, not once at import time. A store that froze
+the variable when its module was first loaded would ignore every later change to it and send each
+process started from the same working directory into one shared SQLite file — which is exactly the
+bug that made `npm test` fail on parallel CI runners while passing locally. `tests/data-dir-isolation.test.ts`
+guards it.
 
 ## Security model
 
