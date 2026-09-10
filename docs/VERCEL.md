@@ -20,8 +20,8 @@ switches each subsystem to its hosted backend. Local, Docker and desktop are una
 AETHERIS_STORE=postgres
 POSTGRES_URL=postgres://...            # wired automatically by the Neon integration (pooled URL)
 
-# Phase 2 — knowledge fabric (lands with the fabric migration)
-# AETHERIS_KNOWLEDGE=postgres           # default: sqlite
+# Phase 2 — knowledge fabric (default: sqlite)
+AETHERIS_KNOWLEDGE=postgres
 
 # Phase 3 — telemetry (lands with the telemetry migration)
 # AETHERIS_EVENTS=postgres              # default: sqlite (falls back to in-memory when unavailable)
@@ -30,7 +30,7 @@ POSTGRES_URL=postgres://...            # wired automatically by the Neon integra
 ## Status
 
 - [x] Phase 1: store backend (`src/lib/store-pg.ts`, hermetic `pg-mem` tests)
-- [ ] Phase 2: knowledge fabric → Postgres
+- [x] Phase 2: knowledge fabric → Postgres (`AETHERIS_KNOWLEDGE=postgres`; shared core in `fabric-shared.ts`, `fabric-sqlite.ts`/`fabric-pg.ts` backends, eval-parity `pg-mem` tests)
 - [ ] Phase 3: telemetry → Postgres
 - [ ] Phase 4: runtime keys + custom providers → store backend
 - [ ] Phase 5: RAVANA workspace → Blob

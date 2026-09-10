@@ -5,15 +5,13 @@
  *
  *   AETHERIS_STORE=postgres  +  POSTGRES_URL=postgres://... (pooled URL on Vercel)
  *
- * The pool is created lazily and cached on globalThis (the standard serverless pattern:
- * warm invocations reuse connections; `max: 5` keeps cold-start connection storms small).
- * Schema is ensured idempotently on first use — no separate migration step.
- *
- * Correctness: `update()` is read-modify-write, so it runs in a transaction with
- * SELECT ... FOR UPDATE (serialised across instances), plus the same in-process
- * per-collection lock the file backend uses (serialised within an instance).
+ * Uses the shared pool in ./pg. Correctness: `update()` is read-modify-write, so it
+ * runs in a transaction with SELECT ... FOR UPDATE (serialised across instances),
+ * plus the same in-process per-collection lock the file backend uses.
  */
-import { Pool, type PoolClient } from "pg";
+import { ensureSchema, __setSharedPgPoolForTests, type PgClientLike, type PgPoolLike } from "./pg";
+
+export type { PgClientLike, PgPoolLike } from "./pg";
 
 const TABLE = "aetheris_kv";
 const SCHEMA = `CREATE TABLE IF NOT EXISTS ${TABLE} (
@@ -24,48 +22,13 @@ const SCHEMA = `CREATE TABLE IF NOT EXISTS ${TABLE} (
   PRIMARY KEY (collection, id)
 )`;
 
-/** Minimal structural pool surface (node-postgres Pool and the pg-mem test double both satisfy it). */
-export type PgPoolLike = {
-  query: (text: string, params?: unknown[]) => Promise<{ rows: { value?: unknown; id?: unknown }[]; rowCount: number | null }>;
-  connect: () => Promise<PgClientLike>;
-};
-export type PgClientLike = {
-  query: (text: string, params?: unknown[]) => Promise<{ rows: { value?: unknown; id?: unknown }[]; rowCount: number | null }>;
-  release: () => void;
-};
-
-type Globals = { __aetherisPgPool?: Pool; __aetherisPgEnsured?: Pool | PgPoolLike | null };
-const g = globalThis as unknown as Globals;
-
-// Hermetic tests inject a pg-mem pool here (the suite must not touch the network).
-let testPool: PgPoolLike | null = null;
 /** Test-only seam: route the pg backend at an injected pool (pg-mem). Pass null to restore. */
 export function __setStorePgPoolForTests(p: PgPoolLike | null) {
-  testPool = p;
-  g.__aetherisPgEnsured = null;
+  __setSharedPgPoolForTests(p);
 }
 
-function getPool(): Pool | PgPoolLike {
-  if (testPool) return testPool;
-  if (!g.__aetherisPgPool) {
-    const url = process.env.POSTGRES_URL;
-    if (!url) {
-      throw new Error(
-        "AETHERIS_STORE=postgres needs POSTGRES_URL (on Vercel: attach Neon Postgres from the Marketplace so the env var is wired automatically)."
-      );
-    }
-    g.__aetherisPgPool = new Pool({ connectionString: url, max: 5, connectionTimeoutMillis: 10_000 });
-  }
-  return g.__aetherisPgPool;
-}
-
-async function pool(): Promise<Pool | PgPoolLike> {
-  const p = getPool();
-  if (g.__aetherisPgEnsured !== p) {
-    await p.query(SCHEMA);
-    g.__aetherisPgEnsured = p;
-  }
-  return p;
+async function pool() {
+  return ensureSchema("store", SCHEMA);
 }
 
 const locks = new Map<string, Promise<unknown>>();
@@ -77,7 +40,7 @@ function withLock<R>(name: string, fn: () => Promise<R>): Promise<R> {
   return next;
 }
 
-async function withTx<T>(fn: (c: PoolClient | PgClientLike) => Promise<T>): Promise<T> {
+async function withTx<T>(fn: (c: PgClientLike) => Promise<T>): Promise<T> {
   const p = await pool();
   const c = await p.connect();
   try {
