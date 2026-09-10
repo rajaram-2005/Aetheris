@@ -45,32 +45,43 @@ jobs:
       # while check-run annotations are — so a failing test is named on the job page instead of
       # having to be inferred from an exit code.
       - name: Test
+        id: test
         shell: bash
         run: |
           set -o pipefail
           npm test 2>&1 | tee /tmp/test.log
+      # Node's TAP output nests each test file's subtests under an indented `not ok`, so matching the
+      # column-0 line alone reports only the FILE that failed and never the assertion inside it.
+      # Annotate every depth, plus the `location:`/`error:` lines that name the file and the diff.
       - name: Name the failing tests
-        if: failure()
+        if: failure() && steps.test.outcome == 'failure'
         shell: bash
         run: |
-          if [ ! -s /tmp/test.log ]; then
-            echo "::error::npm test produced no output — the step was killed before the runner printed anything"
-            exit 0
-          fi
           echo "::group::npm test summary"
           grep -E "^# (tests|pass|fail|skipped|duration_ms)" /tmp/test.log \
             || echo "(no summary line: the run was killed before it finished)"
           echo "::endgroup::"
-          mapfile -t failures < <(grep -E "^not ok" /tmp/test.log | head -40)
+          mapfile -t failures < <(grep -E "^[[:space:]]*not ok" /tmp/test.log | head -40)
           if [ "${#failures[@]}" -eq 0 ]; then
             echo "::error::npm test failed without naming a failing test — a crash, a timeout kill, or an unhandled rejection"
           else
-            for line in "${failures[@]}"; do echo "::error::${line#not ok }"; done
+            for line in "${failures[@]}"; do echo "::error::$(echo "$line" | sed -E 's/^[[:space:]]+//')"; done
           fi
-          echo "::group::assertion detail"
-          grep -E "test timed out|AssertionError|Expected values|actual:|expected:" /tmp/test.log | head -40
+          grep -E "^[[:space:]]*(location|error|expected|actual|code|operator|failureType):" /tmp/test.log | head -60 \
+            | while IFS= read -r line; do echo "::error::$(echo "$line" | sed -E 's/^[[:space:]]+//')"; done
+          echo "::group::first failure in full"
+          awk '/^[[:space:]]*not ok/{n++} n==1' /tmp/test.log | head -30
           echo "::endgroup::"
           exit 0
+      # Annotations are capped and truncated; the whole log is sometimes the only way to see what a
+      # runner did. One day's retention, and only when the suite actually failed.
+      - name: Upload the test log
+        if: failure() && steps.test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-test-log
+          path: /tmp/test.log
+          retention-days: 1
       - run: npm run eval
       # `npm run typecheck` runs tsc over the sources, but Next.js generates the App Router prop
       # contracts into .next/types/** only during a build — so a page can pass typecheck and still
@@ -91,7 +102,7 @@ jobs:
           fi
           echo "build emitted no warnings"
       - name: Name the build failure
-        if: failure()
+        if: failure() && steps.build.outcome == 'failure'
         run: |
           if [ -s /tmp/build.log ]; then
             echo "::group::build log tail"
