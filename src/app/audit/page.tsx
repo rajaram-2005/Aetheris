@@ -6,7 +6,7 @@
  *   a preview of the most recent events.
  */
 import Link from "next/link";
-import { exportJson, exportCsv } from "@/core/observability/audit-export";
+import { exportJsonAsync, exportCsvAsync } from "@/core/observability/audit-export";
 import { getUserId } from "@/lib/user";
 import type { EventType } from "@/core/observability/events";
 
@@ -27,8 +27,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const limit = Math.min(2000, Math.max(10, Number(sp.limit ?? "100")));
   const okOnly = sp.okOnly === "1";
   const opts = { type: type as never, sinceMs, limit, okOnly };
-  const j = exportJson(uid, opts);
-  const c = exportCsv(uid, opts);
+  const j = await exportJsonAsync(uid, opts);
+  const c = await exportCsvAsync(uid, opts);
   return (
     <div className="ae-page">
       <header className="ae-head">

@@ -34,7 +34,7 @@ export default function AdminPage() {
     localStorage.setItem("aetheris.admin", k);
     setPayments((await r.json()).payments);
     loadUsers(k);
-  }, [key, filter]);
+  }, [key, filter, loadUsers]);
 
   useEffect(() => {
     // Signed-in admin accounts (founder email/phone) need no key: cookie session authorises the API.

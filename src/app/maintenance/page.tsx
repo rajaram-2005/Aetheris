@@ -37,7 +37,7 @@ export default async function MaintenancePage() {
     <div className="mx-page">
       <header className="mx-head">
         <h1>🔧 Maintenance Dispatch</h1>
-        <p>Prioritised dispatch list for the user's fleet. Every row is grounded in the production twin state, diagnostic history, and the user's own maintenance notes. The engine never invents a maintenance task — it only composes the ones the user has declared.</p>
+        <p>Prioritised dispatch list for the user&apos;s fleet. Every row is grounded in the production twin state, diagnostic history, and the user&apos;s own maintenance notes. The engine never invents a maintenance task — it only composes the ones the user has declared.</p>
         <div className="mx-meta">
           <span>Total: <strong>{r.total}</strong></span>
           {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as DispatchPriority[]).map((p) => (

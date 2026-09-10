@@ -9,7 +9,7 @@
  *   URL: /trace?limit=…&since=…
  */
 import Link from "next/link";
-import { traceReport } from "@/core/observability/trace";
+import { traceReportAsync } from "@/core/observability/trace";
 import { getUserId } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +30,12 @@ export default async function TracePage({ searchParams }: { searchParams: Promis
   const { uid } = await getUserId({ allowAnonymous: true });
   const limit = Math.min(500, Math.max(10, Number(sp.limit ?? "100")));
   const sinceMs = sp.since ? Number(sp.since) : Date.now() - 24 * 60 * 60_000;
-  const r = traceReport(uid, { limit, sinceMs });
+  const r = await traceReportAsync(uid, { limit, sinceMs });
   return (
     <div className="trc-page">
       <header className="trc-head">
         <h1>🧵 Reasoning Trace</h1>
-        <p>The production observability log, read as a reasoning trace. Every step is a real (capability, ok, ms, detail) tuple from the agent's work. Nothing is invented.</p>
+        <p>The production observability log, read as a reasoning trace. Every step is a real (capability, ok, ms, detail) tuple from the agent&apos;s work. Nothing is invented.</p>
         <form className="trc-form" method="get">
           <label>Limit <input type="number" name="limit" min={10} max={500} defaultValue={limit} /></label>
           <label>Since (ms) <input type="number" name="since" min={0} defaultValue={sinceMs} /></label>

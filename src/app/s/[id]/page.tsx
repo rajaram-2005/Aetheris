@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { store } from "@/lib/store";
 import { renderMarkdown } from "@/components/markdown";
@@ -23,7 +24,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   return (
     <div className="share-wrap">
       <header className="share-head">
-        <a href="/" className="brand" style={{ textDecoration: "none" }}><span className="hero-orb" style={{ width: 22, height: 22, margin: 0, borderRadius: 7, display: "inline-block", verticalAlign: "middle" }} /> <b>Aetheris</b></a>
+        <Link href="/" className="brand" style={{ textDecoration: "none" }}><span className="hero-orb" style={{ width: 22, height: 22, margin: 0, borderRadius: 7, display: "inline-block", verticalAlign: "middle" }} /> <b>Aetheris</b></Link>
         <h1>{s.title}</h1>
         <div className="hint" style={{ margin: 0 }}>Shared {new Date(s.createdAt).toLocaleDateString("en-IN")} · {s.messages.length} messages · read-only</div>
       </header>

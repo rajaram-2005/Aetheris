@@ -3,6 +3,7 @@ import { stampUid } from "@/core/ravana/http";
 import { getTask, toPublic } from "@/core/ravana/engine";
 import { attach, subscribe } from "@/core/ravana/events";
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -26,6 +27,7 @@ export async function GET(req: Request, { params }: Ctx) {
     start(ctrl) {
       let closed = false;
       const send = (e: unknown) => {
+        if (closed) return;
         try {
           ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
         } catch {

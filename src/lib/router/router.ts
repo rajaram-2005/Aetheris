@@ -1,5 +1,6 @@
 import { record } from "@/core/observability/events";
 import { callProvider, hasImages, hasVideo } from "./adapters";
+import { hydrateRouterStores } from "./hydrate";
 import { allProviders, apiKeyFor, isConfigured, providerKey, providerKeySource, resolveModel } from "./providers";
 import { ProviderError, type ChatMessage, type ProviderAttempt, type ProviderConfig, type RouteResult } from "./types";
 
@@ -210,6 +211,7 @@ export interface RouteOptions {
 }
 
 export async function route(opts: RouteOptions): Promise<RouteResult> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys + custom providers (TTL-gated; no-op on files)
   const vision = hasImages(opts.messages);
   const video = vision && hasVideo(opts.messages);
   const policy = opts.policy ?? inferPolicy(opts.messages);

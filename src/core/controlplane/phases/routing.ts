@@ -9,7 +9,7 @@
  *   PASS -> assignedCores.length > 0 && models reachable
  *   FAIL -> missing critical capability
  */
-import type { GateVerdict, TaskIntent } from "../types";
+import type { GateVerdict } from "../types";
 import type { TaskUnderstanding } from "./understanding";
 import type { EvidenceBundle } from "../types";
 
@@ -24,7 +24,7 @@ export interface IntelligenceRoutingPlan {
 
 export function runPhase4Routing(
   understanding: TaskUnderstanding,
-  evidence: EvidenceBundle
+  _evidence: EvidenceBundle
 ): IntelligenceRoutingPlan {
   const cores: Array<{ coreId: string; role: string; priority: number }> = [];
   const tools: string[] = [];

@@ -28,7 +28,6 @@
 import { randomBytes } from "node:crypto";
 import type {
   ControlPlaneDecision,
-  ControlPlaneState,
   ControlPlaneTaskRecord,
   EvidenceBundle,
   ExecutionProvenanceNode,
@@ -41,7 +40,7 @@ import type {
   UncertaintySafetyReport,
   VerificationMatrix,
 } from "./types";
-import { getContract, PHASE_CONTRACTS } from "./contracts";
+import { getContract } from "./contracts";
 import { normalizeMaxLoopbacks } from "./types";
 import { runPhase0Intake, type IntakeAnalysis } from "./phases/intake";
 import { runPhase1Understanding, type TaskUnderstanding } from "./phases/understanding";

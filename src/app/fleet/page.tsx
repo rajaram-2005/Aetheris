@@ -32,7 +32,7 @@ export default async function FleetPage() {
     <div className="fl-page">
       <header className="fl-head">
         <h1>🚢 Fleet Overview</h1>
-        <p>Every twin in this user's fleet, with live health, last diagnostic, and overdue-maintenance count. All numbers come from the production twinHealth / getHistory / checkBounds pipeline — no fabricated values.</p>
+        <p>Every twin in this user&apos;s fleet, with live health, last diagnostic, and overdue-maintenance count. All numbers come from the production twinHealth / getHistory / checkBounds pipeline — no fabricated values.</p>
         <div className="fl-meta">
           <span>Total: <strong>{o.total}</strong></span>
           <span>·</span>

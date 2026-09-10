@@ -11,9 +11,26 @@
  *    breaking the request that happened to emit an event.
  *
  * The Control Center reads `summary()` and `query()`.
+ *
+ * Hosted/Vercel mode (`AETHERIS_EVENTS=postgres` + `POSTGRES_URL=...`) swaps the durable log for
+ * Postgres (events-pg.ts). `record()` stays synchronous — the ring buffer and counters update inline
+ * and the row insert is fire-and-forget — while reads go through the `queryAsync()`/`summaryAsync()`/
+ * `loadPersistedAsync()`/`eventStoreStatusAsync()`/`clearAsync()` mirrors, which merge durable rows
+ * with this instance's buffer. The sync readers keep working in pg mode but only see this instance's
+ * buffer (they cannot block on the network); every route and page already uses the async mirrors.
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { clearEventsPg, countEventsPg, insertEventPg, queryEventsPg } from "./events-pg";
+
+/** Postgres durable log (hosted/Vercel path). Resolved per call so tests can switch modes by setting env. */
+export const isPgEvents = () => process.env.AETHERIS_EVENTS === "postgres";
+/** In-flight pg inserts. `record()` never awaits them; tests drain them with `__flushPgEventsForTests()`. */
+const pendingPg = new Set<Promise<unknown>>();
+/** Tests only: wait for every fire-and-forget pg insert emitted so far. */
+export async function __flushPgEventsForTests(): Promise<void> {
+  while (pendingPg.size) await Promise.allSettled([...pendingPg]);
+}
 export type EventType = "model" | "agent" | "tool" | "mcp" | "permission" | "execution" | "schedule" | "device" | "knowledge" | "memory" | "auth" | "error";
 export interface AetherisEvent { id: string; at: number; type: EventType; uid?: string; capability?: string; ok: boolean; ms?: number; detail?: string; meta?: Record<string, unknown> }
 
@@ -57,6 +74,7 @@ const dbs = (g.__aetherisEventDbs ??= new Map<string, Db | null>());
  * (in-memory only) for that path.
  */
 function db(): Db | null {
+  if (isPgEvents()) return null; // the durable log is Postgres; never open sqlite in this mode
   const file = DB_FILE();
   const cached = dbs.get(file);
   if (cached !== undefined) return cached;
@@ -64,6 +82,7 @@ function db(): Db | null {
   try {
     if (process.env.AETHERIS_EVENT_PERSIST === "0") throw new Error("persistence disabled");
     mkdirSync(path.dirname(file), { recursive: true });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy: node:sqlite must not load on runtimes without it (falls back to in-memory)
     const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: new (p: string) => Db };
     opened = new DatabaseSync(file);
     opened.exec("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, at INTEGER NOT NULL, type TEXT NOT NULL, uid TEXT, capability TEXT, ok INTEGER NOT NULL, ms INTEGER, detail TEXT, meta TEXT)");
@@ -112,7 +131,7 @@ export function eventStoreStatus() {
     cap: PERSIST_MAX(),
     bufferSize: buf.length,
     bufferCap: MAX(),
-    reason: d ? undefined : process.env.AETHERIS_EVENT_PERSIST === "0" ? "AETHERIS_EVENT_PERSIST=0" : "could not open the telemetry database",
+    reason: d ? undefined : isPgEvents() ? "postgres-backed (this sync snapshot only sees the buffer; use eventStoreStatusAsync)" : process.env.AETHERIS_EVENT_PERSIST === "0" ? "AETHERIS_EVENT_PERSIST=0" : "could not open the telemetry database",
   };
 }
 
@@ -122,6 +141,14 @@ export function record(e: Omit<AetherisEvent, "id" | "at">): AetherisEvent {
   const ev: AetherisEvent = { id: Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3), at: Date.now(), ...e, detail: e.detail ? scrub(e.detail).slice(0, 500) : undefined };
   buf.push(ev); if (buf.length > MAX()) buf.splice(0, buf.length - MAX());
   const k = `${e.type}:${e.capability ?? "*"}`; const c = (counters[k] ??= { n: 0, ok: 0, ms: 0 }); c.n++; if (e.ok) c.ok++; c.ms += e.ms ?? 0;
+  if (isPgEvents()) {
+    // Fire-and-forget: telemetry must never slow down or break the request that emitted it.
+    try {
+      const p = insertEventPg(ev).catch(() => undefined);
+      pendingPg.add(p); p.finally(() => pendingPg.delete(p));
+    } catch { /* ignore — the buffer and counters above already captured the event */ }
+    return ev;
+  }
   const d = db();
   if (d) {
     try {
@@ -159,8 +186,82 @@ export function summary(windowMs = 60 * 60_000) {
 }
 /** Reset the buffer *and* the durable log — used by tests and by the Control Center's "clear". */
 export function clear() {
+  if (isPgEvents()) clearEventsPg().catch(() => undefined); // sync clear can't await; clearAsync can
   // Open and truncate the durable log *before* emptying the buffer: db() restores a persisted tail
   // when the buffer is empty, so doing this the other way round would refill what we just cleared.
   const d = db(); if (d) { try { d.exec("DELETE FROM events"); } catch { /* ignore */ } }
   buf.length = 0; for (const k of Object.keys(counters)) delete counters[k];
+}
+
+// ---- async mirrors (pg-capable; every route and page reads through these) ------------------------
+export type QueryOpts = { type?: EventType; uid?: string; capability?: string; since?: number; limit?: number; okOnly?: boolean };
+
+/** In pg mode: durable rows merged with this instance's buffer (deduped by id), newest first. */
+export async function queryAsync(opts: QueryOpts = {}): Promise<AetherisEvent[]> {
+  if (!isPgEvents()) return query(opts);
+  const limit = opts.limit ?? 100;
+  let rows: AetherisEvent[];
+  try {
+    rows = await queryEventsPg({ ...opts, limit: Math.max(limit, 200) });
+  } catch {
+    rows = [];
+  }
+  const seen = new Set(rows.map((e) => e.id));
+  for (const e of query(opts)) if (!seen.has(e.id)) { seen.add(e.id); rows.push(e); }
+  return rows.sort((a, b) => b.at - a.at).slice(0, limit);
+}
+
+/** In pg mode `top` is computed from the window's merged rows (counters are per-instance). */
+export async function summaryAsync(windowMs = 60 * 60_000) {
+  if (!isPgEvents()) return summary(windowMs);
+  const persist = await eventStoreStatusAsync();
+  const since = Date.now() - windowMs;
+  const recent = await queryAsync({ since, limit: 5000 });
+  const byType: Record<string, { n: number; ok: number; avgMs: number }> = {};
+  const byCap: Record<string, { n: number; ok: number; ms: number }> = {};
+  for (const e of recent) {
+    const c = (byType[e.type] ??= { n: 0, ok: 0, avgMs: 0 }); c.n++; if (e.ok) c.ok++; c.avgMs += e.ms ?? 0;
+    const k = `${e.type}:${e.capability ?? "*"}`; const t = (byCap[k] ??= { n: 0, ok: 0, ms: 0 }); t.n++; if (e.ok) t.ok++; t.ms += e.ms ?? 0;
+  }
+  for (const c of Object.values(byType)) c.avgMs = c.n ? Math.round(c.avgMs / c.n) : 0;
+  const top = Object.entries(byCap).sort((a, b) => b[1].n - a[1].n).slice(0, 15).map(([k, v]) => ({ key: k, n: v.n, ok: v.ok, avgMs: v.n ? Math.round(v.ms / v.n) : 0 }));
+  return { windowMs, events: recent.length, errors: recent.filter((e) => !e.ok).length, byType, top, bufferSize: buf.length, uptimeSec: Math.round(process.uptime()), persistent: persist.persistent, persistedRows: persist.rows };
+}
+
+export async function loadPersistedAsync(limit = MAX()): Promise<number> {
+  if (!isPgEvents()) return loadPersisted(limit);
+  let rows: AetherisEvent[];
+  try {
+    rows = await queryEventsPg({ limit });
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  for (const e of rows.reverse()) {
+    if (buf.some((b) => b.id === e.id)) continue;
+    buf.push(e); n++;
+    const k = `${e.type}:${e.capability ?? "*"}`; const c = (counters[k] ??= { n: 0, ok: 0, ms: 0 }); c.n++; if (e.ok) c.ok++; c.ms += e.ms ?? 0;
+  }
+  return n;
+}
+
+export async function eventStoreStatusAsync() {
+  if (!isPgEvents()) return eventStoreStatus();
+  try {
+    return {
+      persistent: true, driver: "postgres", rows: await countEventsPg(), cap: PERSIST_MAX(),
+      bufferSize: buf.length, bufferCap: MAX(), reason: undefined as string | undefined,
+    };
+  } catch (e) {
+    return {
+      persistent: false, driver: "postgres (unreachable)", rows: 0, cap: PERSIST_MAX(),
+      bufferSize: buf.length, bufferCap: MAX(), reason: (e as Error).message as string | undefined,
+    };
+  }
+}
+
+/** Reset the buffer, the counters *and* the durable log, awaiting the pg truncate in pg mode. */
+export async function clearAsync(): Promise<void> {
+  if (isPgEvents()) await clearEventsPg().catch(() => undefined);
+  clear();
 }

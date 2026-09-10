@@ -186,7 +186,7 @@ function Session({ deck, queue, onExit, onAsk }: { deck: Deck; queue: string[]; 
           <form className="row" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); if (answer.trim()) submit(answer.trim()); }}>
             <input className="agent-search" placeholder="Type your answer…" value={answer} onChange={(e) => setAnswer(e.target.value)} autoFocus />
             <button className="send" disabled={busy || !answer.trim()}>{busy ? "Checking…" : "Check"}</button>
-            <button type="button" className="chip" onClick={() => { setRevealed(true); setResult({ correct: false, feedback: `Answer: ${c.back}` }); setScore((s) => ({ done: s.done + 1, correct: s.correct })); fetch(`/api/study/decks/${deck.id}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cardId: c.id, grade: 0 }) }); }}>Don't know</button>
+            <button type="button" className="chip" onClick={() => { setRevealed(true); setResult({ correct: false, feedback: `Answer: ${c.back}` }); setScore((s) => ({ done: s.done + 1, correct: s.correct })); fetch(`/api/study/decks/${deck.id}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cardId: c.id, grade: 0 }) }); }}>Don&apos;t know</button>
           </form>
         )}
 
@@ -218,7 +218,7 @@ function Session({ deck, queue, onExit, onAsk }: { deck: Deck; queue: string[]; 
 
 /** Preview of the next interval for a grade (mirrors srs.review without importing server code). */
 function nextIn(s: Srs, g: 1 | 2 | 3): string {
-  let ease = Math.max(1.3, s.ease + (g === 1 ? -0.15 : g === 3 ? 0.15 : 0)); let iv: number;
+  const ease = Math.max(1.3, s.ease + (g === 1 ? -0.15 : g === 3 ? 0.15 : 0)); let iv: number;
   if (s.reps === 0) iv = g === 3 ? 4 : 1; else if (s.reps === 1) iv = g === 1 ? 3 : g === 2 ? 6 : 10; else iv = Math.round(s.interval * ease * (g === 1 ? 1.2 / ease : g === 3 ? 1.3 : 1));
   iv = Math.max(1, Math.min(iv, 365));
   return iv >= 30 ? `${Math.round(iv / 30)} mo` : `${iv} d`;

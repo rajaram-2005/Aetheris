@@ -50,7 +50,7 @@ function hostOf(input) {
 }
 
 globalThis.fetch = function hermeticFetch(input, init) {
-  const { raw, host } = hostOf(input);
+  const { host } = hostOf(input);
   if (host === null || LOOPBACK.has(host)) return realFetch(input, init);
   // Reject rather than throw: provider adapters await this and treat a failed call as "try the next
   // provider, then fall back", which is exactly the path under test.

@@ -57,7 +57,7 @@ export default async function HandoffPage({ searchParams }: { searchParams: Prom
     <div className="ho-page">
       <header className="ho-head">
         <h1>📋 Operator Handoff</h1>
-        <p>Notes from the previous shift, for the oncoming operator. Pick a twin, read what's open, ack what you've actioned, and leave your own note (observation, decision, open question, or escalation).</p>
+        <p>Notes from the previous shift, for the oncoming operator. Pick a twin, read what&apos;s open, ack what you&apos;ve actioned, and leave your own note (observation, decision, open question, or escalation).</p>
         <form className="ho-form" method="get">
           <label>Twin <input type="text" name="twinId" defaultValue={twinId} list="ho-twin-ids" required /></label>
           <button type="submit">Open</button>

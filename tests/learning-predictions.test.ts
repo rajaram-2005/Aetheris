@@ -90,7 +90,7 @@ test("predict: forecast has increasing step numbers", async () => {
   try {
     const t = makeTwin("a", "u-1");
     await store.set("twins", t.id, t);
-    await seedHistory("a", Array.from({ length: 5 }, (_, i) => ({ severity: "ok", peakMagnitude: 1, dominantHz: 25, topFault: null })));
+    await seedHistory("a", Array.from({ length: 5 }, () => ({ severity: "ok", peakMagnitude: 1, dominantHz: 25, topFault: null })));
     const m = fitLinear([{ x: [1, 0], y: 1 }], { features: ["const", "step"], target: "peakMagnitude" });
     await seedModel("u-1", "a", m, ["const", "step"], "peakMagnitude");
     const r = await predictNext({ uid: "u-1", twinId: "a", steps: 5 });

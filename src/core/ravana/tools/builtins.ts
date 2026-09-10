@@ -6,7 +6,6 @@
  * Filesystem tools are confined to the per-user RAVANA workspace under <dataDir>/ravana_workspace/
  * (never the repository or home directory) — the LLM never gets an unrestricted shell (spec §14).
  */
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { execute } from "../../execution/sandbox";
 import { searchKeyFor, searchWeb } from "@/lib/search/tavily";
@@ -14,6 +13,7 @@ import { sessionGet, workingGet } from "../memory/stores";
 import { searchMemories } from "../memory/retriever";
 import type { ToolArgs, ToolResult, RavanaToolRuntime, ToolRuntimeContext } from "./registry";
 import { registerTool } from "./registry";
+import { TraversalError, workspaceRead, workspaceWrite } from "@/lib/workspace";
 
 export const DATA_DIR = () => process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
 export const WORKSPACE_ROOT = (uid: string) => path.join(DATA_DIR(), "ravana_workspace", uid);
@@ -108,13 +108,11 @@ async function runCode(args: ToolArgs, ctx: ToolRuntimeContext, lang: "python" |
 async function filesystemRead(ctx: ToolRuntimeContext, args: ToolArgs): Promise<ToolResult> {
   const t0 = Date.now();
   const rel = String(args.path ?? "");
-  const root = WORKSPACE_ROOT(ctx.uid);
-  const abs = confine(root, rel);
-  if (!abs) return { ok: false, summary: "filesystem.read refused: path escapes the RAVANA workspace", error: "path traversal refused", ms: 0 };
   try {
-    const content = await fs.readFile(abs, "utf8");
+    const content = await workspaceRead(ctx.uid, rel);
     return { ok: true, summary: `filesystem.read ${rel} (${content.length} chars)`, output: cap(content, 20_000), ms: Date.now() - t0 };
   } catch (e) {
+    if (e instanceof TraversalError) return { ok: false, summary: "filesystem.read refused: path escapes the RAVANA workspace", error: "path traversal refused", ms: 0 };
     return { ok: false, summary: `filesystem.read failed: ${(e as Error).message}`, error: (e as Error).message, ms: Date.now() - t0 };
   }
 }
@@ -122,14 +120,11 @@ async function filesystemRead(ctx: ToolRuntimeContext, args: ToolArgs): Promise<
 async function filesystemWrite(ctx: ToolRuntimeContext, args: ToolArgs): Promise<ToolResult> {
   const t0 = Date.now();
   const rel = String(args.path ?? "");
-  const root = WORKSPACE_ROOT(ctx.uid);
-  const abs = confine(root, rel);
-  if (!abs) return { ok: false, summary: "filesystem.write refused: path escapes the RAVANA workspace", error: "path traversal refused", ms: 0 };
   try {
-    await fs.mkdir(path.dirname(abs), { recursive: true });
-    await fs.writeFile(abs, String(args.content ?? ""), "utf8");
+    await workspaceWrite(ctx.uid, rel, String(args.content ?? ""));
     return { ok: true, summary: `filesystem.write ${rel}`, ms: Date.now() - t0 };
   } catch (e) {
+    if (e instanceof TraversalError) return { ok: false, summary: "filesystem.write refused: path escapes the RAVANA workspace", error: "path traversal refused", ms: 0 };
     return { ok: false, summary: `filesystem.write failed: ${(e as Error).message}`, error: (e as Error).message, ms: Date.now() - t0 };
   }
 }

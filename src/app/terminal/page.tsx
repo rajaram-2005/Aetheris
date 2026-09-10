@@ -89,7 +89,7 @@ export default function TerminalPage() {
 
       {pendingToken && (
         <div className="term-confirm">
-          <p>Sandbox needs <code>safe_write</code> and a one-time confirmation token. We've issued one for you — paste it into the field above and re-submit, or open the issuing page <Link href="/confirm">/confirm</Link>.</p>
+          <p>Sandbox needs <code>safe_write</code> and a one-time confirmation token. We&apos;ve issued one for you — paste it into the field above and re-submit, or open the issuing page <Link href="/confirm">/confirm</Link>.</p>
           <code className="term-token">{pendingToken}</code>
         </div>
       )}

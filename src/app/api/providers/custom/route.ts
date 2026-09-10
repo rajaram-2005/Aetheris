@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/user";
-import { addCustomProvider, findCustomProvider, listCustomProviders, removeCustomProvider, updateCustomProvider, type CustomProviderRecord } from "@/lib/router/customProviders";
-import { setRuntimeKey, runtimeKeyFor } from "@/lib/router/runtimeKeys";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
+import { addCustomProviderAsync, findCustomProvider, listCustomProviders, removeCustomProviderAsync, updateCustomProviderAsync, type CustomProviderRecord } from "@/lib/router/customProviders";
+import { setRuntimeKeyAsync, runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import type { ProviderKeySource } from "@/lib/router/providers";
 
 export const runtime = "nodejs";
@@ -54,6 +55,7 @@ function bad(msg: string) {
 
 export async function GET() {
   await getUserId();
+  await hydrateRouterStores(true); // hosted: read fresh cross-instance state before rendering
   return NextResponse.json({ providers: listCustomProviders().map(view) });
 }
 
@@ -68,28 +70,30 @@ export async function POST(req: Request) {
   try { void new URL(baseUrl); } catch { return bad("baseUrl is not a valid URL"); }
   if (!model) return bad("a default model is required (the test-connection button can list the server's models)");
   if (body.key !== undefined && typeof body.key !== "string") return bad("key must be a string");
-  const rec = addCustomProvider({ name, baseUrl, model, vision: !!body.vision, local: !!body.local, notes: body.notes });
-  if (typeof body.key === "string" && body.key.trim()) setRuntimeKey(rec.envKey, body.key);
+  const rec = await addCustomProviderAsync({ name, baseUrl, model, vision: !!body.vision, local: !!body.local, notes: body.notes });
+  if (typeof body.key === "string" && body.key.trim()) await setRuntimeKeyAsync(rec.envKey, body.key);
   return NextResponse.json({ ok: true, provider: view(findCustomProvider(rec.id)!) }, { status: 201 });
 }
 
 export async function PATCH(req: Request) {
   await getUserId();
+  await hydrateRouterStores(true); // hosted: find-before-write needs a fresh cache
   const body = (await req.json().catch(() => ({}))) as { id?: string; name?: string; baseUrl?: string; model?: string; vision?: boolean; local?: boolean; notes?: string };
   const id = typeof body.id === "string" ? body.id.trim() : "";
   if (!id) return bad("id is required");
   if (!findCustomProvider(id)) return NextResponse.json({ error: `unknown provider "${id}"` }, { status: 404 });
-  const updated = updateCustomProvider(id, body);
+  const updated = await updateCustomProviderAsync(id, body);
   return NextResponse.json({ ok: true, provider: view(updated!) });
 }
 
 export async function DELETE(req: Request) {
   await getUserId();
+  await hydrateRouterStores(true); // hosted: find-before-write needs a fresh cache
   const body = (await req.json().catch(() => ({}))) as { id?: string };
   const id = typeof body.id === "string" ? body.id.trim() : "";
   const rec = findCustomProvider(id);
   if (!rec) return NextResponse.json({ error: `unknown provider "${id}"` }, { status: 404 });
-  removeCustomProvider(id);
-  if (runtimeKeyFor(rec.envKey)) setRuntimeKey(rec.envKey, "");
+  await removeCustomProviderAsync(id);
+  if (runtimeKeyFor(rec.envKey)) await setRuntimeKeyAsync(rec.envKey, "");
   return NextResponse.json({ ok: true });
 }

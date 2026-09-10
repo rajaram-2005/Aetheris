@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 
 export interface GhUser { login: string; avatar?: string; via: "oauth" | "pat" }
 
@@ -50,7 +51,7 @@ export default function GitHubAuth({ auth }: { auth: ReturnType<typeof useGitHub
   if (auth.user) {
     return (
       <div className="gh-user" title={`Signed in via ${auth.user.via}`}>
-        {auth.user.avatar && <img src={auth.user.avatar} alt="" />}
+        {auth.user.avatar && <Image src={auth.user.avatar} alt="" width={22} height={22} unoptimized />}
         <span>{auth.user.login}</span>
         <button className="link" onClick={auth.logout}>sign out</button>
       </div>

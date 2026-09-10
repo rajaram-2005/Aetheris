@@ -2,7 +2,7 @@ import type { Character } from "./types";
 
 const SEEDED_AT = Date.UTC(2026, 8, 5);
 
-interface SeedInput extends Omit<Character, "ownerId" | "builtIn" | "modes" | "createdAt" | "updatedAt"> {}
+type SeedInput = Omit<Character, "ownerId" | "builtIn" | "modes" | "createdAt" | "updatedAt">;
 
 const deity = (c: SeedInput): Character => ({
   ...c,

@@ -19,7 +19,7 @@
  * - uncertainty
  * - audit
  */
-import type { AetherisState, CounterfactualScenario } from "./types";
+import type { AetherisState } from "./types";
 import { WorldModelEngine } from "./worldmodel";
 
 class CanonicalStateFabric {

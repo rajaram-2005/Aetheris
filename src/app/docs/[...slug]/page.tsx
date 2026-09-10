@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { renderMarkdown } from "@/components/markdown";
 import { GUIDES } from "@/lib/docs/guides";
 import { referencePages } from "@/lib/docs/reference";
@@ -23,7 +24,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   return (
     <div className="docs">
       <aside className="docs-nav">
-        <a href="/" className="brand" style={{ textDecoration: "none", marginBottom: 10, display: "block" }}><b>✦ Aetheris</b> <span className="hint" style={{ margin: 0 }}>docs</span></a>
+        <Link href="/" className="brand" style={{ textDecoration: "none", marginBottom: 10, display: "block" }}><b>✦ Aetheris</b> <span className="hint" style={{ margin: 0 }}>docs</span></Link>
         {sections.map((s) => (
           <div key={s} className="docs-sec">
             <div className="docs-sec-title">{s}</div>

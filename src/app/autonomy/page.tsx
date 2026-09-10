@@ -26,7 +26,7 @@ export default async function AutonomyPage({ searchParams }: { searchParams: Pro
     <div className="aut-page">
       <header className="aut-head">
         <h1>🛡 Autonomy Level</h1>
-        <p>Six levels L0..L5. The current level determines what Aetheris is <em>allowed to do</em> under the user's authorisation. The actual policy gate (planAndGate) still has the final say — autonomy levels are advisory in this build.</p>
+        <p>Six levels L0..L5. The current level determines what Aetheris is <em>allowed to do</em> under the user&apos;s authorisation. The actual policy gate (planAndGate) still has the final say — autonomy levels are advisory in this build.</p>
         <div className="aut-current">
           <span>Current: <strong>L{cfg.level} · {levelName(cfg.level)}</strong></span>
           {cfg.updatedAt > 0 && <span className="hint">· set {new Date(cfg.updatedAt).toISOString()} · note: {cfg.note}</span>}

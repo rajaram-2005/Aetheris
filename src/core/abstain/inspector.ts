@@ -22,12 +22,11 @@
  *   the actual store + catalog state.
  */
 
-import { getHistory, type DiagnosticHistoryEntry } from "@/core/diagnostics/history";
+import { getHistory } from "@/core/diagnostics/history";
 import { bearingFaultFrequencies } from "@/core/diagnostics/fft";
 import { AGENTS } from "@/lib/agents/catalog";
 import { allCapabilities } from "@/core/capabilities/registry";
 import { bootCapabilities } from "@/core/capabilities/sources";
-import { store } from "@/lib/store";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 export type RecommendedAction = "collect" | "escalate" | "safe_state";

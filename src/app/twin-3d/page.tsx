@@ -23,7 +23,7 @@ export default async function Twin3DPage({ searchParams }: { searchParams: Promi
         <h1>🌀 Twin Viewer 3D</h1>
         <p>
           A wireframe of the canonical 2 MW wind-turbine geometry, with each
-          twin's state overlaid at the relevant vertex. Honest scope: this is
+          twin&apos;s state overlaid at the relevant vertex. Honest scope: this is
           a typed wireframe, not a CAD/CFD render. The colours come from the
           same severity logic the <Link href="/diagnostics">diagnostics</Link> page uses.
         </p>

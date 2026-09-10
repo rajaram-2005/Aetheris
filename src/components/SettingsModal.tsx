@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import type { Settings } from "./store";
 import type { Account } from "./Upgrade";
 import { LANGS, useLang } from "@/lib/i18n";
@@ -175,7 +176,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
             <div className="usage-head">
               {account.user ? (
                 <div className="sb-account" style={{ padding: 0 }}>
-                  {account.user.avatar ? <img src={account.user.avatar} alt="" /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
+                  {account.user.avatar ? <Image src={account.user.avatar} alt="" width={26} height={26} unoptimized /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
                   <span className="who">{account.user.name}{account.admin && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
                   <span className="hint" style={{ margin: 0 }}>{[account.user.email, account.user.phone].filter(Boolean).join(" · ")} · via {account.user.providers.join(", ")}</span>
                   {account.admin && <a className="link" href="/admin">admin</a>}
@@ -209,7 +210,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "memory" && (
           <div className="settings">
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Aetheris saves short facts you share (preferences, projects, "remember that…"). They are added to every chat's context. Stored in this browser only.</p>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Aetheris saves short facts you share (preferences, projects, &quot;remember that…&quot;). They are added to every chat&apos;s context. Stored in this browser only.</p>
             {memory.length === 0 && <div className="sb-empty">Nothing remembered yet.</div>}
             <ul className="mem-list">
               {memory.map((f) => <li key={f}><span>{f}</span><button className="link" onClick={() => onRemoveMemory(f)}>forget</button></li>)}
@@ -309,7 +310,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "data" && (
           <div className="settings">
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>All chats, projects and memory live in this browser's localStorage.</p>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>All chats, projects and memory live in this browser&apos;s localStorage.</p>
             <button className="ghost" style={{ alignSelf: "flex-start" }} onClick={onExport}>Export everything (JSON)</button>
             <button className="ghost danger" style={{ alignSelf: "flex-start" }} onClick={() => { if (confirm("Delete all chats? This cannot be undone.")) onClearChats(); }}>Delete all chats</button>
           </div>

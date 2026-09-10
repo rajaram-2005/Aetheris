@@ -13,7 +13,7 @@
  *   no transformation, just a different rendering.
  */
 
-import { query, type AetherisEvent, type EventType } from "@/core/observability/events";
+import { query, queryAsync, type AetherisEvent, type EventType } from "@/core/observability/events";
 
 export interface AuditExportJson {
   format: "json";
@@ -34,15 +34,29 @@ export interface AuditExportCsv {
 
 export type AuditExport = AuditExportJson | AuditExportCsv;
 
-export function exportJson(uid: string, opts: { type?: EventType; sinceMs?: number; limit?: number; okOnly?: boolean } = {}): AuditExportJson {
+export type AuditExportOpts = { type?: EventType; sinceMs?: number; limit?: number; okOnly?: boolean };
+
+export function exportJson(uid: string, opts: AuditExportOpts = {}): AuditExportJson {
   // We pull a wide window and filter on our end so okOnly has
   // the right semantics (the production query() inverts the
   // okOnly flag, so we can't trust it).
   const window = Math.max(1000, (opts.limit ?? 1000) * 4);
-  let events = query({ uid, type: opts.type, since: opts.sinceMs, limit: window });
-  if (opts.okOnly) events = events.filter((e) => e.ok);
-  events = events.slice(0, opts.limit ?? 100);
-  return { format: "json", uid, total: events.length, events, exportedAt: Date.now() };
+  const events = query({ uid, type: opts.type, since: opts.sinceMs, limit: window });
+  return composeJson(uid, events, opts);
+}
+
+/** Async twin: identical output, reads the pg log in hosted mode. Routes and pages use this. */
+export async function exportJsonAsync(uid: string, opts: AuditExportOpts = {}): Promise<AuditExportJson> {
+  const window = Math.max(1000, (opts.limit ?? 1000) * 4);
+  const events = await queryAsync({ uid, type: opts.type, since: opts.sinceMs, limit: window });
+  return composeJson(uid, events, opts);
+}
+
+function composeJson(uid: string, events: AetherisEvent[], opts: AuditExportOpts): AuditExportJson {
+  let out = events;
+  if (opts.okOnly) out = out.filter((e) => e.ok);
+  out = out.slice(0, opts.limit ?? 100);
+  return { format: "json", uid, total: out.length, events: out, exportedAt: Date.now() };
 }
 
 const CSV_HEADERS = ["id", "at", "type", "uid", "capability", "ok", "ms", "detail"];
@@ -54,15 +68,27 @@ function csvCell(s: string): string {
   return s;
 }
 
-export function exportCsv(uid: string, opts: { type?: EventType; sinceMs?: number; limit?: number; okOnly?: boolean } = {}): AuditExportCsv {
+export function exportCsv(uid: string, opts: AuditExportOpts = {}): AuditExportCsv {
   const window = Math.max(1000, (opts.limit ?? 1000) * 4);
-  let events = query({ uid, type: opts.type, since: opts.sinceMs, limit: window });
-  if (opts.okOnly) events = events.filter((e) => e.ok);
-  events = events.slice(0, opts.limit ?? 100);
-  const rows = events.map((e) => [
+  const events = query({ uid, type: opts.type, since: opts.sinceMs, limit: window });
+  return composeCsv(uid, events, opts);
+}
+
+/** Async twin: identical output, reads the pg log in hosted mode. Routes and pages use this. */
+export async function exportCsvAsync(uid: string, opts: AuditExportOpts = {}): Promise<AuditExportCsv> {
+  const window = Math.max(1000, (opts.limit ?? 1000) * 4);
+  const events = await queryAsync({ uid, type: opts.type, since: opts.sinceMs, limit: window });
+  return composeCsv(uid, events, opts);
+}
+
+function composeCsv(uid: string, events: AetherisEvent[], opts: AuditExportOpts): AuditExportCsv {
+  let out = events;
+  if (opts.okOnly) out = out.filter((e) => e.ok);
+  out = out.slice(0, opts.limit ?? 100);
+  const rows = out.map((e) => [
     e.id, String(e.at), e.type, e.uid ?? "", e.capability ?? "", e.ok ? "true" : "false", e.ms === undefined ? "" : String(e.ms), e.detail ?? "",
   ]);
-  return { format: "csv", uid, total: events.length, headers: CSV_HEADERS, rows, exportedAt: Date.now() };
+  return { format: "csv", uid, total: out.length, headers: CSV_HEADERS, rows, exportedAt: Date.now() };
 }
 
 export function toCsvString(c: AuditExportCsv): string {

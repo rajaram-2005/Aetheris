@@ -55,7 +55,7 @@ function KeyLink({ href, children }: { href: string; children: React.ReactNode }
       <a href={href} target="_blank" rel="noreferrer noopener" onClick={onClick}>{children}</a>
       {blocked && (
         <span className="keylink-note">
-          {blocked === "copied" ? "Link copied. " : ""}This embedded preview can't open new tabs — paste this in a new tab:{" "}
+          {blocked === "copied" ? "Link copied. " : ""}This embedded preview can&apos;t open new tabs — paste this in a new tab:{" "}
           <code>{href}</code>
         </span>
       )}

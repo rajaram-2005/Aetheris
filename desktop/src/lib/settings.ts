@@ -50,10 +50,6 @@ function joinDir(base: string, child: string): string {
   return base.replace(/[\\/]+$/, "") + sep + child;
 }
 
-function str(v: unknown, fallback: string): string {
-  return typeof v === "string" ? v : fallback;
-}
-
 /** Normalise a user-typed server URL: trim, strip trailing slash, require http/https. "" if invalid. */
 export function normalizeServerUrl(input: unknown): string {
   if (typeof input !== "string") return "";

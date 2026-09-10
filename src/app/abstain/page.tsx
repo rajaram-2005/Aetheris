@@ -42,7 +42,7 @@ export default async function AbstainPage({ searchParams }: { searchParams: Prom
       <header className="abs-head">
         <h1>🦉 NIRNAYA · Insufficient-Evidence Inspector</h1>
         <p>
-          The honest "I don't know" surface. Aetheris enumerates 8 standard evidence items, marks
+          The honest &quot;I don&apos;t know&quot; surface. Aetheris enumerates 8 standard evidence items, marks
           which are present, and recommends an action: <strong>COLLECT</strong> (gather more data),
           <strong> ESCALATE</strong> (hand to a human), or <strong>SAFE STATE</strong> (some
           safety-critical evidence is missing; do not act).

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 
 export interface Account {
   plan: { id: string; name: string } | null;
@@ -123,7 +124,7 @@ export default function Upgrade({ account, onClose, onChanged, reason }: {
         ) : (
           <div className="qr">
             <h2>Scan &amp; pay</h2>
-            <img src={checkout.qr} alt="UPI QR code" width={220} height={220} />
+            <Image src={checkout.qr} alt="UPI QR code" width={220} height={220} unoptimized />
             <div className="amt">₹{checkout.amountInr}</div>
             <div className="ref">Ref {checkout.id} · to {account.payee.phone}</div>
             <div className="qr-actions">

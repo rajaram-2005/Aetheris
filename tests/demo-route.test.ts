@@ -14,7 +14,6 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { NextRequest } from "next/server";
 
 // Each subtest gets a fresh data dir + DEMO env so it can stand alone.
 function freshEnv() {

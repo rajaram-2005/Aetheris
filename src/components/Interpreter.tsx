@@ -87,6 +87,7 @@ export function RunOutput({ r, lang }: { r: RunResult | "running"; lang: string 
       <div className="run-head"><span className="tag">{lang}</span><span>{r.error ? "error" : "ok"} · {r.ms} ms</span></div>
       {r.stdout && <pre>{r.stdout.slice(0, 20_000)}</pre>}
       {r.error && <pre className="run-err">{r.error.slice(0, 4000)}</pre>}
+      {/* eslint-disable-next-line @next/next/no-img-element -- interpreter figures have unknown intrinsic dimensions; CSS max-width preserves natural aspect */}
       {r.images.map((src, i) => <img key={i} src={src} alt="figure" />)}
     </div>
   );

@@ -16,7 +16,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const item = await store.update<GalleryItem>(COL, id, (i) => {
     if (!i) throw new Error("gone");
     if (action === "use") return { ...i, uses: i.uses + 1 };
-    if (action === "like") { const by = new Set(i.likedBy ?? []); by.has(uid) ? by.delete(uid) : by.add(uid); return { ...i, likedBy: [...by], likes: by.size }; }
+    if (action === "like") { const by = new Set(i.likedBy ?? []); if (by.has(uid)) by.delete(uid); else by.add(uid); return { ...i, likedBy: [...by], likes: by.size }; }
     return i;
   });
   return NextResponse.json({ uses: item.uses, likes: item.likes, liked: item.likedBy?.includes(uid) ?? false });

@@ -29,7 +29,7 @@ export default async function TrustPage() {
     <div className="tr-page">
       <header className="tr-head">
         <h1>🛡 Trust & Permissions</h1>
-        <p>The 5-level permission ladder that gates every capability in Aetheris. The current principal's grants, the highest level they hold, and a per-capability allow/deny result. This page is read-only — it never mutates any policy state.</p>
+        <p>The 5-level permission ladder that gates every capability in Aetheris. The current principal&apos;s grants, the highest level they hold, and a per-capability allow/deny result. This page is read-only — it never mutates any policy state.</p>
         <div className="tr-meta">
           <span>uid: <code>{s.uid}</code></span>
           <span>·</span>

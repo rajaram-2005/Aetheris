@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
-import { allProviders, providerKey, providerKeySource, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
-import { setRuntimeKey, runtimeKeyFor } from "@/lib/router/runtimeKeys";
+import { allProviders, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
+import { setRuntimeKeyAsync, runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import { maskKey } from "@/lib/router/router";
 
 export const runtime = "nodejs";
@@ -96,6 +97,7 @@ function entryById(id: string): KeyEntryView | null {
 
 export async function GET() {
   const { uid, isNew } = await getUserId();
+  await hydrateRouterStores(true); // hosted: read fresh cross-instance state before rendering
   const providers = allProviders().map((p) => viewForProviderId(p.id)!);
   const services = SERVICES.map(viewForService);
   const res = NextResponse.json({ providers, services });
@@ -108,23 +110,25 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   await getUserId();
+  await hydrateRouterStores(true); // hosted: custom providers resolve from a fresh cache
   const body = (await req.json().catch(() => ({}))) as { id?: string; key?: string };
   const id = typeof body.id === "string" ? body.id.trim() : "";
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const found = entryById(id);
   if (!found) return NextResponse.json({ error: `unknown provider "${id}"` }, { status: 404 });
   if (key.length < 6) return NextResponse.json({ error: "key looks too short to be valid" }, { status: 400 });
-  setRuntimeKey(found.envKey, key);
+  await setRuntimeKeyAsync(found.envKey, key);
   return NextResponse.json({ ok: true, item: entryById(id)! }); // fresh state after the write
 }
 
 export async function DELETE(req: Request) {
   await getUserId();
+  await hydrateRouterStores(true); // hosted: custom providers resolve from a fresh cache
   const body = (await req.json().catch(() => ({}))) as { id?: string };
   const id = typeof body.id === "string" ? body.id.trim() : "";
   const found = entryById(id);
   if (!found) return NextResponse.json({ error: `unknown provider "${id}"` }, { status: 404 });
-  if (runtimeKeyFor(found.envKey)) setRuntimeKey(found.envKey, "");
+  if (runtimeKeyFor(found.envKey)) await setRuntimeKeyAsync(found.envKey, "");
   return NextResponse.json({ ok: true, item: entryById(id)! }); // fresh state after the write
 }
 

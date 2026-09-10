@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import {
   canonicalTurbineGeometry, projectScene, drawScene, severityFor,
   overlayFromState, SEVERITY_COLOURS,
-  type Vec3,
 } from "../src/core/windturbine/wireframe";
 
 test("wireframe: canonical geometry has a tower, nacelle, hub, and 3 blades", () => {

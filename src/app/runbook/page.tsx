@@ -17,14 +17,14 @@ export default function RunbookPage() {
     <div className="rb-page">
       <header className="rb-head">
         <h1>📖 Operator Runbook</h1>
-        <p>A written page in the architecture document's voice. It tells you what you can do today, what you cannot, what the system guarantees, and what it does not. Every claim is tied to a real module or capability.</p>
+        <p>A written page in the architecture document&apos;s voice. It tells you what you can do today, what you cannot, what the system guarantees, and what it does not. Every claim is tied to a real module or capability.</p>
       </header>
 
       <section className="rb-section">
         <h2>What you can do today</h2>
         <ul>
           <li><strong>Inspect the fleet.</strong> <Link href="/fleet">/fleet</Link>, <Link href="/devices">/devices</Link>, <Link href="/twins">/twins</Link>, <Link href="/twins/edit">/twins/edit</Link>.</li>
-          <li><strong>Run diagnostics.</strong> FFT, bearing-fault matching, anomaly detection, PBNN predictions on each twin's history. <Link href="/diagnostics">/diagnostics</Link>, <Link href="/learning">/learning</Link>, <Link href="/anomaly">/anomaly</Link>.</li>
+          <li><strong>Run diagnostics.</strong> FFT, bearing-fault matching, anomaly detection, PBNN predictions on each twin&apos;s history. <Link href="/diagnostics">/diagnostics</Link>, <Link href="/learning">/learning</Link>, <Link href="/anomaly">/anomaly</Link>.</li>
           <li><strong>Compose a wind/aero query.</strong> VAYU-1 is a service that calls PBNN + Anomaly + Arena + FFT. <Link href="/vayu">/vayu</Link>, <Link href="/fuse">/fuse</Link>.</li>
           <li><strong>Run a single sandboxed command.</strong> Read-only commands run with <code>read_only</code>; writes need <code>safe_write</code> + a confirmation token. <Link href="/terminal">/terminal</Link>.</li>
           <li><strong>Inspect capability gates.</strong> The matrix, the trust panel, the audit export, the trace viewer. <Link href="/permissions-matrix">/permissions-matrix</Link>, <Link href="/trust">/trust</Link>, <Link href="/audit">/audit</Link>, <Link href="/trace">/trace</Link>.</li>
@@ -38,7 +38,7 @@ export default function RunbookPage() {
         <h2>What you cannot do today</h2>
         <ul className="rb-cant">
           <li><strong>You cannot actuate physical hardware.</strong> Hardware write-access is opt-in, behind the <code>physical</code> permission, OFF by default. <Link href="/permissions-matrix">/permissions-matrix</Link>.</li>
-          <li><strong>You cannot claim production-accuracy fault diagnosis.</strong> NIRIKSHAN runs FFT, anomaly detection, and PBNN. The numbers are whatever the algorithms produce; do not claim "X% accuracy" without a labelled benchmark.</li>
+          <li><strong>You cannot claim production-accuracy fault diagnosis.</strong> NIRIKSHAN runs FFT, anomaly detection, and PBNN. The numbers are whatever the algorithms produce; do not claim &quot;X% accuracy&quot; without a labelled benchmark.</li>
           <li><strong>You cannot claim a trained VAYU-1 model.</strong> VAYU-1 is a service that calls existing modules. It is a proxy, not a fine-tuned domain model.</li>
           <li><strong>You cannot run unbounded shell commands.</strong> The terminal allowlist is enforced by the production sandbox. <Link href="/terminal">/terminal</Link>.</li>
           <li><strong>You cannot self-modify the system.</strong> Tool internalization is not yet enabled.</li>
@@ -51,7 +51,7 @@ export default function RunbookPage() {
           <li><strong>Capability gates.</strong> Every write API runs <code>authorize()</code> from <code>src/core/policy/permissions.ts</code>. The grant is logged to the observability stream as a <code>permission</code> event.</li>
           <li><strong>Append-only evidence.</strong> The evidence ledger reads <code>twin.events</code>, <code>diagnostic-history</code>, and <code>system-events</code>. It is read-side; it never mutates.</li>
           <li><strong>Sandbox isolation.</strong> The terminal runs in a fresh temp workspace with env-scrubbing, SIGKILL timeout, and an output cap. Network is off by default.</li>
-          <li><strong>Verifier honesty.</strong> The fusion engine's verifier returns <code>allow</code>, <code>allow-with-caveat</code>, or <code>deny</code> with an uncertainty number. It never claims more certainty than the inputs support.</li>
+          <li><strong>Verifier honesty.</strong> The fusion engine&apos;s verifier returns <code>allow</code>, <code>allow-with-caveat</code>, or <code>deny</code> with an uncertainty number. It never claims more certainty than the inputs support.</li>
         </ul>
       </section>
 

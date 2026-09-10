@@ -148,7 +148,7 @@ function makeElectronStub(userData: string) {
 
   class BrowserWindow {
     static instances: BrowserWindow[] = [];
-    opts: Record<string, any>;
+    opts: Record<string, unknown>;
     webContents = {
       getURL: () => (calls.loadURL.at(-1) as string) ?? (calls.loadFile.at(-1) as string) ?? "",
       setWindowOpenHandler: (fn: (d: { url: string }) => unknown) => {
@@ -168,7 +168,7 @@ function makeElectronStub(userData: string) {
       },
       openDevTools: () => {},
     };
-    constructor(opts: Record<string, any>) {
+    constructor(opts: Record<string, unknown>) {
       this.opts = opts;
       BrowserWindow.instances.push(this);
     }
@@ -316,7 +316,7 @@ test("main process: boots, wires every IPC channel, and boots the remote server 
   // 2. The renderer is locked down and its preload really exists.
   const win = stub.BrowserWindow.instances[0];
   assert.ok(win, "a window was created");
-  const wp = win.opts.webPreferences;
+  const wp = win.opts.webPreferences as { contextIsolation: boolean; nodeIntegration: boolean; sandbox: boolean; preload: string };
   assert.equal(wp.contextIsolation, true);
   assert.equal(wp.nodeIntegration, false);
   assert.equal(wp.sandbox, true);

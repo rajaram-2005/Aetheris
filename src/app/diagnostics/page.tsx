@@ -14,8 +14,8 @@
  *   The data comes from the same /api/diagnostics endpoint used by the agent
  *   and the CLI, so there is no separate "UI model" to keep in sync.
  */
-import { headers } from "next/headers";
-import { getUserId, uidCookie } from "@/lib/user";
+import Link from "next/link";
+import { getUserId } from "@/lib/user";
 import { listTwins } from "@/core/twins/twins";
 import { diagnoseTwin } from "@/core/diagnostics/integration";
 import type { DiagnosticResult } from "@/core/diagnostics/engine";
@@ -87,14 +87,10 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
   const twinId = sp.twinId ?? null;
   const injectBearingFault = sp.injectBearingFault === "1";
   const data = await loadPageData(twinId, injectBearingFault);
-  // Set the cookie on first load (server-side).
-  if (data.isNew) {
-    try { (await headers()).get("cookie")?.includes(uidCookie(data.uid).name) || ""; } catch { /* ignore */ }
-  }
   return (
     <div className="diag-page">
       <header className="diag-header">
-        <a href="/" className="brand">✦ Aetheris <span className="hint">diagnostics</span></a>
+        <Link href="/" className="brand">✦ Aetheris <span className="hint">diagnostics</span></Link>
         <span className="hint">vibration FFT · bearing-fault matcher · trend</span>
       </header>
       {data.error ? <div className="diag-error">⚠ {data.error}</div> : null}

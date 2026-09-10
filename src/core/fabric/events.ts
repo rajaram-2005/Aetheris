@@ -21,7 +21,6 @@ class CentralEventFabric {
   }
 
   private seedInitialEvents(): void {
-    const now = Date.now();
     this.emit({
       type: "mission.created",
       category: "mission",

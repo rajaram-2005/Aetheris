@@ -117,7 +117,7 @@ export default function Workflows({ agents, onSendToChat }: { agents: AgentInfo[
             {final !== null && <div className="wf-row"><b>Final output ready.</b><span style={{ flex: 1 }} /><button className="chip" onClick={() => navigator.clipboard.writeText(final)}>copy</button><button className="send" onClick={() => onSendToChat(final)}>Continue in chat →</button></div>}
           </div>
         ) : (
-          <div className="upsell" style={{ margin: 12 }}>Pick a workflow on the left, or create your own: chain any of the {agents.length} agents with templated prompts, transforms and branches. Run it on any input and get every step's output.</div>
+          <div className="upsell" style={{ margin: 12 }}>Pick a workflow on the left, or create your own: chain any of the {agents.length} agents with templated prompts, transforms and branches. Run it on any input and get every step&apos;s output.</div>
         )}
       </section>
     </div>

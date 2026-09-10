@@ -20,7 +20,6 @@
  *   the supported subset is reported as `unsupported` rather than guessed.
  */
 
-import { record } from "../observability/events";
 
 // --------------------------------------------------------------------------- AST
 //
@@ -272,7 +271,7 @@ export function parseUnit(spec: string): Unit {
   // is equivalent to "kg/m/s^2" on the bottom.
   const walk = (s: string, sink: "top" | "bot"): void => {
     let buf = "";
-    const flush = () => { if (buf.trim()) sink === "top" ? top.push(buf.trim()) : bot.push(buf.trim()); buf = ""; };
+    const flush = () => { if (buf.trim()) { if (sink === "top") top.push(buf.trim()); else bot.push(buf.trim()); } buf = ""; };
     for (let i = 0; i < s.length; i++) {
       const c = s[i];
       if (c === "(") {

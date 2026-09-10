@@ -110,6 +110,7 @@ export default function Studio({ hasVideo, onUpgrade }: { hasVideo: boolean; onU
       <div className="gallery">
         {results.map((r) => (
           <figure key={r.id} className="asset">
+            {/* eslint-disable-next-line @next/next/no-img-element -- generated media has unknown intrinsic dimensions; CSS width:100% preserves natural aspect */}
             {r.kind === "image" && <img src={r.url} alt={r.prompt} />}
             {r.kind === "audio" && <audio controls src={r.url} />}
             {r.kind === "video" && <video controls src={r.url} />}

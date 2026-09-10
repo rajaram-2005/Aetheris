@@ -21,7 +21,7 @@ export class RosBridge {
       const ws = new WebSocket(this.url); this.ws = ws; const t = setTimeout(() => { ws.close(); rej(new Error("rosbridge connect timeout")); }, timeoutMs);
       ws.onopen = () => { clearTimeout(t); res(); };
       ws.onerror = () => { clearTimeout(t); rej(new Error(`rosbridge connection failed: ${this.url}`)); };
-      ws.onmessage = (ev) => { let m: Msg; try { m = JSON.parse(String(ev.data)); } catch { return; } if (m.op === "service_response" && typeof m.id === "string") { const p = this.pending.get(m.id); if (p) { this.pending.delete(m.id); m.result === false ? p.rej(new Error(String(m.values ?? "service failed"))) : p.res(m); } } else if (m.op === "publish" && typeof m.topic === "string") this.subs.get(m.topic)?.forEach((h) => h((m.msg as Msg) ?? {})); else if (m.op === "status" && m.level === "error") record({ type: "device", capability: "ros:status", ok: false, detail: String(m.msg).slice(0, 120) }); };
+      ws.onmessage = (ev) => { let m: Msg; try { m = JSON.parse(String(ev.data)); } catch { return; } if (m.op === "service_response" && typeof m.id === "string") { const p = this.pending.get(m.id); if (p) { this.pending.delete(m.id); if (m.result === false) p.rej(new Error(String(m.values ?? "service failed"))); else p.res(m); } } else if (m.op === "publish" && typeof m.topic === "string") this.subs.get(m.topic)?.forEach((h) => h((m.msg as Msg) ?? {})); else if (m.op === "status" && m.level === "error") record({ type: "device", capability: "ros:status", ok: false, detail: String(m.msg).slice(0, 120) }); };
     });
   }
   private send(m: Msg) { if (!this.ws || this.ws.readyState !== 1) throw new Error("rosbridge not connected"); this.ws.send(JSON.stringify(m)); }
@@ -42,7 +42,7 @@ export const DEFAULT_SAFETY: RobotSafety = { maxLinear: 0.3, maxAngular: 0.8, wa
 const clamp = (v: number, lim: number) => Math.max(-lim, Math.min(lim, Number.isFinite(v) ? v : 0));
 /** Pure: clamp a Twist to limits; zero it if outside the geofence and moving outward (tested). */
 export function governTwist(cmd: { linear: number; angular: number }, safety: RobotSafety, pose?: { x: number; y: number; yaw: number }): { linear: number; angular: number; clamped: boolean; reason?: string } {
-  const linear = clamp(cmd.linear, safety.maxLinear), angular = clamp(cmd.angular, safety.maxAngular); let clamped = linear !== cmd.linear || angular !== cmd.angular; let reason: string | undefined;
+  const linear = clamp(cmd.linear, safety.maxLinear), angular = clamp(cmd.angular, safety.maxAngular); const clamped = linear !== cmd.linear || angular !== cmd.angular; let reason: string | undefined;
   if (safety.geofence && pose) { const g = safety.geofence; const dx = Math.cos(pose.yaw) * linear, dy = Math.sin(pose.yaw) * linear; const out = pose.x < g.xMin || pose.x > g.xMax || pose.y < g.yMin || pose.y > g.yMax; const heading = (pose.x <= g.xMin && dx < 0) || (pose.x >= g.xMax && dx > 0) || (pose.y <= g.yMin && dy < 0) || (pose.y >= g.yMax && dy > 0); if (out || heading) { if (heading || out) { reason = `geofence: pose (${pose.x.toFixed(2)},${pose.y.toFixed(2)}) at/over boundary`; return { linear: 0, angular: out ? 0 : angular, clamped: true, reason }; } } }
   return { linear, angular, clamped, reason };
 }

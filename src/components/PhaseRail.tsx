@@ -45,7 +45,6 @@ const PHASE_NAMES: Array<{ id: PhaseId; short: string; label: string; icon: stri
 ];
 
 export default function PhaseRail({ task, onSelectPhase, selectedPhaseId }: PhaseRailProps) {
-  const currentPhase = task?.currentPhase ?? 0;
   const state = task?.state ?? "IDLE";
   const [hoveredPhase, setHoveredPhase] = useState<PhaseId | null>(null);
 

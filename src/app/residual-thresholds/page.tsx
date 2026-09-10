@@ -27,7 +27,7 @@ export default async function ResidualThresholdsPage({ searchParams }: { searchP
     <div className="rt-page">
       <header className="rt-head">
         <h1>📊 Residual Thresholds</h1>
-        <p>Anomaly thresholds derived from the trained PBNN model's residual variance. With a trained model, the residual standard deviation is <code>sqrt(sigma2)</code> and the bands are <code>mean ± k·sigma</code>. With no model, the function returns <code>ok=false</code> and reports the reason — we do not invent a sigma.</p>
+        <p>Anomaly thresholds derived from the trained PBNN model&apos;s residual variance. With a trained model, the residual standard deviation is <code>sqrt(sigma2)</code> and the bands are <code>mean ± k·sigma</code>. With no model, the function returns <code>ok=false</code> and reports the reason — we do not invent a sigma.</p>
         <form className="rt-form" method="get">
           <label>Twin <select name="twinId" defaultValue={twinId ?? ""}>
             <option value="">(none)</option>
@@ -66,7 +66,7 @@ export default async function ResidualThresholdsPage({ searchParams }: { searchP
               ))}
             </tbody>
           </table>
-          <p className="rt-hint">Use <code>classifyResidual(threshold, value)</code> to label a reading. The threshold comes from the trained model; the bands come from the user's choice of k.</p>
+          <p className="rt-hint">Use <code>classifyResidual(threshold, value)</code> to label a reading. The threshold comes from the trained model; the bands come from the user&apos;s choice of k.</p>
         </section>
       )}
 

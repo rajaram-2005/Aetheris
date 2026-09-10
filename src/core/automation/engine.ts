@@ -14,6 +14,7 @@
  * Every run is persisted with per-stage status; nothing is retried blindly (max 3 attempts, backoff).
  */
 import { randomBytes } from "node:crypto";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { store } from "@/lib/store";
 import { nextRun, parseCron } from "@/lib/schedules/cron";
@@ -72,7 +73,7 @@ const flatten = (o: Record<string, unknown>, prefix = "", out: Record<string, nu
 const fill = (tpl: string, payload: Record<string, unknown>, output?: string) => tpl.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k: string) => k === "output" ? (output ?? "") : String(k.split(".").reduce<unknown>((o, p) => (o && typeof o === "object" ? (o as Record<string, unknown>)[p] : undefined), payload) ?? ""));
 
 /** Run one automation now with a payload. */
-export async function fire(a: Automation, trigger: string, payload: Record<string, unknown>, opts: { origin?: string } = {}): Promise<AutomationRun> {
+export async function fire(a: Automation, trigger: string, payload: Record<string, unknown>, _opts: { origin?: string } = {}): Promise<AutomationRun> {
   const run: AutomationRun = { id: randomBytes(6).toString("hex"), automationId: a.id, uid: a.uid, startedAt: Date.now(), trigger, payload, stages: [], status: "running" };
   await store.set(RUNS, run.id, run);
   const stage = async <T>(name: AutomationRun["stages"][number]["stage"], fn: () => Promise<{ ok: boolean; detail?: string; value?: T }>) => { const t0 = Date.now(); try { const r = await fn(); run.stages.push({ stage: name, ok: r.ok, detail: r.detail?.slice(0, 400), ms: Date.now() - t0 }); return r; } catch (e) { run.stages.push({ stage: name, ok: false, detail: (e as Error).message.slice(0, 400), ms: Date.now() - t0 }); return { ok: false, detail: (e as Error).message }; } };
@@ -121,6 +122,7 @@ export async function fire(a: Automation, trigger: string, payload: Record<strin
     if (!ver.ok) { run.status = "blocked"; return; }
     for (const act of a.actions) {
       await stage("action", async () => {
+        await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
         switch (act.kind) {
           case "webhook": { const r = await fetch(act.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ automation: { id: a.id, name: a.name }, run: { id: run.id, trigger, payload, output } , text: `*${a.name}*\n${output ?? JSON.stringify(payload).slice(0, 1500)}`, content: (output ?? JSON.stringify(payload)).slice(0, 1900) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `${act.kind} ${new URL(act.url).hostname} ${r.status}` }; }
           case "email": { const resendKey = resolvedEnv("RESEND_API_KEY"); if (!resendKey) return { ok: false, detail: "email not configured (RESEND_API_KEY)" }; const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [act.to], subject: `[Aetheris] ${a.name}`, text: output ?? JSON.stringify(payload, null, 1) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `email ${act.to} ${r.status}` }; }

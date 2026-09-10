@@ -67,7 +67,6 @@ export async function runTestLabSuite(): Promise<TestSuiteReport> {
     const t0 = Date.now();
     const intake = runPhase0Intake("Analyze WTG-04 gearbox");
     const under = runPhase1Understanding(intake);
-    const decomp = runPhase2Decomposition(under);
     const retrieval = runPhase3Retrieval(under);
     const routing = runPhase4Routing(under, retrieval);
     const exec = await runPhase5Execution(routing, under, retrieval);

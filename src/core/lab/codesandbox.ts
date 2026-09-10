@@ -32,10 +32,12 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { record } from "../observability/events";
 import { execute, sandboxStatus } from "../execution/sandbox";
 import { authorize, type Principal } from "../policy/permissions";
+import { hostedMode } from "@/lib/hosted";
 
 // --------------------------------------------------------------------------- public types
 
@@ -152,6 +154,8 @@ async function runInSandbox(req: LabRequest, files: Record<string, string>, entr
 // --------------------------------------------------------------------------- docker runtime (opt-in)
 
 async function runInDocker(req: LabRequest, files: Record<string, string>, entry: string, timeoutMs: number, meta: { uid?: string }, t0: number): Promise<LabResult> {
+  // Serverless hosts have no docker daemon — fast-fail without spawning rather than timing out.
+  if (hostedMode()) return finish(req, t0, "docker_unavailable", "docker runtime is unavailable on hosted/serverless instances (no daemon); use the sandbox runtime", "", [], "docker_unavailable");
   // Confirm docker is on PATH; fail honestly otherwise. We do not pretend.
   const dockerOk = await new Promise<boolean>((res) => {
     const p = spawn("docker", ["version", "--format", "{{.Server.Version}}"], { stdio: "ignore" });
@@ -234,14 +238,39 @@ export async function listDeployed(dir: string | undefined): Promise<{ path: str
 
 export async function labStatus() {
   const sb = await sandboxStatus();
+  // Hosted: no daemon to probe (and no shared disk for artifacts) — report, don't spawn.
+  if (hostedMode()) {
+    return {
+      available: true,
+      sandbox: sb,
+      docker: false,
+      ephemeral: true,
+      deployDir: labDeployDir(),
+      languageSupport: { python: true, cpp: true },
+      note: "Hosted instance: docker runtime unavailable; deployed artifacts live in ephemeral /tmp and vanish when the instance freezes.",
+    };
+  }
   const docker = await new Promise<boolean>((res) => { const p = spawn("docker", ["version", "--format", "{{.Server.Version}}"], { stdio: "ignore" }); p.on("error", () => res(false)); p.on("exit", (c) => res(c === 0)); setTimeout(() => res(false), 3000); });
   return {
     available: true,
     sandbox: sb,
     docker,
+    ephemeral: false,
+    deployDir: labDeployDir(),
     languageSupport: { python: true, cpp: true },
     note: "All runs go through the server sandbox; docker is an *additional* runtime that the user must explicitly enable per request.",
   };
+}
+
+/**
+ * Where deployed lab artifacts live. An explicit AETHERIS_LAB_DEPLOY_DIR wins; hosted instances
+ * use the ephemeral temp dir (the only writable path on serverless); local default is
+ * <data>/lab/deployed. Resolved per call so tests can flip modes by setting env.
+ */
+export function labDeployDir(): string {
+  if (process.env.AETHERIS_LAB_DEPLOY_DIR) return process.env.AETHERIS_LAB_DEPLOY_DIR;
+  if (hostedMode()) return join(tmpdir(), "aeth-lab-deployed");
+  return join(process.env.AETHERIS_DATA_DIR ?? "data", "lab", "deployed");
 }
 
 function shellQuote(s: string): string {

@@ -150,7 +150,7 @@ export default async function TasksPage() {
           <Link href="/audit">/audit</Link>
         </p>
         <p className="hint">
-          Tasks are scoped to a single user. Capability <code>maintenance:close</code> at <code>safe_write</code> with a single-use confirmation token. Closed entries are excluded from the dispatch list and the maintenance calendar's "overdue" bucket.
+          Tasks are scoped to a single user. Capability <code>maintenance:close</code> at <code>safe_write</code> with a single-use confirmation token. Closed entries are excluded from the dispatch list and the maintenance calendar&apos;s &quot;overdue&quot; bucket.
         </p>
       </footer>
     </div>

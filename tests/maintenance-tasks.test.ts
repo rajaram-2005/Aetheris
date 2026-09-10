@@ -14,7 +14,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { taskList, closeMaintenance } from "../src/core/maintenance/tasks";
-import { getTwin, saveTwin } from "../src/core/twins/twins";
+import { getTwin } from "../src/core/twins/twins";
 import { canonicalTurbineTwin } from "../src/core/windturbine/model";
 import { store } from "../src/lib/store";
 import type { Twin } from "../src/core/twins/twins";

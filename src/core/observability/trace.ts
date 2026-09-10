@@ -11,7 +11,7 @@
  *   per-step duration, and surfaces failures.
  */
 
-import { query, type AetherisEvent, type EventType } from "@/core/observability/events";
+import { query, queryAsync, type AetherisEvent, type EventType } from "@/core/observability/events";
 
 export interface TraceStep {
   id: string;
@@ -70,8 +70,18 @@ function groupKey(cap: string): string {
   return colon > 0 ? cap.slice(0, colon) : cap;
 }
 
-export function traceReport(uid: string, opts: { limit?: number; type?: EventType; sinceMs?: number } = {}): TraceReport {
-  const events = query({ uid, type: opts.type, since: opts.sinceMs, limit: opts.limit ?? 200 });
+export type TraceReportOpts = { limit?: number; type?: EventType; sinceMs?: number };
+
+export function traceReport(uid: string, opts: TraceReportOpts = {}): TraceReport {
+  return composeTraceReport(uid, query({ uid, type: opts.type, since: opts.sinceMs, limit: opts.limit ?? 200 }));
+}
+
+/** Async twin: identical output, reads the pg log in hosted mode. Routes and pages use this. */
+export async function traceReportAsync(uid: string, opts: TraceReportOpts = {}): Promise<TraceReport> {
+  return composeTraceReport(uid, await queryAsync({ uid, type: opts.type, since: opts.sinceMs, limit: opts.limit ?? 200 }));
+}
+
+function composeTraceReport(uid: string, events: AetherisEvent[]): TraceReport {
   const steps = events.map(stepFromEvent);
   const okCount = steps.filter((s) => s.ok).length;
   const failCount = steps.length - okCount;

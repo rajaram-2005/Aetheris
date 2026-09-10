@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
 import { symbolicStatus, validatePlanShape, verifyPlan, type PlanStep } from "@/core/symbolic/constraints";
-import { parseExpr, parseUnit, evalExpr } from "@/core/symbolic/solver";
+import { parseExpr, evalExpr } from "@/core/symbolic/solver";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

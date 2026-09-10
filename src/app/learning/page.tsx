@@ -40,16 +40,11 @@ export default async function LearningPage({ searchParams }: { searchParams: Pro
   const steps = Math.min(50, Math.max(1, Number(sp.steps ?? "10")));
   const report = twinId ? await predictNext({ uid, twinId, steps }) : null;
 
-  const allPoints = report ? [
-    ...report.history.map((h, i) => ({ x: i, y: h.y })),
-    ...report.forecast.map((f) => ({ x: f.step - report.history.length, y: f.yHat })),
-  ] : [];
-
   return (
     <div className="lr-page">
       <header className="lr-head">
         <h1>🧠 PBNN Prediction Graph</h1>
-        <p>Reads the production PBNN model stored in <code>learning:pbnn:&lt;twinId&gt;</code>, builds a feature vector from the twin's current state, and produces a forecast over the next N steps. The ±1.96σ band comes from the model's own noise estimate.</p>
+        <p>Reads the production PBNN model stored in <code>learning:pbnn:&lt;twinId&gt;</code>, builds a feature vector from the twin&apos;s current state, and produces a forecast over the next N steps. The ±1.96σ band comes from the model&apos;s own noise estimate.</p>
         <form className="lr-form" method="get">
           <label>Twin <input type="text" name="twinId" defaultValue={twinId} list="lr-twin-ids" required /></label>
           <label>Steps <input type="number" name="steps" min={1} max={50} defaultValue={steps} /></label>

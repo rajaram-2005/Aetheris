@@ -9,7 +9,7 @@
  */
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { query } from "../observability/events";
+import { query, queryAsync, type AetherisEvent } from "../observability/events";
 
 const buckets = new Map<string, number[]>();
 export function rateLimit(key: string, opts: { limit: number; windowMs: number }, now = Date.now()): { ok: boolean; remaining: number; retryAfterSec: number } {
@@ -49,6 +49,13 @@ export function redactSecrets(text: string): string {
     .replace(/("?(?:password|secret|token|api[_-]?key|authorization)"?\s*[:=]\s*"?)([^"\s,}]{4,})/gi, "$1•••");
 }
 export function auditExport(uid: string, since?: number) {
-  return query({ uid, since, limit: 2000 }).filter((e) => ["permission", "device", "execution", "mcp", "auth", "error"].includes(e.type)).map((e) => ({ ...e, detail: e.detail ? redactSecrets(e.detail) : e.detail }));
+  return redactAudit(query({ uid, since, limit: 2000 }));
+}
+/** Async twin: identical output, reads the pg log in hosted mode. Routes use this. */
+export async function auditExportAsync(uid: string, since?: number) {
+  return redactAudit(await queryAsync({ uid, since, limit: 2000 }));
+}
+function redactAudit(rows: AetherisEvent[]) {
+  return rows.filter((e) => ["permission", "device", "execution", "mcp", "auth", "error"].includes(e.type)).map((e) => ({ ...e, detail: e.detail ? redactSecrets(e.detail) : e.detail }));
 }
 export const toCsv = (rows: Record<string, unknown>[]) => { if (!rows.length) return ""; const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))]; const esc = (v: unknown) => `"${String(v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : v).replace(/"/g, '""')}"`; return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n"); };

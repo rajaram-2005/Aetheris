@@ -7,6 +7,7 @@ import { agentById, HERMES_BASE, METIS_BASE } from "@/lib/agents/catalog";
 import type { ChatMessage } from "@/lib/router/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 /**

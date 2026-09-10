@@ -40,7 +40,7 @@ export default async function CreditsPage() {
     <div className="cr-page">
       <header className="cr-head">
         <h1>💳 Cost & Credit Ledger</h1>
-        <p>Today's usage, the per-kind breakdown, and the 30-day history of daily totals. Every number comes from the production <code>usage:&lt;uid&gt;</code> store, which is updated by <code>consumeChat()</code> on every request. The page is read-only — it never mutates the ledger.</p>
+        <p>Today&apos;s usage, the per-kind breakdown, and the 30-day history of daily totals. Every number comes from the production <code>usage:&lt;uid&gt;</code> store, which is updated by <code>consumeChat()</code> on every request. The page is read-only — it never mutates the ledger.</p>
         <div className="cr-meta">
           <span>Plan: <strong>{l.plan.name}</strong> ({l.plan.id})</span>
           <span>·</span>

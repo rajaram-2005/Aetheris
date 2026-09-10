@@ -38,10 +38,10 @@
  *   data.
  */
 
-import { bearingFaultFrequencies, fftSpectrum, spectralPeaks } from "@/core/diagnostics/fft";
+import { bearingFaultFrequencies } from "@/core/diagnostics/fft";
 import { diagnoseTwin } from "@/core/diagnostics/integration";
 import { getHistory } from "@/core/diagnostics/history";
-import { canonicalTurbineTwin, DEFAULT_BOUNDS } from "@/core/windturbine/model";
+import { canonicalTurbineTwin } from "@/core/windturbine/model";
 import { planAndGate, defaultGlobalInvariants, type InterventionStep, type PlanVerdict } from "@/core/windturbine/plan";
 import type { Twin } from "@/core/twins/twins";
 import { store } from "@/lib/store";

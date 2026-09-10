@@ -27,12 +27,12 @@ export default function CapabilitiesPage() {
     <div className="cap-page">
       <header className="cap-head">
         <h1>📜 Honest Capabilities Statement</h1>
-        <p>A written page in the architecture document's voice. Each of the 10 cores gets a one-paragraph "what it does today" / "what it does not yet do" statement, drawn from the same source as the <Link href="/cores">/cores</Link> registry. This is what Aetheris can legitimately say today. It is not what Aetheris will one day claim.</p>
+        <p>A written page in the architecture document&apos;s voice. Each of the 10 cores gets a one-paragraph &quot;what it does today&quot; / &quot;what it does not yet do&quot; statement, drawn from the same source as the <Link href="/cores">/cores</Link> registry. This is what Aetheris can legitimately say today. It is not what Aetheris will one day claim.</p>
       </header>
 
       <section className="cap-section">
         <h2>The boundary Aetheris can keep</h2>
-        <p>Aetheris can legitimately say: <em>"This system can analyze, simulate, orchestrate, retrieve, reason, visualize, verify, and recommend."</em> It should not yet say: <em>"This is AGI," "This predicts all turbine failures," "This understands physics like a human engineer,"</em> or <em>"This autonomously controls real turbines safely."</em> Those are claims we would need experimental evidence to earn.</p>
+        <p>Aetheris can legitimately say: <em>&quot;This system can analyze, simulate, orchestrate, retrieve, reason, visualize, verify, and recommend.&quot;</em> It should not yet say: <em>&quot;This is AGI,&quot; &quot;This predicts all turbine failures,&quot; &quot;This understands physics like a human engineer,&quot;</em> or <em>&quot;This autonomously controls real turbines safely.&quot;</em> Those are claims we would need experimental evidence to earn.</p>
       </section>
 
       <section className="cap-grid">

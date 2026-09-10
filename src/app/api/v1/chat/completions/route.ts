@@ -9,11 +9,13 @@ import { authenticateKey } from "@/lib/keys/apikeys";
 import { consumeChat, planFor } from "@/lib/billing/entitlements";
 import { resolveTier } from "@/lib/models/tiers";
 import { route } from "@/lib/router/router";
+import { SseChannel, sseHeaders } from "@/lib/sse";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import { getLessons } from "@/lib/agents/lessons";
 import type { ChatMessage } from "@/lib/router/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 export const dynamic = "force-dynamic";
 
 const oaiErr = (message: string, status: number, type = "invalid_request_error", code?: string) =>
@@ -78,22 +80,24 @@ export async function POST(req: Request) {
     }
   }
 
-  const enc = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      // Numbered frames (OpenAI clients ignore `id:`); programmatic clients can resume with
+      // Last-Event-ID, and a retry regenerates — the v1 API keeps standard OpenAI semantics.
+      const ch = new SseChannel(controller);
       const chunk = (delta: Record<string, unknown>, finish: string | null = null) =>
-        controller.enqueue(enc.encode(`data: ${JSON.stringify({ id, object: "chat.completion.chunk", created, model: modelLabel, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`));
+        ch.send({ id, object: "chat.completion.chunk", created, model: modelLabel, choices: [{ index: 0, delta, finish_reason: finish }] });
       try {
         chunk({ role: "assistant", content: "" });
         await runText((t) => chunk({ content: t }));
         chunk({}, "stop");
       } catch (e) {
-        controller.enqueue(enc.encode(`data: ${JSON.stringify({ error: { message: (e as Error).message, type: "api_error" } })}\n\n`));
+        ch.send({ error: { message: (e as Error).message, type: "api_error" } });
       } finally {
-        controller.enqueue(enc.encode("data: [DONE]\n\n"));
+        ch.raw("[DONE]");
         controller.close();
       }
     },
   });
-  return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" } });
+  return new Response(stream, { headers: sseHeaders() });
 }
