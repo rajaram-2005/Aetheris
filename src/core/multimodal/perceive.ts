@@ -30,7 +30,7 @@ import { allProviders, isConfigured } from "@/lib/router/providers";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { readContainer, describeContainer } from "./container";
 import { sampleFramesWithWasm, wasmFfmpegAvailable, wasmFfmpegReason, wasmFfmpegVersion } from "./wasmffmpeg";
-import { traced } from "../observability/events";
+import { record, traced } from "../observability/events";
 
 const run = promisify(execFile);
 export type Modality = "image" | "document" | "audio" | "video" | "sensor";
@@ -80,6 +80,16 @@ export function analyzeSeries(series: { t: number; v: number }[], z = 3) {
   return { n, min: Math.min(...vs), max: Math.max(...vs), mean, sd, slopePerUnit: slope, trend: Math.abs(slope) * (xs[n - 1] - xs[0]) <= Math.max(sd * 0.5, 1e-9) ? "flat" : slope > 0 ? "rising" : "falling", anomalies, first: series[0], last: series[n - 1] };
 }
 
+/**
+ * Telemetry for the video-path decision (capability `multimodal:video-path` in /api/telemetry):
+ * which of the five video strategies handled the file — ffmpeg binary, ffmpeg-wasm,
+ * provider-inline, embedded-cover-art, or container-metadata — and why. This is what makes
+ * "video works on this host" diagnosable without reproducing the request.
+ */
+function noteVideoPath(via: string, detail: string, ok = true) {
+  record({ type: "tool", capability: "multimodal:video-path", ok, detail: `via=${via} ${detail}`.slice(0, 300) });
+}
+
 export async function perceive(input: PerceiveInput): Promise<Perception> {
   await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   return traced({ type: "tool", capability: `multimodal:${input.modality}` }, async () => {
@@ -119,6 +129,7 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
           if (!ffmpeg && inline.length > 0 && !input.series) {
             const mime = input.mime ?? "video/mp4";
             const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You are given a video file directly. Describe what happens over time, read any on-screen text verbatim, and answer the question if given. If the video is silent or has no useful content, say so instead of inventing it." }, { role: "user", content: `${input.question ?? "What happens in this video?"}\n\nContainer facts read on the server (for orientation, do not repeat them unless asked): ${facts}`, images: [`data:${mime};base64,${input.data.toString("base64")}`] }] });
+            noteVideoPath("provider-inline-video", `provider=${r.provider} model=${r.model}`);
             return done({ ok: true, text: r.content, structured: { frames: 0, via: "provider-inline-video", container: container.ok ? container : undefined, containerFacts: facts }, provider: r.provider, model: r.model });
           }
 
@@ -129,11 +140,12 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
               await writeFile(src, input.data);
               await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vf", "fps=1/5,scale=768:-1", "-frames:v", "6", path.join(dir, "f%02d.jpg")], { timeout: 60_000 });
               const frames: string[] = []; for (let i = 1; i <= 6; i++) { try { frames.push(`data:image/jpeg;base64,${(await readFile(path.join(dir, `f${String(i).padStart(2, "0")}.jpg`))).toString("base64")}`); } catch { break; } }
-              if (!frames.length) return done({ ok: false, text: "", reason: `no frames extracted — ${facts}` });
+              if (!frames.length) { noteVideoPath("ffmpeg", "no frames extracted", false); return done({ ok: false, text: "", reason: `no frames extracted — ${facts}` }); }
               let transcript = ""; try { await run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", src, "-vn", "-ac", "1", "-ar", "16000", path.join(dir, "a.mp3")], { timeout: 60_000 }); const tr = await transcribe(await readFile(path.join(dir, "a.mp3")), "a.mp3", "audio/mpeg"); if (tr.ok) transcript = tr.text; } catch { /* no audio track or STT */ }
               const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order) and an optional transcript. Describe what happens over time; answer the question if given." }, { role: "user", content: `${input.question ?? "What happens in this video?"}${transcript ? `\n\nTranscript:\n${transcript.slice(0, 8000)}` : ""}`, images: frames }] });
+              noteVideoPath("ffmpeg", `frames=${frames.length} transcript=${transcript ? "yes" : "no"}`);
               return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg", transcript: transcript || undefined, container: container.ok ? container : undefined }, provider: r.provider, model: r.model });
-            } finally { await rm(dir, { recursive: true, force: true }); }
+            } catch (e) { noteVideoPath("ffmpeg", `exec failed: ${(e as Error).message}`.slice(0, 160), false); throw e; } finally { await rm(dir, { recursive: true, force: true }); }
           }
 
           // Path 1b: no ffmpeg binary, but the WASM core is installed. Same frame sampling, no host
@@ -143,6 +155,7 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
             if (s.ok && s.frames.length) {
               const frames = s.frames.map((b) => `data:image/jpeg;base64,${b.toString("base64")}`);
               const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 1000, messages: [{ role: "system", content: "You see frames sampled every 5 seconds from a video (in order). Describe what happens over time; answer the question if given. If the frames are uninformative, say so rather than inventing detail." }, { role: "user", content: `${input.question ?? "What happens in this video?"}`, images: frames }] });
+              noteVideoPath("ffmpeg-wasm", `frames=${frames.length} version=${s.version ?? "?"}`);
               return done({ ok: true, text: r.content, structured: { frames: frames.length, via: "ffmpeg-wasm", ffmpegVersion: s.version, atSeconds: s.atSeconds, container: container.ok ? container : undefined, why: "no ffmpeg binary on this host — frames were sampled by the in-process WASM build instead" }, provider: r.provider, model: r.model });
             }
             // Fall through on purpose: a codec the WASM build lacks may still be handled inline.
@@ -154,10 +167,12 @@ export async function perceive(input: PerceiveInput): Promise<Perception> {
             const covr = coverArtOf(input.data);
             if (covr) {
               const r = await route({ preferred: input.preferred, temperature: 0.1, maxTokens: 700, messages: [{ role: "system", content: "This is the poster image embedded in a video file. Describe it and read any text verbatim. It is not a frame from the video; do not claim otherwise." }, { role: "user", content: `${input.question ?? "Describe this video's poster image."}\n\nContainer facts: ${facts}`, images: [`data:${container.coverArt.mime};base64,${covr.toString("base64")}`] }] });
+              noteVideoPath("embedded-cover-art", facts.slice(0, 120));
               return done({ ok: true, text: r.content, structured: { frames: 0, via: "embedded-cover-art", container, containerFacts: facts, why: "no ffmpeg on this host and no video-native model configured — the embedded poster was analysed instead of the footage" }, provider: r.provider, model: r.model });
             }
           }
-          if (!container.ok) return done({ ok: false, text: "", reason: container.reason });
+          if (!container.ok) { noteVideoPath("none", container.reason ?? "unreadable container", false); return done({ ok: false, text: "", reason: container.reason }); }
+          noteVideoPath("container-metadata", facts.slice(0, 120));
           return done({ ok: true, text: facts, structured: { frames: 0, via: "container-metadata", container, containerFacts: facts, why: "no ffmpeg on this host and no video-native model configured — container metadata only, no frames were analysed" } });
         }
         case "sensor": {

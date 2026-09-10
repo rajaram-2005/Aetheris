@@ -34,7 +34,7 @@ AETHERIS_EVENTS=postgres
 - [x] Phase 3: telemetry → Postgres (`AETHERIS_EVENTS=postgres`; `record()` stays sync with a fire-and-forget insert, routes/pages read via `queryAsync`/`summaryAsync`/…, hermetic `pg-mem` tests)
 - [x] Phase 4: runtime keys + custom providers → store backend (sync write-through cache + `hydrateRouterStores()`; no `AETHERIS_STORE=postgres` change needed — keys/providers follow the store automatically)
 - [x] Phase 5: RAVANA workspace → Blob (`AETHERIS_WORKSPACE=blob` + `BLOB_READ_WRITE_TOKEN`; zero-dep REST client, same traversal confinement; validate live with `node scripts/blob-roundtrip.mjs`)
-- [ ] Phase 6: media/lab ephemeral + ffmpeg tracing
+- [x] Phase 6: media/lab ephemeral + ffmpeg tracing (`AETHERIS_HOSTED=1`: docker fast-fails, deploys go to ephemeral /tmp; video path decisions recorded as `multimodal:video-path` telemetry; media was already disk-free)
 - [ ] Phase 7: `vercel.json` + Cron + per-route `maxDuration`
 - [ ] Phase 8: public hardening (login-required hosted mode, rate limits, headers)
 - [ ] Phase 9: deploy guide + staging validation
