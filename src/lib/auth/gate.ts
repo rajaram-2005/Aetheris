@@ -9,9 +9,13 @@
 const DEV_SECRET = "aetheris-dev-secret-do-not-use-in-prod";
 type AuthEnvironment = Readonly<Record<string, string | undefined>>;
 
-/** Web access is anonymous-first: the workspace never requires a login or display name. */
-export function authenticationRequired(_env: AuthEnvironment = process.env): boolean {
-  return false;
+/**
+ * Web access is anonymous-first by default — but a public hosted instance flips the gate with
+ * AETHERIS_REQUIRE_LOGIN=1, and middleware then requires a valid account session everywhere
+ * except isPublicAuthPath(). The UI reads the same flag via /api/auth/session to adapt.
+ */
+export function authenticationRequired(env: AuthEnvironment = process.env): boolean {
+  return env.AETHERIS_REQUIRE_LOGIN === "1";
 }
 
 export function guestAccessEnabled(env: AuthEnvironment = process.env): boolean {

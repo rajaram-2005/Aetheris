@@ -36,5 +36,5 @@ AETHERIS_EVENTS=postgres
 - [x] Phase 5: RAVANA workspace → Blob (`AETHERIS_WORKSPACE=blob` + `BLOB_READ_WRITE_TOKEN`; zero-dep REST client, same traversal confinement; validate live with `node scripts/blob-roundtrip.mjs`)
 - [x] Phase 6: media/lab ephemeral + ffmpeg tracing (`AETHERIS_HOSTED=1`: docker fast-fails, deploys go to ephemeral /tmp; video path decisions recorded as `multimodal:video-path` telemetry; media was already disk-free)
 - [x] Phase 7: `vercel.json` + Cron + per-route `maxDuration` (tick every 10 min, 300s ceilings on all 12 SSE routes, `tests/vercel-config.test.ts` guardrails; cadences over daily + durations over 60s need Pro)
-- [ ] Phase 8: public hardening (login-required hosted mode, rate limits, headers)
+- [x] Phase 8: public hardening (`AETHERIS_REQUIRE_LOGIN=1` edge session gate, Upstash REST rate limits with in-memory fallback, AI spend rules, hosted-only HSTS)
 - [ ] Phase 9: deploy guide + staging validation
