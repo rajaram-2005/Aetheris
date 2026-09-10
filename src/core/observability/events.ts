@@ -64,6 +64,7 @@ function db(): Db | null {
   try {
     if (process.env.AETHERIS_EVENT_PERSIST === "0") throw new Error("persistence disabled");
     mkdirSync(path.dirname(file), { recursive: true });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy: node:sqlite must not load on runtimes without it (falls back to in-memory)
     const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: new (p: string) => Db };
     opened = new DatabaseSync(file);
     opened.exec("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, at INTEGER NOT NULL, type TEXT NOT NULL, uid TEXT, capability TEXT, ok INTEGER NOT NULL, ms INTEGER, detail TEXT, meta TEXT)");

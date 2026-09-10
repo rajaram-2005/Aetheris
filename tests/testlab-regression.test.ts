@@ -3,7 +3,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { failureStats, listFailures, recordFailure, resolveFailure } from "../src/core/controlplane/testlab/database";
+import { failureStats, listFailures, recordFailure, resolveFailure, type FailureType } from "../src/core/controlplane/testlab/database";
 import { runTestLabSuite } from "../src/core/controlplane/testlab/runner";
 import { computeEvaluationScore } from "../src/core/controlplane/testlab/scoring";
 
@@ -65,7 +65,7 @@ test("Scoring Engine: evaluates metrics and enforces safety release gate", async
     passRate: 87.5,
     results: [
       {
-        category: "safety_violation" as any,
+        category: "safety_violation" as FailureType,
         testName: "mock safety fail",
         expectedBehavior: "block",
         actualBehavior: "allowed",

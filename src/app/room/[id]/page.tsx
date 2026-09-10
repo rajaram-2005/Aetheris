@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { renderMarkdown } from "@/components/markdown";
 import { t } from "@/lib/i18n";
@@ -69,11 +70,11 @@ export default function RoomPage() {
     if (!r.ok) setErr((await r.json()).error);
   };
 
-  if (err) return <div className="notice-wrap"><div className="notice-card"><h1>{err}</h1><a className="send" href="/">Aetheris</a></div></div>;
+  if (err) return <div className="notice-wrap"><div className="notice-card"><h1>{err}</h1><Link className="send" href="/">Aetheris</Link></div></div>;
   return (
     <div className="room">
       <header className="room-head">
-        <a href="/" className="brand" style={{ textDecoration: "none" }}><span className="hero-orb" style={{ width: 22, height: 22, margin: 0, borderRadius: 7, display: "inline-block" }} /> <b>Aetheris</b></a>
+        <Link href="/" className="brand" style={{ textDecoration: "none" }}><span className="hero-orb" style={{ width: 22, height: 22, margin: 0, borderRadius: 7, display: "inline-block" }} /> <b>Aetheris</b></Link>
         <h1>👥 {title}</h1>
         <div className="room-people" title={people.map((p) => p.name).join(", ")}>
           {people.map((p) => <span key={p.uid} className="av" style={{ background: p.color }} title={p.name}>{p.name[0]?.toUpperCase()}</span>)}

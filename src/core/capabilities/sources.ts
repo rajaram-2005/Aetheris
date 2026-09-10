@@ -131,8 +131,10 @@ export function bootCapabilities() {
   if (booted) return; booted = true;
   registerSource(modelSource); registerSource(agentSource); registerSource(connectorSource); registerSource(platformSource); registerSource(userMcpSource);
   // RAVANA (Aetheris Core #1) registers its own source at import; pull it in here.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- sync lazy-load: a static import would turn an optional module into a boot-time crash
   try { require("@/core/ravana/capabilities"); } catch (e) { console.warn("[aetheris] ravana capabilities load failed", (e as Error).message); }
   loadPlugins();
 }
 /** Plugins register their own CapabilitySources on import (src/plugins/index.ts). */
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- sync lazy-load: plugins are optional, failure must warn, not crash boot
 function loadPlugins() { try { require("@/plugins"); } catch (e) { console.warn("[aetheris] plugin load failed", (e as Error).message); } }

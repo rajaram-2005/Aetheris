@@ -129,7 +129,7 @@ export function detectAnomalies(rows: { tMs: number; y: number }[], spec: PbnnSp
     };
   });
   let worst: AnomalyPoint | null = null;
-  let counts = { info: 0, warn: 0, critical: 0 };
+  const counts = { info: 0, warn: 0, critical: 0 };
   for (const pt of points) {
     if (!worst || Math.abs(pt.zscore) > Math.abs(worst.zscore)) worst = pt;
     counts[pt.severity]++;

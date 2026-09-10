@@ -285,7 +285,6 @@ function buildIndex(
           setErr(null);
           // Show result in a JSON viewer; for now, log to console + alert snippet.
           // A real "results drawer" can be wired later.
-          // eslint-disable-next-line no-console
           console.log(`[palette] ${a.path}:`, out);
           window.alert(`${a.label}\n\n${truncate(JSON.stringify(out, null, 2), 1800)}`);
         } finally {

@@ -126,7 +126,7 @@ export default function Apps({ enabled, onChange, hasPremium, onUpgrade }: {
           <div className="app-name"><BrandTile name="Aetheris Hub" id="hub" size={22} /> Aetheris Hub <span className="tag">all {connectors.length} in one MCP</span>{hubOn && <span className="tag" style={{ color: "var(--ok)" }}>enabled</span>}</div>
           <button className={hubOn ? "ghost" : "send"} onClick={toggleHub} style={{ padding: "5px 10px", fontSize: 12 }}>{hubOn ? "Disable" : "Enable all"}</button>
         </div>
-        <div className="app-desc">One server, every connector. The model discovers tools with <code>hub__search_tools</code> and calls them as <code>&lt;connector&gt;__&lt;tool&gt;</code>. Connectors you have connected below are ready; others are listed as "needs credential" so the model can ask you.</div>
+        <div className="app-desc">One server, every connector. The model discovers tools with <code>hub__search_tools</code> and calls them as <code>&lt;connector&gt;__&lt;tool&gt;</code>. Connectors you have connected below are ready; others are listed as &quot;needs credential&quot; so the model can ask you.</div>
         <details className="hub-details">
           <summary>Use the Hub from Claude Desktop, Cursor, or any MCP client</summary>
           <pre className="codeblock" style={{ fontSize: 12 }}>{`{

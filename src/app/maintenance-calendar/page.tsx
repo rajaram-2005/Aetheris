@@ -30,7 +30,7 @@ export default async function MaintenanceCalendarPage() {
     <div className="mc-page">
       <header className="mc-head">
         <h1>📅 Maintenance Calendar</h1>
-        <p>Every maintenance entry across the user's fleet, plus a forward 90-day projection of next-due dates. The data comes from the production <code>maintenance</code> array on each twin — nothing is fabricated.</p>
+        <p>Every maintenance entry across the user&apos;s fleet, plus a forward 90-day projection of next-due dates. The data comes from the production <code>maintenance</code> array on each twin — nothing is fabricated.</p>
         <div className="mc-meta">
           <span>Total: <strong>{r.total}</strong></span>
           {(["overdue", "thisWeek", "thisMonth", "later", "noDueDate"] as const).map((b) => (
@@ -39,7 +39,7 @@ export default async function MaintenanceCalendarPage() {
         </div>
       </header>
 
-      {r.entries.length === 0 ? <p className="hint">No maintenance entries for this user's fleet yet. <Link href="/twins/edit">Add one →</Link></p> : (
+      {r.entries.length === 0 ? <p className="hint">No maintenance entries for this user&apos;s fleet yet. <Link href="/twins/edit">Add one →</Link></p> : (
         <>
           <section className="mc-entries">
             <h2>Entries (sorted by next-due)</h2>

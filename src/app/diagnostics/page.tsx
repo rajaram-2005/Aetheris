@@ -15,6 +15,7 @@
  *   and the CLI, so there is no separate "UI model" to keep in sync.
  */
 import { headers } from "next/headers";
+import Link from "next/link";
 import { getUserId, uidCookie } from "@/lib/user";
 import { listTwins } from "@/core/twins/twins";
 import { diagnoseTwin } from "@/core/diagnostics/integration";
@@ -94,7 +95,7 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
   return (
     <div className="diag-page">
       <header className="diag-header">
-        <a href="/" className="brand">✦ Aetheris <span className="hint">diagnostics</span></a>
+        <Link href="/" className="brand">✦ Aetheris <span className="hint">diagnostics</span></Link>
         <span className="hint">vibration FFT · bearing-fault matcher · trend</span>
       </header>
       {data.error ? <div className="diag-error">⚠ {data.error}</div> : null}

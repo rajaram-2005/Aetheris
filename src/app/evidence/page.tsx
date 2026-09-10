@@ -34,7 +34,7 @@ export default async function EvidencePage({ searchParams }: { searchParams: Pro
     <div className="ev-page">
       <header className="ev-head">
         <h1>🔏 Evidence Ledger</h1>
-        <p>Append-only evidence view across the user's fleet: every twin.events entry, every diagnostic-history row, and every system event. Newest-first. The ledger is a read; it never writes.</p>
+        <p>Append-only evidence view across the user&apos;s fleet: every twin.events entry, every diagnostic-history row, and every system event. Newest-first. The ledger is a read; it never writes.</p>
         <form className="ev-form" method="get">
           <label>Twin <select name="twinId" defaultValue={sp.twinId ?? ""}>
             <option value="">(all)</option>

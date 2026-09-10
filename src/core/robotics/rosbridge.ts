@@ -42,7 +42,7 @@ export const DEFAULT_SAFETY: RobotSafety = { maxLinear: 0.3, maxAngular: 0.8, wa
 const clamp = (v: number, lim: number) => Math.max(-lim, Math.min(lim, Number.isFinite(v) ? v : 0));
 /** Pure: clamp a Twist to limits; zero it if outside the geofence and moving outward (tested). */
 export function governTwist(cmd: { linear: number; angular: number }, safety: RobotSafety, pose?: { x: number; y: number; yaw: number }): { linear: number; angular: number; clamped: boolean; reason?: string } {
-  const linear = clamp(cmd.linear, safety.maxLinear), angular = clamp(cmd.angular, safety.maxAngular); let clamped = linear !== cmd.linear || angular !== cmd.angular; let reason: string | undefined;
+  const linear = clamp(cmd.linear, safety.maxLinear), angular = clamp(cmd.angular, safety.maxAngular); const clamped = linear !== cmd.linear || angular !== cmd.angular; let reason: string | undefined;
   if (safety.geofence && pose) { const g = safety.geofence; const dx = Math.cos(pose.yaw) * linear, dy = Math.sin(pose.yaw) * linear; const out = pose.x < g.xMin || pose.x > g.xMax || pose.y < g.yMin || pose.y > g.yMax; const heading = (pose.x <= g.xMin && dx < 0) || (pose.x >= g.xMax && dx > 0) || (pose.y <= g.yMin && dy < 0) || (pose.y >= g.yMax && dy > 0); if (out || heading) { if (heading || out) { reason = `geofence: pose (${pose.x.toFixed(2)},${pose.y.toFixed(2)}) at/over boundary`; return { linear: 0, angular: out ? 0 : angular, clamped: true, reason }; } } }
   return { linear, angular, clamped, reason };
 }

@@ -34,7 +34,7 @@ export default function ControlCenter({ onAsk }: { onAsk: (p: string) => void })
   return (
     <div className="study cc">
       <div className="gallery-head">
-        <div><h2 style={{ margin: 0 }}>🎛️ Control Center</h2><p className="hint" style={{ margin: "4px 0 0", textAlign: "left" }}>What Aetheris can do, what is really running, and what every subsystem's honest status is. Nothing on this screen is mocked — counters come from live events.</p></div>
+        <div><h2 style={{ margin: 0 }}>🎛️ Control Center</h2><p className="hint" style={{ margin: "4px 0 0", textAlign: "left" }}>What Aetheris can do, what is really running, and what every subsystem&apos;s honest status is. Nothing on this screen is mocked — counters come from live events.</p></div>
         <div className="row" style={{ gap: 6 }}>{TABS.map((t) => <button key={t} className={`chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{t}</button>)}</div>
       </div>
 

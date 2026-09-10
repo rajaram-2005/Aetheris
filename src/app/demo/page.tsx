@@ -131,7 +131,7 @@ export default async function DemoPage() {
         </p>
         <p className="demo-honest">
           Honest scope: this demo is built from the same engine code that runs in production.
-          The DRISHTI step does not invent inspection imagery; it returns an honest "no visual evidence on file" note.
+          The DRISHTI step does not invent inspection imagery; it returns an honest &quot;no visual evidence on file&quot; note.
           The SETU step prepares a workflow ticket but does not execute any physical write — that requires the
           <code> physical</code> opt-in grant, which is off by default. The world-model and plan-gate steps
           use the first-order linearised simulator, not CFD/FEA.

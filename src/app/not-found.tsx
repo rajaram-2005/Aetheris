@@ -1,6 +1,8 @@
 /**
  * App Router 404. Honest: the path is unknown. Nothing is invented to fill it.
  */
+import Link from "next/link";
+
 export default function NotFound() {
   return (
     <div className="notice-wrap">
@@ -12,12 +14,12 @@ export default function NotFound() {
           (Ctrl/Cmd+K) to reach an implemented view.
         </p>
         <div className="fail-actions">
-          <a className="send" href="/">
+          <Link className="send" href="/">
             Workspace
-          </a>
-          <a className="ghost" href="/docs">
+          </Link>
+          <Link className="ghost" href="/docs">
             Docs
-          </a>
+          </Link>
         </div>
       </div>
     </div>

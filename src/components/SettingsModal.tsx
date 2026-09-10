@@ -209,7 +209,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "memory" && (
           <div className="settings">
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Aetheris saves short facts you share (preferences, projects, "remember that…"). They are added to every chat's context. Stored in this browser only.</p>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>Aetheris saves short facts you share (preferences, projects, &quot;remember that…&quot;). They are added to every chat&apos;s context. Stored in this browser only.</p>
             {memory.length === 0 && <div className="sb-empty">Nothing remembered yet.</div>}
             <ul className="mem-list">
               {memory.map((f) => <li key={f}><span>{f}</span><button className="link" onClick={() => onRemoveMemory(f)}>forget</button></li>)}
@@ -309,7 +309,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
 
         {tab === "data" && (
           <div className="settings">
-            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>All chats, projects and memory live in this browser's localStorage.</p>
+            <p className="hint" style={{ textAlign: "left", marginTop: 0 }}>All chats, projects and memory live in this browser&apos;s localStorage.</p>
             <button className="ghost" style={{ alignSelf: "flex-start" }} onClick={onExport}>Export everything (JSON)</button>
             <button className="ghost danger" style={{ alignSelf: "flex-start" }} onClick={() => { if (confirm("Delete all chats? This cannot be undone.")) onClearChats(); }}>Delete all chats</button>
           </div>

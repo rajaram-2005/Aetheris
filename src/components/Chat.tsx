@@ -603,7 +603,6 @@ export default function Chat() {
       else if (e.key === "Escape" && abortRef.current) abortRef.current.abort();
     };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const exportAll = () => {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), conversations: convos, projects, memory, settings: { ...settings, tavilyKey: "" } }, null, 2)], { type: "application/json" });

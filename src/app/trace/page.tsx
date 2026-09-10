@@ -35,7 +35,7 @@ export default async function TracePage({ searchParams }: { searchParams: Promis
     <div className="trc-page">
       <header className="trc-head">
         <h1>🧵 Reasoning Trace</h1>
-        <p>The production observability log, read as a reasoning trace. Every step is a real (capability, ok, ms, detail) tuple from the agent's work. Nothing is invented.</p>
+        <p>The production observability log, read as a reasoning trace. Every step is a real (capability, ok, ms, detail) tuple from the agent&apos;s work. Nothing is invented.</p>
         <form className="trc-form" method="get">
           <label>Limit <input type="number" name="limit" min={10} max={500} defaultValue={limit} /></label>
           <label>Since (ms) <input type="number" name="since" min={0} defaultValue={sinceMs} /></label>

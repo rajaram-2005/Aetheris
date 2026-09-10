@@ -51,7 +51,7 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
         <h1>🤖 Agent Inspector</h1>
         <p>
           Every agent in the Aetheris catalog, with tier, domain, skills, and the system prompt the
-          orchestrator appends to the Hermes base at runtime. The same catalog drives the planner's
+          orchestrator appends to the Hermes base at runtime. The same catalog drives the planner&apos;s
           selection and the @mention picker, so this page cannot drift from production routing.
         </p>
         <div className="ag-meta">

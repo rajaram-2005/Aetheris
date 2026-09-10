@@ -46,8 +46,8 @@ export function runPhase6Simulation(
   // Predict future trajectory under scenario
   let futureVib = baselineVib * derateFactor + 1.2 * (1 - derateFactor);
   let futureTempK = baselineTempK - (1 - derateFactor) * 14.5;
-  let futurePowerKW = baselinePowerKW * derateFactor;
-  let efficiencyPct = derateFactor > 0 ? 94.5 - (1 - derateFactor) * 2.0 : 0.0;
+  const futurePowerKW = baselinePowerKW * derateFactor;
+  const efficiencyPct = derateFactor > 0 ? 94.5 - (1 - derateFactor) * 2.0 : 0.0;
   let healthScore = 0.72 + (1 - derateFactor) * 0.22; // higher remaining life when derated
   let riskLevel: "low" | "medium" | "high" | "critical" = "low";
 

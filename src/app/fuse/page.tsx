@@ -92,7 +92,7 @@ export default async function FusePage({ searchParams }: { searchParams: Promise
               <p className="f-meta">channel: <code>{result.vayu.channel}</code> · capability: <code>{result.vayu.capability}</code></p>
               <p className="f-reason">{result.vayu.summary}</p>
             </>
-          ) : <p className="f-fail">not included (question did not trigger VAYU keywords and 'force include VAYU' was off)</p>}
+          ) : <p className="f-fail">not included (question did not trigger VAYU keywords and &apos;force include VAYU&apos; was off)</p>}
         </article>
       </section>
 

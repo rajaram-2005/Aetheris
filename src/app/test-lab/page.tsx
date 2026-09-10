@@ -66,7 +66,6 @@ export default function TestLabPage() {
   useEffect(() => {
     void loadData();
     void runAllTests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

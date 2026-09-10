@@ -17,6 +17,7 @@ import { runPhase10Decision } from "../src/core/controlplane/phases/decision";
 import { runPhase11Delivery } from "../src/core/controlplane/phases/delivery";
 import { runPhase12Learning } from "../src/core/controlplane/phases/learning";
 import { getContract } from "../src/core/controlplane/contracts";
+import type { PhaseId } from "../src/core/controlplane/types";
 
 test("Phase 0 (Intake): empty request is rejected", () => {
   const res = runPhase0Intake("");
@@ -160,7 +161,7 @@ test("Phase 10 (Decision): synthesizes valid canonical decision state", async ()
 
 test("Contracts: all 13 phases have defined contracts", () => {
   for (let i = 0; i <= 12; i++) {
-    const c = getContract(i as any);
+    const c = getContract(i as PhaseId);
     assert.equal(c.phaseId, i);
     assert.ok(c.name.length > 0);
     assert.ok(c.requiredInputs.length > 0);

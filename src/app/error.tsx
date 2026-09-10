@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 /**
@@ -59,9 +60,9 @@ export default function ErrorPage({
           <button className="send" type="button" onClick={() => reset()}>
             Retry
           </button>
-          <a className="ghost" href="/">
+          <Link className="ghost" href="/">
             Workspace
-          </a>
+          </Link>
         </div>
       </div>
     </div>

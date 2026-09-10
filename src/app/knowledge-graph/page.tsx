@@ -35,7 +35,7 @@ export default async function KnowledgeGraphPage({ searchParams }: { searchParam
     <div className="kg-page">
       <header className="kg-head">
         <h1>🕸 Knowledge Graph</h1>
-        <p>The user's knowledge fabric, viewed as a graph. Every node and every edge comes from the production knowledge fabric — no fabricated entities. The most-connected entity is shown as the hub; pick any entity to see its depth-1 neighbourhood.</p>
+        <p>The user&apos;s knowledge fabric, viewed as a graph. Every node and every edge comes from the production knowledge fabric — no fabricated entities. The most-connected entity is shown as the hub; pick any entity to see its depth-1 neighbourhood.</p>
         <div className="kg-meta">
           <span>Facts: <strong>{g.totalFacts}</strong></span>
           <span>·</span>

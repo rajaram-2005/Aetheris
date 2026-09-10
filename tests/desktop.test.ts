@@ -630,8 +630,20 @@ test("release coherence: one version everywhere, and the API reports it", async 
   assert.ok(read("src/app/api/version/route.ts").includes("VERSION"), "/api/version is wired to the same constant");
 });
 
+/** The electron-builder fields this suite asserts over (see desktop/package.json `build`). */
+type ElectronBuilderConfig = {
+  appId: string;
+  productName: string;
+  files: string[];
+  mac: { target: { target: string; arch: string[] }[]; icon: string; entitlements: string; entitlementsInherit: string };
+  linux: { target: { target: string }[]; icon: string };
+  win: { target: { target: string }[]; icon: string };
+  extraResources: { from: string; to: string }[];
+  publish: { provider: string }[];
+};
+
 test("desktop packaging: installers for macOS, Linux and Windows, server bundled as a resource", () => {
-  const pkg = json("desktop/package.json") as { main: string; build: Record<string, any> };
+  const pkg = json("desktop/package.json") as { main: string; build: ElectronBuilderConfig };
   assert.equal(pkg.main, "dist/main.js");
   const b = pkg.build;
   assert.equal(b.appId, "io.aetheris.one");
