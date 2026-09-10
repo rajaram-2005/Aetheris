@@ -26,26 +26,26 @@ import {
   type Edge, type Fact, type Hit, type ModelStore, type QueryOpts,
 } from "./fabric-shared";
 
-const SCHEMA: [string, string][] = [
+const SCHEMA: [string, string, string][] = [
   ["kf-facts", `CREATE TABLE IF NOT EXISTS knowledge_facts(
     id TEXT PRIMARY KEY, uid TEXT NOT NULL, workspace TEXT NOT NULL, text TEXT NOT NULL,
     entities JSONB NOT NULL, tags JSONB NOT NULL,
     valid_from DOUBLE PRECISION, valid_to DOUBLE PRECISION, supersedes TEXT,
     prov JSONB NOT NULL, created_at DOUBLE PRECISION NOT NULL,
-    vec TEXT, vec_dim INTEGER, vec_space TEXT)`],
-  ["kf-facts-idx", `CREATE INDEX IF NOT EXISTS knowledge_facts_uw ON knowledge_facts(uid, workspace)`],
+    vec TEXT, vec_dim INTEGER, vec_space TEXT)`, "knowledge_facts"],
+  ["kf-facts-idx", `CREATE INDEX IF NOT EXISTS knowledge_facts_uw ON knowledge_facts(uid, workspace)`, "knowledge_facts"],
   ["kf-edges", `CREATE TABLE IF NOT EXISTS knowledge_edges(
     id TEXT PRIMARY KEY, uid TEXT NOT NULL, workspace TEXT NOT NULL,
     src TEXT NOT NULL, rel TEXT NOT NULL, dst TEXT NOT NULL,
-    fact_id TEXT, weight DOUBLE PRECISION NOT NULL, prov JSONB NOT NULL)`],
-  ["kf-edges-src", `CREATE INDEX IF NOT EXISTS knowledge_edges_src ON knowledge_edges(uid, src)`],
-  ["kf-edges-dst", `CREATE INDEX IF NOT EXISTS knowledge_edges_dst ON knowledge_edges(uid, dst)`],
-  ["kf-model", `CREATE TABLE IF NOT EXISTS knowledge_model(id INTEGER PRIMARY KEY, model TEXT NOT NULL, updated_at DOUBLE PRECISION NOT NULL)`],
+    fact_id TEXT, weight DOUBLE PRECISION NOT NULL, prov JSONB NOT NULL)`, "knowledge_edges"],
+  ["kf-edges-src", `CREATE INDEX IF NOT EXISTS knowledge_edges_src ON knowledge_edges(uid, src)`, "knowledge_edges"],
+  ["kf-edges-dst", `CREATE INDEX IF NOT EXISTS knowledge_edges_dst ON knowledge_edges(uid, dst)`, "knowledge_edges"],
+  ["kf-model", `CREATE TABLE IF NOT EXISTS knowledge_model(id INTEGER PRIMARY KEY, model TEXT NOT NULL, updated_at DOUBLE PRECISION NOT NULL)`, "knowledge_model"],
 ];
 
 async function pool() {
   let p;
-  for (const [key, sql] of SCHEMA) p = await ensureSchema(key, sql);
+  for (const [key, sql, probe] of SCHEMA) p = await ensureSchema(key, sql, probe);
   return p!;
 }
 

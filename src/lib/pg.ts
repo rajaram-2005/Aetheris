@@ -25,8 +25,10 @@ const g = globalThis as unknown as Globals;
 let testPool: PgPoolLike | null = null;
 /** Test-only seam: route all pg backends at an injected pool (pg-mem). Pass null to restore. */
 export function __setSharedPgPoolForTests(p: PgPoolLike | null) {
+  // A new pool usually means a new database, so schema keys reset — but re-injecting the SAME pool
+  // (beforeEach hygiene) must not force redundant DDL.
+  if (p !== testPool) g.__aetherisPgSchema = new Set();
   testPool = p;
-  g.__aetherisPgSchema = new Set();
 }
 
 /** Lazily create (once per process) the shared pool. Throws without POSTGRES_URL. */
@@ -44,12 +46,27 @@ export function getSharedPool(): Pool | PgPoolLike {
   return g.__aetherisPgPool;
 }
 
-/** Run idempotent schema SQL once per process (keyed so each backend ensures its own tables). */
-export async function ensureSchema(key: string, sql: string): Promise<Pool | PgPoolLike> {
+/**
+ * Run idempotent schema SQL once per process (keyed so each backend ensures its own tables).
+ * The probe runs first: when a pool swap points back at an already-migrated database (or two
+ * processes share one), the table is there and the DDL is skipped instead of re-run. That matters
+ * beyond elegance — pg-mem throws "Not supported" re-running CREATE TABLE IF NOT EXISTS on a
+ * constrained table, so re-running DDL unconditionally would break every pool swap in tests.
+ * For index keys, probe the underlying table: the table and its indexes are always created by the
+ * same ensure flow, so a present table implies present indexes.
+ */
+export async function ensureSchema(key: string, sql: string, probeTable: string): Promise<Pool | PgPoolLike> {
   const p = getSharedPool();
   g.__aetherisPgSchema ??= new Set();
   if (!g.__aetherisPgSchema.has(key)) {
-    await p.query(sql);
+    let present = false;
+    try {
+      await p.query(`SELECT 1 FROM ${probeTable} LIMIT 0`);
+      present = true;
+    } catch {
+      present = false;
+    }
+    if (!present) await p.query(sql);
     g.__aetherisPgSchema.add(key);
   }
   return p;

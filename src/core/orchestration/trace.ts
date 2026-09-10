@@ -12,7 +12,7 @@
  *   store and the observability query; it never writes.
  */
 
-import { query, type AetherisEvent } from "@/core/observability/events";
+import { queryAsync, type AetherisEvent } from "@/core/observability/events";
 import { store } from "@/lib/store";
 
 export interface FusionRun {
@@ -38,7 +38,7 @@ export async function fusionTrace(uid: string, opts: { limit?: number; sinceMs?:
   const limit = opts.limit ?? 50;
   const sinceMs = opts.sinceMs ?? 0;
   // 1) Pull every 'fusion:orchestrate' event for this uid.
-  const allFusionEvents = query({ uid, capability: "fusion:orchestrate", since: sinceMs, limit: 1000 });
+  const allFusionEvents = await queryAsync({ uid, capability: "fusion:orchestrate", since: sinceMs, limit: 1000 });
   const events = allFusionEvents.slice(0, limit);
   // 2) Pull every recorded fusion run.
   const allRuns = await store.all<FusionRun>("fusion-runs");

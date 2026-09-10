@@ -23,15 +23,15 @@ POSTGRES_URL=postgres://...            # wired automatically by the Neon integra
 # Phase 2 — knowledge fabric (default: sqlite)
 AETHERIS_KNOWLEDGE=postgres
 
-# Phase 3 — telemetry (lands with the telemetry migration)
-# AETHERIS_EVENTS=postgres              # default: sqlite (falls back to in-memory when unavailable)
+# Phase 3 — telemetry (default: sqlite, falls back to in-memory when unavailable)
+AETHERIS_EVENTS=postgres
 ```
 
 ## Status
 
 - [x] Phase 1: store backend (`src/lib/store-pg.ts`, hermetic `pg-mem` tests)
 - [x] Phase 2: knowledge fabric → Postgres (`AETHERIS_KNOWLEDGE=postgres`; shared core in `fabric-shared.ts`, `fabric-sqlite.ts`/`fabric-pg.ts` backends, eval-parity `pg-mem` tests)
-- [ ] Phase 3: telemetry → Postgres
+- [x] Phase 3: telemetry → Postgres (`AETHERIS_EVENTS=postgres`; `record()` stays sync with a fire-and-forget insert, routes/pages read via `queryAsync`/`summaryAsync`/…, hermetic `pg-mem` tests)
 - [ ] Phase 4: runtime keys + custom providers → store backend
 - [ ] Phase 5: RAVANA workspace → Blob
 - [ ] Phase 6: media/lab ephemeral + ffmpeg tracing

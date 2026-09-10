@@ -9,7 +9,7 @@
  *   URL: /trace?limit=…&since=…
  */
 import Link from "next/link";
-import { traceReport } from "@/core/observability/trace";
+import { traceReportAsync } from "@/core/observability/trace";
 import { getUserId } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function TracePage({ searchParams }: { searchParams: Promis
   const { uid } = await getUserId({ allowAnonymous: true });
   const limit = Math.min(500, Math.max(10, Number(sp.limit ?? "100")));
   const sinceMs = sp.since ? Number(sp.since) : Date.now() - 24 * 60 * 60_000;
-  const r = traceReport(uid, { limit, sinceMs });
+  const r = await traceReportAsync(uid, { limit, sinceMs });
   return (
     <div className="trc-page">
       <header className="trc-head">

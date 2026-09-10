@@ -28,7 +28,7 @@ export function __setStorePgPoolForTests(p: PgPoolLike | null) {
 }
 
 async function pool() {
-  return ensureSchema("store", SCHEMA);
+  return ensureSchema("store", SCHEMA, TABLE);
 }
 
 const locks = new Map<string, Promise<unknown>>();
