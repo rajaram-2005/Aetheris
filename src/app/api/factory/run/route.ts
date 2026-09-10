@@ -5,7 +5,7 @@ import { consumeChat, hasFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
 
 /**
  * POST { task, preferred? } → Server-Sent Events stream of FactoryEvent.
