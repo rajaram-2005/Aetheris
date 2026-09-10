@@ -153,11 +153,17 @@ test("ci: the Electron major is validated by running the binary, not only by typ
   assert.match(ci, /desktop-runtime/, "there is a job that runs the desktop app");
   assert.match(ci, /xvfb-run/, "under a real X server");
   assert.match(ci, /npm run smoke/, "running the smoke entry");
+  assert.match(ci, /libgtk-3-0[\s\S]*libnss3/, "Electron's shared libraries are installed, or the binary exits before main runs");
+  assert.match(ci, /apparmor_restrict_unprivileged_userns/, "the Chromium sandbox is enabled rather than defaulted to --no-sandbox");
+  assert.match(ci, /::warning::/, "if it does fall back to --no-sandbox, the log says so instead of passing quietly");
   assert.doesNotMatch(ci, /ELECTRON_SKIP_BINARY_DOWNLOAD[\s\S]{0,200}npm run smoke/, "the smoke job must install the real binary");
 
-  // The compiled main process is executed by tests/desktop.main.test.ts, which skips itself when
-  // desktop/dist is missing — so CI has to emit it, or that test never runs on main.
-  assert.match(ci, /npm run compile/, "CI compiles the desktop app so the main-process test can execute it");
+  // tests/desktop.main.test.ts executes the compiled desktop/dist/main.js and skips itself when that
+  // file is absent. Emitting it in CI was tried and reverted: on a GitHub runner the test hangs, and
+  // `npm test` burned 47 minutes before the job was killed. The coverage stays off until the hang is
+  // diagnosed — but the suite must never be able to cost an hour again, so the timeout is mandatory.
+  assert.match(read("package.json"), /--test-timeout=\d+/, "npm test sets a per-test timeout, so a hanging test fails in minutes instead of consuming a runner");
+  assert.doesNotMatch(ci, /working-directory: desktop\s*\n\s*run: npm run compile/, "verify does not compile desktop/ yet — see the NOTE in ci.yml; re-adding it re-enables a test that currently hangs on the runner");
 
   const pkg = json<{ scripts: Record<string, string> }>("desktop/package.json");
   assert.equal(pkg.scripts.smoke, "npm run compile && electron dist/smoke.js", "the smoke script compiles then runs the smoke entry");

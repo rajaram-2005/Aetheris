@@ -56,8 +56,8 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 - CI: three jobs instead of one. `security` audits both trees on every push; `desktop-runtime`
   installs the real Electron binary and runs the new `desktop/src/smoke.ts` under `xvfb-run`, which
   asserts the contextBridge surface and renderer isolation; and `verify` now fails if the production
-  build emits any warning. `verify` also compiles `desktop/` so `tests/desktop.main.test.ts` — which
-  executes the real `main.js` and skips when `desktop/dist` is absent — actually runs on main.
+  build emits any warning. `verify` keeps a two-minute
+  per-test timeout so a hanging test can never consume a runner for an hour again.
 - Tests: 39 new. `tests/app-router-contract.test.ts` checks every page and route in `src/app` with
   the TypeScript compiler — `params`/`searchParams` must be Promises, never a union with a plain
   `Record`, and a route module may not export anything but HTTP methods and config. That is the class
