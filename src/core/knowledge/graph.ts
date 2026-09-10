@@ -15,7 +15,6 @@
  */
 
 import { addFact, listFacts, neighbors } from "@/core/knowledge/fabric";
-import type { Edge } from "@/core/knowledge/fabric";
 
 export interface KnowledgeNode {
   entity: string;

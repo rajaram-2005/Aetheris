@@ -14,7 +14,7 @@
  */
 
 import { record } from "../observability/events";
-import { bearingFaultFrequencies, fftSpectrum, matchBearingSignatures, spectralPeaks, type Spectrum, type Window } from "./fft";
+import { fftSpectrum, matchBearingSignatures, spectralPeaks, type Spectrum, type Window } from "./fft";
 import { diagnoseEnvelope, type EnvelopeBearingMatch } from "./envelope";
 
 export type Severity = "ok" | "watch" | "warning" | "critical";

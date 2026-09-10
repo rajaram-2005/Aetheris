@@ -27,6 +27,22 @@ const eslintConfig = [
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    // The codebase marks deliberately-unused parameters with a leading `_`
+    // (callback signatures, interface implementations) and uses rest-sibling
+    // destructuring (`const { secret: _s, ...pub } = rec`) to strip fields.
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

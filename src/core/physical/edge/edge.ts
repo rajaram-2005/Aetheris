@@ -26,7 +26,7 @@
  */
 
 import { record } from "../../observability/events";
-import { Device, DeviceCapability, actuate as deviceActuate, getDevice, ingestTelemetry, listDevices, readDevice, telemetryFor } from "../devices";
+import { Device, DeviceCapability, actuate as deviceActuate, ingestTelemetry, listDevices, readDevice, telemetryFor } from "../devices";
 
 // --------------------------------------------------------------------------- channel grammar
 
@@ -169,7 +169,7 @@ export async function controlLoop(opts: {
       const v = await readChannel(binding, channel);
       if (typeof v !== "number") throw new Error(`non-numeric reading on ${channel}: ${v}`);
       measured = v;
-    } catch (e) {
+    } catch {
       return { ok: false, iterations: i, history, stoppedBecause: "device_error", finalError: lastError };
     }
     lastError = setpoint - measured;
@@ -178,7 +178,7 @@ export async function controlLoop(opts: {
     if (Math.abs(lastError) < tolerance) return { ok: true, iterations: i + 1, history, stoppedBecause: "converged", finalError: lastError };
     try {
       await writeChannel(binding, channel, command, opts.by ?? "edge:controlLoop");
-    } catch (e) {
+    } catch {
       return { ok: false, iterations: i + 1, history, stoppedBecause: "safety", finalError: lastError };
     }
     await new Promise((r) => setTimeout(r, pollMs));

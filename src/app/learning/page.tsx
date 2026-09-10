@@ -40,11 +40,6 @@ export default async function LearningPage({ searchParams }: { searchParams: Pro
   const steps = Math.min(50, Math.max(1, Number(sp.steps ?? "10")));
   const report = twinId ? await predictNext({ uid, twinId, steps }) : null;
 
-  const allPoints = report ? [
-    ...report.history.map((h, i) => ({ x: i, y: h.y })),
-    ...report.forecast.map((f) => ({ x: f.step - report.history.length, y: f.yHat })),
-  ] : [];
-
   return (
     <div className="lr-page">
       <header className="lr-head">

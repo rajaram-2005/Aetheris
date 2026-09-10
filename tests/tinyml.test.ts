@@ -23,7 +23,7 @@ import path from "node:path";
 
 process.env.AETHERIS_DATA_DIR = mkdtempSync(path.join(tmpdir(), "aeth-tinyml-"));
 
-import { generateTinyML, q15Fft, q15HannTable, q15Spectrum } from "../src/core/diagnostics/tinyml";
+import { generateTinyML, q15HannTable, q15Spectrum } from "../src/core/diagnostics/tinyml";
 
 test("tinyml: generateTinyML produces three header files", () => {
   const out = generateTinyML({ n: 1024 });

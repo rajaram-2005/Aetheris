@@ -16,7 +16,7 @@
 import { store } from "@/lib/store";
 import { getHistory } from "@/core/diagnostics/history";
 import { predict, type PbnnLinear } from "@/core/learning/pbnn";
-import { listTwins, getTwin, type Twin } from "@/core/twins/twins";
+import { getTwin, type Twin } from "@/core/twins/twins";
 
 export interface PredictionPoint {
   step: number;

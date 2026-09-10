@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import type { Settings } from "./store";
 import type { Account } from "./Upgrade";
 import { LANGS, useLang } from "@/lib/i18n";
@@ -175,7 +176,7 @@ export default function SettingsModal({ settings, onUpdate, memory, onRemoveMemo
             <div className="usage-head">
               {account.user ? (
                 <div className="sb-account" style={{ padding: 0 }}>
-                  {account.user.avatar ? <img src={account.user.avatar} alt="" /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
+                  {account.user.avatar ? <Image src={account.user.avatar} alt="" width={26} height={26} unoptimized /> : <span className="av">{account.user.name[0]?.toUpperCase()}</span>}
                   <span className="who">{account.user.name}{account.admin && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
                   <span className="hint" style={{ margin: 0 }}>{[account.user.email, account.user.phone].filter(Boolean).join(" · ")} · via {account.user.providers.join(", ")}</span>
                   {account.admin && <a className="link" href="/admin">admin</a>}

@@ -17,7 +17,7 @@
  */
 
 import { record } from "../observability/events";
-import { Expr, Equation, parseExpr, parseEquation, evalExpr, freeVars, checkUnits, parseUnit } from "./solver";
+import { Equation, parseExpr, parseEquation, evalExpr, freeVars, checkUnits, parseUnit } from "./solver";
 
 // --------------------------------------------------------------------------- types
 export type VarValue = number | string | boolean;

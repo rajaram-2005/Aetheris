@@ -10,11 +10,10 @@ import { randomBytes } from "node:crypto";
 import { store } from "@/lib/store";
 import { record } from "../observability/events";
 import { authorize, issueConfirmation, principalFor, type Principal } from "../policy/permissions";
-import { attach, detach, emit, isLive } from "./events";
+import { attach, detach, emit } from "./events";
 import { classifyTask } from "./classifier";
 import { buildPlan } from "./planner";
 import type { RavanaEngine, RavanaEventType, RavanaKind, RavanaModelUse, RavanaPlanNode, RavanaPriority, RavanaTask, RavanaTaskStatus, RavanaToolUse } from "./types";
-import type { LlmLike } from "./models/base";
 import { MeshLlm } from "./models/mesh";
 import { PreviewLlm } from "./models/preview";
 import { execNode, ExecutorError, type ExecContext, type ToolGate } from "./agents/executor";
@@ -541,7 +540,6 @@ async function gateTool(task: RavanaTask, principal: Principal, name: string, ar
   }
 
   emit(task, "tool.started", { tool: rt.name, purpose });
-  const started = Date.now();
   try {
     const res = await rt.run({ uid: task.uid, taskId: task.id, projectId: task.projectId, signal: controller.signal }, args);
     emit(task, "tool.completed", { tool: rt.name, ok: res.ok, ms: res.ms, summary: res.summary.slice(0, 220), purpose });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
-import { allProviders, providerKey, providerKeySource, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
+import { allProviders, resolveModel, type ProviderKeySource } from "@/lib/router/providers";
 import { setRuntimeKey, runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import { maskKey } from "@/lib/router/router";
 

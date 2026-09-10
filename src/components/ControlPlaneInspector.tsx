@@ -5,7 +5,6 @@
  * Provides real-time visibility into the 12-phase pipeline, gates, active agents,
  * tools, models, safety barriers, and deep phase artifacts.
  */
-import React, { useState } from "react";
 import type { ControlPlaneTaskRecord, PhaseId } from "@/core/controlplane/types";
 import { PHASE_CONTRACTS } from "@/core/controlplane/contracts";
 

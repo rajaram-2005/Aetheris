@@ -4,7 +4,6 @@
  * streaming-safe failover. The model router fixes the candidate chain per role; route() walks it.
  */
 import { route } from "@/lib/router/router";
-import type { RavanaRole } from "../types";
 import type { LlmLike, LlmRequest, LlmResponse } from "./base";
 import { ROLE_PROMPT } from "./base";
 import { selectCandidates, type ModelSelection } from "../routing/model_router";

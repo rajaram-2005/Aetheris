@@ -101,7 +101,7 @@ export function detectAnomalies(rows: { tMs: number; y: number }[], spec: PbnnSp
   // Calibrate sigma from the residuals. Use the Median Absolute
   // Deviation of the model's own residuals; this is robust to a
   // small number of large spikes.
-  const preds = rows.map((r) => predict(fitted, [1]));
+  const preds = rows.map(() => predict(fitted, [1]));
   const residuals = preds.map((p, i) => rows[i]!.y - p.yHat);
   const sortedR = [...residuals].map((r) => Math.abs(r)).sort((a, b) => a - b);
   const mad = sortedR[Math.floor(sortedR.length / 2)] ?? 0;

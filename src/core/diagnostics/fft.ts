@@ -59,11 +59,6 @@ export interface Spectrum {
   energy: number;
 }
 
-// --------------------------------------------------------------------------- complex helpers
-const cAdd = (a: Complex, b: Complex): Complex => ({ re: a.re + b.re, im: a.im + b.im });
-const cSub = (a: Complex, b: Complex): Complex => ({ re: a.re - b.re, im: a.im - b.im });
-const cMul = (a: Complex, b: Complex): Complex => ({ re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re });
-
 // --------------------------------------------------------------------------- windows
 //
 // We expose four standard windows. For a bin-centered complex exponential

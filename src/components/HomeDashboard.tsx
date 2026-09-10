@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import Image from "next/image";
 import type { Conversation, Project } from "./store";
 import type { Mode } from "./Sidebar";
 import BrandTile from "./Brand";
@@ -89,7 +90,7 @@ export default function HomeDashboard({ models, mesh, convos, projects, servers,
     <div className="dashboard-shell">
       <aside className="dashboard-sidebar">
         <div className="dashboard-brand">
-          <img src="/icon.svg" alt="" />
+          <Image src="/icon.svg" alt="" width={42} height={42} />
           <div><strong>AETHERIS</strong><span>INTELLIGENCE WITHOUT LIMITS</span></div>
         </div>
 
@@ -132,7 +133,7 @@ export default function HomeDashboard({ models, mesh, convos, projects, servers,
         <div className="dashboard-scroll">
           <section className="dashboard-hero">
             <div className="hero-copy-left">THINK<br />BUILD<br />AUTOMATE<br />BEYOND</div>
-            <div className="hero-art"><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-glow" /><div className="hero-sphere"><img src="/icon.svg" alt="Aetheris" /></div><div className="hero-horizon" /></div>
+            <div className="hero-art"><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-glow" /><div className="hero-sphere"><Image src="/icon.svg" alt="Aetheris" width={64} height={64} /></div><div className="hero-horizon" /></div>
             <div className="hero-copy-right">ONE INTERFACE<br />ALL INTELLIGENCE<br />YOURS</div>
             <div className="dashboard-welcome"><h1>Welcome to <span>Aetheris</span></h1><p>What shall we build today?</p></div>
             <form className="dashboard-prompt" onSubmit={submit}>

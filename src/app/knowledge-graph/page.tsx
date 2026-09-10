@@ -17,7 +17,7 @@ import { revalidatePath } from "next/cache";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-async function seedAction(formData: FormData) {
+async function seedAction(_formData: FormData) {
   "use server";
   const { uid } = await getUserId({ allowAnonymous: true });
   await seedDemoGraph(uid);

@@ -22,7 +22,7 @@ import type { TaskUnderstanding } from "./understanding";
 
 export function runPhase6Simulation(
   understanding: TaskUnderstanding,
-  coreResults: CoreExecutionBatchResult
+  _coreResults: CoreExecutionBatchResult
 ): SimulationRecord & { gateVerdict: GateVerdict; summary: string } {
   const req = understanding.objective.toLowerCase();
 

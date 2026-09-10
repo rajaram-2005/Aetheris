@@ -97,7 +97,6 @@ function priority(daysUntilDue: number | null, overdue: boolean, opts: { critica
 export async function dispatchList(uid: string): Promise<DispatchList> {
   const twins = await listTwins(uid);
   const cal = await maintenanceCalendar(uid);
-  const twinById = new Map(twins.map((t) => [t.id, t] as const));
   const byPriority: Record<DispatchPriority, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
   const { getHistory } = await import("@/core/diagnostics/history");
   const rows: DispatchRow[] = await Promise.all(twins.map(async (twin, i) => {

@@ -6,7 +6,7 @@ import path from "node:path";
 
 process.env.AETHERIS_DATA_DIR = mkdtempSync(path.join(tmpdir(), "aeth-mm-"));
 
-import { describeContainer, matrixRotation, readContainer, type ContainerInfo } from "../src/core/multimodal/container";
+import { describeContainer, matrixRotation, readContainer } from "../src/core/multimodal/container";
 import { coverArtOf, status } from "../src/core/multimodal/perceive";
 import { extractEmbeddedData, jsonToText, looksLikeJsShell, render, snapshot } from "../src/core/browser/agent";
 import { hasVideo } from "../src/lib/router/adapters";

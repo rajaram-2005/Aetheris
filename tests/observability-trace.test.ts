@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { traceReport, type TraceGroup, type TraceStep } from "../src/core/observability/trace";
+import { traceReport } from "../src/core/observability/trace";
 import { record } from "../src/core/observability/events";
 
 function freshEnv() {

@@ -40,8 +40,6 @@ function syntheticTrials(): LabelledTrial[] {
   return trials;
 }
 
-const SEVERITY_COLOUR: Record<string, string> = { ok: "#4ade80", watch: "#facc15", warning: "#fb923c", critical: "#f87171" };
-
 export default async function AccuracyPage() {
   // Run a real harness pass against the synthetic trial set
   // so the page is honest about what the harness produces.

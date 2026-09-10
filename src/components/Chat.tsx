@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import MeshPanel, { type ProviderStatus } from "./MeshPanel";
 import { renderMarkdown } from "./markdown";
 import Gallery from "./Gallery";
@@ -758,6 +759,7 @@ export default function Chat() {
               <div key={m.id} className={`msg ${m.role} ${m.error ? "error" : ""}`}>
                 {m.role === "assistant" && (selectedCharacterName ? <div className="character-message-avatar" aria-hidden>{selectedCharacterAvatar ?? "✨"}</div> : <div className="avatar" aria-hidden><span /></div>)}
                 <div className="msg-body">
+                {/* eslint-disable-next-line @next/next/no-img-element -- user attachments have unknown intrinsic dimensions; CSS max-constraints preserve natural aspect, which next/image would override */}
                 {m.images && m.images.length > 0 && <div className="msg-images">{m.images.map((src, i) => <img key={i} src={src} alt="" />)}</div>}
                 {m.agentRun && <AgentTrail run={m.agentRun} agents={agentList} />}
                 {m.research && (
@@ -852,7 +854,7 @@ export default function Chat() {
         {(mode === "chat" || mode === "factory") && <div className="composer">
           {mode === "chat" && !selectedCharacterId && !pickerOff && <MentionPicker value={input} caret={caret} agents={agentList} onClose={() => setPickerOff(true)} onCommand={runCommand}
             onPick={(next, c) => { setInput(next); setCaret(c); setTimeout(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.setSelectionRange(c, c); } }, 0); }} />}
-          {images.length > 0 && <div className="attach-row">{images.map((src, i) => <span key={i} className="attach"><img src={src} alt="" /><button onClick={() => setImages(images.filter((_, j) => j !== i))}>✕</button></span>)}</div>}
+          {images.length > 0 && <div className="attach-row">{images.map((src, i) => <span key={i} className="attach"><Image src={src} alt="" width={64} height={64} unoptimized /><button onClick={() => setImages(images.filter((_, j) => j !== i))}>✕</button></span>)}</div>}
           <div className="composer-box">
             {mode === "chat" && <button className="icon-btn" title="Attach image (vision)" onClick={() => fileRef.current?.click()} disabled={busy}>＋</button>}
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />

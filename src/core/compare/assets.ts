@@ -13,9 +13,9 @@
  *   as `null` and the UI shows "—".
  */
 
-import { getHistory, type DiagnosticHistoryEntry } from "@/core/diagnostics/history";
+import { getHistory } from "@/core/diagnostics/history";
 import { bearingFaultFrequencies } from "@/core/diagnostics/fft";
-import { getTwin, type Twin } from "@/core/twins/twins";
+import { getTwin } from "@/core/twins/twins";
 import { twinHealth } from "@/core/twins/twins";
 
 export interface AssetSnapshot {

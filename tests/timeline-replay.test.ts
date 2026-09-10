@@ -7,11 +7,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildTimeline } from "../src/core/timeline/replay";
-import { recordDiagnostic } from "../src/core/diagnostics/history";
-import { diagnoseTwin } from "../src/core/diagnostics/integration";
-import { canonicalTurbineTwin } from "../src/core/windturbine/model";
 import { store } from "../src/lib/store";
-import type { DiagnosticResult } from "../src/core/diagnostics/engine";
 
 function freshEnv() {
   const dir = mkdtempSync(path.join(tmpdir(), "aeth-tl-"));
@@ -27,16 +23,6 @@ function cleanup(dir: string) {
 async function seedHistory(twinId: string, severities: { sev: "ok" | "watch" | "warning" | "critical"; peakMag: number; domHz: number; fault: string | null }[]) {
   for (let i = 0; i < severities.length; i++) {
     const s = severities[i]!;
-    const fake: DiagnosticResult = {
-      ok: true,
-      spectrum: { n: 1, sampleRateHz: 256, window: "hann", frequency: [s.domHz], magnitude: [s.peakMag], power: [s.peakMag ** 2], phase: [0], dominantHz: s.domHz, rms: s.peakMag, energy: s.peakMag ** 2 },
-      peaks: [{ frequency: s.domHz, magnitude: s.peakMag }],
-      matches: s.fault ? [{ fault: s.fault, expectedHz: 89.3, measuredHz: s.domHz, magnitude: s.peakMag, distance: Math.abs(89.3 - s.domHz) }] : [],
-      dominantHz: s.domHz,
-      severity: s.sev,
-      summary: "",
-      evidence: [],
-    };
     const t = 1_700_000_000_000 + i * 86_400_000; // 1 day apart
     const key = `${twinId}:${t}`;
     await store.set("diagnostic-history", key, {

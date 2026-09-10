@@ -21,7 +21,7 @@ export class RosBridge {
       const ws = new WebSocket(this.url); this.ws = ws; const t = setTimeout(() => { ws.close(); rej(new Error("rosbridge connect timeout")); }, timeoutMs);
       ws.onopen = () => { clearTimeout(t); res(); };
       ws.onerror = () => { clearTimeout(t); rej(new Error(`rosbridge connection failed: ${this.url}`)); };
-      ws.onmessage = (ev) => { let m: Msg; try { m = JSON.parse(String(ev.data)); } catch { return; } if (m.op === "service_response" && typeof m.id === "string") { const p = this.pending.get(m.id); if (p) { this.pending.delete(m.id); m.result === false ? p.rej(new Error(String(m.values ?? "service failed"))) : p.res(m); } } else if (m.op === "publish" && typeof m.topic === "string") this.subs.get(m.topic)?.forEach((h) => h((m.msg as Msg) ?? {})); else if (m.op === "status" && m.level === "error") record({ type: "device", capability: "ros:status", ok: false, detail: String(m.msg).slice(0, 120) }); };
+      ws.onmessage = (ev) => { let m: Msg; try { m = JSON.parse(String(ev.data)); } catch { return; } if (m.op === "service_response" && typeof m.id === "string") { const p = this.pending.get(m.id); if (p) { this.pending.delete(m.id); if (m.result === false) p.rej(new Error(String(m.values ?? "service failed"))); else p.res(m); } } else if (m.op === "publish" && typeof m.topic === "string") this.subs.get(m.topic)?.forEach((h) => h((m.msg as Msg) ?? {})); else if (m.op === "status" && m.level === "error") record({ type: "device", capability: "ros:status", ok: false, detail: String(m.msg).slice(0, 120) }); };
     });
   }
   private send(m: Msg) { if (!this.ws || this.ws.readyState !== 1) throw new Error("rosbridge not connected"); this.ws.send(JSON.stringify(m)); }

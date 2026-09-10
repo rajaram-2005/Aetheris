@@ -26,6 +26,7 @@ export async function GET(req: Request, { params }: Ctx) {
     start(ctrl) {
       let closed = false;
       const send = (e: unknown) => {
+        if (closed) return;
         try {
           ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
         } catch {

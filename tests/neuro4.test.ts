@@ -10,7 +10,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -19,7 +19,7 @@ process.env.AETHERIS_DATA_DIR = mkdtempSync(path.join(tmpdir(), "aeth-neuro-"));
 // ---------------------------------------------------------------------------
 // 1. Neurosymbolic Verifier
 // ---------------------------------------------------------------------------
-import { parseExpr, parseUnit, evalExpr, checkUnits, freeVars } from "../src/core/symbolic/solver";
+import { parseExpr, evalExpr, checkUnits, freeVars } from "../src/core/symbolic/solver";
 import { verifyPlan, validatePlanShape, symbolicStatus } from "../src/core/symbolic/constraints";
 
 test("symbolic: parses linear and polynomial expressions", () => {
@@ -111,12 +111,11 @@ test("symbolic: status reports what the engine supports", () => {
 // ---------------------------------------------------------------------------
 // 2. Edge Hardware Binding
 // ---------------------------------------------------------------------------
-import { controlLoop, edgeStatus, ESP32_REFERENCE_SKETCH, ingestEdgeTelemetry, listEdgeNodes, readAll, readChannel, writeChannel, type EdgeBinding } from "../src/core/physical/edge/edge";
-import { listDevices, registerDevice, type Device } from "../src/core/physical/devices";
+import { controlLoop, edgeStatus, ESP32_REFERENCE_SKETCH, ingestEdgeTelemetry, listEdgeNodes, readAll, writeChannel, type EdgeBinding } from "../src/core/physical/edge/edge";
+import { listDevices, registerDevice } from "../src/core/physical/devices";
 
 async function makeEdgeNode(uid: string): Promise<EdgeBinding> {
   // pre-clear
-  for (const d of await listDevices(uid)) await listDevices(uid);
   const dup = await listDevices(uid);
   for (const d of dup) { try { await (await import("../src/core/physical/devices")).removeDevice(uid, d.id); } catch { /* ignore */ } }
   const d = await registerDevice(uid, {

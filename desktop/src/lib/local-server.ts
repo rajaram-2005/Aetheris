@@ -18,7 +18,7 @@
  * `tests/desktop.test.ts` exercises the real code paths without Electron.
  */
 import * as net from "net";
-import { spawn, type ChildProcess, type SpawnOptions } from "child_process";
+import { spawn, type SpawnOptions } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 

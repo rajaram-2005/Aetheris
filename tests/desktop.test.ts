@@ -41,7 +41,6 @@ import {
   serverNotBuiltMessage,
   startLocalServer,
   waitUntilHealthy,
-  type ChildProcessLike,
 } from "../desktop/src/lib/local-server";
 import { LATEST_RELEASE_URL, checkForUpdates, evaluateRelease, parseRelease, pickAsset } from "../desktop/src/lib/update";
 import { createLogger, fileSink, formatLine, logFileName, redact } from "../desktop/src/lib/logging";

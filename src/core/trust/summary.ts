@@ -13,7 +13,6 @@
  */
 
 import { allCapabilities } from "@/core/capabilities/registry";
-import type { Capability } from "@/core/capabilities/types";
 import { bootCapabilities } from "@/core/capabilities/sources";
 import { DEFAULT_GRANTS, highestLevel, hasLevel, type PermissionLevel, type Principal } from "@/core/policy/permissions";
 export type { PermissionLevel };

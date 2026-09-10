@@ -14,8 +14,6 @@ import { runPhase7Critique } from "../src/core/controlplane/phases/critique";
 import { runPhase8Verification } from "../src/core/controlplane/phases/verification";
 import { runPhase9Safety } from "../src/core/controlplane/phases/safety";
 import { runPhase10Decision } from "../src/core/controlplane/phases/decision";
-import { runPhase11Delivery } from "../src/core/controlplane/phases/delivery";
-import { runPhase12Learning } from "../src/core/controlplane/phases/learning";
 import { getContract } from "../src/core/controlplane/contracts";
 import type { PhaseId } from "../src/core/controlplane/types";
 

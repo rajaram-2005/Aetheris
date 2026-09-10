@@ -72,7 +72,7 @@ const flatten = (o: Record<string, unknown>, prefix = "", out: Record<string, nu
 const fill = (tpl: string, payload: Record<string, unknown>, output?: string) => tpl.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k: string) => k === "output" ? (output ?? "") : String(k.split(".").reduce<unknown>((o, p) => (o && typeof o === "object" ? (o as Record<string, unknown>)[p] : undefined), payload) ?? ""));
 
 /** Run one automation now with a payload. */
-export async function fire(a: Automation, trigger: string, payload: Record<string, unknown>, opts: { origin?: string } = {}): Promise<AutomationRun> {
+export async function fire(a: Automation, trigger: string, payload: Record<string, unknown>, _opts: { origin?: string } = {}): Promise<AutomationRun> {
   const run: AutomationRun = { id: randomBytes(6).toString("hex"), automationId: a.id, uid: a.uid, startedAt: Date.now(), trigger, payload, stages: [], status: "running" };
   await store.set(RUNS, run.id, run);
   const stage = async <T>(name: AutomationRun["stages"][number]["stage"], fn: () => Promise<{ ok: boolean; detail?: string; value?: T }>) => { const t0 = Date.now(); try { const r = await fn(); run.stages.push({ stage: name, ok: r.ok, detail: r.detail?.slice(0, 400), ms: Date.now() - t0 }); return r; } catch (e) { run.stages.push({ stage: name, ok: false, detail: (e as Error).message.slice(0, 400), ms: Date.now() - t0 }); return { ok: false, detail: (e as Error).message }; } };

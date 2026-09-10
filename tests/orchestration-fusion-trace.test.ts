@@ -8,7 +8,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fuse } from "../src/core/orchestration/fusion";
 import { fusionTrace } from "../src/core/orchestration/trace";
-import { store } from "@/lib/store";
 
 function freshEnv() {
   const dir = mkdtempSync(path.join(tmpdir(), "aeth-fusetr-"));

@@ -367,7 +367,6 @@ export function q15Fft(samplesQ15: number[]): { re: number[]; im: number[] } {
   return { re, im };
 }
 
-const clamp16 = (v: number) => Math.max(-32768, Math.min(32767, v | 0));
 let q15CosTable: number[] = [];
 let q15SinTable: number[] = [];
 function ensureTwiddleTables(n: number) {
@@ -405,7 +404,6 @@ const q15Sin = (phase: number) => {
 export function q15Spectrum(samples: number[], hann: number[]): { re: number[]; im: number[]; peakMag: number } {
   const n = samples.length;
   const inRe = new Array<number>(n);
-  const inIm = new Array<number>(n).fill(0);
   for (let i = 0; i < n; i++) {
     inRe[i] = Math.round((samples[i] * hann[i]) / 32768);
   }

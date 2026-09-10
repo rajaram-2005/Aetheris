@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState , useEffect} from "react";
+import Image from "next/image";
 import type { Conversation, Project } from "./store";
 import { useLang } from "@/lib/i18n";
 
@@ -134,7 +135,7 @@ function AccountChip() {
   const label = acc.name || acc.email || acc.phone || "Account";
   return (
     <div className="sb-account" title={[acc.email, acc.phone, ...acc.providers].filter(Boolean).join(" · ")}>
-      {acc.avatar ? <img src={acc.avatar} alt="" /> : <span className="av">{label[0]?.toUpperCase()}</span>}
+      {acc.avatar ? <Image src={acc.avatar} alt="" width={26} height={26} unoptimized /> : <span className="av">{label[0]?.toUpperCase()}</span>}
       <span className="who">{label}{acc.admin && <span title="Admin — full access" style={{ marginLeft: 6, fontSize: 10, color: "var(--accent)" }}>ADMIN</span>}</span>
       {acc.admin && <a className="link" href="/admin">admin</a>}
       <button className="link" onClick={async () => { await fetch("/api/auth/session", { method: "DELETE" }); location.reload(); }}>{t("sb.signOut")}</button>
