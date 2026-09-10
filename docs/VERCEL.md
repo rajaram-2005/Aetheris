@@ -37,4 +37,5 @@ AETHERIS_EVENTS=postgres
 - [x] Phase 6: media/lab ephemeral + ffmpeg tracing (`AETHERIS_HOSTED=1`: docker fast-fails, deploys go to ephemeral /tmp; video path decisions recorded as `multimodal:video-path` telemetry; media was already disk-free)
 - [x] Phase 7: `vercel.json` + Cron + per-route `maxDuration` (tick every 10 min, 300s ceilings on all 12 SSE routes, `tests/vercel-config.test.ts` guardrails; cadences over daily + durations over 60s need Pro)
 - [x] Phase 8: public hardening (`AETHERIS_REQUIRE_LOGIN=1` edge session gate, Upstash REST rate limits with in-memory fallback, AI spend rules, hosted-only HSTS)
-- [ ] Phase 9: deploy guide + staging validation
+- [x] Phase 9: resume-safe SSE (`src/lib/sse.ts`: numbered frames, `X-Run-Id`/`Last-Event-ID` replay of finished `/api/chat` runs instead of regenerating, 409 while in flight, per-instance memo with TTL + cap; client retries once with resume; `/api/v1` frames numbered with standard regenerate semantics)
+- [ ] Phase 10: deploy guide + staging validation

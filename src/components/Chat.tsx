@@ -64,7 +64,8 @@ function codeBlocks(text: string): { lang: "python" | "javascript"; code: string
   return out;
 }
 
-async function* sse(r: Response) {
+/** SSE reader; when `seen` is passed, server frame ids are tracked for Last-Event-ID resumes. */
+async function* sse(r: Response, seen?: { id: number }) {
   const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
   for (;;) {
     const { value, done } = await reader.read();
@@ -72,7 +73,13 @@ async function* sse(r: Response) {
     buf += dec.decode(value, { stream: true });
     const parts = buf.split("\n\n"); buf = parts.pop() ?? "";
     for (const part of parts) {
-      const line = part.split("\n").find((l) => l.startsWith("data: "));
+      const lines = part.split("\n");
+      if (seen) {
+        const idLine = lines.find((l) => l.startsWith("id: "));
+        const n = idLine ? Number(idLine.slice(4)) : NaN;
+        if (Number.isInteger(n) && n > seen.id) seen.id = n;
+      }
+      const line = lines.find((l) => l.startsWith("data: "));
       if (line) { try { yield JSON.parse(line.slice(6)); } catch { /* ignore */ } }
     }
   }
@@ -394,44 +401,76 @@ export default function Chat() {
     if (taRef.current) taRef.current.style.height = "auto";
     const controller = new AbortController(); abortRef.current = controller;
     const history = c.messages.filter((m) => !m.error && !m.factory && !m.arena).map(({ role, content, images }) => ({ role, content, images }));
-    try {
-      const r = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: history, preferred, servers, stream: true, model,
-          voice: viaVoice ? voiceLang : undefined, kb: kb?.id,
-          web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
-          project: project ? { instructions: project.instructions, files: project.files } : null,
-          memory: settings.memoryEnabled ? memory : [],
-          character: selectedCharacterId && selectedCharacterMode ? { id: selectedCharacterId, mode: selectedCharacterMode } : null,
-        }),
-        signal: controller.signal,
-      });
-      if (!r.ok || !r.headers.get("content-type")?.includes("text/event-stream")) {
-        const data = await r.json().catch(() => ({}));
-        const attempts: Attempt[] = data.attempts ?? [];
-        const detail = attempts.length ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n") : "";
-        patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: `${data.error ?? "Request failed"}${detail}` }));
-        if (r.status === 402) { setUpgrade(data.error); refreshAccount(); }
-        return;
+    // One stable id per send: if the stream breaks, the retry carries the same X-Run-Id and the
+    // server replays exactly the missed events (Last-Event-ID) instead of regenerating.
+    const runId = crypto.randomUUID();
+    const payload = JSON.stringify({
+      messages: history, preferred, servers, stream: true, model,
+      voice: viaVoice ? voiceLang : undefined, kb: kb?.id,
+      web: webOverride ?? settings.web, searchKey: settings.tavilyKey || undefined,
+      project: project ? { instructions: project.instructions, files: project.files } : null,
+      memory: settings.memoryEnabled ? memory : [],
+      character: selectedCharacterId && selectedCharacterMode ? { id: selectedCharacterId, mode: selectedCharacterMode } : null,
+    });
+    const seen = { id: 0 };
+    // Reads one attempt. Returns true when the run settled (done/error event); a transport break
+    // throws out of the reader and the attempt loop below retries. Server `error` events are NOT
+    // retried — the run already failed server-side, so a retry would just regenerate (and re-bill).
+    const readChat = async (r: Response, regen: boolean): Promise<boolean> => {
+      if (regen && r.headers.get("X-Run-Replay") !== "1") {
+        // Retry landed on a fresh run (a different instance, or the memo expired): clear partial
+        // state first so the regenerated stream does not append onto it.
+        patchMsg(c.id, aid, (m) => ({ ...m, content: "", sources: undefined, citations: undefined, kb: undefined, toolEvents: [] }));
+        seen.id = 0;
       }
-      let failovers = 0; let provider = "";
-      for await (const ev of sse(r)) {
+      let failovers = 0; let provider = ""; let settled = false;
+      for await (const ev of sse(r, seen)) {
         if (ev.type === "provider") { if (provider) failovers++; provider = ev.provider; }
         else if (ev.type === "delta") patchMsg(c.id, aid, (m) => ({ ...m, content: m.content + ev.text }));
         else if (ev.type === "sources") patchMsg(c.id, aid, (m) => ({ ...m, sources: ev.sources }));
         else if (ev.type === "citations") patchMsg(c.id, aid, (m) => ({ ...m, citations: ev.citations, kb: ev.kb }));
         else if (ev.type === "tool") patchMsg(c.id, aid, (m) => ({ ...m, toolEvents: [...(m.toolEvents ?? []), ev.event] }));
         else if (ev.type === "done") {
+          settled = true;
           const fo = (ev.attempts ?? []).filter((a: Attempt) => !a.ok).length || failovers;
           patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, provider: ev.provider, model: ev.model, latencyMs: ev.latencyMs, failovers: fo, toolEvents: ev.toolEvents ?? m.toolEvents }));
           if (ev.quota) refreshAccount();
         } else if (ev.type === "error") {
+          settled = true;
           const attempts: Attempt[] = ev.attempts ?? [];
           const detail = attempts.length ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n") : "";
           patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content ? m.content + `\n\n_(stream interrupted: ${ev.error})_` : `${ev.error}${detail}` }));
         }
       }
+      return settled;
+    };
+    try {
+      let settled = false;
+      for (let attempt = 0; attempt < 3 && !settled; attempt++) {
+        if (attempt > 0) await new Promise((x) => setTimeout(x, attempt === 1 ? 500 : 2000));
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Run-Id": runId, ...(seen.id ? { "Last-Event-ID": String(seen.id) } : {}) },
+          body: payload,
+          signal: controller.signal,
+        });
+        if (r.status === 409) continue; // first attempt still generating server-side — wait, then replay it
+        if (!r.ok || !r.headers.get("content-type")?.includes("text/event-stream")) {
+          const data = await r.json().catch(() => ({}));
+          const attempts: Attempt[] = data.attempts ?? [];
+          const detail = attempts.length ? "\n\n" + attempts.map((a) => `• ${a.provider}: ${a.error ?? "failed"}`).join("\n") : "";
+          patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: true, content: `${data.error ?? "Request failed"}${detail}` }));
+          if (r.status === 402) { setUpgrade(data.error); refreshAccount(); }
+          return;
+        }
+        try {
+          settled = await readChat(r, attempt > 0);
+        } catch (e) {
+          if ((e as Error).name === "AbortError") throw e;
+          // Transport broke mid-stream — the loop retries with Last-Event-ID.
+        }
+      }
+      if (!settled) patchMsg(c.id, aid, (m) => ({ ...m, streaming: false, error: !m.content, content: m.content || "Network error reaching Aetheris." }));
       // Memory extraction (fire and forget)
       if (settings.memoryEnabled && content.length > 12) {
         const final = convoRef.current?.messages.find((m) => m.id === aid)?.content ?? "";

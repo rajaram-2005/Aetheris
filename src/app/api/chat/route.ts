@@ -12,6 +12,7 @@ import { getSession } from "@/lib/github/auth";
 import { readTokens, refreshToken, tokensCookie } from "@/lib/mcp/oauth";
 import { groundingBlock, looksTimeSensitive, searchKeyFor, searchWeb, type SearchResult } from "@/lib/search/tavily";
 import { characterSystemPrompt, getCharacter, type CharacterMode } from "@/lib/characters";
+import { RunMemo, SseChannel, lastEventId, runIdOf, sseFrame, sseHeaders } from "@/lib/sse";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // streaming responses need the long ceiling (Pro plan; Hobby clamps to 60s)
@@ -28,6 +29,15 @@ const ARTIFACT_PROMPT =
 
 const MAX_MESSAGES = 40;
 const MAX_CHARS = 48_000;
+
+/** Completed chat runs, per instance: retries with the same X-Run-Id replay instead of regenerating. */
+const chatRuns = new RunMemo();
+
+function withUidCookies(res: Response, uid: string, isNew: boolean, extra?: { name: string; value: string; maxAge: number }) {
+  if (isNew) { const c = uidCookie(uid); res.headers.append("Set-Cookie", `${c.name}=${c.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${c.maxAge}`); }
+  if (extra) res.headers.append("Set-Cookie", `${extra.name}=${extra.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${extra.maxAge}`);
+  return res;
+}
 const MAX_IMAGES = 4;
 const MAX_IMAGE_CHARS = 6_000_000; // ~4.5 MB of base64
 const OFFLINE_PROVIDER = "offline-preview";
@@ -73,6 +83,36 @@ interface Body {
 }
 
 export async function POST(req: Request) {
+  const rid = runIdOf(req);
+  if (rid) {
+    // Retry of a finished run: replay exactly the missed events — no regeneration, no extra quota.
+    const memo = chatRuns.get(rid);
+    if (memo) {
+      const { uid, isNew } = await getUserId();
+      const from = lastEventId(req);
+      const enc = new TextEncoder();
+      const stream = new ReadableStream({
+        start(c) { for (const e of memo.events) if (e.id > from) c.enqueue(enc.encode(sseFrame(e.id, e.json))); c.close(); },
+      });
+      return withUidCookies(new Response(stream, { headers: sseHeaders({ "X-Run-Replay": "1" }) }), uid, isNew);
+    }
+    if (!chatRuns.claim(rid)) {
+      return NextResponse.json(
+        { error: "run in progress", detail: "the same run is already generating; retry shortly with the same X-Run-Id and Last-Event-ID" },
+        { status: 409, headers: { "Retry-After": "2" } },
+      );
+    }
+  }
+  const claim = rid ? { rid, streamed: false } : undefined;
+  try {
+    return await postInner(req, claim);
+  } finally {
+    // Non-stream responses never reach a stream finally, so release their claim here. Streaming
+    // responses set claim.streamed before returning and release when the stream closes.
+    if (claim && !claim.streamed) chatRuns.release(claim.rid);
+  }
+}
+async function postInner(req: Request, claim?: { rid: string; streamed: boolean }) {
   let body: Body;
   try {
     body = await req.json();
@@ -206,12 +246,6 @@ export async function POST(req: Request) {
     }
   }
 
-  const setCookies = (res: Response, extra?: ReturnType<typeof tokensCookie>) => {
-    if (isNew) { const c = uidCookie(uid); res.headers.append("Set-Cookie", `${c.name}=${c.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${c.maxAge}`); }
-    if (extra) res.headers.append("Set-Cookie", `${extra.name}=${extra.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${extra.maxAge}`);
-    return res;
-  };
-
   // ---- Tool-using agent path (MCP servers enabled): buffered, emits progress events ----------
   if (servers.length > 0) {
     try {
@@ -235,10 +269,11 @@ export async function POST(req: Request) {
         if (tokensChanged) res.cookies.set(tokensCookie(tokenMap));
         return res;
       }
-      const enc = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
-          const send = (e: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+          const ch = new SseChannel(controller);
+          let completed = false;
+          const send = (e: unknown) => { ch.send(e); if ((e as { type?: string }).type === "done") completed = true; };
           try {
             if (sources) send({ type: "sources", sources, query: searchQuery });
         if (citations) send({ type: "citations", kb: kbName, citations });
@@ -248,10 +283,11 @@ export async function POST(req: Request) {
             send({ type: "done", provider: a.provider, model: a.model, attempts: [], toolEvents: a.toolEvents, mcpFailures: a.failures, quota });
           } catch (e) {
             send({ type: "error", error: e instanceof Error ? e.message : String(e), attempts: (e as { attempts?: ProviderAttempt[] }).attempts ?? [] });
-          } finally { controller.close(); }
+          } finally { if (claim && completed) chatRuns.set(claim.rid, ch.log); if (claim) chatRuns.release(claim.rid); controller.close(); }
         },
       });
-      return setCookies(new Response(stream, { headers: sseHeaders() }), tokensChanged ? tokensCookie(tokenMap) : undefined);
+      if (claim) claim.streamed = true;
+      return withUidCookies(new Response(stream, { headers: sseHeaders() }), uid, isNew, tokensChanged ? tokensCookie(tokenMap) : undefined);
     } catch (err) {
       return errorResponse(err);
     }
@@ -287,11 +323,12 @@ export async function POST(req: Request) {
     }
   }
 
-  const enc = new TextEncoder();
   const started = Date.now();
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (e: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+      const ch = new SseChannel(controller);
+      let completed = false;
+      const send = (e: unknown) => { ch.send(e); if ((e as { type?: string }).type === "done") completed = true; };
       try {
         if (sources) send({ type: "sources", sources, query: searchQuery });
         if (citations) send({ type: "citations", kb: kbName, citations });
@@ -314,15 +351,14 @@ export async function POST(req: Request) {
           send({ type: "error", error: err instanceof Error ? err.message : "Unexpected server error", attempts });
         }
       } finally {
+        if (claim && completed) chatRuns.set(claim.rid, ch.log);
+        if (claim) chatRuns.release(claim.rid);
         controller.close();
       }
     },
   });
-  return setCookies(new Response(stream, { headers: sseHeaders() }));
-}
-
-function sseHeaders() {
-  return { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" };
+  if (claim) claim.streamed = true;
+  return withUidCookies(new Response(stream, { headers: sseHeaders() }), uid, isNew);
 }
 
 /**
