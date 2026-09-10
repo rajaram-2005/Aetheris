@@ -14,6 +14,7 @@
  * Every run is persisted with per-stage status; nothing is retried blindly (max 3 attempts, backoff).
  */
 import { randomBytes } from "node:crypto";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import { store } from "@/lib/store";
 import { nextRun, parseCron } from "@/lib/schedules/cron";
@@ -121,6 +122,7 @@ export async function fire(a: Automation, trigger: string, payload: Record<strin
     if (!ver.ok) { run.status = "blocked"; return; }
     for (const act of a.actions) {
       await stage("action", async () => {
+        await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
         switch (act.kind) {
           case "webhook": { const r = await fetch(act.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ automation: { id: a.id, name: a.name }, run: { id: run.id, trigger, payload, output } , text: `*${a.name}*\n${output ?? JSON.stringify(payload).slice(0, 1500)}`, content: (output ?? JSON.stringify(payload)).slice(0, 1900) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `${act.kind} ${new URL(act.url).hostname} ${r.status}` }; }
           case "email": { const resendKey = resolvedEnv("RESEND_API_KEY"); if (!resendKey) return { ok: false, detail: "email not configured (RESEND_API_KEY)" }; const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>", to: [act.to], subject: `[Aetheris] ${a.name}`, text: output ?? JSON.stringify(payload, null, 1) }), signal: AbortSignal.timeout(15_000) }); return { ok: r.ok, detail: `email ${act.to} ${r.status}` }; }

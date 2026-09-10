@@ -1,4 +1,5 @@
 /** Delivery of one-time codes. Email via Resend, SMS via Twilio Verify-less Messages API or MSG91; dev fallback logs the code. */
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 
 export function emailConfigured() { return !!resolvedEnv("RESEND_API_KEY"); }
@@ -8,6 +9,7 @@ export function googleConfigured() { return !!(process.env.GOOGLE_CLIENT_ID && p
 const FROM = process.env.AUTH_EMAIL_FROM ?? "Aetheris <onboarding@resend.dev>";
 
 export async function sendEmailCode(to: string, code: string): Promise<void> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   if (!emailConfigured()) { console.log(`[aetheris auth] email code for ${to}: ${code}`); return; }
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: `Bearer ${resolvedEnv("RESEND_API_KEY")}`, "Content-Type": "application/json" },

@@ -1,5 +1,6 @@
 import { traced } from "@/core/observability/events";
 import { ADAPTERS, mediaProviders } from "./providers";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { runtimeKeyFor } from "@/lib/router/runtimeKeys";
 import { MediaError, type MediaKind, type MediaResult } from "./types";
 
@@ -33,6 +34,7 @@ export async function generateMedia(opts: {
   voice?: string;
   signal?: AbortSignal;
 }): Promise<MediaResult> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   return traced({ type: "tool", uid: undefined, capability: "media:studio" }, () => generateMediaInner(opts));
 }
 async function generateMediaInner(opts: {

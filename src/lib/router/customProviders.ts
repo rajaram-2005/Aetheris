@@ -6,9 +6,16 @@
  * an optional API key for one lives in the runtime key store under AETHERIS_USER_<SLUG>_KEY, so the
  * Settings key manager handles it like every other key. Providers apply instantly — no restart —
  * because the router reads this list on every candidate computation.
+ *
+ * Hosted/Vercel mode (`AETHERIS_STORE=postgres`) persists records in the shared store instead of
+ * the file (one record per provider in the `custom_providers` collection). Same pattern as
+ * runtimeKeys.ts: synchronous write-through cache, `hydrateCustomProviders()` refresh (awaited with
+ * force on the management routes, TTL-gated elsewhere), throttled background refresh on reads.
  */
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { store } from "@/lib/store";
+import { record } from "@/core/observability/events";
 import type { ProviderConfig } from "./types";
 
 export interface CustomProviderRecord {
@@ -35,7 +42,12 @@ export interface CustomProviderInput {
   notes?: string;
 }
 
+const COLLECTION = "custom_providers";
+const HYDRATE_TTL_MS = 30_000;
+
 let cache: CustomProviderRecord[] | null = null;
+let lastHydrate = 0;
+let inflight: Promise<void> | null = null;
 
 function dataDir(): string {
   return process.env.AETHERIS_DATA_DIR ?? path.join(process.cwd(), "data");
@@ -44,24 +56,27 @@ function file(): string {
   return path.join(dataDir(), "custom_providers.json");
 }
 
+/** Postgres store backend (hosted/Vercel path). Resolved per call so tests can switch modes by setting env. */
+export const isCustomProviderStore = () => process.env.AETHERIS_STORE === "postgres";
+
+function isRecord(r: unknown): r is CustomProviderRecord {
+  return !!r && typeof r === "object" && typeof (r as CustomProviderRecord).id === "string" && typeof (r as CustomProviderRecord).baseUrl === "string";
+}
+
 function load(): CustomProviderRecord[] {
   if (cache) return cache;
   cache = [];
+  if (isCustomProviderStore()) return cache; // the store is the source of truth; hydrate() fills this
   try {
     const raw = JSON.parse(readFileSync(file(), "utf8")) as unknown;
-    if (Array.isArray(raw)) {
-      cache = raw.filter(
-        (r): r is CustomProviderRecord =>
-          !!r && typeof r === "object" && typeof (r as CustomProviderRecord).id === "string" && typeof (r as CustomProviderRecord).baseUrl === "string",
-      );
-    }
+    if (Array.isArray(raw)) cache = raw.filter(isRecord);
   } catch {
     /* not created yet */
   }
   return cache;
 }
 
-function persist(): void {
+function persistFile(): void {
   const list = load();
   if (list.length === 0) {
     try { rmSync(file(), { force: true }); rmSync(`${file()}.tmp`, { force: true }); } catch { /* ignore */ }
@@ -71,6 +86,47 @@ function persist(): void {
   const tmp = `${file()}.tmp`;
   writeFileSync(tmp, JSON.stringify(list, null, 2), { mode: 0o600 });
   renameSync(tmp, file());
+}
+
+async function persistRecord(rec: CustomProviderRecord | undefined, id: string): Promise<void> {
+  if (rec === undefined) await store.remove(COLLECTION, id);
+  else await store.set(COLLECTION, id, rec);
+}
+
+/**
+ * Refresh the cache from the store. No-op on the file backend. Never throws — a store outage must
+ * degrade to the cached providers, not break the request; failures are recorded as telemetry.
+ * Pass force from the provider-management routes so they always read fresh cross-instance state.
+ */
+export async function hydrateCustomProviders(force = false): Promise<void> {
+  if (!isCustomProviderStore()) return;
+  for (;;) {
+    if (!force && Date.now() - lastHydrate < HYDRATE_TTL_MS) return;
+    if (!inflight) break;
+    // Someone else is refreshing: wait for them, then — for force — loop around and fetch our own
+    // fresh copy instead of returning possibly-stale data (the refresh we waited for may predate us
+    // or have failed outright).
+    await inflight;
+    if (!force) return;
+  }
+  inflight = (async () => {
+    try {
+      const all = await store.all<CustomProviderRecord>(COLLECTION);
+      cache = Object.values(all).filter(isRecord);
+      lastHydrate = Date.now();
+    } catch (e) {
+      record({ type: "error", capability: "router:hydrate-providers", ok: false, ms: 0, detail: `custom provider hydrate failed: ${(e as Error).message}` });
+    } finally {
+      inflight = null;
+    }
+  })();
+  await inflight;
+}
+
+/** Throttled background refresh kicked off by sync reads so instances converge without awaiting. */
+function refreshInBackground(): void {
+  if (!isCustomProviderStore() || inflight || Date.now() - lastHydrate < HYDRATE_TTL_MS) return;
+  void hydrateCustomProviders();
 }
 
 function slugify(name: string, taken: Set<string>): string {
@@ -86,10 +142,12 @@ export function customEnvKey(slug: string): string {
 }
 
 export function listCustomProviders(): CustomProviderRecord[] {
+  refreshInBackground();
   return [...load()];
 }
 
 export function findCustomProvider(id: string): CustomProviderRecord | undefined {
+  refreshInBackground();
   return load().find((p) => p.id === id);
 }
 
@@ -114,11 +172,9 @@ export function toProviderConfig(r: CustomProviderRecord): ProviderConfig {
   };
 }
 
-export function addCustomProvider(input: CustomProviderInput): CustomProviderRecord {
-  const list = load();
-  const taken = new Set(list.map((p) => p.id));
+function buildRecord(input: CustomProviderInput, taken: Set<string>): CustomProviderRecord {
   const slug = slugify(input.name, taken);
-  const rec: CustomProviderRecord = {
+  return {
     id: `user-${slug}`,
     name: input.name.trim().slice(0, 60),
     baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
@@ -130,16 +186,35 @@ export function addCustomProvider(input: CustomProviderInput): CustomProviderRec
     createdAt: Date.now(),
     envKey: customEnvKey(slug),
   };
+}
+
+function persistAfterWrite(rec: CustomProviderRecord | undefined, id: string): void {
+  if (isCustomProviderStore()) {
+    persistRecord(rec, id).catch((e) => record({ type: "error", capability: "router:persist-provider", ok: false, ms: 0, detail: `custom provider persist failed: ${(e as Error).message}` }));
+    return;
+  }
+  persistFile();
+}
+
+export function addCustomProvider(input: CustomProviderInput): CustomProviderRecord {
+  const list = load();
+  const rec = buildRecord(input, new Set(list.map((p) => p.id)));
   list.push(rec);
-  persist();
+  persistAfterWrite(rec, rec.id);
   return rec;
 }
 
-export function updateCustomProvider(id: string, patch: Partial<CustomProviderInput>): CustomProviderRecord | undefined {
+/** Async twin: awaits the store write (throws on failure — routes map it to 500). */
+export async function addCustomProviderAsync(input: CustomProviderInput): Promise<CustomProviderRecord> {
   const list = load();
-  const i = list.findIndex((p) => p.id === id);
-  if (i < 0) return undefined;
-  const cur = list[i]!;
+  const rec = buildRecord(input, new Set(list.map((p) => p.id)));
+  list.push(rec);
+  if (isCustomProviderStore()) await persistRecord(rec, rec.id);
+  else persistFile();
+  return rec;
+}
+
+function applyPatch(cur: CustomProviderRecord, patch: Partial<CustomProviderInput>): CustomProviderRecord {
   const next: CustomProviderRecord = { ...cur };
   if (patch.name?.trim()) next.name = patch.name.trim().slice(0, 60);
   if (patch.baseUrl?.trim()) next.baseUrl = patch.baseUrl.trim().replace(/\/+$/, "");
@@ -147,8 +222,28 @@ export function updateCustomProvider(id: string, patch: Partial<CustomProviderIn
   if (patch.vision !== undefined) next.vision = !!patch.vision;
   if (patch.local !== undefined) { next.local = !!patch.local; next.priority = patch.local ? 0 : 1; }
   if (patch.notes !== undefined) next.notes = patch.notes?.trim().slice(0, 240);
+  return next;
+}
+
+export function updateCustomProvider(id: string, patch: Partial<CustomProviderInput>): CustomProviderRecord | undefined {
+  const list = load();
+  const i = list.findIndex((p) => p.id === id);
+  if (i < 0) return undefined;
+  const next = applyPatch(list[i]!, patch);
   list[i] = next;
-  persist();
+  persistAfterWrite(next, id);
+  return next;
+}
+
+/** Async twin: awaits the store write (throws on failure — routes map it to 500). */
+export async function updateCustomProviderAsync(id: string, patch: Partial<CustomProviderInput>): Promise<CustomProviderRecord | undefined> {
+  const list = load();
+  const i = list.findIndex((p) => p.id === id);
+  if (i < 0) return undefined;
+  const next = applyPatch(list[i]!, patch);
+  list[i] = next;
+  if (isCustomProviderStore()) await persistRecord(next, id);
+  else persistFile();
   return next;
 }
 
@@ -157,11 +252,23 @@ export function removeCustomProvider(id: string): boolean {
   const next = list.filter((p) => p.id !== id);
   if (next.length === list.length) return false;
   cache = next;
-  persist();
+  persistAfterWrite(undefined, id);
+  return true;
+}
+
+/** Async twin: awaits the store write (throws on failure — routes map it to 500). */
+export async function removeCustomProviderAsync(id: string): Promise<boolean> {
+  const list = load();
+  const next = list.filter((p) => p.id !== id);
+  if (next.length === list.length) return false;
+  cache = next;
+  if (isCustomProviderStore()) await persistRecord(undefined, id);
+  else persistFile();
   return true;
 }
 
 /** Tests only. */
 export function resetCustomProviderCacheForTests(): void {
   cache = null;
+  lastHydrate = 0;
 }

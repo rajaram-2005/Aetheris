@@ -5,6 +5,7 @@
  * hybrid queries. Storage lives in fabric-sqlite.ts / fabric-pg.ts.
  */
 import { createHash } from "node:crypto";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { resolvedEnv } from "@/lib/router/runtimeKeys";
 import * as semantic from "./semantic";
 
@@ -72,6 +73,7 @@ let embedMode: "local" | "semantic" | "provider" = "local";
 /** Which embedder served the last call (informational: surfaced in observability detail strings). */
 export const lastEmbedMode = () => embedMode;
 export async function embed(text: string, model?: semantic.SemanticModel): Promise<Float32Array> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   const url = process.env.EMBEDDINGS_URL, key = resolvedEnv("EMBEDDINGS_KEY"), modelName = process.env.EMBEDDINGS_MODEL ?? "text-embedding-3-small";
   if (url && key) {
     try {

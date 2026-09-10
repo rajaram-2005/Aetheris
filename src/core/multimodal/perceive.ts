@@ -23,6 +23,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { hydrateRouterStores } from "@/lib/router/hydrate";
 import { route } from "@/lib/router/router";
 import { extractText } from "@/lib/kb";
 import { allProviders, isConfigured } from "@/lib/router/providers";
@@ -80,6 +81,7 @@ export function analyzeSeries(series: { t: number; v: number }[], z = 3) {
 }
 
 export async function perceive(input: PerceiveInput): Promise<Perception> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   return traced({ type: "tool", capability: `multimodal:${input.modality}` }, async () => {
     const t0 = Date.now(); const done = (p: Omit<Perception, "ms" | "modality">): Perception => ({ ...p, modality: input.modality, ms: Date.now() - t0 });
     try {
@@ -185,6 +187,7 @@ export function coverArtOf(data: Buffer): Buffer | null {
 
 /** OpenAI-compatible speech-to-text. Groq's free tier hosts whisper-large-v3. */
 export async function transcribe(data: Buffer, name: string, mime?: string): Promise<{ ok: true; text: string; language?: string; provider: string; model: string } | { ok: false; reason: string }> {
+  await hydrateRouterStores(); // hosted: refresh runtime keys (TTL-gated; no-op on files)
   const sttKey = resolvedEnv("STT_KEY"); const groq = resolvedEnv("GROQ_API_KEY");
   const custom = process.env.STT_URL && sttKey;
   if (!custom && !groq) return { ok: false, reason: "no speech-to-text provider configured (set GROQ_API_KEY — free — or STT_URL/STT_KEY)" };
