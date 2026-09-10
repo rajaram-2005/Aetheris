@@ -16,18 +16,32 @@
  * └── regression_test
  */
 import type { PhaseId } from "../types";
+import { asEnum, asInteger, asRecord, asString, type FieldError } from "../../security/validate";
 
-export type FailureType =
-  | "hallucination"
-  | "contradiction"
-  | "missing_data"
-  | "tool_failure"
-  | "model_failure"
-  | "memory_failure"
-  | "simulation_disagreement"
-  | "safety_violation"
-  | "adversarial_critique"
-  | "invariant_breach";
+/**
+ * The failure taxonomy, as a runtime vocabulary and a type derived from it.
+ *
+ * One list, two uses: `failureType` is a grouping key in `failureStats()` and a column in the Test Lab
+ * UI, so a value invented by a caller would silently create a tenth category and skew the statistics.
+ * Keeping the literals in an array means the guard and the union can never drift apart.
+ */
+export const FAILURE_TYPES = [
+  "hallucination",
+  "contradiction",
+  "missing_data",
+  "tool_failure",
+  "model_failure",
+  "memory_failure",
+  "simulation_disagreement",
+  "safety_violation",
+  "adversarial_critique",
+  "invariant_breach",
+] as const;
+export type FailureType = (typeof FAILURE_TYPES)[number];
+
+/** Severity vocabulary, same reasoning: it drives the Test Lab's colouring and its counts. */
+export const FAILURE_SEVERITIES = ["critical", "warning", "advisory"] as const;
+export type FailureSeverity = (typeof FAILURE_SEVERITIES)[number];
 
 export interface FailureRecord {
   testId: string;
@@ -38,7 +52,7 @@ export interface FailureRecord {
   actual: string;
   failureType: FailureType;
   rootCause: string;
-  severity: "critical" | "warning" | "advisory";
+  severity: FailureSeverity;
   fix: string;
   regressionTest: string;
   createdAt: number;
@@ -107,6 +121,79 @@ export function recordFailure(data: Omit<FailureRecord, "createdAt" | "resolved"
   };
   FAILURE_DB.set(record.testId, record);
   return record;
+}
+
+/** A new failure the way `recordFailure` wants it: everything except the server-owned fields. */
+export type FailureInput = Omit<FailureRecord, "createdAt" | "resolved">;
+
+/**
+ * Validate an untrusted failure payload before it enters the failure database.
+ *
+ * `POST /api/test-lab` used to spread whatever the client sent straight into a `FailureRecord` and key
+ * the store by `record.testId`. A payload with no id collided every record into one Map slot under
+ * `undefined`; a payload with an invented `failureType` or `severity` reached the Test Lab statistics
+ * and its UI as if it were canonical. Required fields are required here — a partial failure report is a
+ * 422, not a half-stored row.
+ */
+export function sanitizeFailureInput(raw: unknown): { ok: true; value: FailureInput } | { ok: false; errors: FieldError[] } {
+  const body = asRecord(raw);
+  if (!body) return { ok: false, errors: [{ field: "failure", message: "must be a JSON object" }] };
+
+  const errors: FieldError[] = [];
+  const text = (field: keyof FailureInput, max: number) => {
+    const v = body[field];
+    if (v === undefined || v === null) {
+      errors.push({ field: String(field), message: "required" });
+      return undefined;
+    }
+    const s = asString(v, max);
+    if (s === null) {
+      errors.push({ field: String(field), message: `must be a non-empty string of at most ${max} characters` });
+      return undefined;
+    }
+    return s;
+  };
+
+  const testId = text("testId", 128);
+  const core = text("core", 64);
+  const expected = text("expected", 2_000);
+  const actual = text("actual", 2_000);
+  const rootCause = text("rootCause", 2_000);
+  const fix = text("fix", 2_000);
+  const regressionTest = text("regressionTest", 2_000);
+
+  const phase = body.phase === undefined || body.phase === null ? undefined : asInteger(body.phase, { min: 0, max: 12 });
+  if (phase === undefined) errors.push({ field: "phase", message: "required, an integer phase id 0-12" });
+  else if (phase === null) errors.push({ field: "phase", message: "must be an integer phase id 0-12" });
+
+  const failureType = body.failureType === undefined || body.failureType === null ? undefined : asEnum(body.failureType, FAILURE_TYPES);
+  if (failureType === undefined) errors.push({ field: "failureType", message: "required" });
+  else if (failureType === null) errors.push({ field: "failureType", message: `must be one of ${FAILURE_TYPES.join(", ")}` });
+
+  const severity = body.severity === undefined || body.severity === null ? undefined : asEnum(body.severity, FAILURE_SEVERITIES);
+  if (severity === undefined) errors.push({ field: "severity", message: "required" });
+  else if (severity === null) errors.push({ field: "severity", message: `must be one of ${FAILURE_SEVERITIES.join(", ")}` });
+
+  // `input` is free-form by design (it is the evidence for the regression), but it has to be an object
+  // and it is capped so one call cannot park an arbitrarily large blob in the store.
+  let input: Record<string, unknown> = {};
+  if (body.input !== undefined && body.input !== null) {
+    const rec = asRecord(body.input);
+    if (!rec) errors.push({ field: "input", message: "must be a JSON object" });
+    else if (JSON.stringify(rec).length > 16_000) errors.push({ field: "input", message: "must serialize to at most 16000 characters" });
+    else input = rec;
+  }
+
+  if (errors.length) return { ok: false, errors };
+  if (!testId || !core || !expected || !actual || !rootCause || !fix || !regressionTest || phase === undefined || phase === null || !failureType || !severity) {
+    // Unreachable while `errors` is empty; kept so the return type stays honest.
+    return { ok: false, errors: [{ field: "failure", message: "incomplete failure record" }] };
+  }
+
+  return {
+    ok: true,
+    value: { testId, phase: phase as PhaseId, core, input, expected, actual, failureType, rootCause, severity, fix, regressionTest },
+  };
 }
 
 export function listFailures(filter?: { severity?: string; failureType?: string }): FailureRecord[] {

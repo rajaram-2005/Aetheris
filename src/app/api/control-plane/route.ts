@@ -1,15 +1,17 @@
 /**
  * API Route: /api/control-plane
  *
- * GET: List all tasks or retrieve task by ?id=...
+ * GET: List the caller's tasks, or retrieve one by ?id=...
  * POST: Execute a new task through the 12-Phase Gated Intelligence Pipeline
+ *
+ * The POST body is validated by `parseControlPlaneRequest` in `@/core/controlplane/request`. It lives
+ * there rather than here because a Next.js route module may only export HTTP methods and route config.
  */
 import { NextResponse } from "next/server";
 import { getUserId, uidCookie } from "@/lib/user";
 import { ControlPlaneSupervisor } from "@/core/controlplane/supervisor";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { parseControlPlaneRequest } from "@/core/controlplane/request";
+import { validationError } from "@/core/security/validate";
 
 export async function GET(req: Request) {
   const { uid, isNew } = await getUserId();
@@ -17,7 +19,9 @@ export async function GET(req: Request) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const task = ControlPlaneSupervisor.getTask(id);
+    // Ownership is derived from the authenticated identity, never from the query string: a task that
+    // belongs to another uid is reported as not found rather than forbidden.
+    const task = ControlPlaneSupervisor.getTask(id, uid);
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
@@ -26,7 +30,7 @@ export async function GET(req: Request) {
     return res;
   }
 
-  const tasks = ControlPlaneSupervisor.listTasks();
+  const tasks = ControlPlaneSupervisor.listTasks(uid);
   const res = NextResponse.json({ tasks });
   if (isNew) res.cookies.set(uidCookie(uid));
   return res;
@@ -34,17 +38,19 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const { uid, isNew } = await getUserId();
-  const body = (await req.json().catch(() => ({}))) as {
-    request?: string;
-    maxLoopbacks?: number;
-    injectedFailure?: "missing_evidence" | "contradiction" | "safety_block" | "none";
-  };
+  const raw = await req.json().catch(() => ({}));
+  const parsed = parseControlPlaneRequest(raw);
 
-  const rawRequest = body.request || "Analyze WTG-04 gearbox bearing vibration telemetry";
-  const task = await ControlPlaneSupervisor.executeTask(rawRequest, {
+  if (!parsed.ok) {
+    const res = NextResponse.json(validationError(parsed.errors), { status: parsed.status });
+    if (isNew) res.cookies.set(uidCookie(uid));
+    return res;
+  }
+
+  const task = await ControlPlaneSupervisor.executeTask(parsed.value.request, {
     uid,
-    maxLoopbacks: body.maxLoopbacks ?? 3,
-    injectedFailure: body.injectedFailure ?? "none",
+    maxLoopbacks: parsed.value.maxLoopbacks,
+    injectedFailure: parsed.value.injectedFailure,
   });
 
   const res = NextResponse.json({ task }, { status: 200 });
