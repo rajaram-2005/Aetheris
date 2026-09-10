@@ -34,8 +34,26 @@ so can you (`npm run desktop:typecheck` from the root).
   `# tests/pass/fail/skipped` summary and each `not ok` line as an `::error::` annotation. Run logs
   are not always retrievable; annotations are, so a failing test is named on the job page instead of
   being inferred.
+* **The runner has internet; a laptop with restricted egress does not.** The suite must therefore be
+  hermetic, and it now is — enforced, not assumed. `tests/hermetic.mjs` blocks outbound `fetch` in
+  every test process (the `test` script passes it with `--import`, which `node --test` forwards to
+  each file it runs). Before that existed, nine test files called real keyless LLM providers and
+  `tests/warroom.test.ts` alone made 286 outbound calls: with no API keys set the router still
+  reaches for community providers, and each attempt may burn the whole `AETHERIS_PROVIDER_TIMEOUT_MS`
+  (**45 s** by default). Where egress is restricted every attempt fails in milliseconds and the file
+  finishes in under a second; on a runner with real internet the same file blew past
+  `--test-timeout=120000` and failed as `testTimeoutFailure`. `tests/hermetic.test.ts` fails if the
+  guard is ever dropped. Loopback is still allowed — several suites talk to a real local server.
 * **`--test-timeout=120000` bounds any hang to two minutes**, named, instead of a runner burning an
   hour.
+
+## One follow-up this work surfaced but did not change
+
+A War Room debate is up to nine model calls, and each one may retry several providers at up to 45 s
+apiece, so a single debate can keep an HTTP request open for minutes on a machine that can reach the
+internet but cannot get an answer. Bounding that is a product decision (a per-debate deadline
+threaded through `runDebate`'s existing `signal`), not a CI fix, so it is left alone here — but the
+45 s default is worth a look on its own.
 
 ## The one known CI limit, stated plainly
 

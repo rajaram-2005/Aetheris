@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test --test-timeout=120000 tests/*.test.ts",
+    "test": "tsx --test --test-timeout=120000 --import ./tests/hermetic.mjs tests/*.test.ts",
     "eval": "tsx evals/run.ts",
     "verify:connectors": "tsx scripts/verify-connectors.ts",
     "desktop:dev": "node desktop/scripts/dev.mjs",

@@ -13,6 +13,15 @@ for macOS, Linux and Windows — see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Unreleased
 
+- CI, `npm test` is hermetic. The suite was calling the internet: with no API keys set the router
+  still reaches for **keyless** community providers, and nine test files did — `tests/warroom.test.ts`
+  alone made 286 outbound calls, because one debate is up to nine turns. Each attempt may burn the
+  full `AETHERIS_PROVIDER_TIMEOUT_MS` (45 s by default), so on a GitHub runner the file blew past
+  `--test-timeout=120000` and failed as `testTimeoutFailure`, while on a machine with restricted
+  egress every attempt failed in milliseconds and the same file finished in under a second.
+  `tests/hermetic.mjs` now blocks outbound `fetch` in every test process (loopback still allowed), so
+  "no provider is reachable" — the exact condition the War Room's synthetic-fallback tests assert —
+  is true by construction. `tests/hermetic.test.ts` fails if the guard is dropped.
 - CI, `npm test` no longer fails on GitHub runners while passing locally. The cause was shared state,
   not a slow test. `node --test` runs test files **in parallel** on a 4-core runner (concurrency
   follows the CPU count) and serially on a 2-core machine, and `src/core/observability/events.ts` and
